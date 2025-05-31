@@ -1,1 +1,216 @@
-<p>landing works!</p>
+    <header class="header">
+      <div class="container">
+        <div class="nav-wrapper">
+          <div class="logo">
+            <i class="fas fa-leaf"></i>
+            <span>RuralConnect</span>
+          </div>
+          <nav class="nav">
+            <a href="#about">About</a>
+            <a href="#resources">Resources</a>
+            <a href="#contact">Contact</a>
+            <button class="btn-login">Login</button>
+            <button class="btn-signup">Sign Up</button>
+          </nav>
+        </div>
+      </div>
+    </header>
+
+    <section class="jobs-hero">
+      <div class="jobs-overlay">
+        <div class="container">
+          <div class="jobs-content">
+            <h2>We Offer <span class="green-highlight">25K+</span><br>Job Vacancies Right Now</h2>
+            <p class="jobs-subtitle">Find Jobs, Employment & Career Opportunities</p>
+            <p class="jobs-desc">There are many variations of passages of opportunities available by connecting talent with verified employers across various industries...</p>
+            <button class="btn-primary">Get Started <i class="fas fa-arrow-right"></i></button>
+          </div>
+        </div>
+        <div class="jobs-tabs">
+          <button class="tab-btn active">BROWSE JOBS</button>
+          <button class="tab-btn">FIND CANDIDATES</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="hero">
+      <div class="container">
+        <div class="hero-content">
+          <div class="hero-text">
+            <h1>Empowering Rural Talent with <span class="highlight">AI</span> & Remote Work</h1>
+            <p>Connect to verified job opportunities, upskill your skills, and receive secure payments—all from your village. Smart AI recommendations guide you every step of the way.</p>
+            <div class="hero-buttons">
+              <button class="btn-primary">Get Started</button>
+              <button class="btn-secondary">Join as Employer</button>
+            </div>
+          </div>
+          <div class="hero-image">
+            <div class="hero-card">
+              <div class="card-content">
+                <i class="fas fa-users"></i>
+                <h3>Connect & Collaborate</h3>
+                <p>Join thousands of rural professionals</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="features">
+      <div class="container">
+        <div class="section-header">
+          <h2>Unlock New Opportunities</h2>
+          <p>Everything you need for remote success—powered by AI, tailored for rural communities.</p>
+        </div>
+        <div class="features-grid">
+          <div class="feature-card">
+            <div class="feature-icon">
+              <i class="fas fa-robot"></i>
+            </div>
+            <h3>AI-Driven Job Matching</h3>
+            <p>Get personalized job opportunities that match your skills, experience, and interests.</p>
+            <span class="feature-badge">AI Recommended</span>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon">
+              <i class="fas fa-graduation-cap"></i>
+            </div>
+            <h3>Online Training Access</h3>
+            <p>Learn new skills with AI-curated, certified, easy-to-follow online courses in your local language.</p>
+            <span class="feature-badge">AI Guided learning</span>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon">
+              <i class="fas fa-shield-alt"></i>
+            </div>
+            <h3>Secure Digital Payments</h3>
+            <p>Receive payments instantly and safely with verified digital wallets and local bank transfers.</p>
+            <span class="feature-badge">Trusted by Employers</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="how-it-works">
+      <div class="container">
+        <h2>How Does It Work?</h2>
+        <div class="steps">
+          <div class="step">
+            <div class="step-number">1</div>
+            <h3>Create Your Profile</h3>
+          </div>
+          <div class="step">
+            <div class="step-number">2</div>
+            <h3>Get AI-Powered Job & Training Suggestions</h3>
+          </div>
+          <div class="step">
+            <div class="step-number">3</div>
+            <h3>Apply, Learn, and Start Earning</h3>
+          </div>
+          <div class="step">
+            <div class="step-number">4</div>
+            <h3>Receive Secure Payments</h3>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="candidates">
+      <div class="container">
+        <div class="section-header">
+          <h2>Expert Candidates</h2>
+          <p>Mauris ut cursus nunc. Morbi eleifend, ligula at consectetur vehicula</p>
+        </div>
+        <div class="candidates-grid">
+          <div class="candidate-card" *ngFor="let candidate of candidates">
+            <div class="candidate-share">
+              <i class="fas fa-share-alt"></i>
+            </div>
+            <div class="candidate-image">
+              <img [src]="candidate.image" [alt]="candidate.name">
+            </div>
+            <div class="candidate-info">
+              <h3>{{candidate.name}}</h3>
+              <p class="candidate-role">{{candidate.role}}</p>
+              <p class="candidate-experience">Work Exp: {{candidate.experience}}</p>
+              <p class="candidate-location" *ngIf="candidate.location">Loc: {{candidate.location}}</p>
+              <button class="btn-resume">View Resume <i class="fas fa-arrow-right"></i></button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="success-stories">
+      <div class="container">
+        <div class="section-header">
+          <h2>Stories of Success</h2>
+          <p>Hear from our community—real stories, real impact.</p>
+        </div>
+        <div class="stories-grid">
+          <div class="story-card" *ngFor="let story of stories">
+            <div class="story-content">
+              <p>"{{story.content}}"</p>
+              <div class="story-author">
+                <img [src]="story.avatar" [alt]="story.name">
+                <div>
+                  <h4>{{story.name}}</h4>
+                  <span>{{story.role}}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="cta">
+      <div class="container">
+        <h2>Ready to Unlock Your Potential?</h2>
+        <p>Join thousands already earning, learning, and growing with RuralConnect.</p>
+        <div class="cta-buttons">
+          <button class="btn-primary">Sign Up as Job Seeker</button>
+          <button class="btn-secondary">Sign Up as Employer</button>
+        </div>
+      </div>
+    </section>
+
+    <footer class="footer">
+      <div class="container">
+        <div class="footer-content">
+          <div class="footer-brand">
+            <div class="logo">
+              <i class="fas fa-leaf"></i>
+              <span>RuralConnect</span>
+            </div>
+            <p>Connecting rural talent with the world—through jobs, skills & secure payments.</p>
+            <div class="social-links">
+              <a href="#"><i class="fab fa-facebook"></i></a>
+              <a href="#"><i class="fab fa-twitter"></i></a>
+              <a href="#"><i class="fab fa-linkedin"></i></a>
+            </div>
+          </div>
+          <div class="footer-links">
+            <div class="footer-column">
+              <h4>Quick Links</h4>
+              <a href="#">About</a>
+              <a href="#">Resources</a>
+              <a href="#">Contact</a>
+              <a href="#">FAQ</a>
+            </div>
+            <div class="footer-column">
+              <h4>Get Started</h4>
+              <a href="#">Login</a>
+              <a href="#">Sign Up</a>
+              <a href="#">Join as Employer</a>
+              <a href="#">Join as Job Seeker</a>
+            </div>
+          </div>
+        </div>
+        <div class="footer-bottom">
+          <p>© 2024 RuralConnect. All rights reserved.</p>
+          <p>Made for rural empowerment.</p>
+        </div>
+      </div>
+    </footer>
