@@ -63,7 +63,7 @@ export class LandingComponent implements OnInit {
       experience: '3 Years',
       location: 'Rajasthan, India',
       skills: ['Python', 'Excel', 'SQL'],
-      image: 'https://images.unsplash.com/photo-1494790108755-2616b332c7ff?w=150&h=150&fit=crop&crop=face',
+      image: 'https://live-production.wcms.abc-cdn.net.au/d4f3618bcdb80ac73fd219fced7809f3?impolicy=wcms_crop_resize&cropH=2813&cropW=5000&xPos=0&yPos=210&width=862&height=485',
       matchScore: 95
     },
     {
@@ -195,7 +195,6 @@ export class LandingComponent implements OnInit {
   ];
 
   ngOnInit(): void {
-    // Auto-rotate testimonials every 5 seconds
     setInterval(() => {
       this.currentTestimonial = (this.currentTestimonial + 1) % this.stories.length;
     }, 5000);
@@ -227,28 +226,23 @@ export class LandingComponent implements OnInit {
 
   bookmarkOpportunity(event: Event, id: number): void {
     event.stopPropagation();
-    // Add bookmark logic here
     console.log('Bookmarked opportunity:', id);
   }
 
   shareCandidate(event: Event, candidate: Candidate): void {
     event.stopPropagation();
-    // Add share logic here
     console.log('Shared candidate:', candidate.name);
   }
 
   viewCandidateResume(candidate: Candidate): void {
-    // Add view resume logic here
     console.log('Viewing resume for:', candidate.name);
   }
 
   applyForJob(job: JobOpportunity): void {
-    // Add apply logic here
     console.log('Applying for job:', job.title);
   }
 
   enrollInTraining(training: TrainingProgram): void {
-    // Add enrollment logic here
     console.log('Enrolling in training:', training.title);
   }
 }

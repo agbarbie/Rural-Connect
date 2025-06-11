@@ -1,4 +1,3 @@
-<!-- Header -->
 <header class="header">
   <div class="container">
     <div class="nav-wrapper">
@@ -7,27 +6,24 @@
         <span>RuralConnect</span>
       </div>
       
-      <!-- Desktop Navigation -->
       <nav class="nav desktop-nav">
-        <a (click)="scrollToSection('about')" class="nav-link">About</a>
-        <a (click)="scrollToSection('features')" class="nav-link">Features</a>
+        <a (click)="scrollToSection('opportunities')" class="nav-link">Discover Opportunities</a>
         <a (click)="scrollToSection('how-it-works')" class="nav-link">How It Works</a>
+        <a (click)="scrollToSection('testimonials')" class="nav-link">Success Stories</a>
         <a (click)="scrollToSection('contact')" class="nav-link">Contact</a>
         <button class="btn-login">Login</button>
         <button class="btn-signup">Sign Up</button>
       </nav>
 
-      <!-- Mobile Menu Button -->
       <button class="mobile-menu-btn" (click)="toggleMenu()">
         <i class="fas" [ngClass]="isMenuOpen ? 'fa-times' : 'fa-bars'"></i>
       </button>
     </div>
 
-    <!-- Mobile Navigation -->
     <nav class="mobile-nav" [class.active]="isMenuOpen">
-      <a (click)="scrollToSection('about')" class="nav-link">About</a>
-      <a (click)="scrollToSection('features')" class="nav-link">Features</a>
-      <a (click)="scrollToSection('how-it-works')" class="nav-link">How It Works</a>
+      <a (click)="scrollToSection('opportunities')" class="nav-link">Discover Opportunities</a>
+      <a (click)="scrollToSection('how-it-works')" class="nav-link">How it Works</a>
+      <a (click)="scrollToSection('testimonials')" class="nav-link">Success Stories</a>
       <a (click)="scrollToSection('contact')" class="nav-link">Contact</a>
       <div class="mobile-auth-buttons">
         <button class="btn-login">Login</button>
@@ -37,12 +33,12 @@
   </div>
 </header>
 
-<!-- New Job Vacancies Section -->
 <section class="job-vacancies">
   <div class="container">
     <div class="vacancies-content">
       <h1>We Offer <span class="highlight">25K+</span> Job Vacancies Right Now</h1>
-      <p>Find Jobs, Employment & Career Opportunities. There are many variations of passages of Lorem Ipsum Facts by injected humour, or randomised words which...</p>
+      <p>Find Jobs, Training & Career Opportunities
+Browse real job openings and training programs that match your skills. No random posts just helpful, well-picked options to help you grow and succeed.</p>
       <button class="btn-primary">Get Started <i class="fas fa-arrow-right"></i></button>
       <div class="vacancies-links">
         <a href="#" class="btn-link">Find Opportunities</a>
@@ -52,7 +48,6 @@
   </div>
 </section>
 
-<!-- Hero Section -->
 <section class="hero">
   <div class="hero-background"></div>
   <div class="container">
@@ -105,7 +100,47 @@
   </div>
 </section>
 
-<!-- Featured Opportunities Section -->
+<section class="powerful-features">
+  <div class="container">
+    <h2>Powerful Features</h2>
+    <p>Discover why RuralConnect is revolutionalizing the hiring process</p>
+    <div class="features-grid">
+      <div class="feature-card">
+        <h3>AI-Powered Matching</h3>
+        <p>Our advanced algorithms understand your true potential beyond just keywords, matching you with opportunities that align with your abilities.</p>
+        <div class="progress-bar">
+          <span>Matching</span>
+          <div class="progress" style="width: 95%;"></div>
+        </div>
+      </div>
+      <div class="feature-card">
+        <h3>Skill Analysis</h3>
+        <p>Detailed assessment of your skills and capabilities helps identify your strengths and areas for growth.</p>
+        <div class="progress-bar">
+          <span>Skill identified</span>
+          <div class="progress" style="width: 150px;"></div>
+        </div>
+      </div>
+      <div class="feature-card">
+        <h3>Training Recommendation</h3>
+        <p>Personalized courses and resources to help you bridge skill gaps and advance your career.</p>
+        <div class="progress-bar">
+          <span>Training Resources</span>
+          <div class="progress" style="width: 20%;"></div>
+        </div>
+      </div>
+      <div class="feature-card">
+        <h3>Career Path</h3>
+        <p>Discover personalized career paths and growth opportunities that align with your skills and aspirations.</p>
+        <div class="progress-bar">
+          <span>Career options</span>
+          <div class="progress" style="width: 6%;"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
 <section class="featured-opportunities" id="opportunities">
   <div class="container">
     <div class="section-header">
@@ -113,7 +148,6 @@
       <p>AI-curated jobs and training programs tailored for rural talent</p>
     </div>
 
-    <!-- Opportunity Tabs -->
     <div class="opportunity-tabs">
       <button 
         class="opportunity-tab" 
@@ -131,9 +165,8 @@
       </button>
     </div>
 
-    <!-- Opportunities Grid -->
     <div class="opportunity-grid">
-      <!-- Job Opportunities -->
+    
       <div *ngIf="activeTab === 'jobs'" class="opportunities-container">
         <div *ngFor="let job of jobOpportunities" class="opportunity-card job-card">
           <div class="posted-time">{{ job.posted }}</div>
@@ -146,7 +179,6 @@
               </div>
             </div>
             <button class="bookmark-btn" (click)="bookmarkOpportunity($event, job.id)">
-              <i class="far fa-bookmark"></i>
             </button>
           </div>
 
@@ -173,7 +205,6 @@
         </div>
       </div>
 
-      <!-- Training Programs -->
       <div *ngIf="activeTab === 'training'" class="opportunities-container">
         <div *ngFor="let training of trainingPrograms" class="opportunity-card training-card">
           <div class="posted-time">{{ training.category }}</div>
@@ -186,7 +217,6 @@
               </div>
             </div>
             <button class="bookmark-btn" (click)="bookmarkOpportunity($event, training.id)">
-              <i class="far fa-bookmark"></i>
             </button>
           </div>
 
@@ -212,14 +242,9 @@
         </div>
       </div>
     </div>
-
-    <div class="view-all-btn">
-      <button class="btn-outline">View All Opportunities</button>
-    </div>
   </div>
 </section>
 
-<!-- Featured Candidates Section -->
 <section class="candidates" id="candidates">
   <div class="container">
     <div class="section-header">
@@ -263,7 +288,6 @@
   </div>
 </section>
 
-<!-- How It Works Section -->
 <section class="how-it-works" id="how-it-works">
   <div class="container">
     <div class="section-header">
@@ -373,7 +397,6 @@
   </div>
 </section>
 
-<!-- Success Stories Section -->
 <section class="success-stories" id="testimonials">
   <div class="container">
     <div class="section-header">
@@ -415,7 +438,7 @@
   </div>
 </section>
 
-<!-- CTA Section -->
+
 <section class="cta">
   <div class="container">
     <div class="cta-content">
@@ -439,7 +462,6 @@
   </div>
 </section>
 
-<!-- Footer -->
 <footer class="footer" id="contact">
   <div class="container">
     <div class="footer-content">
