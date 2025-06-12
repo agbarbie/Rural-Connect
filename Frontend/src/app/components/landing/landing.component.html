@@ -39,10 +39,10 @@
       <h1>We Offer <span class="highlight">25K+</span> Job Vacancies Right Now</h1>
       <p>Find Jobs, Training & Career Opportunities
 Browse real job openings and training programs that match your skills. No random posts just helpful, well-picked options to help you grow and succeed.</p>
-      <button class="btn-primary">Get Started <i class="fas fa-arrow-right"></i></button>
+      <button class="btn-primary"(click)="navigateToLogin()">Get Started <i class="fas fa-arrow-right"></i></button>
       <div class="vacancies-links">
-        <a href="#" class="btn-link">Find Opportunities</a>
-        <a href="#" class="btn-link">Find Candidates</a>
+        <a href="#" class="btn-link" (click)="navigateToLogin()">Find Opportunities</a>
+        <a href="#" class="btn-link" (click)="navigateToLogin()">Find Candidates</a>
       </div>
     </div>
   </div>
@@ -74,10 +74,8 @@ Browse real job openings and training programs that match your skills. No random
           </div>
         </div>
         <div class="hero-buttons">
-          <button class="btn-primary">
-            Get Started <i class="fas fa-arrow-right"></i>
-          </button>
-          <button class="btn-secondary">Join as Employer</button>
+          <button class="btn-primary" (click)="navigateToLogin()">Get Started <i class="fas fa-arrow-right"></i></button>
+          <button class="btn-secondary"(click)="navigateToLogin()">Join as Employer</button>
         </div>
       </div>
       <div class="hero-image">
@@ -455,8 +453,8 @@ Browse real job openings and training programs that match your skills. No random
         </div>
       </div>
       <div class="cta-buttons">
-        <button class="btn-primary">Sign Up as Job Seeker</button>
-        <button class="btn-secondary">Sign Up as Employer</button>
+        <button class="btn-primary"(click)="navigateToSignup()">Sign Up as Job Seeker</button>
+        <button class="btn-secondary"(click)="navigateToSignup()">Sign Up as Employer</button>
       </div>
     </div>
   </div>
