@@ -199,7 +199,12 @@ export class LandingComponent implements OnInit {
       this.currentTestimonial = (this.currentTestimonial + 1) % this.stories.length;
     }, 5000);
   }
-
+ navigateToLogin(): void {
+    window.location.href = '../auth?mode=login';
+  }
+  navigateToSignup(): void {
+    window.location.href = '../auth?mode=signup';
+  }
   setActiveTab(tab: string): void {
     this.activeTab = tab;
   }

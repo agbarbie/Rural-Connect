@@ -11,8 +11,8 @@
         <a (click)="scrollToSection('how-it-works')" class="nav-link">How It Works</a>
         <a (click)="scrollToSection('testimonials')" class="nav-link">Success Stories</a>
         <a (click)="scrollToSection('contact')" class="nav-link">Contact</a>
-        <button class="btn-login">Login</button>
-        <button class="btn-signup">Sign Up</button>
+        <button class="btn-login"(click)="navigateToLogin()">Login</button>
+        <button class="btn-signup"(click)="navigateToSignup()">Sign Up</button>
       </nav>
 
       <button class="mobile-menu-btn" (click)="toggleMenu()">
@@ -26,8 +26,8 @@
       <a (click)="scrollToSection('testimonials')" class="nav-link">Success Stories</a>
       <a (click)="scrollToSection('contact')" class="nav-link">Contact</a>
       <div class="mobile-auth-buttons">
-        <button class="btn-login">Login</button>
-        <button class="btn-signup">Sign Up</button>
+        <button class="btn-login"(click)="navigateToLogin()">Login</button>
+        <button class="btn-signup"(click)="navigateToSignup()">Sign Up</button>
       </div>
     </nav>
   </div>
