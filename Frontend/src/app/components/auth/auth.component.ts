@@ -1,78 +1,97 @@
-import { Component, OnInit } from '@angular/core';
+import { Component } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { RouterModule } from '@angular/router';
 
 @Component({
   selector: 'app-auth',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule,RouterModule],
   templateUrl: './auth.component.html',
   styleUrls: ['./auth.component.css']
 })
-export class AuthComponent implements OnInit {
-  // Shared form fields
-  email: string = '';
-  password: string = '';
+export class AuthComponent {
+  activeUserType: 'jobseeker' | 'employer' | 'admin' = 'jobseeker';
+  activeForm: 'login' | 'signup' = 'login';
+  loginEmail: string = '';
+  loginPassword: string = '';
   rememberMe: boolean = false;
-  showPassword: boolean = false;
+  showLoginPassword: boolean = false;
+  signupName: string = '';
+  signupEmail: string = '';
+  signupPassword: string = '';
+  showSignupPassword: boolean = false;
 
-  // Additional fields
-  name: string = '';
   companyName: string = '';
   companyPassword: string = '';
   contactNumber: string = '';
+  showCompanyPassword: boolean = false;
 
-  // Mode and user type
-  activeUserType: 'jobseeker' | 'employer' | 'admin' = 'jobseeker';
-  isLoginMode: boolean = true;
-  isSignupMode: boolean = false;
+  roleContent = {
+    jobseeker: {
+      heading: "Discover Your Potential",
+      subheading: "Uncover new possibilities with AI"
+    },
+    employer: {
+      heading: "Find the Right Talent",
+      subheading: "Connect with skilled professionals in rural areas"
+    },
+    admin: {
+      heading: "Manage & Oversee",
+      subheading: "Control and monitor platform operations"
+    }
+  };
 
-  get isSignUpVisible() {
-    return this.isSignupMode;
+  getRoleContent() {
+    return this.roleContent[this.activeUserType];
   }
 
-  ngOnInit() {
-    const urlParams = new URLSearchParams(window.location.search);
-    const mode = urlParams.get('mode');
-    this.isLoginMode = mode === 'login';
-    this.isSignupMode = mode === 'signup';
+  setActiveUserType(type: 'jobseeker' | 'employer' | 'admin'): void {
+    this.activeUserType = type;
   }
 
-  togglePasswordVisibility() {
-    this.showPassword = !this.showPassword;
+  setActiveForm(form: 'login' | 'signup'): void {
+    this.activeForm = form;
   }
 
-  setActiveUserType(userType: 'jobseeker' | 'employer' | 'admin') {
-    this.activeUserType = userType;
+  toggleLoginPassword(): void {
+    this.showLoginPassword = !this.showLoginPassword;
   }
 
-  onLogin() {
-    console.log('Login attempt:', {
-      email: this.email,
-      password: this.password,
+  toggleSignupPassword(): void {
+    this.showSignupPassword = !this.showSignupPassword;
+  }
+
+  toggleCompanyPassword(): void {
+    this.showCompanyPassword = !this.showCompanyPassword;
+  }
+
+  onLogin(): void {
+    const loginData = {
+      email: this.loginEmail,
+      password: this.loginPassword,
       rememberMe: this.rememberMe,
       userType: this.activeUserType
-    });
-  }
-
-  onForgotPassword() {
-    console.log('Forgot password clicked');
-  }
-
-  onSignUp() {
-    const signupData: any = {
-      userType: this.activeUserType,
-      name: this.name,
-      email: this.email,
-      password: this.password
     };
+    console.log('Login attempt:', loginData);
+  }
 
-    if (this.activeUserType === 'employer') {
-      signupData.companyName = this.companyName;
-      signupData.companyPassword = this.companyPassword;
-      signupData.contactNumber = this.contactNumber;
-    }
+  onSignUp(): void {
+    const signupData = {
+      name: this.signupName,
+      email: this.signupEmail,
+      password: this.signupPassword,
+      userType: this.activeUserType,
+      ...(this.activeUserType === 'employer' && {
+        companyName: this.companyName,
+        companyPassword: this.companyPassword,
+        contactNumber: this.contactNumber
+      })
+    };
+    console.log('Signup attempt:', signupData);
+  }
 
-    console.log('Sign up attempt:', signupData);
+  onForgotPassword(): void {
+    console.log('Forgot password clicked');
   }
 }
