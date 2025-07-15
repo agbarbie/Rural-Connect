@@ -7,4 +7,5 @@ interface JobOpportunity {
   timeCommitment: string;
   compensation: string | number;
   isFree?: boolean;
+  rating: number;  
 }

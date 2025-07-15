@@ -141,7 +141,7 @@ body {
   padding: 1rem;
 }
 .job-vacancies {
-  background: url('https://www.afd.fr/sites/afd/files/styles/visuel_principal/public/2023-06-02-35-09/Libraries%20without%20Borders%20in%20Burundi.jpg?itok=NkIpO6fZ') no-repeat center center/cover;
+  background: url('https://media.licdn.com/dms/image/v2/D4E12AQFwjnlaeVS3YQ/article-cover_image-shrink_600_2000/article-cover_image-shrink_600_2000/0/1721310704848?e=2147483647&v=beta&t=b-qw8eTvMKKnG2X5PQJPDrGNjLCKT9nEeVVsRF1S018') no-repeat center center/cover;
   padding: 120px 0;
   position: relative;
   color: #fff;
@@ -520,6 +520,16 @@ body {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
   gap: 1.5rem;
+}
+.job-rating {
+  margin: 6px 0 8px;
+  color: #fbc02d; 
+  font-size: 15px;
+}
+
+.job-rating .fa-star,
+.job-rating .fa-star-half-alt {
+  margin-right: 4px;
 }
 
 .opportunity-card {
@@ -1086,6 +1096,8 @@ body {
 
 .cta-stat .stat-label {
   font-size: 0.9rem;
+  color:white;
+  padding-left: 15px;
 }
 
 .cta-buttons {

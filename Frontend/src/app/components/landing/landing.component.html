@@ -3,7 +3,7 @@
     <div class="nav-wrapper">
       <div class="logo">
         <i class="fas fa-leaf"></i>
-        <span>RuralConnect</span>
+        <span>Digital Skilling App</span>
       </div>
       
       <nav class="nav desktop-nav">
@@ -179,6 +179,13 @@ Browse real job openings and training programs that match your skills. No random
             <button class="bookmark-btn" (click)="bookmarkOpportunity($event, job.id)">
             </button>
           </div>
+          <div class="job-rating">
+  <i 
+    *ngFor="let star of [1,2,3,4,5]" 
+    class="fas" 
+    [ngClass]="star <= (job.rating ?? 0) ? 'fa-star' : 'fa-star-half-alt'">
+  </i>
+</div>
 
           <div class="job-meta">
             <span class="job-type">{{ job.type }}</span>
@@ -289,7 +296,7 @@ Browse real job openings and training programs that match your skills. No random
 <section class="how-it-works" id="how-it-works">
   <div class="container">
     <div class="section-header">
-      <h2>How RuralConnect Works</h2>
+      <h2>How Digital Skilling App Works</h2>
       <p>Simple steps to connect rural talent with global opportunities</p>
     </div>
 
@@ -466,7 +473,7 @@ Browse real job openings and training programs that match your skills. No random
       <div class="footer-brand">
         <div class="logo">
           <i class="fas fa-leaf"></i>
-          <span>RuralConnect</span>
+          <span>Digital Skilling App</span>
         </div>
         <p>Connecting rural talent with global opportunities through jobs, skills development, and secure payments.</p>
         <div class="social-links">
@@ -503,8 +510,8 @@ Browse real job openings and training programs that match your skills. No random
     </div>
     
     <div class="footer-bottom">
-      <p>© 2024 RuralConnect. All rights reserved.</p>
-      <p>Empowering rural India, one opportunity at a time.</p>
+      <p>© 2025 Digital Skilling App. All rights reserved.</p>
+      <p>Empowering rural areas, one opportunity at a time.</p>
     </div>
   </div>
 </footer>

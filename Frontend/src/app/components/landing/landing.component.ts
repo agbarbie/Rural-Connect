@@ -30,6 +30,7 @@ interface JobOpportunity {
   matchScore: number;
   posted: string;
   logo: string;
+  rating?: number; 
 }
 
 interface TrainingProgram {
@@ -130,7 +131,8 @@ export class LandingComponent implements OnInit {
       skills: ['Excel', 'Data Entry', 'Attention to Detail'],
       matchScore: 94,
       posted: '2 days ago',
-      logo: 'DC'
+      logo: 'DC',
+      rating: 4
     },
     {
       id: 2,
@@ -142,7 +144,8 @@ export class LandingComponent implements OnInit {
       skills: ['Social Media', 'Content Creation', 'Analytics'],
       matchScore: 89,
       posted: '1 week ago',
-      logo: 'GH'
+      logo: 'GH',
+      rating: 4.5
     },
     {
       id: 3,
@@ -154,7 +157,8 @@ export class LandingComponent implements OnInit {
       skills: ['Communication', 'Problem Solving', 'Hindi & English'],
       matchScore: 91,
       posted: '3 days ago',
-      logo: 'TS'
+      logo: 'TS',
+      rating: 3
     }
   ];
 
