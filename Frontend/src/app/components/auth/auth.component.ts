@@ -1,12 +1,12 @@
 import { Component } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { RouterModule } from '@angular/router';
+import { RouterModule, Router } from '@angular/router';
 
 @Component({
   selector: 'app-auth',
   standalone: true,
-  imports: [CommonModule, FormsModule,RouterModule],
+  imports: [CommonModule, FormsModule, RouterModule],
   templateUrl: './auth.component.html',
   styleUrls: ['./auth.component.css']
 })
@@ -44,6 +44,8 @@ export class AuthComponent {
     }
   };
 
+  constructor(private router: Router) {}
+
   getRoleContent() {
     return this.roleContent[this.activeUserType];
   }
@@ -76,6 +78,9 @@ export class AuthComponent {
       userType: this.activeUserType
     };
     console.log('Login attempt:', loginData);
+    if (this.activeUserType === 'jobseeker') {
+      this.router.navigate(['../jobseeker/dashboard']);
+    }
   }
 
   onSignUp(): void {
