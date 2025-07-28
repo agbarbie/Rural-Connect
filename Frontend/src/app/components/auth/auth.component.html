@@ -106,12 +106,13 @@
           <span class="checkmark"></span>
           Remember Me?
         </label>
-      <p><a (click)="onForgotPassword()" routerLink="/reset-password" class="forgot-password">Forgot your password?</a></p>
+        <p><a (click)="onForgotPassword()" routerLink="/reset-password" class="forgot-password">Forgot your password?</a></p>
       </div>
       <button type="submit" class="auth-btn">LOGIN</button>
     </form>
 
-    <form class="auth-form" *ngIf="activeForm === 'signup'" (ngSubmit)="onSignUp()">
+    <!-- Jobseeker Signup Form -->
+    <form class="auth-form" *ngIf="activeForm === 'signup' && activeUserType === 'jobseeker'" (ngSubmit)="onSignUp()">
       <div class="input-group">
         <div class="input-wrapper">
           <i class="fas fa-user input-icon"></i>
@@ -150,45 +151,160 @@
           </button>
         </div>
       </div>
-
-      <div *ngIf="activeUserType === 'employer'">
-        <div class="input-group">
-          <div class="input-wrapper">
-            <i class="fas fa-building input-icon"></i>
-            <input type="text" 
-                   [(ngModel)]="companyName" 
-                   name="companyName"
-                   placeholder="Enter your Company Name" 
-                   class="form-input">
-          </div>
-        </div>
-        <div class="input-group">
-          <div class="input-wrapper">
-            <i class="fas fa-key input-icon"></i>
-            <input [type]="showCompanyPassword ? 'text' : 'password'" 
-                   [(ngModel)]="companyPassword" 
-                   name="companyPassword"
-                   placeholder="Enter your Company Password" 
-                   class="form-input">
-            <button type="button" 
-                    class="password-toggle"
-                    (click)="toggleCompanyPassword()">
-              <i [class]="showCompanyPassword ? 'fas fa-eye-slash' : 'fas fa-eye'"></i>
-            </button>
-          </div>
-        </div>
-        <div class="input-group">
-          <div class="input-wrapper">
-            <i class="fas fa-phone input-icon"></i>
-            <input type="tel" 
-                   [(ngModel)]="contactNumber" 
-                   name="contactNumber"
-                   placeholder="Enter your Contact Number" 
-                   class="form-input">
-          </div>
+      <div class="input-group">
+        <div class="input-wrapper">
+          <i class="fas fa-location input-icon"></i>
+          <input type="text"
+                 [(ngModel)]="signupLocation" 
+                 name="signupLocation"
+                 placeholder="Enter your Location" 
+                 class="form-input" 
+                 required> 
         </div>
       </div>
+      <div class="input-group">
+        <div class="input-wrapper">
+          <i class="fas fa-phone input-icon"></i>
+          <input type="tel" 
+                 [(ngModel)]="contactNumber" 
+                 name="contactNumber"
+                 placeholder="Enter your Contact Number" 
+                 class="form-input" 
+                 required>
+        </div>
+      </div>
+      <button type="submit" class="auth-btn">SIGN UP</button>
+    </form>
 
+    <!-- Employer Signup Form -->
+    <form class="auth-form" *ngIf="activeForm === 'signup' && activeUserType === 'employer'" (ngSubmit)="onSignUp()">
+      <div class="input-group">
+        <div class="input-wrapper">
+          <i class="fas fa-user input-icon"></i>
+          <input type="text" 
+                 [(ngModel)]="signupName" 
+                 name="signupName"
+                 placeholder="Enter your Name" 
+                 class="form-input" 
+                 required>
+        </div>
+      </div>
+      <div class="input-group">
+        <div class="input-wrapper">
+          <i class="fas fa-envelope input-icon"></i>
+          <input type="email" 
+                 [(ngModel)]="signupEmail" 
+                 name="signupEmail"
+                 placeholder="Enter your Email" 
+                 class="form-input" 
+                 required>
+        </div>
+      </div>
+      <div class="input-group">
+        <div class="input-wrapper">
+          <i class="fas fa-lock input-icon"></i>
+          <input [type]="showSignupPassword ? 'text' : 'password'" 
+                 [(ngModel)]="signupPassword" 
+                 name="signupPassword"
+                 placeholder="Enter your Password" 
+                 class="form-input" 
+                 required>
+          <button type="button" 
+                  class="password-toggle"
+                  (click)="toggleSignupPassword()">
+            <i [class]="showSignupPassword ? 'fas fa-eye-slash' : 'fas fa-eye'"></i>
+          </button>
+        </div>
+      </div>
+      <div class="input-group">
+        <div class="input-wrapper">
+          <i class="fas fa-building input-icon"></i>
+          <input type="text" 
+                 [(ngModel)]="companyName" 
+                 name="companyName"
+                 placeholder="Enter your Company Name" 
+                 class="form-input">
+        </div>
+      </div>
+      <div class="input-group">
+        <div class="input-wrapper">
+          <i class="fas fa-key input-icon"></i>
+          <input [type]="showCompanyPassword ? 'text' : 'password'" 
+                 [(ngModel)]="companyPassword" 
+                 name="companyPassword"
+                 placeholder="Enter your Company Password" 
+                 class="form-input">
+          <button type="button" 
+                  class="password-toggle"
+                  (click)="toggleCompanyPassword()">
+            <i [class]="showCompanyPassword ? 'fas fa-eye-slash' : 'fas fa-eye'"></i>
+          </button>
+        </div>
+      </div>
+      <div class="input-group">
+        <div class="input-wrapper">
+          <i class="fas fa-user-alt input-icon"></i>
+          <input type="text" 
+                 [(ngModel)]="RoleInTheCompany" 
+                 name="RoleInTheCompany"
+                 placeholder="Enter your Role" 
+                 class="form-input">
+        </div>
+      </div>
+      <button type="submit" class="auth-btn">SIGN UP</button>
+    </form>
+
+    <!-- Admin Signup Form -->
+    <form class="auth-form" *ngIf="activeForm === 'signup' && activeUserType === 'admin'" (ngSubmit)="onSignUp()">
+      <div class="input-group">
+        <div class="input-wrapper">
+          <i class="fas fa-user input-icon"></i>
+          <input type="text" 
+                 [(ngModel)]="signupName" 
+                 name="signupName"
+                 placeholder="Enter your Name" 
+                 class="form-input" 
+                 required>
+        </div>
+      </div>
+      <div class="input-group">
+        <div class="input-wrapper">
+          <i class="fas fa-envelope input-icon"></i>
+          <input type="email" 
+                 [(ngModel)]="signupEmail" 
+                 name="signupEmail"
+                 placeholder="Enter your Email" 
+                 class="form-input" 
+                 required>
+        </div>
+      </div>
+      <div class="input-group">
+        <div class="input-wrapper">
+          <i class="fas fa-lock input-icon"></i>
+          <input [type]="showSignupPassword ? 'text' : 'password'" 
+                 [(ngModel)]="signupPassword" 
+                 name="signupPassword"
+                 placeholder="Enter your Password" 
+                 class="form-input" 
+                 required>
+          <button type="button" 
+                  class="password-toggle"
+                  (click)="toggleSignupPassword()">
+            <i [class]="showSignupPassword ? 'fas fa-eye-slash' : 'fas fa-eye'"></i>
+          </button>
+        </div>
+      </div>
+      <div class="input-group">
+        <div class="input-wrapper">
+          <i class="fas fa-phone input-icon"></i>
+          <input type="tel" 
+                 [(ngModel)]="contactNumber" 
+                 name="contactNumber"
+                 placeholder="Enter your Contact Number" 
+                 class="form-input" 
+                 required>
+        </div>
+      </div>
       <button type="submit" class="auth-btn">SIGN UP</button>
     </form>
   </div>

@@ -18,12 +18,14 @@ export class AuthComponent {
   rememberMe: boolean = false;
   showLoginPassword: boolean = false;
   signupName: string = '';
+  signupLocation: string = '';
   signupEmail: string = '';
   signupPassword: string = '';
   showSignupPassword: boolean = false;
 
   companyName: string = '';
   companyPassword: string = '';
+  RoleInTheCompany: string = '';
   contactNumber: string = '';
   showCompanyPassword: boolean = false;
 
