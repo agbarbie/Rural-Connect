@@ -69,19 +69,24 @@ export class AuthComponent {
   toggleCompanyPassword(): void {
     this.showCompanyPassword = !this.showCompanyPassword;
   }
+onLogin(): void {
+  const loginData = {
+    email: this.loginEmail,
+    password: this.loginPassword,
+    rememberMe: this.rememberMe,
+    userType: this.activeUserType
+  };
+  console.log('Login attempt:', loginData);
 
-  onLogin(): void {
-    const loginData = {
-      email: this.loginEmail,
-      password: this.loginPassword,
-      rememberMe: this.rememberMe,
-      userType: this.activeUserType
-    };
-    console.log('Login attempt:', loginData);
-    if (this.activeUserType === 'jobseeker') {
-      this.router.navigate(['../jobseeker/dashboard']);
-    }
+  if (this.activeUserType === 'jobseeker') {
+    this.router.navigate(['/jobseeker/dashboard']);
+  } else if (this.activeUserType === 'employer') {
+    this.router.navigate(['/employer/employer-dashboard']);
+  } else if (this.activeUserType === 'admin') {
+    this.router.navigate(['/admin/dashboard']);
   }
+}
+
 
   onSignUp(): void {
     const signupData = {

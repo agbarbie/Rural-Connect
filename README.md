@@ -38,9 +38,9 @@ frontend/
 │   │   │   │   ├── profile.component.ts
 │   │   │   │   ├── profile.component.html
 │   │   │   │   ├── profile.component.css
-│   │   │   │   ├── job-search.component.ts
-│   │   │   │   ├── job-search.component.html
-│   │   │   │   ├── job-search.component.css
+│   │   │   │   ├── job-explorer.component.ts
+│   │   │   │   ├── job-explorer.component.html
+│   │   │   │   ├── job-explorer.component.css
 │   │   │   │   ├── applications.component.ts
 │   │   │   │   ├── applications.component.html
 │   │   │   │   ├── applications.component.css
@@ -63,9 +63,9 @@ frontend/
 │   │   │   │   ├── settings.component.html
 │   │   │   │   └── settings.component.css
 │   │   │   ├── employer/
-│   │   │   │   ├── dashboard.component.ts
-│   │   │   │   ├── dashboard.component.html
-│   │   │   │   ├── dashboard.component.css
+│   │   │   │   ├── employer-dashboard.component.ts
+│   │   │   │   ├── employer-dashboard.component.html
+│   │   │   │   ├── employer-dashboard.component.css
 │   │   │   │   ├── post-job.component.ts
 │   │   │   │   ├── post-job.component.html
 │   │   │   │   ├── post-job.component.css
