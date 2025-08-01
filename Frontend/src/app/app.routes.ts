@@ -6,6 +6,7 @@ import { DashboardComponent } from './components/jobseeker/dashboard/dashboard.c
 import { JobExplorerComponent } from './components/jobseeker/job-explorer/job-explorer.component';
 import { TrainingComponent } from './components/jobseeker/training/training.component';
 import { EmployerDashboardComponent } from './components/employer/employer-dashboard/employer-dashboard.component';
+import { PostJobComponent } from './components/employer/post-job/post-job.component';
 
 export const routes: Routes = [
  { path: '', component: LandingComponent },
@@ -18,4 +19,5 @@ export const routes: Routes = [
  {path: 'jobseeker/training', component: TrainingComponent },
  {path: 'employer', redirectTo: 'employer/employer-dashboard'},
  {path: 'employer/employer-dashboard', component: EmployerDashboardComponent },
+ { path: 'post-job', component: PostJobComponent },
 ];
