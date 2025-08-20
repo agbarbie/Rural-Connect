@@ -1,1 +1,96 @@
-<p>dashboard works!</p>
+<div class="admin-dashboard">
+  <div class="sidebar">
+    <h2>Digital Skilling App</h2>
+    <ul>
+      <li><i class="fas fa-tachometer-alt"></i> Dashboard</li>
+      <li><i class="fas fa-users"></i> User Management. <span>5</span></li>
+      <li><i class="fas fa-shield-alt"></i> Security</li>
+      <li><i class="fas fa-robot"></i> AI Monitoring</li>
+      <li><i class="fas fa-cogs"></i> System Metrics</li>
+      <li><i class="fas fa-cog"></i> Settings</li>
+    </ul>
+  </div>
+  <div class="main-content">
+    <div class="header">
+      <h1>Admin Dashboard</h1>
+      <div class="search-bar">
+        <input type="text" placeholder="Search...">
+      </div>
+      <div class="user-profile">Admin user</div>
+    </div>
+    <div class="welcome-banner">
+      <h2>Welcome back, Admin!</h2>
+      <p>Platform performance is optimal. 12 new users joined today.</p>
+    </div>
+    <div class="dashboard-grid">
+      <div class="card">
+        <h3>Total Users</h3>
+        <p>8,249 <span>+12.5% vs last month</span></p>
+        <a href="#">View details</a>
+      </div>
+      <div class="card">
+        <h3>Active Courses</h3>
+        <p>1,423 <span>+8.2% vs last month</span></p>
+        <a href="#">View details</a>
+      </div>
+      <div class="card">
+        <h3>Successful Matches</h3>
+        <p>5,874 <span>+15.3% vs last month</span></p>
+        <a href="#">View details</a>
+      </div>
+      <div class="card">
+        <h3>AI Match Accuracy</h3>
+        <p>92.7% <span>+3.1% vs last month</span></p>
+        <a href="#">View details</a>
+      </div>
+    </div>
+    <div class="charts-section">
+      <div class="chart-card">
+        <h3>Platform Activity</h3>
+        <canvas id="platformActivityChart"></canvas>
+      </div>
+      <div class="chart-card">
+        <h3>System Performance</h3>
+        <ul>
+          <li>CPU Usage: 42% <span class="progress green"></span></li>
+          <li>Memory Usage: 68% <span class="progress yellow"></span></li>
+          <li>API Response Time: 128ms <span class="progress blue"></span></li>
+          <li>Database Load: 54% <span class="progress purple"></span></li>
+        </ul>
+      </div>
+    </div>
+    <div class="updated-features">
+      <h3>Updated Admin Features</h3>
+      <ul>
+        <li><strong>User Management</strong>
+          <ul>
+            <li>Manage job seekers & employers.</li>
+            <li>Approve/verify new accounts.</li>
+            <li>Suspend or delete fraudulent accounts.</li>
+          </ul>
+        </li>
+        <li><strong>AI Monitoring</strong>
+          <ul>
+            <li>Track AI recommendation accuracy.</li>
+            <li>Adjust matching parameters for fairness.</li>
+            <li>Monitor top skills/jobs suggested.</li>
+          </ul>
+        </li>
+        <li><strong>Reports & Analytics</strong>
+          <ul>
+            <li>Overall platform activity (user growth, active users, training completions).</li>
+            <li>Skill demand analytics.</li>
+            <li>Engagement charts.</li>
+          </ul>
+        </li>
+        <li><strong>System Metrics & Security</strong>
+          <ul>
+            <li>CPU, memory, database load, response time.</li>
+            <li>Manage platform policies.</li>
+            <li>Security monitoring.</li>
+          </ul>
+        </li>
+      </ul>
+    </div>
+  </div>
+</div>

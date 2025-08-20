@@ -4,9 +4,9 @@
     <div class="sidebar-header">
       <div class="logo">
         <div class="logo-icon">
-          <i class="fas fa-briefcase"></i>
+          <i class="fas fa-graduation-cap"></i>
         </div>
-        <span>JobMaster</span>
+        <span>Digital Skilling App</span>
       </div>
     </div>
     
@@ -18,47 +18,50 @@
       </a>
       <a href="#" class="nav-item" routerLink="/company-profile">
         <i class="fas fa-building"></i>
-        <span>Company Profile</span>
+        <span>Company's Profile</span>
       </a>
       <a href="#" class="nav-item" routerLink="../post-job">
-        <i class="fas fa-file-alt"></i>
-        <span>Job Posts</span>
-        <span class="nav-badge">3</span>
+        <i class="fas fa-briefcase"></i>
+        <span>Jobs Posts</span>
+        <span class="nav-badge">5</span>
+      </a>
+      <a href="#" class="nav-item" routerLink="/ai-assistant">
+        <i class="fas fa-robot"></i>
+        <span>AI Recommendations</span>
+      </a>
+      <a href="#" class="nav-item" routerLink="../training">
+        <i class="fas fa-chalkboard-teacher"></i>
+        <span>Training Posts</span>
       </a>
       <a href="#" class="nav-item" routerLink="/candidates">
         <i class="fas fa-users"></i>
-        <span>Candidates</span>
-        <span class="nav-badge">12</span>
+        <span>Candidates Matches</span>
       </a>
-      <a href="#" class="nav-item" routerLink="/ai-chat-assistant">
-        <i class="fas fa-robot"></i>
-        <span>AI Chat Assistant</span>
-      </a>
-    </div>
-    
-    <div class="nav-section">
-      <div class="nav-title">Recruitment</div>
-      <a href="#" class="nav-item" routerLink="/interviews">
+      <a href="#" class="nav-item" routerLink="../Interviews">
         <i class="fas fa-calendar-check"></i>
         <span>Interviews</span>
       </a>
     </div>
     
     <div class="nav-section">
-      <div class="nav-title">Settings</div>
+      <div class="nav-title">Support</div>
       <a href="#" class="nav-item" routerLink="/settings">
         <i class="fas fa-cog"></i>
         <span>Settings</span>
+      </a>
+      <a href="#" class="nav-item" routerLink="/help">
+        <i class="fas fa-question-circle"></i>
+        <span>Help & Support</span>
       </a>
     </div>
     
     <div class="sidebar-footer">
       <div class="user-profile">
         <div class="profile-avatar">
-          <i class="fas fa-user"></i>
+          <i class="fas fa-building"></i>
         </div>
         <div class="profile-info">
-          <span class="company-name">Tech Innovate</span>
+          <span class="company-name">{{employerName}}</span>
           <span class="role">Employer</span>
         </div>
       </div>
@@ -82,11 +85,11 @@
 
     <section class="job-stats">
       <div class="stat-card">
-        <span class="stat-count">2</span>
+        <span class="stat-count">{{ activeJobPostsCount }}</span>
         <span class="stat-label">Active Posts</span>
       </div>
       <div class="stat-card">
-        <span class="stat-count">45</span>
+        <span class="stat-count">{{ totalApplicants }}</span>
         <span class="stat-label">Applications</span>
       </div>
       <div class="stat-card">
@@ -101,33 +104,66 @@
 
     <section class="job-post-form">
       <h2>Post New Job</h2>
-      <form>
+      <form [formGroup]="jobForm" (ngSubmit)="onSubmit()">
         <div class="form-group">
           <label for="job-title">Job Title</label>
-          <input type="text" id="job-title" placeholder="e.g., Frontend Developer">
+          <input type="text" id="job-title" formControlName="jobTitle" placeholder="e.g., Frontend Developer">
+          <div class="error" *ngIf="jobForm.get('jobTitle')?.touched && jobForm.get('jobTitle')?.hasError('required')">
+            Job title is required
+          </div>
         </div>
         <div class="form-group">
           <label for="location">Location</label>
-          <input type="text" id="location" placeholder="e.g., New York, NY">
+          <input type="text" id="location" formControlName="location" placeholder="e.g., New York, NY">
+          <div class="error" *ngIf="jobForm.get('location')?.touched && jobForm.get('location')?.hasError('required')">
+            Location is required
+          </div>
         </div>
         <div class="form-group">
           <label for="salary">Salary Range</label>
-          <input type="text" id="salary" placeholder="e.g., $80,000 - $100,000">
+          <input type="text" id="salary" formControlName="salary" placeholder="e.g., $80,000 - $100,000">
+          <div class="error" *ngIf="jobForm.get('salary')?.touched && jobForm.get('salary')?.hasError('required')">
+            Salary is required
+          </div>
         </div>
         <div class="form-group">
           <label for="duration">Duration</label>
-          <input type="text" id="duration" placeholder="e.g., 6 months, Full-time">
+          <input type="text" id="duration" formControlName="duration" placeholder="e.g., 6 months, Full-time">
+          <div class="error" *ngIf="jobForm.get('duration')?.touched && jobForm.get('duration')?.hasError('required')">
+            Duration is required
+          </div>
         </div>
         <div class="form-group">
           <label for="skills">Skills</label>
-          <input type="text" id="skills" placeholder="e.g., JavaScript, React">
+          <input type="text" id="skills" formControlName="skills" placeholder="e.g., JavaScript, React">
+          <div class="error" *ngIf="jobForm.get('skills')?.touched && jobForm.get('skills')?.hasError('required')">
+            Skills are required
+          </div>
         </div>
         <div class="form-group">
           <label for="description">Description</label>
-          <textarea id="description" placeholder="Job description..."></textarea>
+          <textarea id="description" formControlName="description" placeholder="Job description..."></textarea>
+          <div class="error" *ngIf="jobForm.get('description')?.touched && jobForm.get('description')?.hasError('required')">
+            Description is required
+          </div>
         </div>
-        <button type="submit" class="submit-btn">Post Job</button>
+        <button type="submit" class="submit-btn" [disabled]="jobForm.invalid">Post Job</button>
       </form>
+    </section>
+
+    <section class="job-list">
+      <h2>Existing Job Posts</h2>
+      <div class="job-card" *ngFor="let job of jobPosts">
+        <h3>{{ job.jobTitle }}</h3>
+        <p>{{ job.description }}</p>
+        <p>{{ job.location }} | {{ job.duration }} | {{ job.status }}</p>
+        <p>{{ job.applicants.length }} Applicants</p>
+        <div class="job-actions">
+          <button (click)="toggleJobStatus(job)">{{ job.status === 'Open' ? 'Close' : 'Open' }}</button>
+          <button (click)="deleteJobPost(job.id)">Delete</button>
+        </div>
+      </div>
+      <div *ngIf="jobPosts.length === 0">No job posts available.</div>
     </section>
   </main>
 </div>
