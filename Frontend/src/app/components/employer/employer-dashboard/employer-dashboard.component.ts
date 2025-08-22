@@ -1,6 +1,9 @@
 import { Component, OnInit } from '@angular/core';
-import {CommonModule} from '@angular/common';
+import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { Router } from '@angular/router';
+import { RouterModule } from '@angular/router';
+
 interface JobApplicant {
   id: string;
   name: string;
@@ -39,7 +42,7 @@ interface AnalyticsData {
 @Component({
   selector: 'app-employer-dashboard',
   templateUrl: './employer-dashboard.component.html',
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, RouterModule],
   standalone: true,
   styleUrls: ['./employer-dashboard.component.css']
 })
@@ -152,10 +155,13 @@ export class EmployerDashboardComponent implements OnInit {
     timeToHire: { value: '14d', change: 7 }
   };
 
-  constructor() { }
+  constructor(private router: Router) { }
 
   ngOnInit(): void {
-    // Component initialization logic
+    // Ensure all data is initialized
+    if (!this.recentActivity || this.recentActivity.length === 0) {
+      console.warn('Recent activity data is empty or undefined');
+    }
   }
 
   // Action methods
@@ -175,12 +181,38 @@ export class EmployerDashboardComponent implements OnInit {
     console.log('Viewing interview details:', interviewId);
   }
 
+  // UPDATED NAVIGATION METHODS - SIMPLIFIED
   createNewJobPost(): void {
-    console.log('Creating new job post');
+    console.log('Navigating to post-jobs page...');
+    
+    this.router.navigate(['/employer/post-jobs']).catch(error => {
+      console.log('Primary route failed, trying alternative...');
+      this.router.navigate(['/post-jobs']).catch(() => {
+        console.log('All navigation failed, using direct redirect');
+        window.location.href = '/employer/post-jobs';
+      });
+    });
   }
 
   createNewTraining(): void {
-    console.log('Creating new training');
+    console.log('Navigating to training page...');
+    
+    this.router.navigate(['/employer/training']).catch(error => {
+      console.log('Primary route failed, trying alternative...');
+      this.router.navigate(['/training']).catch(() => {
+        console.log('All navigation failed, using direct redirect');
+        window.location.href = '/employer/training';
+      });
+    });
+  }
+
+  // Alternative direct navigation methods (backup)
+  navigateToPostJobs(): void {
+    window.location.href = '/employer/post-jobs';
+  }
+
+  navigateToTraining(): void {
+    window.location.href = '/employer/training';
   }
 
   takeColorTest(): void {
@@ -193,12 +225,18 @@ export class EmployerDashboardComponent implements OnInit {
 
   getActivityIcon(type: string): string {
     switch (type) {
-      case 'job_post': return 'fas fa-briefcase';
-      case 'training_post': return 'fas fa-graduation-cap';
-      case 'interview': return 'fas fa-calendar-alt';
-      case 'application': return 'fas fa-user-plus';
-      case 'certificate': return 'fas fa-certificate';
-      default: return 'fas fa-bell';
+      case 'job_post':
+        return 'fas fa-briefcase';
+      case 'training_post':
+        return 'fas fa-graduation-cap';
+      case 'interview':
+        return 'fas fa-calendar-alt';
+      case 'application':
+        return 'fas fa-user-plus';
+      case 'certificate':
+        return 'fas fa-certificate';
+      default:
+        return 'fas fa-bell'; // Default icon
     }
   }
 
@@ -211,12 +249,18 @@ export class EmployerDashboardComponent implements OnInit {
 
   getStatusClass(status: string): string {
     switch (status) {
-      case 'new': return 'status-new';
-      case 'reviewed': return 'status-reviewed';
-      case 'interview': return 'status-interview';
-      case 'hired': return 'status-hired';
-      case 'rejected': return 'status-rejected';
-      default: return '';
+      case 'new':
+        return 'status-new';
+      case 'reviewed':
+        return 'status-reviewed';
+      case 'interview':
+        return 'status-interview';
+      case 'hired':
+        return 'status-hired';
+      case 'rejected':
+        return 'status-rejected';
+      default:
+        return '';
     }
   }
 }

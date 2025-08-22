@@ -81,7 +81,7 @@ onLogin(): void {
   if (this.activeUserType === 'jobseeker') {
     this.router.navigate(['/jobseeker/dashboard']);
   } else if (this.activeUserType === 'employer') {
-    this.router.navigate(['/employer/employer-dashboard']);
+    this.router.navigate(['employer/employer-dashboard']);
   } else if (this.activeUserType === 'admin') {
     this.router.navigate(['/admin/dashboard']);
   }
