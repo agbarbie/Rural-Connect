@@ -87,6 +87,9 @@ frontend/
 │   │   │   │   ├── settings.component.ts
 │   │   │   │   ├── settings.component.html
 │   │   │   │   └── settings.component.css
+                    company-profile.ts
+                    company-profile.html
+                    company-profile.css
 
 │   │   │   └── admin/
 │   │   │       ├── dashboard.component.ts

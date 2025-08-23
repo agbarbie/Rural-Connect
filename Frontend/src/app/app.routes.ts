@@ -15,7 +15,7 @@ import { TrainingComponent } from './components/employer/training/training.compo
 import { AiAssistantComponent } from './components/employer/ai-assistant/ai-assistant.component';
 import {CandidatesComponent} from './components/employer/candidates/candidates.component';
 import { InterviewsComponent } from './components/employer/interviews/interviews.component';
-import {CompanyProfileComponent} from './components/employer/company-profile/company-profile.component';
+import { CompanyProfileComponent } from './components/employer/company-profile/company-profile.component';
 
 export const routes: Routes = [
   { path: '', component: LandingComponent },
@@ -43,6 +43,7 @@ export const routes: Routes = [
   { path: 'employer/ai-assistant', component: AiAssistantComponent },
   { path: 'employer/candidates', component: CandidatesComponent },
   { path: 'employer/interviews', component: InterviewsComponent },
+  {path: 'employer/company-profile', component: CompanyProfileComponent },
 
   // Alternative shorter routes for employer (in case the issue is with long paths)
   { path: 'post-jobs', component: PostJobsComponent },
