@@ -12,6 +12,10 @@ import { DashboardComponent as AdminDashboardComponent } from './components/admi
 import { EmployerDashboardComponent } from './components/employer/employer-dashboard/employer-dashboard.component';
 import { PostJobsComponent } from './components/employer/post-jobs/post-jobs.component';
 import { TrainingComponent } from './components/employer/training/training.component';
+import { AiAssistantComponent } from './components/employer/ai-assistant/ai-assistant.component';
+import {CandidatesComponent} from './components/employer/candidates/candidates.component';
+import { InterviewsComponent } from './components/employer/interviews/interviews.component';
+import {CompanyProfileComponent} from './components/employer/company-profile/company-profile.component';
 
 export const routes: Routes = [
   { path: '', component: LandingComponent },
@@ -35,8 +39,11 @@ export const routes: Routes = [
   { path: 'employer', redirectTo: '/employer/employer-dashboard', pathMatch: 'full' },
   { path: 'employer/employer-dashboard', component: EmployerDashboardComponent },
   { path: 'employer/post-jobs', component: PostJobsComponent },
-  {path: 'employer/training', component:TrainingComponent},
-  
+  { path: 'employer/training', component: TrainingComponent },
+  { path: 'employer/ai-assistant', component: AiAssistantComponent },
+  { path: 'employer/candidates', component: CandidatesComponent },
+  { path: 'employer/interviews', component: InterviewsComponent },
+
   // Alternative shorter routes for employer (in case the issue is with long paths)
   { path: 'post-jobs', component: PostJobsComponent },
   
