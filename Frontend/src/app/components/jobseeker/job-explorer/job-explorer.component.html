@@ -1,59 +1,60 @@
-  <!-- Sidebar -->
-  <nav class="sidebar">
-    <div class="sidebar-header">
-      <div class="logo">
-        <div class="logo-icon">
-          <i class="fas fa-graduation-cap"></i>
-        </div>
-        <span>Digital Skilling</span>
+<!-- Sidebar -->
+<nav class="sidebar">
+  <div class="sidebar-header">
+    <div class="logo">
+      <div class="logo-icon">
+        <i class="fas fa-graduation-cap"></i>
       </div>
+      <span>Digital Skilling</span>
     </div>
+  </div>
 
-    <div class="nav-section">
-      <div class="nav-title">Main</div>
-      <a href="#" class="nav-item active" routerLink="/dashboard">
-        <i class="fas fa-th-large"></i>
-        <span>Dashboard</span>
-      </a>
-      <a href="#" class="nav-item" routerLink="/profile">
-        <i class="fas fa-user"></i>
-        <span>My Profile</span>
-      </a>
-      <a href="#" class="nav-item" routerLink="/job-explorer">
-        <i class="fas fa-briefcase"></i>
-        <span>Jobs Explorer</span>
-        <span class="nav-badge">5</span>
-      </a>
-      <a href="#" class="nav-item" routerLink="/ai-recommendations">
-        <i class="fas fa-robot"></i>
-        <span>AI Recommendations</span>
-      </a>
-      <a href="#" class="nav-item" routerLink="/cv-manager">
-        <i class="fas fa-file-alt"></i>
-        <span>CV Manager</span>
-      </a>
-      <a href="#" class="nav-item" routerLink="/portfolio">
-        <i class="fas fa-folder"></i>
-        <span>My Portfolio</span>
-      </a>
-      <a href="#" class="nav-item" routerLink="/training">
-        <i class="fas fa-play-circle"></i>
-        <span>Training</span>
-      </a>
-    </div>
+  <div class="nav-section">
+    <div class="nav-title">Main</div>
+    <a href="#" class="nav-item active" routerLink="/dashboard">
+      <i class="fas fa-th-large"></i>
+      <span>Dashboard</span>
+    </a>
+    <a href="#" class="nav-item" routerLink="/profile">
+      <i class="fas fa-user"></i>
+      <span>My Profile</span>
+    </a>
+    <a href="#" class="nav-item" routerLink="/job-explorer">
+      <i class="fas fa-briefcase"></i>
+      <span>Jobs Explorer</span>
+      <span class="nav-badge">5</span>
+    </a>
+    <a href="#" class="nav-item" routerLink="/ai-recommendations">
+      <i class="fas fa-robot"></i>
+      <span>AI Recommendations</span>
+    </a>
+    <a href="#" class="nav-item" routerLink="/cv-manager">
+      <i class="fas fa-file-alt"></i>
+      <span>CV Manager</span>
+    </a>
+    <a href="#" class="nav-item" routerLink="/portfolio">
+      <i class="fas fa-folder"></i>
+      <span>My Portfolio</span>
+    </a>
+    <a href="#" class="nav-item" routerLink="/training">
+      <i class="fas fa-play-circle"></i>
+      <span>Training</span>
+    </a>
+  </div>
 
-    <div class="nav-section">
-      <div class="nav-title">Support</div>
-      <a href="#" class="nav-item" routerLink="/settings">
-        <i class="fas fa-cog"></i>
-        <span>Settings</span>
-      </a>
-      <a href="#" class="nav-item" routerLink="/help">
-        <i class="fas fa-question-circle"></i>
-        <span>Help & Support</span>
-      </a>
-    </div>
-  </nav>
+  <div class="nav-section">
+    <div class="nav-title">Support</div>
+    <a href="#" class="nav-item" routerLink="/settings">
+      <i class="fas fa-cog"></i>
+      <span>Settings</span>
+    </a>
+    <a href="#" class="nav-item" routerLink="/help">
+      <i class="fas fa-question-circle"></i>
+      <span>Help & Support</span>
+    </a>
+  </div>
+</nav>
+
 <div class="job-explorer-container">
   <!-- Header -->
   <div class="header">
@@ -228,8 +229,13 @@
         <button class="save-btn" (click)="saveJob(job.id)">
           <i class="far fa-bookmark"></i>
         </button>
-        <button class="apply-btn" (click)="applyToJob(job.id)">
-          Apply
+        <button 
+          class="apply-btn" 
+          [class.applied]="isJobApplied(job.id)"
+          (click)="applyToJob(job.id)"
+          [disabled]="isJobApplied(job.id)">
+          <span *ngIf="!isJobApplied(job.id)">Apply</span>
+          <span *ngIf="isJobApplied(job.id)">Applied</span>
         </button>
       </div>
     </div>
@@ -240,5 +246,21 @@
       <h3>No jobs found</h3>
       <p>Try adjusting your filters to see more results</p>
     </div>
+  </div>
+</div>
+
+<!-- Success Notification -->
+<div *ngIf="showNotification" class="notification-overlay">
+  <div class="notification-popup">
+    <div class="notification-icon">
+      <i class="fas fa-check-circle"></i>
+    </div>
+    <div class="notification-content">
+      <h4>Application Submitted!</h4>
+      <p>{{ notificationMessage }}</p>
+    </div>
+    <button class="notification-close" (click)="hideNotification()">
+      <i class="fas fa-times"></i>
+    </button>
   </div>
 </div>

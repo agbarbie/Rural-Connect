@@ -1,6 +1,7 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule} from '@angular/common';
 import { FormsModule } from '@angular/forms';
+
 interface Job {
   id: number;
   title: string;
@@ -114,6 +115,11 @@ export class JobExplorerComponent implements OnInit {
   
   activeTab: string = 'recommended';
 
+  // Notification properties
+  showNotification: boolean = false;
+  notificationMessage: string = '';
+  appliedJobIds: number[] = [];
+
   ngOnInit(): void {
     this.filteredJobs = [...this.jobs];
     this.recommendedCount = this.jobs.length;
@@ -190,13 +196,38 @@ export class JobExplorerComponent implements OnInit {
   }
 
   applyToJob(jobId: number): void {
-    console.log(`Applying to job with ID: ${jobId}`);
-    // Add your application logic here
+    const job = this.jobs.find(j => j.id === jobId);
+    if (job && !this.appliedJobIds.includes(jobId)) {
+      // Add to applied jobs
+      this.appliedJobIds.push(jobId);
+      this.appliedJobsCount++;
+      
+      // Show success notification
+      this.notificationMessage = `Application submitted successfully for ${job.title} at ${job.company}!`;
+      this.showNotification = true;
+      
+      // Auto-hide notification after 4 seconds
+      setTimeout(() => {
+        this.hideNotification();
+      }, 4000);
+      
+      console.log(`Applied to: ${job.title} at ${job.company}`);
+    }
+  }
+
+  hideNotification(): void {
+    this.showNotification = false;
+    this.notificationMessage = '';
+  }
+
+  isJobApplied(jobId: number): boolean {
+    return this.appliedJobIds.includes(jobId);
   }
 
   saveJob(jobId: number): void {
     console.log(`Saving job with ID: ${jobId}`);
     // Add your save job logic here
+    this.savedJobsCount++;
   }
 
   getStarArray(rating: number): number[] {

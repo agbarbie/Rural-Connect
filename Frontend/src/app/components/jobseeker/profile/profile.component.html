@@ -1,1 +1,400 @@
-<p>profile works!</p>
+<div class="app-container">
+  <!-- Sidebar -->
+  <nav class="sidebar">
+    <div class="sidebar-header">
+      <div class="logo">
+        <div class="logo-icon">
+          <i class="fas fa-graduation-cap"></i>
+        </div>
+        <span>Digital Skilling App</span>
+      </div>
+    </div>
+    <div class="nav-section">
+      <div class="nav-title">Main</div>
+      <a href="#" class="nav-item" routerLink="/dashboard">
+        <i class="fas fa-th-large"></i>
+        <span>Dashboard</span>
+      </a>
+      <a href="#" class="nav-item active" routerLink="/profile">
+        <i class="fas fa-user"></i>
+        <span>My Profile</span>
+      </a>
+      <a href="#" class="nav-item" routerLink="../job-explorer">
+        <i class="fas fa-briefcase"></i>
+        <span>Jobs Explorer</span>
+        <span class="nav-badge">5</span>
+      </a>
+      <a href="#" class="nav-item" routerLink="/ai-recommendations">
+        <i class="fas fa-robot"></i>
+        <span>AI Recommendations</span>
+      </a>
+      <a href="#" class="nav-item" routerLink="../cv-builder">
+        <i class="fas fa-file-alt"></i>
+        <span>CV Manager</span>
+      </a>
+      <a href="#" class="nav-item" routerLink="/portfolio">
+        <i class="fas fa-folder"></i>
+        <span>My Portfolio</span>
+      </a>
+      <a href="#" class="nav-item" routerLink="../training">
+        <i class="fas fa-play-circle"></i>
+        <span>Training</span>
+      </a>
+    </div>
+    <div class="nav-section">
+      <div class="nav-title">Support</div>
+      <a href="#" class="nav-item" routerLink="/settings">
+        <i class="fas fa-cog"></i>
+        <span>Settings</span>
+      </a>
+      <a href="#" class="nav-item" routerLink="/help">
+        <i class="fas fa-question-circle"></i>
+        <span>Help & Support</span>
+      </a>
+    </div>
+  </nav>
+
+  <!-- Main Content -->
+  <div class="main-content">
+    <div class="profile-container">
+      
+    <div class="profile-header">
+  <div class="header-content">
+    <div class="profile-info">
+      <div class="profile-image-container">
+        <img [src]="profile.profileImage" [alt]="profile.fullName" class="profile-image">
+      </div>
+      <div class="basic-info">
+        <h1 class="profile-name">{{profile.fullName}}</h1>
+        <p class="profile-title">{{profile.title}}</p>
+        <div class="completion-badge">
+          <i class="fas fa-check-circle"></i>
+          <span>{{profile.profileCompletion}}% Complete</span>
+        </div>
+        <div class="location-contact">
+          <div class="location">
+            <i class="fas fa-map-marker-alt"></i>
+            <span>{{profile.location}}</span>
+          </div>
+          <div class="contact-info">
+            <span class="email">{{profile.email}}</span>
+            <span class="phone">{{profile.phone}}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="header-actions">
+      <button class="btn btn-secondary" (click)="shareProfile()">
+        <i class="fas fa-share-alt"></i>
+        Share Profile
+      </button>
+      <button class="btn btn-primary" (click)="editProfile()">
+        <i class="fas fa-edit"></i>
+        Edit Profile
+      </button>
+    </div>
+  </div>
+</div>
+
+      <div class="profile-body">
+        <div class="profile-grid">
+          
+          <!-- Left Column -->
+          <div class="left-column">
+            
+            <!-- About Section -->
+            <div class="profile-section">
+              <h2 class="section-title">
+                <i class="fas fa-user-circle"></i>
+                About
+              </h2>
+              <div class="section-content">
+                <p class="about-text">{{profile.about}}</p>
+              </div>
+            </div>
+
+            <!-- Skills Section -->
+            <div class="profile-section">
+              <h2 class="section-title">
+                <i class="fas fa-cogs"></i>
+                Skills
+              </h2>
+              <div class="section-content">
+                <div class="skills-container">
+                  <div class="skills-group">
+                    <h3 class="skills-group-title">Technical Skills</h3>
+                    <div class="skills-tags">
+                      @for (skill of technicalSkills; track skill.name) {
+                        <div class="skill-tag technical" 
+                             [title]="skill.level">
+                          <span class="skill-name">{{skill.name}}</span>
+                          <span class="skill-level" 
+                                [style.background-color]="getSkillColor(skill.level!)">
+                            {{skill.level}}
+                          </span>
+                        </div>
+                      }
+                    </div>
+                  </div>
+                  
+                  <div class="skills-group">
+                    <h3 class="skills-group-title">Soft Skills</h3>
+                    <div class="skills-tags">
+                      @for (skill of softSkills; track skill.name) {
+                        <div class="skill-tag soft">
+                          <span class="skill-name">{{skill.name}}</span>
+                        </div>
+                      }
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Certifications Section -->
+            <div class="profile-section">
+              <h2 class="section-title">
+                <i class="fas fa-certificate"></i>
+                Certifications & Training
+              </h2>
+              <div class="section-content">
+                <div class="certifications-list">
+                  @for (cert of certifications; track cert.title) {
+                    <div class="certification-item">
+                      <div class="cert-badge">
+                        <img [src]="cert.badgeUrl" [alt]="cert.title" class="badge-image">
+                      </div>
+                      <div class="cert-info">
+                        <h4 class="cert-title">{{cert.title}}</h4>
+                        <p class="cert-organization">{{cert.organization}}</p>
+                        <p class="cert-date">Completed: {{cert.completionDate | date:'MMM yyyy'}}</p>
+                      </div>
+                      <div class="cert-actions">
+                        <button class="btn-icon" (click)="viewCertificate(cert)" title="View Certificate">
+                          <i class="fas fa-eye"></i>
+                        </button>
+                        <button class="btn-icon" (click)="downloadFile(cert.certificateUrl || '')" title="Download">
+                          <i class="fas fa-download"></i>
+                        </button>
+                      </div>
+                    </div>
+                  }
+                </div>
+              </div>
+            </div>
+
+            <!-- Social Links & Contact -->
+            <div class="profile-section">
+              <h2 class="section-title">
+                <i class="fas fa-link"></i>
+                Contact & Social Links
+              </h2>
+              <div class="section-content">
+                <div class="social-links">
+                  @for (link of socialLinks; track link.platform) {
+                    <a [href]="link.url" 
+                       target="_blank" 
+                       class="social-link">
+                      <i [class]="link.icon"></i>
+                      <span>{{link.platform}}</span>
+                      <i class="fas fa-external-link-alt"></i>
+                    </a>
+                  }
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Right Column -->
+          <div class="right-column">
+            
+            <!-- Experience Timeline -->
+            <div class="profile-section">
+              <h2 class="section-title">
+                <i class="fas fa-briefcase"></i>
+                Work Experience
+              </h2>
+              <div class="section-content">
+                <div class="timeline">
+                  @for (exp of experiences; track exp.title + exp.company; let isLast = $last) {
+                    <div class="timeline-item">
+                      <div class="timeline-marker"></div>
+                      <div class="timeline-content">
+                        <div class="experience-header">
+                          <div class="exp-main-info">
+                            <h3 class="exp-title">{{exp.title}}</h3>
+                            <p class="exp-company">
+                              @if (exp.companyLogo) {
+                                <img [src]="exp.companyLogo" [alt]="exp.company" class="company-logo">
+                              }
+                              {{exp.company}}
+                            </p>
+                            <p class="exp-duration">{{exp.duration}} ({{exp.startDate}} - {{exp.endDate}})</p>
+                          </div>
+                        </div>
+                        
+                        <div class="exp-details">
+                          <div class="exp-responsibilities">
+                            <h4>Key Responsibilities</h4>
+                            <ul>
+                              @for (resp of exp.responsibilities; track resp) {
+                                <li>{{resp}}</li>
+                              }
+                            </ul>
+                          </div>
+                          
+                          <div class="exp-achievements">
+                            <h4>Key Achievements</h4>
+                            <ul>
+                              @for (achievement of exp.achievements; track achievement) {
+                                <li>{{achievement}}</li>
+                              }
+                            </ul>
+                          </div>
+                        </div>
+                      </div>
+                      @if (!isLast) {
+                        <div class="timeline-line"></div>
+                      }
+                    </div>
+                  }
+                </div>
+              </div>
+            </div>
+
+            <!-- Education Section -->
+            <div class="profile-section">
+              <h2 class="section-title">
+                <i class="fas fa-graduation-cap"></i>
+                Education
+              </h2>
+              <div class="section-content">
+                <div class="education-list">
+                  @for (edu of education; track edu.degree + edu.institution) {
+                    <div class="education-item">
+                      <h3 class="edu-degree">{{edu.degree}}</h3>
+                      <p class="edu-institution">{{edu.institution}}</p>
+                      <p class="edu-date">Graduated: {{edu.graduationDate | date:'MMM yyyy'}}</p>
+                      @if (edu.gpa) {
+                        <p class="edu-gpa">GPA: {{edu.gpa}}</p>
+                      }
+                      @if (edu.coursework) {
+                        <div class="edu-coursework">
+                          <h4>Relevant Coursework:</h4>
+                          <div class="coursework-tags">
+                            @for (course of edu.coursework; track course) {
+                              <span class="coursework-tag">{{course}}</span>
+                            }
+                          </div>
+                        </div>
+                      }
+                    </div>
+                  }
+                </div>
+              </div>
+            </div>
+
+            <!-- Projects Showcase -->
+            <div class="profile-section">
+              <h2 class="section-title">
+                <i class="fas fa-code"></i>
+                Featured Projects
+              </h2>
+              <div class="section-content">
+                <div class="projects-grid">
+                  @for (project of projects; track project.title) {
+                    <div class="project-card">
+                      <div class="project-image">
+                        <img [src]="project.imageUrl" [alt]="project.title">
+                        <div class="project-overlay">
+                          <div class="project-links">
+                            @if (project.githubUrl) {
+                              <a [href]="project.githubUrl" target="_blank" class="project-link">
+                                <i class="fab fa-github"></i>
+                              </a>
+                            }
+                            @if (project.liveUrl) {
+                              <a [href]="project.liveUrl" target="_blank" class="project-link">
+                                <i class="fas fa-external-link-alt"></i>
+                              </a>
+                            }
+                          </div>
+                        </div>
+                      </div>
+                      <div class="project-info">
+                        <h3 class="project-title">{{project.title}}</h3>
+                        <p class="project-description">{{project.description}}</p>
+                        <div class="project-technologies">
+                          @for (tech of project.technologies; track tech) {
+                            <span class="tech-tag">{{tech}}</span>
+                          }
+                        </div>
+                      </div>
+                    </div>
+                  }
+                </div>
+              </div>
+            </div>
+
+            <!-- Work Samples -->
+            <div class="profile-section">
+              <h2 class="section-title">
+                <i class="fas fa-paperclip"></i>
+                Work Samples & Attachments
+              </h2>
+              <div class="section-content">
+                <div class="work-samples">
+                  @for (sample of workSamples; track sample.name) {
+                    <div class="sample-item">
+                      <div class="sample-icon">
+                        <i [class]="getFileIcon(sample.type)"></i>
+                      </div>
+                      <div class="sample-info">
+                        <h4 class="sample-name">{{sample.name}}</h4>
+                        <p class="sample-details">{{sample.type}} • {{sample.size}}</p>
+                      </div>
+                      <div class="sample-actions">
+                        <button class="btn-icon" title="Preview">
+                          <i class="fas fa-eye"></i>
+                        </button>
+                        <button class="btn-icon" (click)="downloadFile(sample.url)" title="Download">
+                          <i class="fas fa-download"></i>
+                        </button>
+                      </div>
+                    </div>
+                  }
+                </div>
+              </div>
+            </div>
+
+            <!-- Recommendations -->
+            <div class="profile-section">
+              <h2 class="section-title">
+                <i class="fas fa-quote-left"></i>
+                Recommendations
+              </h2>
+              <div class="section-content">
+                <div class="recommendations-list">
+                  @for (rec of recommendations; track rec.name + rec.date) {
+                    <div class="recommendation-item">
+                      <div class="rec-content">
+                        <p class="rec-text">"{{rec.text}}"</p>
+                      </div>
+                      <div class="rec-author">
+                        <div class="author-info">
+                          <h4 class="author-name">{{rec.name}}</h4>
+                          <p class="author-position">{{rec.position}} at {{rec.company}}</p>
+                          <p class="rec-date">{{rec.date | date:'MMM dd, yyyy'}}</p>
+                        </div>
+                      </div>
+                    </div>
+                  }
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
