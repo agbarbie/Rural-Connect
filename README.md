@@ -24,13 +24,13 @@ frontend/
 │   │   │   │   ├── auth.component.ts
 │   │   │   │   ├── auth.component.html
 │   │   │   │   ├── auth.component.css
-│   │   │   ├── shared/
+<!-- │   │   │   ├── shared/
 │   │   │   │   ├── header.component.ts
 │   │   │   │   ├── header.component.html
 │   │   │   │   ├── header.component.css
 │   │   │   │   ├── sidebar.component.ts
 │   │   │   │   ├── sidebar.component.html
-│   │   │   │   └── sidebar.component.css
+│   │   │   │   └── sidebar.component.css -->
 │   │   │   ├── jobseeker/
 │   │   │   │   ├── dashboard.component.ts
 │   │   │   │   ├── dashboard.component.html
@@ -41,18 +41,12 @@ frontend/
 │   │   │   │   ├── job-explorer.component.ts
 │   │   │   │   ├── job-explorer.component.html
 │   │   │   │   ├── job-explorer.component.css
-│   │   │   │   ├── applications.component.ts
-│   │   │   │   ├── applications.component.html
-│   │   │   │   ├── applications.component.css
 │   │   │   │   ├── portfolio.component.ts
 │   │   │   │   ├── portfolio.component.html
 │   │   │   │   ├── portfolio.component.css
 │   │   │   │   ├── cv-builder.component.ts
 │   │   │   │   ├── cv-builder.component.html
 │   │   │   │   ├── cv-builder.component.css
-│   │   │   │   ├── interviews.component.ts
-│   │   │   │   ├── interviews.component.html
-│   │   │   │   ├── interviews.component.css
 │   │   │   │   ├── training.component.ts
 │   │   │   │   ├── training.component.html
 │   │   │   │   ├── training.component.css
@@ -69,9 +63,6 @@ frontend/
 │   │   │   │   ├── post-job.component.ts
 │   │   │   │   ├── post-job.component.html
 │   │   │   │   ├── post-job.component.css
-│   │   │   │   ├── manage-jobs.component.ts
-│   │   │   │   ├── manage-jobs.component.html
-│   │   │   │   ├── manage-jobs.component.css
 │   │   │   │   ├── candidates.component.ts
 │   │   │   │   ├── candidates.component.html
 │   │   │   │   ├── candidates.component.css
@@ -155,6 +146,10 @@ backend/
 │   │   ├── training.controller.ts
 │   │   ├── portfolio.controller.ts
 │   │   ├── ai.controller.ts
+│   │   ├── notification.controller.ts
+│   │   ├── cv-builder.controller.ts
+│   │   ├── employer.controller.ts
+│   │   ├── company.controller.ts
 │   │   └── admin.controller.ts
 │   ├── routes/                  # API Routes
 │   │   ├── auth.routes.ts
@@ -165,6 +160,10 @@ backend/
 │   │   ├── training.routes.ts
 │   │   ├── portfolio.routes.ts
 │   │   ├── ai.routes.ts
+│   │   ├── notification.routes.ts
+│   │   ├── cv-builder.routes.ts
+│   │   ├── employer.routes.ts
+│   │   ├── company.routes.ts
 │   │   └── admin.routes.ts
 │   ├── models/                  # Database Models
 │   │   ├── user.model.ts
@@ -173,7 +172,10 @@ backend/
 │   │   ├── interview.model.ts
 │   │   ├── training.model.ts
 │   │   ├── portfolio.model.ts
-│   │   └── notification.model.ts
+│   │   ├── notification.model.ts
+│   │   ├── cv.model.ts
+│   │   ├── company.model.ts
+│   │   └── skill.model.ts
 │   ├── services/                # Business Logic
 │   │   ├── auth.service.ts
 │   │   ├── user.service.ts
@@ -184,25 +186,52 @@ backend/
 │   │   ├── portfolio.service.ts
 │   │   ├── ai.service.ts
 │   │   ├── email.service.ts
-│   │   └── notification.service.ts
+│   │   ├── notification.service.ts
+│   │   ├── cv-builder.service.ts
+│   │   ├── company.service.ts
+│   │   └── file-upload.service.ts
 │   ├── middleware/              # Middleware
 │   │   ├── auth.middleware.ts
+│   │   ├── role.middleware.ts
 │   │   ├── validation.middleware.ts
-│   │   └── upload.middleware.ts
+│   │   ├── upload.middleware.ts
+│   │   ├── cors.middleware.ts
+│   │   └── error.middleware.ts
 │   ├── config/                  # Configuration
 │   │   ├── database.config.ts
 │   │   ├── jwt.config.ts
+│   │   ├── multer.config.ts
+│   │   ├── email.config.ts
 │   │   └── app.config.ts
 │   ├── utils/                   # Utilities
 │   │   ├── logger.ts
 │   │   ├── validation.ts
-│   │   └── helpers.ts
+│   │   ├── helpers.ts
+│   │   ├── email-templates.ts
+│   │   └── constants.ts
+│   ├── types/                   # TypeScript Type Definitions
+│   │   ├── express.d.ts
+│   │   ├── auth.types.ts
+│   │   ├── job.types.ts
+│   │   └── user.types.ts
 │   ├── app.ts                   # Express App Setup
 │   └── server.ts                # Server Entry Point
-├── uploads/                     # File Uploads
+├── uploads/                     # File Uploads Directory
+│   ├── profiles/
+│   ├── cvs/
+│   ├── portfolios/
+│   └── company-logos/
+├── tests/                       # Test Files
+│   ├── unit/
+│   ├── integration/
+│   └── fixtures/
+├── .env.example
+├── .env
+├── .gitignore
 ├── package.json
 ├── tsconfig.json
-└── nodemon.json
+├── nodemon.json
+└── README.md
 ```
 
 ## Shared Types
