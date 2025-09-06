@@ -109,12 +109,12 @@ frontend/
 │   │   │   ├── auth.guard.ts
 │   │   │   └── role.guard.ts
 │   │   ├── models/              # TypeScript Models
-│   │   │   ├── user.model.ts
-│   │   │   ├── job.model.ts
-│   │   │   ├── application.model.ts
-│   │   │   ├── interview.model.ts
-│   │   │   ├── training.model.ts
-│   │   │   └── portfolio.model.ts
+│   │   │   ├── user.type.ts
+│   │   │   ├── job.type.ts
+│   │   │   ├── application.type.ts
+│   │   │   ├── interview.type.ts
+│   │   │   ├── training.type.ts
+│   │   │   └── portfolio.type.ts
 │   │   ├── app.component.ts
 │   │   ├── app.component.html
 │   │   ├── app.component.css
@@ -165,17 +165,17 @@ backend/
 │   │   ├── employer.routes.ts
 │   │   ├── company.routes.ts
 │   │   └── admin.routes.ts
-│   ├── models/                  # Database Models
-│   │   ├── user.model.ts
-│   │   ├── job.model.ts
-│   │   ├── application.model.ts
-│   │   ├── interview.model.ts
-│   │   ├── training.model.ts
-│   │   ├── portfolio.model.ts
-│   │   ├── notification.model.ts
-│   │   ├── cv.model.ts
-│   │   ├── company.model.ts
-│   │   └── skill.model.ts
+│   ├── types/                
+│   │   ├── user.type.ts
+│   │   ├── job.type.ts
+│   │   ├── application.type.ts
+│   │   ├── interview.type.ts
+│   │   ├── training.type.ts
+│   │   ├── portfolio.type.ts
+│   │   ├── notification.type.ts
+│   │   ├── cv.type.ts
+│   │   ├── company.type.ts
+│   │   └── skill.type.ts
 │   ├── services/                # Business Logic
 │   │   ├── auth.service.ts
 │   │   ├── user.service.ts
@@ -209,11 +209,6 @@ backend/
 │   │   ├── helpers.ts
 │   │   ├── email-templates.ts
 │   │   └── constants.ts
-│   ├── types/                   # TypeScript Type Definitions
-│   │   ├── express.d.ts
-│   │   ├── auth.types.ts
-│   │   ├── job.types.ts
-│   │   └── user.types.ts
 │   ├── app.ts                   # Express App Setup
 │   └── server.ts                # Server Entry Point
 ├── uploads/                     # File Uploads Directory
