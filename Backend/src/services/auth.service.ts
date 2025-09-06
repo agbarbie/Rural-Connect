@@ -1,4 +1,4 @@
-import pool from '../db/db.config.js';
+import pool from '../db/db.config';
 import { User, CreateUserRequest, LoginRequest, AuthResponse } from '../utils/types/users.types';
 import { hashPassword, comparePassword, generateToken } from '../utils/helpers';
 
