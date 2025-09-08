@@ -1,10 +1,9 @@
-import type { Request } from 'express';
-import type { Response } from 'express';
+import { Request, Response } from 'express';
 import { AuthService } from '../services/auth.service';
-import type { CreateUserRequest, LoginRequest } from '../utils/types/users.types';
+import { RegisterRequest, LoginRequest, AuthUser } from '../../../Frontend/src/Interfaces/users.types';
 
 interface AuthRequest extends Request {
-  user?: any;
+  user?: AuthUser;
 }
 
 export class AuthController {
@@ -16,7 +15,7 @@ export class AuthController {
 
   register = async (req: Request, res: Response): Promise<void> => {
     try {
-      const userData: CreateUserRequest = req.body;
+      const userData: RegisterRequest = req.body;
       
       // Basic validation
       if (!userData.name || !userData.email || !userData.password || !userData.user_type) {
@@ -74,7 +73,15 @@ export class AuthController {
 
   getProfile = async (req: AuthRequest, res: Response): Promise<void> => {
     try {
-      const userId = req.user.id;
+      const userId = req.user?.id;
+      if (!userId) {
+        res.status(401).json({
+          success: false,
+          message: 'User not authenticated'
+        });
+        return;
+      }
+
       const user = await this.authService.getUserById(userId);
       
       if (!user) {

@@ -3,7 +3,8 @@ import jwt from 'jsonwebtoken';
 import pool from '../db/db.config';
 import { AppError } from './errorMiddlewares';
 import asyncHandler from '../middleware/asyncHandler';
-import { RequestWithUser, JwtPayload, AuthUser } from '../utils/types/users.types';
+import { RequestWithUser, AuthUser } from '../../../Frontend/src/Interfaces/users.types';
+import { JwtPayload } from 'jsonwebtoken';
 
 // Auth middleware to protect routes
 export const protect = asyncHandler(async (req: RequestWithUser, res: Response, next: NextFunction) => {

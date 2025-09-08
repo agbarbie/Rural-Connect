@@ -1,7 +1,7 @@
 import bcrypt from 'bcryptjs';
 import jwt, { SignOptions } from 'jsonwebtoken';
 import { jwtConfig } from '../config/jwt.config';
-import type { User } from '../utils/types/users.types';
+import type { User } from '../../../Frontend/src/Interfaces/users.types';
 
 export const hashPassword = async (password: string): Promise<string> => {
   const saltRounds = 10;
