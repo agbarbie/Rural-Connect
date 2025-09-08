@@ -1,9 +1,9 @@
 import { Request, Response } from 'express';
 import { AuthService } from '../services/auth.service';
-import { RegisterRequest, LoginRequest, AuthUser } from '../../../Frontend/src/Interfaces/users.types';
+import { CreateUserRequest, LoginRequest } from '../types/user.type';
 
 interface AuthRequest extends Request {
-  user?: AuthUser;
+  user?: any;
 }
 
 export class AuthController {
@@ -15,7 +15,7 @@ export class AuthController {
 
   register = async (req: Request, res: Response): Promise<void> => {
     try {
-      const userData: RegisterRequest = req.body;
+      const userData: CreateUserRequest = req.body;
       
       // Basic validation
       if (!userData.name || !userData.email || !userData.password || !userData.user_type) {
@@ -73,15 +73,7 @@ export class AuthController {
 
   getProfile = async (req: AuthRequest, res: Response): Promise<void> => {
     try {
-      const userId = req.user?.id;
-      if (!userId) {
-        res.status(401).json({
-          success: false,
-          message: 'User not authenticated'
-        });
-        return;
-      }
-
+      const userId = req.user.id;
       const user = await this.authService.getUserById(userId);
       
       if (!user) {

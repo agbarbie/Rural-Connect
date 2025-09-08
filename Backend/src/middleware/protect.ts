@@ -1,9 +1,12 @@
-import { Response, NextFunction } from 'express';
+import { Response,Request, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import pool from '../db/db.config';
 import { AppError } from './errorMiddlewares';
 import asyncHandler from '../middleware/asyncHandler';
-import { RequestWithUser, AuthUser } from '../../../Frontend/src/Interfaces/users.types';
+import { AuthUser } from '../../src/types/user.type'
+export interface RequestWithUser extends Request {
+  user?: AuthUser;
+}
 import { JwtPayload } from 'jsonwebtoken';
 
 // Auth middleware to protect routes

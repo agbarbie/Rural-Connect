@@ -1,5 +1,5 @@
-import pool from '../db/db.config';
-import { User, CreateUserRequest, LoginRequest, AuthResponse } from '../../../Frontend/src/Interfaces/users.types';
+import pool from '../db/db.config'; // or '../db/db.config' - use your actual path
+import { User, CreateUserRequest, LoginRequest, AuthResponse } from '../types/user.type';
 import { hashPassword, comparePassword, generateToken } from '../utils/helpers';
 
 export class AuthService {

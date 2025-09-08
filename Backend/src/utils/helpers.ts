@@ -1,7 +1,7 @@
 import bcrypt from 'bcryptjs';
 import jwt, { SignOptions } from 'jsonwebtoken';
 import { jwtConfig } from '../config/jwt.config';
-import type { User } from '../../../Frontend/src/Interfaces/users.types';
+import { User, JwtPayload } from '../types/user.type';
 
 export const hashPassword = async (password: string): Promise<string> => {
   const saltRounds = 10;
@@ -30,13 +30,13 @@ export const generateToken = (user: Omit<User, 'password'>): string => {
   return jwt.sign(payload, jwtConfig.secret, options);
 };
 
-export const verifyToken = (token: string): { id: number; email: string; user_type: string } => {
+export const verifyToken = (token: string): JwtPayload => {
   if (!jwtConfig.secret) {
     throw new Error('JWT secret is not defined');
   }
   
   try {
-    const decoded = jwt.verify(token, jwtConfig.secret) as { id: number; email: string; user_type: string };
+    const decoded = jwt.verify(token, jwtConfig.secret) as JwtPayload;
     return decoded;
   } catch (error) {
     throw new Error('Invalid or expired token');
