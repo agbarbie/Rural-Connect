@@ -1,0 +1,370 @@
+<div class="job-posts-container">
+  <!-- Notification System -->
+  <div class="notification-container" *ngIf="notifications.length > 0">
+    <div class="notification" *ngFor="let notification of notifications" [ngClass]="notification.type">
+      <i class="fas" [ngClass]="{
+        'fa-check-circle': notification.type === 'success',
+        'fa-exclamation-circle': notification.type === 'error',
+        'fa-info-circle': notification.type === 'info'
+      }"></i>
+      <span>{{ notification.message }}</span>
+      <button class="btn-notification-close" (click)="dismissNotification(notification.id)">
+        <i class="fas fa-times"></i>
+      </button>
+    </div>
+  </div>
+
+  <!-- Sidebar -->
+  <nav class="sidebar">
+    <div class="sidebar-header">
+      <div class="logo">
+        <div class="logo-icon">
+          <i class="fas fa-graduation-cap"></i>
+        </div>
+        <span>Digital Skilling App</span>
+      </div>
+    </div>
+    
+    <div class="nav-section">
+      <div class="nav-title">Main</div>
+      <a href="#" class="nav-item" routerLink="/dashboard">
+        <i class="fas fa-th-large"></i>
+        <span>Dashboard</span>
+      </a>
+      <a href="#" class="nav-item" routerLink="/company-profile">
+        <i class="fas fa-building"></i>
+        <span>Company Profile</span>
+      </a>
+      <a href="#" class="nav-item active" routerLink="/job-posts">
+        <i class="fas fa-briefcase"></i>
+        <span>Job Posts</span>
+        <span class="nav-badge">{{ filteredJobPosts.length }}</span>
+      </a>
+      <a href="#" class="nav-item" routerLink="/ai-assistant">
+        <i class="fas fa-robot"></i>
+        <span>AI Recommendations</span>
+      </a>
+      <a href="#" class="nav-item" routerLink="/training">
+        <i class="fas fa-chalkboard-teacher"></i>
+        <span>Training Posts</span>
+      </a>
+      <a href="#" class="nav-item" routerLink="/candidates">
+        <i class="fas fa-users"></i>
+        <span>Candidate Matches</span>
+      </a>
+      <a href="#" class="nav-item" routerLink="/interviews">
+        <i class="fas fa-calendar-check"></i>
+        <span>Interviews</span>
+      </a>
+    </div>
+    
+    <div class="nav-section">
+      <div class="nav-title">Support</div>
+      <a href="#" class="nav-item" routerLink="/settings">
+        <i class="fas fa-cog"></i>
+        <span>Settings</span>
+      </a>
+      <a href="#" class="nav-item" routerLink="/help">
+        <i class="fas fa-question-circle"></i>
+        <span>Help & Support</span>
+      </a>
+    </div>
+    
+    <div class="sidebar-footer">
+      <div class="user-profile">
+        <div class="profile-avatar">
+          <i class="fas fa-building"></i>
+        </div>
+        <div class="profile-info">
+          <span class="company-name">{{ employerName }}</span>
+          <span class="role">Employer</span>
+        </div>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Main Content -->
+  <div class="main-content">
+    <!-- Header -->
+    <div class="page-header">
+      <div class="header-content">
+        <h1 class="page-title">
+          <i class="fas fa-briefcase"></i>
+          Job Posts
+        </h1>
+        <p class="page-description">Manage your job listings ({{ filteredJobPosts.length }} posts)</p>
+      </div>
+      <div class="header-actions">
+        <div class="search-container">
+          <i class="fas fa-search search-icon"></i>
+          <input 
+            type="text" 
+            class="search-bar" 
+            placeholder="Search job posts..." 
+            [(ngModel)]="searchQuery" 
+            (input)="filterJobPosts()">
+        </div>
+        <button class="btn-primary" (click)="toggleAddForm()">
+          <i class="fas fa-plus"></i>
+          Create Job Post
+        </button>
+      </div>
+    </div>
+
+    <!-- Add Job Form -->
+    <div class="job-post-form" *ngIf="showAddForm">
+      <div class="form-card">
+        <div class="form-header">
+          <h3><i class="fas fa-plus-circle"></i> New Job Post</h3>
+          <button class="btn-close" (click)="toggleAddForm()">
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+        
+        <form [formGroup]="jobForm" (ngSubmit)="onSubmit()">
+          <div class="form-row">
+            <div class="form-group">
+              <label for="job-title">Job Title *</label>
+              <input 
+                type="text" 
+                id="job-title" 
+                formControlName="jobTitle" 
+                placeholder="e.g., Software Engineer">
+              <div class="error" *ngIf="jobForm.get('jobTitle')?.touched && jobForm.get('jobTitle')?.hasError('required')">
+                Job title is required
+              </div>
+            </div>
+            <div class="form-group">
+              <label for="location">Location *</label>
+              <input 
+                type="text" 
+                id="location" 
+                formControlName="location" 
+                placeholder="e.g., Remote">
+              <div class="error" *ngIf="jobForm.get('location')?.touched && jobForm.get('location')?.hasError('required')">
+                Location is required
+              </div>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label for="salary">Salary Range *</label>
+              <input 
+                type="text" 
+                id="salary" 
+                formControlName="salary" 
+                placeholder="e.g., $80,000 - $120,000">
+              <div class="error" *ngIf="jobForm.get('salary')?.touched && jobForm.get('salary')?.hasError('required')">
+                Salary is required
+              </div>
+            </div>
+            <div class="form-group">
+              <label for="duration">Duration *</label>
+              <select id="duration" formControlName="duration" class="form-select">
+                <option value="">Select duration</option>
+                <option value="Full-time">Full-time</option>
+                <option value="Part-time">Part-time</option>
+                <option value="Contract">Contract</option>
+                <option value="Internship">Internship</option>
+              </select>
+              <div class="error" *ngIf="jobForm.get('duration')?.touched && jobForm.get('duration')?.hasError('required')">
+                Duration is required
+              </div>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="skills">Skills (comma-separated) *</label>
+            <input 
+              type="text" 
+              id="skills" 
+              formControlName="skills" 
+              placeholder="e.g., JavaScript, Python">
+            <div class="error" *ngIf="jobForm.get('skills')?.touched && jobForm.get('skills')?.hasError('required')">
+              Skills are required
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="description">Description *</label>
+            <textarea 
+              id="description" 
+              formControlName="description" 
+              placeholder="Describe the job role..."
+              rows="6"></textarea>
+            <div class="error" *ngIf="jobForm.get('description')?.touched && jobForm.get('description')?.hasError('required')">
+              Description is required
+            </div>
+          </div>
+
+          <div class="form-actions">
+            <button type="button" class="btn-secondary" (click)="toggleAddForm()">Cancel</button>
+            <button type="submit" class="btn-primary" [disabled]="jobForm.invalid">
+              <i class="fas fa-save"></i>
+              Post Job
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Job List -->
+    <div class="job-grid" *ngIf="filteredJobPosts.length > 0">
+      <div class="job-card" *ngFor="let job of filteredJobPosts">
+        <div class="card-header">
+          <div class="job-icon">
+            <i class="fas fa-briefcase"></i>
+          </div>
+          <div class="job-status" [class]="job.status.toLowerCase()">
+            {{ job.status }}
+          </div>
+        </div>
+
+        <div class="card-content">
+          <h3 class="job-title">{{ job.jobTitle }}</h3>
+          <p class="job-description">{{ job.description | slice:0:100 }}...</p>
+          
+          <div class="job-meta">
+            <div class="meta-item">
+              <i class="fas fa-map-marker-alt"></i>
+              <span>{{ job.location }}</span>
+            </div>
+            <div class="meta-item">
+              <i class="fas fa-dollar-sign"></i>
+              <span>{{ job.salary }}</span>
+            </div>
+            <div class="meta-item">
+              <i class="fas fa-clock"></i>
+              <span>{{ job.duration }}</span>
+            </div>
+            <div class="meta-item">
+              <i class="fas fa-users"></i>
+              <span>{{ job.applicants.length }} Applicants</span>
+            </div>
+          </div>
+
+          <div class="job-skills">
+            <span class="skill-tag" *ngFor="let skill of job.skills.split(',')">{{ skill.trim() }}</span>
+          </div>
+        </div>
+
+        <div class="card-actions">
+          <button class="btn-view" (click)="viewJobDetails(job)">
+            <i class="fas fa-eye"></i>
+            View Details
+          </button>
+          <div class="action-buttons">
+            <button class="btn-toggle" (click)="toggleJobStatus(job)" 
+                    [title]="job.status === 'Open' ? 'Close Job' : 'Open Job'">
+              <i class="fas" [ngClass]="job.status === 'Open' ? 'fa-pause' : 'fa-play'"></i>
+            </button>
+            <button class="btn-delete" (click)="deleteJobPost(job.id)" title="Delete Job">
+              <i class="fas fa-trash"></i>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Empty State -->
+    <div class="empty-state" *ngIf="filteredJobPosts.length === 0">
+      <i class="fas fa-briefcase"></i>
+      <h3>No Job Posts Found</h3>
+      <p>Create a new job post or adjust your search</p>
+      <button class="btn-primary" (click)="toggleAddForm()">
+        <i class="fas fa-plus"></i>
+        Create Job Post
+      </button>
+    </div>
+
+    <!-- Analytics Section -->
+    <div class="analytics-section" *ngIf="jobPosts.length > 0">
+      <h3 class="section-title">
+        <i class="fas fa-chart-bar"></i>
+        Job Posts Analytics
+      </h3>
+      
+      <div class="analytics-grid">
+        <div class="analytics-card">
+          <div class="card-icon total">
+            <i class="fas fa-briefcase"></i>
+          </div>
+          <div class="card-data">
+            <h4>{{ jobPosts.length }}</h4>
+            <p>Total Job Posts</p>
+          </div>
+        </div>
+
+        <div class="analytics-card">
+          <div class="card-icon active">
+            <i class="fas fa-play"></i>
+          </div>
+          <div class="card-data">
+            <h4>{{ activeJobPostsCount }}</h4>
+            <p>Active Posts</p>
+          </div>
+        </div>
+
+        <div class="analytics-card">
+          <div class="card-icon applicants">
+            <i class="fas fa-users"></i>
+          </div>
+          <div class="card-data">
+            <h4>{{ totalApplicants }}</h4>
+            <p>Total Applicants</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Chart Visualizations -->
+      <div class="charts-container">
+        <div class="chart-card">
+          <h4>Applications Trend</h4>
+          <!-- Replace with Angular chart component or image -->
+          <div class="chart-placeholder">[Chart: Applications Trend]</div>
+        </div>
+        <div class="chart-card">
+          <h4>Job Posts by Status</h4>
+          <!-- Replace with Angular chart component or image -->
+          <div class="chart-placeholder">[Chart: Job Posts by Status]</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Job Details Modal -->
+    <div class="job-modal" *ngIf="showJobDetails && selectedJob">
+      <div class="modal-backdrop" (click)="closeJobDetails()"></div>
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3>{{ selectedJob.jobTitle }}</h3>
+          <button class="btn-close" (click)="closeJobDetails()">
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+        
+        <div class="job-details">
+          <p><strong>Description:</strong> {{ selectedJob.description }}</p>
+          <p><strong>Location:</strong> {{ selectedJob.location }}</p>
+          <p><strong>Salary:</strong> {{ selectedJob.salary }}</p>
+          <p><strong>Duration:</strong> {{ selectedJob.duration }}</p>
+          <p><strong>Skills:</strong> {{ selectedJob.skills }}</p>
+          <p><strong>Status:</strong> {{ selectedJob.status }}</p>
+          <p><strong>Posted:</strong> {{ selectedJob.postedDate | date:'mediumDate' }}</p>
+          <p><strong>Applicants:</strong> {{ selectedJob.applicants.length }}</p>
+          <div class="modal-actions">
+            <button class="btn-secondary" (click)="closeJobDetails()">Close</button>
+            <button class="btn-primary" (click)="toggleJobStatus(selectedJob)">
+              <i class="fas" [ngClass]="selectedJob.status === 'Open' ? 'fa-pause' : 'fa-play'"></i>
+              {{ selectedJob.status === 'Open' ? 'Close Job' : 'Open Job' }}
+            </button>
+            <button class="btn-delete" (click)="deleteJobPost(selectedJob.id)">
+              <i class="fas fa-trash"></i>
+              Delete Job
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

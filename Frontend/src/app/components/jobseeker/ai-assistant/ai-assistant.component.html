@@ -1,0 +1,456 @@
+<!-- AI Assistant Component HTML -->
+<div class="ai-assistant-container">
+  <!-- Sidebar -->
+  <nav class="sidebar">
+    <div class="sidebar-header">
+      <div class="logo">
+        <div class="logo-icon">
+          <i class="fas fa-graduation-cap"></i>
+        </div>
+        <span>Digital Skilling App</span>
+      </div>
+    </div>
+
+    <div class="nav-section">
+      <div class="nav-title">Main</div>
+      <a href="#" class="nav-item" routerLink="/dashboard">
+        <i class="fas fa-th-large"></i>
+        <span>Dashboard</span>
+      </a>
+      <a href="#" class="nav-item" routerLink="/profile">
+        <i class="fas fa-user"></i>
+        <span>My Profile</span>
+      </a>
+      <a href="#" class="nav-item" routerLink="../job-explorer">
+        <i class="fas fa-briefcase"></i>
+        <span>Jobs Explorer</span>
+        <span class="nav-badge">5</span>
+      </a>
+      <a href="#" class="nav-item active" routerLink="../ai-assistant">
+        <i class="fas fa-robot"></i>
+        <span>AI Recommendations</span>
+      </a>
+      <a href="#" class="nav-item" routerLink="../cv-builder">
+        <i class="fas fa-file-alt"></i>
+        <span>CV Manager</span>
+      </a>
+      <a href="#" class="nav-item" routerLink="../portfolio">
+        <i class="fas fa-folder"></i>
+        <span>My Portfolio</span>
+      </a>
+      <a href="#" class="nav-item" routerLink="../training">
+        <i class="fas fa-play-circle"></i>
+        <span>Training</span>
+      </a>
+    </div>
+
+    <div class="nav-section">
+      <div class="nav-title">Support</div>
+      <a href="#" class="nav-item" routerLink="/settings">
+        <i class="fas fa-cog"></i>
+        <span>Settings</span>
+      </a>
+      <a href="#" class="nav-item" routerLink="/help">
+        <i class="fas fa-question-circle"></i>
+        <span>Help & Support</span>
+      </a>
+    </div>
+
+    <!-- History Section -->
+    <div class="nav-section history-section">
+      <div class="nav-title">Recent Interactions</div>
+      <div class="history-group">
+        <div class="history-date">Today</div>
+        <div class="history-item">
+          <i class="fas fa-briefcase"></i>
+          <span>Job recommendations</span>
+        </div>
+        <div class="history-item">
+          <i class="fas fa-graduation-cap"></i>
+          <span>SQL training completed</span>
+        </div>
+      </div>
+      <div class="history-group">
+        <div class="history-date">Last Week</div>
+        <div class="history-item">
+          <i class="fas fa-chart-line"></i>
+          <span>Career path analysis</span>
+        </div>
+        <div class="history-item">
+          <i class="fas fa-bookmark"></i>
+          <span>Saved 3 job openings</span>
+        </div>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Main Content Area -->
+  <div class="main-content">
+    <!-- Header Section -->
+    <div class="header-section">
+      <div class="greeting-container">
+        <div class="greeting-text">
+          <h1>👋 Hi Barbara, I've analyzed your latest skills and activity!</h1>
+          <p>Based on your recent progress in SQL and UI/UX skills, I have some exciting opportunities for you.</p>
+        </div>
+        <div class="profile-snapshot">
+          <div class="profile-avatar">
+            <img src="https://media.licdn.com/dms/image/v2/C4D03AQHFaMWAvn_4bw/profile-displayphoto-shrink_200_200/profile-displayphoto-shrink_200_200/0/1631786985120?e=2147483647&v=beta&t=3JmjmioV2R_bVheiTDGjs7GUZ4MbXD5FMcQ2xmM27G8" alt="Profile" />
+          </div>
+          <div class="top-skills">
+            <span class="skill-badge skill-high">UI/UX Design</span>
+            <span class="skill-badge skill-high">SQL</span>
+            <span class="skill-badge skill-medium">Frontend</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Conversation Area -->
+    <div class="conversation-area">
+      <!-- AI Message -->
+      <div class="message ai-message">
+        <div class="message-avatar">
+          <i class="fas fa-robot"></i>
+        </div>
+        <div class="message-content">
+          <div class="message-text">
+            Great job completing the Advanced SQL Training! 🎉 I've found some exciting opportunities that match your enhanced skillset.
+          </div>
+          <div class="recommendation-cards">
+            <div class="card-section-title">🎯 Job Matches for You (3 found)</div>
+            <div class="job-cards">
+              <div class="job-card">
+                <div class="job-header">
+                  <div class="company-logo">
+                    <i class="fab fa-microsoft"></i>
+                  </div>
+                  <div class="job-info">
+                    <h3>Data Analyst</h3>
+                    <p>Microsoft Kenya</p>
+                    <span class="salary">KSh 180,000 - 250,000</span>
+                  </div>
+                </div>
+                <div class="skills-match">
+                  <span class="skill-tag matched">SQL</span>
+                  <span class="skill-tag matched">Data Analysis</span>
+                  <span class="skill-tag partial">Python</span>
+                  <span class="skill-tag missing">R</span>
+                </div>
+                <div class="job-actions">
+                  <button class="btn btn-primary">Apply Now</button>
+                  <button class="btn btn-outline">Save</button>
+                </div>
+              </div>
+
+              <div class="job-card">
+                <div class="job-header">
+                  <div class="company-logo">
+                    <i class="fab fa-google"></i>
+                  </div>
+                  <div class="job-info">
+                    <h3>UI/UX Designer</h3>
+                    <p>Google Africa</p>
+                    <span class="salary">KSh 200,000 - 300,000</span>
+                  </div>
+                </div>
+                <div class="skills-match">
+                  <span class="skill-tag matched">UI/UX Design</span>
+                  <span class="skill-tag matched">Figma</span>
+                  <span class="skill-tag partial">React</span>
+                  <span class="skill-tag missing">Angular</span>
+                </div>
+                <div class="job-actions">
+                  <button class="btn btn-primary">Apply Now</button>
+                  <button class="btn btn-outline">Save</button>
+                </div>
+              </div>
+
+              <div class="job-card">
+                <div class="job-header">
+                  <div class="company-logo">
+                    <i class="fas fa-building"></i>
+                  </div>
+                  <div class="job-info">
+                    <h3>Frontend Developer</h3>
+                    <p>Safaricom PLC</p>
+                    <span class="salary">KSh 150,000 - 220,000</span>
+                  </div>
+                </div>
+                <div class="skills-match">
+                  <span class="skill-tag matched">HTML/CSS</span>
+                  <span class="skill-tag matched">JavaScript</span>
+                  <span class="skill-tag partial">React</span>
+                  <span class="skill-tag missing">Node.js</span>
+                </div>
+                <div class="job-actions">
+                  <button class="btn btn-primary">Apply Now</button>
+                  <button class="btn btn-outline">Save</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Training Recommendations -->
+      <div class="message ai-message">
+        <div class="message-avatar">
+          <i class="fas fa-robot"></i>
+        </div>
+        <div class="message-content">
+          <div class="message-text">
+            📚 Based on your skill gaps, here are some training recommendations to boost your career prospects:
+          </div>
+          <div class="recommendation-cards">
+            <div class="training-cards">
+              <div class="training-card">
+                <div class="training-header">
+                  <div class="training-icon">
+                    <i class="fab fa-python"></i>
+                  </div>
+                  <div class="training-info">
+                    <h3>Python for Data Analysis</h3>
+                    <p>Coursera • Google</p>
+                    <div class="training-meta">
+                      <span class="duration">6 weeks</span>
+                      <span class="level">Intermediate</span>
+                    </div>
+                  </div>
+                </div>
+                <div class="training-description">
+                  Complete your data analysis toolkit with Python. Perfect complement to your SQL skills.
+                </div>
+                <div class="training-actions">
+                  <button class="btn btn-primary">Enroll Now</button>
+                  <button class="btn btn-outline">Learn More</button>
+                </div>
+              </div>
+
+              <div class="training-card">
+                <div class="training-header">
+                  <div class="training-icon">
+                    <i class="fab fa-angular"></i>
+                  </div>
+                  <div class="training-info">
+                    <h3>Angular for Frontend Developers</h3>
+                    <p>Udemy • Internal Platform</p>
+                    <div class="training-meta">
+                      <span class="duration">4 weeks</span>
+                      <span class="level">Intermediate</span>
+                    </div>
+                  </div>
+                </div>
+                <div class="training-description">
+                  Expand your frontend skills with Angular to qualify for full-stack positions.
+                </div>
+                <div class="training-actions">
+                  <button class="btn btn-primary">Enroll Now</button>
+                  <button class="btn btn-outline">Learn More</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Career Path Guidance -->
+      <div class="message ai-message">
+        <div class="message-avatar">
+          <i class="fas fa-robot"></i>
+        </div>
+        <div class="message-content">
+          <div class="message-text">
+            🚀 Since you excel in UI/UX and Frontend, consider training in Angular & React to grow into a Full-Stack Developer role. This path could increase your salary potential by 40-60%.
+          </div>
+          <div class="career-path-card">
+            <div class="path-timeline">
+              <div class="path-step current">
+                <div class="step-icon">
+                  <i class="fas fa-check"></i>
+                </div>
+                <div class="step-content">
+                  <h4>Current: UI/UX Designer</h4>
+                  <p>Strong foundation established</p>
+                </div>
+              </div>
+              <div class="path-arrow">→</div>
+              <div class="path-step next">
+                <div class="step-icon">
+                  <i class="fas fa-play"></i>
+                </div>
+                <div class="step-content">
+                  <h4>Next: Frontend Developer</h4>
+                  <p>Add Angular/React skills</p>
+                </div>
+              </div>
+              <div class="path-arrow">→</div>
+              <div class="path-step future">
+                <div class="step-icon">
+                  <i class="fas fa-star"></i>
+                </div>
+                <div class="step-content">
+                  <h4>Goal: Full-Stack Developer</h4>
+                  <p>Complete backend training</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Quick Actions Panel -->
+    <div class="quick-actions">
+      <button class="action-chip" (click)="showJobs()">
+        <i class="fas fa-briefcase"></i>
+        View Jobs
+      </button>
+      <button class="action-chip" (click)="showTraining()">
+        <i class="fas fa-graduation-cap"></i>
+        Recommended Training
+      </button>
+      <button class="action-chip" (click)="showInsights()">
+        <i class="fas fa-chart-line"></i>
+        Career Insights
+      </button>
+      <button class="action-chip" (click)="showSkillPlan()">
+        <i class="fas fa-route"></i>
+        Skill Growth Plan
+      </button>
+    </div>
+
+    <!-- Input Area -->
+    <div class="input-area">
+      <div class="input-container">
+        <input type="text" placeholder="Ask me about jobs, training, or career advice..." [(ngModel)]="userMessage" (keyup.enter)="sendMessage()" />
+        <button class="send-button" (click)="sendMessage()">
+          <i class="fas fa-paper-plane"></i>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Right Sidebar -->
+  <div class="right-sidebar">
+    <!-- Skills Radar Chart -->
+    <div class="insights-card">
+      <div class="card-header">
+        <h3>Skills Overview</h3>
+        <i class="fas fa-chart-radar"></i>
+      </div>
+      <div class="skills-radar">
+        <canvas id="skillsChart" width="200" height="200"></canvas>
+      </div>
+      <div class="skills-legend">
+        <div class="legend-item">
+          <span class="legend-color current"></span>
+          <span>Your Skills</span>
+        </div>
+        <div class="legend-item">
+          <span class="legend-color market"></span>
+          <span>Market Demand</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Progress Tracker -->
+    <div class="insights-card">
+      <div class="card-header">
+        <h3>Recent Progress</h3>
+        <i class="fas fa-trophy"></i>
+      </div>
+      <div class="progress-items">
+        <div class="progress-item">
+          <div class="progress-header">
+            <span class="skill-name">SQL</span>
+            <span class="progress-change positive">+20%</span>
+          </div>
+          <div class="progress-bar">
+            <div class="progress-fill" style="width: 85%"></div>
+          </div>
+          <p class="progress-note">Completed Advanced SQL Training</p>
+        </div>
+        <div class="progress-item">
+          <div class="progress-header">
+            <span class="skill-name">UI/UX Design</span>
+            <span class="progress-change positive">+15%</span>
+          </div>
+          <div class="progress-bar">
+            <div class="progress-fill" style="width: 90%"></div>
+          </div>
+          <p class="progress-note">Portfolio project completed</p>
+        </div>
+        <div class="progress-item">
+          <div class="progress-header">
+            <span class="skill-name">JavaScript</span>
+            <span class="progress-change neutral">+5%</span>
+          </div>
+          <div class="progress-bar">
+            <div class="progress-fill" style="width: 70%"></div>
+          </div>
+          <p class="progress-note">Practice exercises completed</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Upcoming Deadlines -->
+    <div class="insights-card">
+      <div class="card-header">
+        <h3>Upcoming Deadlines</h3>
+        <i class="fas fa-clock"></i>
+      </div>
+      <div class="deadlines-list">
+        <div class="deadline-item urgent">
+          <div class="deadline-icon">
+            <i class="fas fa-briefcase"></i>
+          </div>
+          <div class="deadline-content">
+            <h4>Data Analyst Application</h4>
+            <p class="deadline-time">Due in 2 days</p>
+            <p class="deadline-company">Microsoft Kenya</p>
+          </div>
+        </div>
+        <div class="deadline-item normal">
+          <div class="deadline-icon">
+            <i class="fas fa-graduation-cap"></i>
+          </div>
+          <div class="deadline-content">
+            <h4>Python Training Enrollment</h4>
+            <p class="deadline-time">Due in 5 days</p>
+            <p class="deadline-company">Coursera</p>
+          </div>
+        </div>
+        <div class="deadline-item normal">
+          <div class="deadline-icon">
+            <i class="fas fa-user-friends"></i>
+          </div>
+          <div class="deadline-content">
+            <h4>Portfolio Review Session</h4>
+            <p class="deadline-time">Next week</p>
+            <p class="deadline-company">Career Coach</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- What-If Simulator -->
+    <div class="insights-card premium-feature">
+      <div class="card-header">
+        <h3>"What If" Simulator</h3>
+        <span class="premium-badge">Premium</span>
+      </div>
+      <div class="simulator-content">
+        <p>Explore career possibilities by adding new skills</p>
+        <div class="simulator-input">
+          <select>
+            <option>Add Python skill</option>
+            <option>Add React skill</option>
+            <option>Add Node.js skill</option>
+          </select>
+          <button class="btn btn-small">Simulate</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

@@ -1,0 +1,359 @@
+<div class="training-container">
+  <!-- Sidebar -->
+  <nav class="sidebar">
+    <div class="sidebar-header">
+      <div class="logo">
+        <div class="logo-icon">
+          <i class="fas fa-graduation-cap"></i>
+        </div>
+        <span>Digital Skilling App</span>
+      </div>
+    </div>
+    
+    <div class="nav-section">
+      <div class="nav-title">Main</div>
+      <a href="#" class="nav-item active" routerLink="/dashboard">
+        <i class="fas fa-th-large"></i>
+        <span>Dashboard</span>
+      </a>
+      <a href="#" class="nav-item" routerLink="/company-profile">
+        <i class="fas fa-building"></i>
+        <span>Company's Profile</span>
+      </a>
+      <a href="#" class="nav-item" routerLink="../post-job">
+        <i class="fas fa-briefcase"></i>
+        <span>Jobs Posts</span>
+        <span class="nav-badge">5</span>
+      </a>
+      <a href="#" class="nav-item" routerLink="/ai-assistant">
+        <i class="fas fa-robot"></i>
+        <span>AI Recommendations</span>
+      </a>
+      <a href="#" class="nav-item" routerLink="../training">
+        <i class="fas fa-chalkboard-teacher"></i>
+        <span>Training Posts</span>
+      </a>
+      <a href="#" class="nav-item" routerLink="/candidates">
+        <i class="fas fa-users"></i>
+        <span>Candidates Matches</span>
+      </a>
+      <a href="#" class="nav-item" routerLink="../Interviews">
+        <i class="fas fa-calendar-check"></i>
+        <span>Interviews</span>
+      </a>
+    </div>
+    
+    <div class="nav-section">
+      <div class="nav-title">Support</div>
+      <a href="#" class="nav-item" routerLink="/settings">
+        <i class="fas fa-cog"></i>
+        <span>Settings</span>
+      </a>
+      <a href="#" class="nav-item" routerLink="/help">
+        <i class="fas fa-question-circle"></i>
+        <span>Help & Support</span>
+      </a>
+    </div>
+    
+    <div class="sidebar-footer">
+      <div class="user-profile">
+        <div class="profile-avatar">
+          <i class="fas fa-building"></i>
+        </div>
+        <div class="profile-info">
+          <span class="company-name">{{employerName}}</span>
+          <span class="role">Employer</span>
+        </div>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Main Content -->
+  <div class="main-content">
+    <!-- Header -->
+    <div class="page-header">
+      <div class="header-content">
+        <h1 class="page-title">
+          <i class="fas fa-chalkboard-teacher"></i>
+          Training Management
+        </h1>
+        <p class="page-description">Manage and track your training programs</p>
+      </div>
+      <button class="btn-primary" (click)="toggleAddForm()">
+        <i class="fas fa-plus"></i>
+        Add New Training
+      </button>
+    </div>
+
+    <!-- Add Training Form -->
+    <div class="add-training-form" *ngIf="showAddForm">
+      <div class="form-card">
+        <div class="form-header">
+          <h3><i class="fas fa-plus-circle"></i> Add New Training</h3>
+          <button class="btn-close" (click)="toggleAddForm()">
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+        
+        <form class="training-form" (ngSubmit)="addTraining()">
+          <div class="form-row">
+            <div class="form-group">
+              <label for="title">Training Title *</label>
+              <input 
+                type="text" 
+                id="title" 
+                [(ngModel)]="newTraining.title" 
+                name="title"
+                placeholder="Enter training title"
+                required>
+            </div>
+            <div class="form-group">
+              <label for="duration">Duration *</label>
+              <input 
+                type="text" 
+                id="duration" 
+                [(ngModel)]="newTraining.duration" 
+                name="duration"
+                placeholder="e.g., 2 hours"
+                required>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="description">Description *</label>
+            <textarea 
+              id="description" 
+              [(ngModel)]="newTraining.description" 
+              name="description"
+              rows="3"
+              placeholder="Enter training description"
+              required></textarea>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label for="videoType">Video Type</label>
+              <select id="videoType" [(ngModel)]="newTraining.videoType" name="videoType">
+                <option value="youtube">YouTube</option>
+                <option value="vimeo">Vimeo</option>
+                <option value="local">Local File</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="criteria">Completion Criteria</label>
+              <input 
+                type="text" 
+                id="criteria" 
+                [(ngModel)]="newTraining.completionCriteria" 
+                name="criteria"
+                placeholder="e.g., Watch till end">
+            </div>
+          </div>
+
+          <div class="form-group" *ngIf="newTraining.videoType !== 'local'">
+            <label for="videoUrl">Video URL *</label>
+            <input 
+              type="url" 
+              id="videoUrl" 
+              [(ngModel)]="newTraining.videoUrl" 
+              name="videoUrl"
+              placeholder="Enter video URL"
+              required>
+          </div>
+
+          <div class="form-group" *ngIf="newTraining.videoType === 'local'">
+            <label for="videoFile">Upload Video File *</label>
+            <input 
+              type="file" 
+              id="videoFile" 
+              (change)="onFileSelected($event)"
+              accept="video/*"
+              required>
+          </div>
+
+          <div class="form-options">
+            <label class="checkbox-label">
+              <input 
+                type="checkbox" 
+                [(ngModel)]="newTraining.issueCertificate" 
+                name="certificate">
+              <span class="checkmark"></span>
+              Issue Certificate upon completion
+            </label>
+          </div>
+
+          <div class="form-actions">
+            <button type="button" class="btn-secondary" (click)="toggleAddForm()">Cancel</button>
+            <button type="submit" class="btn-primary" [disabled]="!isFormValid()">
+              <i class="fas fa-save"></i>
+              Create Training
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Training List -->
+    <div class="training-grid">
+      <div class="training-card" *ngFor="let training of trainings">
+        <div class="card-header">
+          <div class="video-icon">
+            <i class="fas fa-play-circle"></i>
+          </div>
+          <div class="training-status" [class]="training.status.toLowerCase()">
+            {{ training.status }}
+          </div>
+        </div>
+
+        <div class="card-content">
+          <h3 class="training-title">{{ training.title }}</h3>
+          <p class="training-description">{{ training.description }}</p>
+          
+          <div class="training-meta">
+            <div class="meta-item">
+              <i class="fas fa-clock"></i>
+              <span>{{ training.duration }}</span>
+            </div>
+            <div class="meta-item">
+              <i class="fas fa-users"></i>
+              <span>{{ training.completedBy.length }} completed</span>
+            </div>
+            <div class="meta-item" *ngIf="training.issueCertificate">
+              <i class="fas fa-certificate"></i>
+              <span>{{ training.certificatesIssued }} certificates</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="card-actions">
+          <button class="btn-view" (click)="viewTrainingDetails(training)">
+            <i class="fas fa-eye"></i>
+            View Details
+          </button>
+          <div class="action-buttons">
+            <button class="btn-toggle" (click)="toggleTrainingStatus(training)" 
+                    [title]="training.status === 'Active' ? 'Close Training' : 'Activate Training'">
+              <i class="fas" [class]="training.status === 'Active' ? 'fa-pause' : 'fa-play'"></i>
+            </button>
+            <button class="btn-delete" (click)="deleteTraining(training.id)" title="Delete Training">
+              <i class="fas fa-trash"></i>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Empty State -->
+      <div class="empty-state" *ngIf="trainings.length === 0">
+        <i class="fas fa-chalkboard-teacher"></i>
+        <h3>No Training Programs Yet</h3>
+        <p>Create your first training program to get started</p>
+        <button class="btn-primary" (click)="toggleAddForm()">
+          <i class="fas fa-plus"></i>
+          Add Your First Training
+        </button>
+      </div>
+    </div>
+
+    <!-- Analytics Summary -->
+    <div class="analytics-section" *ngIf="trainings.length > 0">
+      <h3 class="section-title">
+        <i class="fas fa-chart-bar"></i>
+        Training Analytics
+      </h3>
+      
+      <div class="analytics-grid">
+        <div class="analytics-card">
+          <div class="card-icon total">
+            <i class="fas fa-video"></i>
+          </div>
+          <div class="card-data">
+            <h4>{{ trainings.length }}</h4>
+            <p>Total Trainings</p>
+          </div>
+        </div>
+
+        <div class="analytics-card">
+          <div class="card-icon active">
+            <i class="fas fa-play"></i>
+          </div>
+          <div class="card-data">
+            <h4>{{ activeTrainingsCount }}</h4>
+            <p>Active Trainings</p>
+          </div>
+        </div>
+
+        <div class="analytics-card">
+          <div class="card-icon completed">
+            <i class="fas fa-users"></i>
+          </div>
+          <div class="card-data">
+            <h4>{{ totalCompletions }}</h4>
+            <p>Total Completions</p>
+          </div>
+        </div>
+
+        <div class="analytics-card">
+          <div class="card-icon certificates">
+            <i class="fas fa-certificate"></i>
+          </div>
+          <div class="card-data">
+            <h4>{{ totalCertificates }}</h4>
+            <p>Certificates Issued</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Video Player Modal -->
+  <div class="video-modal" *ngIf="showVideoPlayer && selectedTraining">
+    <div class="modal-backdrop" (click)="closeVideoPlayer()"></div>
+    <div class="modal-content">
+      <div class="modal-header" *ngIf="selectedTraining">
+        <h3>{{ selectedTraining.title }}</h3>
+        <button class="btn-close" (click)="closeVideoPlayer()">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+      
+      <div class="video-container" *ngIf="selectedTraining">
+        <iframe 
+          [src]="getTrustedUrl(getVideoEmbedUrl(selectedTraining.videoUrl, selectedTraining.videoType))"
+          frameborder="0"
+          allowfullscreen>
+        </iframe>
+      </div>
+      
+      <div class="video-controls">
+        <div class="progress-container">
+          <div class="progress-bar">
+            <div class="progress-fill" [style.width.%]="videoProgress"></div>
+          </div>
+          <span class="progress-text">{{ videoProgress.toFixed(0) }}% completed</span>
+        </div>
+        
+        <div class="completion-actions" *ngIf="isVideoCompleted">
+          <div class="completion-message">
+            <i class="fas fa-check-circle"></i>
+            <span>Training completed! Well done!</span>
+          </div>
+          <button class="btn-primary" (click)="markTrainingCompleted()" *ngIf="selectedTraining">
+            <i class="fas fa-certificate"></i>
+            {{ selectedTraining.issueCertificate ? 'Get Certificate' : 'Mark as Completed' }}
+          </button>
+        </div>
+      </div>
+      
+      <div class="training-info" *ngIf="selectedTraining">
+        <p><strong>Description:</strong> {{ selectedTraining.description }}</p>
+        <p><strong>Duration:</strong> {{ selectedTraining.duration }}</p>
+        <p><strong>Completion Criteria:</strong> {{ selectedTraining.completionCriteria }}</p>
+        <p *ngIf="selectedTraining.issueCertificate">
+          <i class="fas fa-certificate text-success"></i>
+          <strong>Certificate will be issued upon completion</strong>
+        </p>
+      </div>
+    </div>
+  </div>
+</div>
+

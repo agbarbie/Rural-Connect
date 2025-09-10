@@ -1,0 +1,294 @@
+<div class="dashboard-container">
+<!-- Sidebar -->
+<nav class="sidebar">
+  <div class="sidebar-header">
+    <div class="logo">
+      <div class="logo-icon">
+        <i class="fas fa-graduation-cap"></i>
+      </div>
+      <span>Digital Skilling App</span>
+    </div>
+  </div>
+  
+  <div class="nav-section">
+    <div class="nav-title">Main</div>
+    <a href="#" class="nav-item" routerLink="/employer/employer-dashboard" routerLinkActive="active">
+      <i class="fas fa-th-large"></i>
+      <span>Dashboard</span>
+    </a>
+    <a href="#" class="nav-item" routerLink="/employer/company-profile" routerLinkActive="active">
+      <i class="fas fa-building"></i>
+      <span>Company's Profile</span>
+    </a>
+    <a href="#" class="nav-item" routerLink="/employer/post-jobs" routerLinkActive="active">
+      <i class="fas fa-briefcase"></i>
+      <span>Jobs Posts</span>
+      <span class="nav-badge">5</span>
+    </a>
+    <a href="#" class="nav-item" routerLink="/employer/ai-assistant" routerLinkActive="active">
+      <i class="fas fa-robot"></i>
+      <span>AI Recommendations</span>
+    </a>
+    <a href="#" class="nav-item" routerLink="/employer/training" routerLinkActive="active">
+      <i class="fas fa-chalkboard-teacher"></i>
+      <span>Training Posts</span>
+    </a>
+    <a href="#" class="nav-item" routerLink="/employer/candidates" routerLinkActive="active">
+      <i class="fas fa-users"></i>
+      <span>Candidates Matches</span>
+    </a>
+    <a href="#" class="nav-item" routerLink="/employer/interviews" routerLinkActive="active">
+      <i class="fas fa-calendar-check"></i>
+      <span>Interviews</span>
+    </a>
+  </div>
+  
+  <div class="nav-section">
+    <div class="nav-title">Support</div>
+    <a href="#" class="nav-item" routerLink="/employer/settings" routerLinkActive="active">
+      <i class="fas fa-cog"></i>
+      <span>Settings</span>
+    </a>
+    <a href="#" class="nav-item" routerLink="/employer/help" routerLinkActive="active">
+      <i class="fas fa-question-circle"></i>
+      <span>Help & Support</span>
+    </a>
+  </div>
+  
+  <div class="sidebar-footer">
+    <div class="user-profile">
+      <div class="profile-avatar">
+        <i class="fas fa-building"></i>
+      </div>
+      <div class="profile-info">
+        <span class="company-name">{{employerName}}</span>
+        <span class="role">Employer</span>
+      </div>
+    </div>
+  </div>
+</nav>
+  <!-- Main Content -->
+  <main class="main-content">
+    <!-- Top Header -->
+    <header class="top-header">
+      <div class="header-left">
+        <h1>Employer Dashboard</h1>
+        <p>Manage your recruitment and training programs</p>
+      </div>
+      <div class="header-right">
+        <div class="search-container">
+          <i class="fas fa-search"></i>
+          <input type="text" placeholder="Search candidates, skills, training...">
+        </div>
+        <div class="header-actions">
+          <button class="action-btn notification-btn">
+            <i class="fas fa-bell"></i>
+            <span class="badge">{{urgentActions}}</span>
+          </button>
+          <div class="user-dropdown">
+            <img src="https://via.placeholder.com/36" alt="Profile">
+            <i class="fas fa-chevron-down"></i>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <!-- Welcome Banner -->
+    <section class="welcome-banner">
+      <div class="banner-content">
+        <div class="welcome-info">
+          <h2>Welcome back to Digital Skilling!</h2>
+          <p>Your recruitment hub is ready. Company profile is {{profileCompletion}}% complete.</p>
+          <div class="quick-actions">
+<button class="action-btn primary-btn" (click)="createNewJobPost()">
+  <i class="fas fa-plus"></i>
+  Post New Job
+</button>
+
+<button class="action-btn secondary-btn" (click)="createNewTraining()">
+  <i class="fas fa-graduation-cap"></i>
+  Create Training
+</button>
+          </div>
+        </div>
+        <div class="banner-visual">
+          <div class="floating-card">
+            <img src="assets/employer.svg" alt="Company Logo">
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Stats Grid -->
+    <section class="stats-grid">
+      <div class="stat-card job-posts">
+        <div class="stat-header">
+          <i class="fas fa-briefcase"></i>
+          <span class="stat-trend up">+12%</span>
+        </div>
+        <h3>{{activeJobs}}</h3>
+        <p>Active Job Posts</p>
+      </div>
+      
+      <div class="stat-card candidates">
+        <div class="stat-header">
+          <i class="fas fa-users"></i>
+          <span class="stat-trend up">+25%</span>
+        </div>
+        <h3>{{totalCandidates}}</h3>
+        <p>Total Applications</p>
+      </div>
+      
+      <div class="stat-card interviews">
+        <div class="stat-header">
+          <i class="fas fa-calendar-check"></i>
+          <span class="stat-trend neutral">±0%</span>
+        </div>
+        <h3>{{scheduledInterviews}}</h3>
+        <p>Scheduled Interviews</p>
+      </div>
+      
+      <div class="stat-card training">
+        <div class="stat-header">
+          <i class="fas fa-play-circle"></i>
+          <span class="stat-trend up">+8%</span>
+        </div>
+        <h3>15</h3>
+        <p>Training Programs</p>
+      </div>
+    </section>
+
+    <!-- Main Dashboard Grid -->
+    <div class="dashboard-grid">
+      <!-- AI Skill Matches -->
+      <section class="dashboard-card skill-matches">
+        <div class="card-header">
+          <h3>
+            <i class="fas fa-brain"></i>
+            AI Skill Matches
+          </h3>
+          <span class="status-indicator new">{{topApplicants.length}} New</span>
+        </div>
+        <div class="matches-container">
+          <div class="match-item" *ngFor="let applicant of topApplicants">
+            <div class="applicant-profile">
+              <div class="profile-pic">{{applicant.avatar}}</div>
+              <div class="profile-details">
+                <h4>{{applicant.name}}</h4>
+                <span class="position">{{applicant.position}}</span>
+                <div class="skills-preview">
+                  <span class="skill" *ngFor="let skill of applicant.skills.slice(0, 3)">{{skill}}</span>
+                </div>
+              </div>
+            </div>
+            <div class="match-score" [ngClass]="getMatchScoreClass(applicant.matchScore)">
+              {{applicant.matchScore}}%
+            </div>
+            <div class="match-actions">
+              <button class="btn-sm outline" (click)="viewApplicant(applicant.id)">Review</button>
+              <button class="btn-sm primary" (click)="contactApplicant(applicant.id)">Contact</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Training Analytics -->
+      <section class="dashboard-card training-analytics">
+        <div class="card-header">
+          <h3>
+            <i class="fas fa-chart-line"></i>
+            Training Impact
+          </h3>
+        </div>
+        <div class="training-stats">
+          <div class="training-metric">
+            <div class="metric-value">{{analytics.applications.count}}</div>
+            <div class="metric-label">Learners Enrolled</div>
+            <div class="metric-change positive">+{{analytics.applications.change}}%</div>
+          </div>
+          <div class="training-metric">
+            <div class="metric-value">{{analytics.interviews.count}}</div>
+            <div class="metric-label">Certificates Issued</div>
+            <div class="metric-change positive">+{{analytics.interviews.change}}%</div>
+          </div>
+          <div class="training-metric">
+            <div class="metric-value">4.8</div>
+            <div class="metric-label">Avg Rating</div>
+            <div class="metric-change positive">+0.3</div>
+          </div>
+        </div>
+        <div class="training-progress">
+          <div class="progress-item">
+            <span>JavaScript Fundamentals</span>
+            <div class="progress-bar">
+              <div class="progress-fill" style="width: 85%"></div>
+            </div>
+            <span class="progress-percent">85%</span>
+          </div>
+          <div class="progress-item">
+            <span>Digital Marketing</span>
+            <div class="progress-bar">
+              <div class="progress-fill" style="width: 67%"></div>
+            </div>
+            <span class="progress-percent">67%</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- Interview Schedule -->
+      <section class="dashboard-card interview-schedule">
+        <div class="card-header">
+          <h3>
+            <i class="fas fa-calendar-alt"></i>
+            Today's Interviews
+          </h3>
+        </div>
+        <div class="interview-list">
+          <div class="interview-slot" *ngFor="let interview of upcomingInterviews.slice(0, 3)">
+            <div class="time-slot">
+              <span class="time">{{interview.time}}</span>
+              <span class="duration">30min</span>
+            </div>
+            <div class="interview-info">
+              <h4>{{interview.candidateName}}</h4>
+              <p>{{interview.position}}</p>
+              <div class="interview-type" [ngClass]="interview.type">
+                <i class="fas" [ngClass]="interview.type === 'online' ? 'fa-video' : 'fa-map-marker-alt'"></i>
+                {{interview.type | titlecase}}
+              </div>
+            </div>
+            <div class="interview-actions">
+              <button class="btn-icon" (click)="joinInterview(interview.id)" title="Join Interview">
+                <i class="fas fa-play"></i>
+              </button>
+              <button class="btn-icon" (click)="viewInterviewDetails(interview.id)" title="Details">
+                <i class="fas fa-info"></i>
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Recent Activity -->
+      <section class="dashboard-card recent-activity">
+        <div class="card-header">
+          <h3>
+            <i class="fas fa-clock"></i>
+            Recent Activity
+          </h3>
+        </div>
+        <div class="activity-feed">
+          <div class="activity-item" *ngFor="let activity of recentActivity.slice(0, 4)">
+            <div class="activity-icon" [ngClass]="activity.type">
+              <i [class]="getActivityIcon(activity.type)"></i> <!-- Changed from [ngClass] to [class] -->
+            </div>
+            <div class="activity-content">
+              <p>{{activity.message}}</p>
+              <span class="activity-time">{{activity.timestamp}}</span>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+  </main>
+</div>

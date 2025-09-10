@@ -1,0 +1,378 @@
+<div class="training-container">
+    <!-- Sidebar -->
+  <nav class="sidebar">
+    <div class="sidebar-header">
+      <div class="logo">
+        <div class="logo-icon">
+          <i class="fas fa-graduation-cap"></i>
+        </div>
+        <span>Digital Skilling</span>
+      </div>
+    </div>
+
+    <div class="nav-section">
+      <div class="nav-title">Main</div>
+      <a href="#" class="nav-item active" routerLink="/dashboard">
+        <i class="fas fa-th-large"></i>
+        <span>Dashboard</span>
+      </a>
+      <a href="#" class="nav-item" routerLink="/profile">
+        <i class="fas fa-user"></i>
+        <span>My Profile</span>
+      </a>
+      <a href="#" class="nav-item" routerLink="../job-explorer">
+        <i class="fas fa-briefcase"></i>
+        <span>Jobs Explorer</span>
+        <span class="nav-badge">5</span>
+      </a>
+      <a href="#" class="nav-item" routerLink="/ai-recommendations">
+        <i class="fas fa-robot"></i>
+        <span>AI Recommendations</span>
+      </a>
+      <a href="#" class="nav-item" routerLink="/cv-manager">
+        <i class="fas fa-file-alt"></i>
+        <span>CV Manager</span>
+      </a>
+      <a href="#" class="nav-item" routerLink="/portfolio">
+        <i class="fas fa-folder"></i>
+        <span>My Portfolio</span>
+      </a>
+      <a href="#" class="nav-item" routerLink="../training">
+        <i class="fas fa-play-circle"></i>
+        <span>Training</span>
+      </a>
+    </div>
+
+    <div class="nav-section">
+      <div class="nav-title">Support</div>
+      <a href="#" class="nav-item" routerLink="/settings">
+        <i class="fas fa-cog"></i>
+        <span>Settings</span>
+      </a>
+      <a href="#" class="nav-item" routerLink="/help">
+        <i class="fas fa-question-circle"></i>
+        <span>Help & Support</span>
+      </a>
+    </div>
+  </nav>
+  <!-- Header Section -->
+  <div class="page-header">
+    <div class="header-content">
+      <div class="header-text">
+        <h1><i class="fas fa-graduation-cap"></i> Training Opportunities</h1>
+        <p>Gain skills through curated video-based training programs tailored for career growth.</p>
+      </div>
+      <div class="header-stats">
+        <div class="stat-card">
+          <i class="fas fa-video"></i>
+          <div>
+            <span class="stat-number">150+</span>
+            <span class="stat-label">Video Courses</span>
+          </div>
+        </div>
+        <div class="stat-card">
+          <i class="fas fa-certificate"></i>
+          <div>
+            <span class="stat-number">85%</span>
+            <span class="stat-label">Certificate Rate</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Search and Filter Section -->
+  <div class="search-filter-section">
+    <div class="search-container">
+      <div class="search-box">
+        <i class="fas fa-search"></i>
+        <input 
+          type="text" 
+          placeholder="Search training programs..." 
+          [(ngModel)]="searchQuery"
+          (input)="onSearchChange()">
+      </div>
+      <button class="filter-toggle-btn" (click)="toggleFilters()">
+        <i class="fas fa-filter"></i>
+        Filters
+        <i class="fas fa-chevron-down" [class.rotated]="showFilters"></i>
+      </button>
+    </div>
+
+    <!-- Advanced Filters -->
+    <div class="filters-panel" [class.show]="showFilters">
+      <div class="filter-group">
+        <h4>Duration</h4>
+        <label><input type="checkbox" (change)="onFilterCheckboxChange('duration', 'short', $event)"> Short (< 10 hours)</label>
+        <label><input type="checkbox" (change)="onFilterCheckboxChange('duration', 'medium', $event)"> Medium (10-40 hours)</label>
+        <label><input type="checkbox" (change)="onFilterCheckboxChange('duration', 'long', $event)"> Long (> 40 hours)</label>
+      </div>
+      <div class="filter-group">
+        <h4>Level</h4>
+        <label><input type="checkbox" (change)="onFilterCheckboxChange('level', 'Beginner', $event)"> Beginner</label>
+        <label><input type="checkbox" (change)="onFilterCheckboxChange('level', 'Intermediate', $event)"> Intermediate</label>
+        <label><input type="checkbox" (change)="onFilterCheckboxChange('level', 'Advanced', $event)"> Advanced</label>
+      </div>
+      <div class="filter-group">
+        <h4>Cost</h4>
+        <label><input type="checkbox" (change)="onFilterCheckboxChange('cost', 'Free', $event)"> Free</label>
+        <label><input type="checkbox" (change)="onFilterCheckboxChange('cost', 'Paid', $event)"> Paid</label>
+      </div>
+      <div class="filter-group">
+        <h4>Mode</h4>
+        <label><input type="checkbox" (change)="onFilterCheckboxChange('mode', 'Online', $event)"> Online</label>
+        <label><input type="checkbox" (change)="onFilterCheckboxChange('mode', 'Offline', $event)"> Offline</label>
+      </div>
+      <button class="clear-filters-btn" (click)="clearAllFilters()">
+        <i class="fas fa-times"></i> Clear All
+      </button>
+    </div>
+  </div>
+
+  <!-- Category Tabs -->
+  <div class="category-tabs">
+    <button 
+      class="category-tab" 
+      [class.active]="selectedCategory === 'all'"
+      (click)="filterByCategory('all')">
+      All Courses
+    </button>
+    <button 
+      *ngFor="let category of categories"
+      class="category-tab" 
+      [class.active]="selectedCategory === category"
+      (click)="filterByCategory(category)">
+      {{category}}
+    </button>
+  </div>
+
+  <!-- Training Grid -->
+  <div class="training-grid">
+    <div class="training-card" *ngFor="let training of filteredTrainings">
+      <div class="card-header">
+        <div class="card-image">
+          <img [src]="training.thumbnail" [alt]="training.title">
+          <div class="video-overlay">
+            <i class="fas fa-play"></i>
+            <span>{{training.videos.length}} Videos</span>
+          </div>
+          <div class="duration-badge">{{training.duration}}</div>
+        </div>
+        <div class="card-actions">
+          <button class="action-btn" title="Add to Wishlist">
+            <i class="far fa-heart"></i>
+          </button>
+          <button class="action-btn" title="Share">
+            <i class="fas fa-share"></i>
+          </button>
+        </div>
+      </div>
+
+      <div class="card-content">
+        <div class="card-meta">
+          <span class="category-tag">{{training.category}}</span>
+          <span class="level-badge" [class]="training.level.toLowerCase()">{{training.level}}</span>
+        </div>
+        
+        <h3 class="card-title">{{training.title}}</h3>
+        <p class="card-description">{{training.description}}</p>
+        
+        <div class="card-details">
+          <div class="detail-item">
+            <i class="fas fa-building"></i>
+            <span>{{training.provider}}</span>
+          </div>
+          <div class="detail-item">
+            <i class="fas fa-users"></i>
+            <span>{{training.students | number}} students</span>
+          </div>
+          <div class="detail-item">
+            <i class="fas fa-star"></i>
+            <span>{{training.rating}}</span>
+          </div>
+        </div>
+
+        <div class="card-features">
+          <div class="feature" *ngIf="training.certificate">
+            <i class="fas fa-certificate"></i>
+            <span>Certificate</span>
+          </div>
+          <div class="feature">
+            <i class="fas fa-globe" *ngIf="training.mode === 'Online'; else offlineIcon"></i>
+            <ng-template #offlineIcon><i class="fas fa-map-marker-alt"></i></ng-template>
+            <span>{{training.mode}}</span>
+          </div>
+          <div class="feature" [class.free]="training.cost === 'Free'">
+            <i class="fas fa-tag"></i>
+            <span>{{training.cost}}</span>
+          </div>
+        </div>
+
+        <!-- Progress Bar (for enrolled courses) -->
+        <div class="progress-section" *ngIf="training.enrolled">
+          <div class="progress-info">
+            <span>Progress</span>
+            <span>{{training.progress}}%</span>
+          </div>
+          <div class="progress-bar">
+            <div class="progress-fill" [style.width]="getProgressWidth(training.progress)"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card-footer">
+        <button 
+          class="btn btn-outline" 
+          (click)="viewTrainingDetail(training)">
+          <i class="fas fa-info-circle"></i>
+          View Details
+        </button>
+        <button 
+          *ngIf="!training.enrolled; else continueBtn"
+          class="btn btn-primary" 
+          (click)="enrollInTraining(training)">
+          <i class="fas fa-plus-circle"></i>
+          Enroll Now
+        </button>
+        <ng-template #continueBtn>
+          <button 
+            class="btn btn-success" 
+            (click)="startTraining(training)">
+            <i class="fas fa-play"></i>
+            Continue
+          </button>
+        </ng-template>
+      </div>
+    </div>
+  </div>
+
+  <!-- No Results -->
+  <div class="no-results" *ngIf="filteredTrainings.length === 0">
+    <div class="no-results-content">
+      <i class="fas fa-search"></i>
+      <h3>No Training Programs Found</h3>
+      <p>Try adjusting your search criteria or filters</p>
+      <button class="btn btn-primary" (click)="clearAllFilters()">
+        <i class="fas fa-refresh"></i>
+        Clear Filters
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Training Detail Modal -->
+<div class="modal-overlay" *ngIf="showTrainingDetail" (click)="closeTrainingDetail()">
+  <div class="modal-content" (click)="$event.stopPropagation()" *ngIf="selectedTraining">
+    <div class="modal-header">
+      <h2>{{selectedTraining.title}}</h2>
+      <button class="close-btn" (click)="closeTrainingDetail()">
+        <i class="fas fa-times"></i>
+      </button>
+    </div>
+    
+    <div class="modal-body">
+      <div class="training-overview">
+        <img [src]="selectedTraining.thumbnail" [alt]="selectedTraining.title" class="training-image">
+        <div class="training-info">
+          <p class="training-description">{{selectedTraining.description}}</p>
+          
+          <div class="training-stats">
+            <div class="stat">
+              <i class="fas fa-clock"></i>
+              <span>{{selectedTraining.duration}}</span>
+            </div>
+            <div class="stat">
+              <i class="fas fa-signal"></i>
+              <span>{{selectedTraining.level}}</span>
+            </div>
+            <div class="stat">
+              <i class="fas fa-star"></i>
+              <span>{{selectedTraining.rating}} rating</span>
+            </div>
+            <div class="stat">
+              <i class="fas fa-users"></i>
+              <span>{{selectedTraining.students | number}} students</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="training-sections">
+        <!-- Outcomes Section -->
+        <div class="section">
+          <h3><i class="fas fa-target"></i> Learning Outcomes</h3>
+          <ul class="outcomes-list">
+            <li *ngFor="let outcome of selectedTraining.outcomes">
+              <i class="fas fa-check-circle"></i>
+              {{outcome}}
+            </li>
+          </ul>
+        </div>
+
+        <!-- Video Syllabus -->
+        <div class="section">
+          <h3><i class="fas fa-play-circle"></i> Course Videos ({{selectedTraining.videos.length}})</h3>
+          <div class="video-list">
+            <div class="video-item" *ngFor="let video of selectedTraining.videos; let i = index">
+              <div class="video-number">{{i + 1}}</div>
+              <div class="video-info">
+                <h4>{{video.title}}</h4>
+                <span class="video-duration">
+                  <i class="fas fa-clock"></i>
+                  {{video.duration}}
+                </span>
+              </div>
+              <div class="video-status">
+                <i class="fas fa-check-circle" *ngIf="video.completed" style="color: #10b981;"></i>
+                <i class="fas fa-play-circle" *ngIf="!video.completed" style="color: #6b7280;"></i>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Provider Info -->
+        <div class="section">
+          <h3><i class="fas fa-building"></i> Provider Information</h3>
+          <div class="provider-info">
+            <p><strong>Organization:</strong> {{selectedTraining.provider}}</p>
+            <p><strong>Certificate:</strong> 
+              <span *ngIf="selectedTraining.certificate" style="color: #10b981;">
+                <i class="fas fa-check"></i> Available upon completion
+              </span>
+              <span *ngIf="!selectedTraining.certificate" style="color: #6b7280;">
+                <i class="fas fa-times"></i> Not available
+              </span>
+            </p>
+            <p><strong>Mode:</strong> {{selectedTraining.mode}}</p>
+            <p><strong>Cost:</strong> 
+              <span [style.color]="selectedTraining.cost === 'Free' ? '#10b981' : '#f59e0b'">
+                {{selectedTraining.cost}}
+              </span>
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <div class="modal-footer">
+      <button class="btn btn-outline" (click)="closeTrainingDetail()">
+        Close
+      </button>
+      <button 
+        *ngIf="!selectedTraining.enrolled; else continueBtnModal"
+        class="btn btn-primary" 
+        (click)="enrollInTraining(selectedTraining); closeTrainingDetail()">
+        <i class="fas fa-plus-circle"></i>
+        Enroll Now
+      </button>
+      <ng-template #continueBtnModal>
+        <button 
+          class="btn btn-success" 
+          (click)="startTraining(selectedTraining); closeTrainingDetail()">
+          <i class="fas fa-play"></i>
+          Start Learning
+        </button>
+      </ng-template>
+    </div>
+  </div>
+</div>

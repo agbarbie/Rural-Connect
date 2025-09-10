@@ -1,0 +1,266 @@
+<!-- Sidebar -->
+<nav class="sidebar">
+  <div class="sidebar-header">
+    <div class="logo">
+      <div class="logo-icon">
+        <i class="fas fa-graduation-cap"></i>
+      </div>
+      <span>Digital Skilling</span>
+    </div>
+  </div>
+
+  <div class="nav-section">
+    <div class="nav-title">Main</div>
+    <a href="#" class="nav-item active" routerLink="/dashboard">
+      <i class="fas fa-th-large"></i>
+      <span>Dashboard</span>
+    </a>
+    <a href="#" class="nav-item" routerLink="/profile">
+      <i class="fas fa-user"></i>
+      <span>My Profile</span>
+    </a>
+    <a href="#" class="nav-item" routerLink="/job-explorer">
+      <i class="fas fa-briefcase"></i>
+      <span>Jobs Explorer</span>
+      <span class="nav-badge">5</span>
+    </a>
+    <a href="#" class="nav-item" routerLink="/ai-recommendations">
+      <i class="fas fa-robot"></i>
+      <span>AI Recommendations</span>
+    </a>
+    <a href="#" class="nav-item" routerLink="/cv-manager">
+      <i class="fas fa-file-alt"></i>
+      <span>CV Manager</span>
+    </a>
+    <a href="#" class="nav-item" routerLink="/portfolio">
+      <i class="fas fa-folder"></i>
+      <span>My Portfolio</span>
+    </a>
+    <a href="#" class="nav-item" routerLink="/training">
+      <i class="fas fa-play-circle"></i>
+      <span>Training</span>
+    </a>
+  </div>
+
+  <div class="nav-section">
+    <div class="nav-title">Support</div>
+    <a href="#" class="nav-item" routerLink="/settings">
+      <i class="fas fa-cog"></i>
+      <span>Settings</span>
+    </a>
+    <a href="#" class="nav-item" routerLink="/help">
+      <i class="fas fa-question-circle"></i>
+      <span>Help & Support</span>
+    </a>
+  </div>
+</nav>
+
+<div class="job-explorer-container">
+  <!-- Header -->
+  <div class="header">
+    <div class="header-left">
+      <button class="back-btn">
+        <i class="fas fa-arrow-left"></i>
+      </button>
+      <h1 class="page-title">Jobs Explorer</h1>
+      <span class="match-count">{{ filteredJobs.length }} Matches</span>
+    </div>
+    <div class="header-right">
+      <div class="search-container">
+        <i class="fas fa-search search-icon"></i>
+        <input type="text" placeholder="Search jobs, companies..." class="search-input">
+      </div>
+      <button class="notification-btn">
+        <i class="fas fa-bell"></i>
+      </button>
+      <button class="settings-btn">
+        <i class="fas fa-cog"></i>
+      </button>
+    </div>
+  </div>
+
+  <!-- Filters -->
+  <div class="filters-section">
+    <div class="filters-left">
+      <span class="filter-label">Filter by:</span>
+      
+      <div class="filter-dropdown">
+        <select [(ngModel)]="selectedJobType" (change)="onJobTypeChange()" class="filter-select">
+          <option value="">Job type</option>
+          <option value="Full-time">Full-time</option>
+          <option value="Part-time">Part-time</option>
+          <option value="Contract">Contract</option>
+          <option value="Internship">Internship</option>
+        </select>
+        <i class="fas fa-chevron-down dropdown-icon"></i>
+      </div>
+
+      <div class="filter-dropdown">
+        <select [(ngModel)]="selectedLocation" (change)="onLocationChange()" class="filter-select">
+          <option value="">Location</option>
+          <option value="Remote">Remote</option>
+          <option value="Hybrid">Hybrid</option>
+          <option value="On-site">On-site</option>
+        </select>
+        <i class="fas fa-chevron-down dropdown-icon"></i>
+      </div>
+
+      <div class="filter-dropdown">
+        <select [(ngModel)]="selectedSalaryRange" (change)="onSalaryChange()" class="filter-select">
+          <option value="">Salary</option>
+          <option value="50k-80k">$50k - $80k</option>
+          <option value="80k-120k">$80k - $120k</option>
+          <option value="120k+">$120k+</option>
+        </select>
+        <i class="fas fa-chevron-down dropdown-icon"></i>
+      </div>
+    </div>
+
+    <div class="filters-right">
+      <div class="sort-dropdown">
+        <span class="sort-label">Sort by:</span>
+        <select [(ngModel)]="sortBy" (change)="onSortChange()" class="sort-select">
+          <option value="match-score">Match Score</option>
+          <option value="newest">Newest</option>
+          <option value="salary">Salary</option>
+          <option value="rating">Rating</option>
+        </select>
+        <i class="fas fa-chevron-down dropdown-icon"></i>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tabs -->
+  <div class="tabs-section">
+    <button 
+      class="tab-btn" 
+      [class.active]="activeTab === 'recommended'"
+      (click)="setActiveTab('recommended')">
+      Recommended
+      <span class="tab-count">{{ recommendedCount }}</span>
+    </button>
+    <button 
+      class="tab-btn" 
+      [class.active]="activeTab === 'saved'"
+      (click)="setActiveTab('saved')">
+      Saved Jobs
+      <span class="tab-count">{{ savedJobsCount }}</span>
+    </button>
+    <button 
+      class="tab-btn" 
+      [class.active]="activeTab === 'applied'"
+      (click)="setActiveTab('applied')">
+      Applied
+      <span class="tab-count">{{ appliedJobsCount }}</span>
+    </button>
+  </div>
+
+  <!-- Jobs List -->
+  <div class="jobs-container">
+    <div *ngFor="let job of filteredJobs" class="job-card">
+      <div class="job-header">
+        <div class="company-info">
+          <img [src]="job.companyLogo" [alt]="job.company" class="company-logo" 
+               onerror="this.src='https://via.placeholder.com/50x50/4285f4/ffffff?text=' + job.company.charAt(0)">
+          <div class="job-title-company">
+            <h3 class="job-title">{{ job.title }}</h3>
+            <p class="company-name">{{ job.company }}</p>
+          </div>
+        </div>
+        <div class="match-score">
+          <span class="match-percentage">{{ job.matchScore }}% Match</span>
+        </div>
+      </div>
+
+      <div class="job-details">
+        <div class="job-meta">
+          <div class="meta-item">
+            <i class="fas fa-briefcase"></i>
+            <span>{{ job.type }}</span>
+          </div>
+          <div class="meta-item">
+            <i class="fas fa-map-marker-alt"></i>
+            <span>{{ job.location }}</span>
+          </div>
+          <div class="meta-item">
+            <i class="fas fa-clock"></i>
+            <span>Posted {{ job.postedDays }} days ago</span>
+          </div>
+        </div>
+
+        <div class="salary-rating">
+          <div class="salary">
+            <i class="fas fa-dollar-sign"></i>
+            <span>{{ job.salary }}</span>
+          </div>
+          <div class="rating">
+            <div class="stars">
+              <span *ngFor="let star of getStarArray(job.rating)" class="star">
+                <i class="fas fa-star" *ngIf="star === 1"></i>
+                <i class="fas fa-star-half-alt" *ngIf="star === 0.5"></i>
+                <i class="far fa-star" *ngIf="star === 0"></i>
+              </span>
+            </div>
+            <span class="rating-number">{{ job.rating }}</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="job-description">
+        <p>{{ job.description }}</p>
+      </div>
+
+      <div class="job-skills">
+        <div class="skills-container">
+          <span *ngFor="let skill of job.skills" class="skill-tag">{{ skill }}</span>
+        </div>
+      </div>
+
+      <div class="job-benefits">
+        <div class="benefits-container">
+          <i class="fas fa-gift benefits-icon"></i>
+          <span *ngFor="let benefit of job.benefits; let last = last" class="benefit">
+            {{ benefit }}<span *ngIf="!last">, </span>
+          </span>
+        </div>
+      </div>
+
+      <div class="job-actions">
+        <button class="save-btn" (click)="saveJob(job.id)">
+          <i class="far fa-bookmark"></i>
+        </button>
+        <button 
+          class="apply-btn" 
+          [class.applied]="isJobApplied(job.id)"
+          (click)="applyToJob(job.id)"
+          [disabled]="isJobApplied(job.id)">
+          <span *ngIf="!isJobApplied(job.id)">Apply</span>
+          <span *ngIf="isJobApplied(job.id)">Applied</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Empty State -->
+    <div *ngIf="filteredJobs.length === 0" class="empty-state">
+      <i class="fas fa-search empty-icon"></i>
+      <h3>No jobs found</h3>
+      <p>Try adjusting your filters to see more results</p>
+    </div>
+  </div>
+</div>
+
+<!-- Success Notification -->
+<div *ngIf="showNotification" class="notification-overlay">
+  <div class="notification-popup">
+    <div class="notification-icon">
+      <i class="fas fa-check-circle"></i>
+    </div>
+    <div class="notification-content">
+      <h4>Application Submitted!</h4>
+      <p>{{ notificationMessage }}</p>
+    </div>
+    <button class="notification-close" (click)="hideNotification()">
+      <i class="fas fa-times"></i>
+    </button>
+  </div>
+</div>

@@ -1,0 +1,392 @@
+<!-- ai-assistant.component.html -->
+<div class="ai-assistant-container">
+  <!-- Sidebar Navigation -->
+  <nav class="sidebar">
+    <div class="sidebar-header">
+      <div class="logo">
+        <div class="logo-icon">
+          <i class="fas fa-graduation-cap"></i>
+        </div>
+        <span>Digital Skilling App</span>
+      </div>
+    </div>
+    
+    <div class="nav-section">
+      <div class="nav-title">Main</div>
+      <a href="#" class="nav-item" routerLink="/dashboard">
+        <i class="fas fa-th-large"></i>
+        <span>Dashboard</span>
+      </a>
+      <a href="#" class="nav-item" routerLink="/company-profile">
+        <i class="fas fa-building"></i>
+        <span>Company Profile</span>
+      </a>
+      <a href="#" class="nav-item" routerLink="/job-posts">
+        <i class="fas fa-briefcase"></i>
+        <span>Job Posts</span>
+        <span class="nav-badge">12</span>
+      </a>
+      <a href="#" class="nav-item active" routerLink="/ai-assistant">
+        <i class="fas fa-robot"></i>
+        <span>AI Recommendations</span>
+      </a>
+      <a href="#" class="nav-item" routerLink="/training">
+        <i class="fas fa-chalkboard-teacher"></i>
+        <span>Training Posts</span>
+      </a>
+      <a href="#" class="nav-item" routerLink="/candidates">
+        <i class="fas fa-users"></i>
+        <span>Candidate Matches</span>
+      </a>
+      <a href="#" class="nav-item" routerLink="/interviews">
+        <i class="fas fa-calendar-check"></i>
+        <span>Interviews</span>
+      </a>
+    </div>
+    
+    <div class="nav-section">
+      <div class="nav-title">Support</div>
+      <a href="#" class="nav-item" routerLink="/settings">
+        <i class="fas fa-cog"></i>
+        <span>Settings</span>
+      </a>
+      <a href="#" class="nav-item" routerLink="/help">
+        <i class="fas fa-question-circle"></i>
+        <span>Help & Support</span>
+      </a>
+    </div>
+    
+    <div class="sidebar-footer">
+      <div class="user-profile">
+        <div class="profile-avatar">
+          <i class="fas fa-building"></i>
+        </div>
+        <div class="profile-info">
+          <span class="company-name">TechCorp Inc.</span>
+          <span class="role">Employer</span>
+        </div>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Main Content -->
+  <div class="main-content">
+    <!-- Header Section -->
+    <div class="header">
+      <div class="header-content">
+        <h1 class="page-title">
+          <i class="fas fa-robot"></i>
+          AI Talent & Training Recommendations
+        </h1>
+        <p class="page-subtitle">Discover the best candidates and training programs powered by AI</p>
+      </div>
+    </div>
+
+    <!-- Filters Section -->
+    <div class="filters-section">
+      <div class="filters-grid">
+        <div class="filter-group">
+          <label for="jobRole">Job Role</label>
+          <select id="jobRole" [(ngModel)]="selectedJobRole" class="filter-select">
+            <option value="">All Roles</option>
+            <option *ngFor="let role of jobRoles" [value]="role">{{ role }}</option>
+          </select>
+        </div>
+        
+        <div class="filter-group">
+          <label for="skills">Skills Required</label>
+          <select id="skills" [(ngModel)]="selectedSkills" class="filter-select">
+            <option value="">All Skills</option>
+            <option *ngFor="let skill of skillOptions" [value]="skill">{{ skill }}</option>
+          </select>
+        </div>
+        
+        <div class="filter-group">
+          <label for="experience">Experience Level</label>
+          <select id="experience" [(ngModel)]="selectedExperience" class="filter-select">
+            <option value="">All Levels</option>
+            <option *ngFor="let level of experienceLevels" [value]="level">{{ level }}</option>
+          </select>
+        </div>
+        
+        <div class="filter-group">
+          <label for="industry">Industry</label>
+          <select id="industry" [(ngModel)]="selectedIndustry" class="filter-select">
+            <option value="">All Industries</option>
+            <option *ngFor="let industry of industries" [value]="industry">{{ industry }}</option>
+          </select>
+        </div>
+      </div>
+      
+      <div class="filter-actions">
+        <button class="btn btn-primary" (click)="applyFilters()" [disabled]="isLoading">
+          <i class="fas fa-filter"></i>
+          {{ isLoading ? 'Applying...' : 'Apply Filters' }}
+        </button>
+        <button class="btn btn-secondary" (click)="clearFilters()">
+          <i class="fas fa-times"></i>
+          Clear All
+        </button>
+      </div>
+    </div>
+
+    <!-- Tabs Navigation -->
+    <div class="tabs-container">
+      <div class="tabs-nav">
+        <button 
+          class="tab-btn" 
+          [class.active]="activeTab === 'candidates'"
+          (click)="setActiveTab('candidates')">
+          <i class="fas fa-users"></i>
+          Job Matches
+        </button>
+        <button 
+          class="tab-btn" 
+          [class.active]="activeTab === 'training'"
+          (click)="setActiveTab('training')">
+          <i class="fas fa-graduation-cap"></i>
+          Training Recommendations
+        </button>
+        <button 
+          class="tab-btn" 
+          [class.active]="activeTab === 'insights'"
+          (click)="setActiveTab('insights')">
+          <i class="fas fa-chart-bar"></i>
+          Insights Dashboard
+        </button>
+      </div>
+
+      <!-- Tab Content -->
+      <div class="tab-content">
+        <!-- Candidates Tab -->
+        <div class="tab-pane" [class.active]="activeTab === 'candidates'">
+          <div class="candidates-grid">
+            <div class="candidate-card" *ngFor="let candidate of candidates">
+              <div class="candidate-header">
+                <div class="candidate-avatar">
+                  <i class="fas fa-user"></i>
+                </div>
+                <div class="candidate-info">
+                  <h3 class="candidate-name">{{ candidate.name }}</h3>
+                  <p class="candidate-title">{{ candidate.title }}</p>
+                </div>
+                <div class="match-score" [class]="getMatchScoreClass(candidate.matchScore)">
+                  {{ candidate.matchScore }}% match
+                </div>
+              </div>
+              
+              <div class="candidate-body">
+                <div class="skills-section">
+                  <h4>Key Skills</h4>
+                  <div class="skills-list">
+                    <span class="skill-tag" *ngFor="let skill of candidate.skills">{{ skill }}</span>
+                  </div>
+                </div>
+                
+                <div class="certifications-section">
+                  <h4>Certifications</h4>
+                  <div class="certifications-list">
+                    <div class="certification" *ngFor="let cert of candidate.certifications">
+                      <i class="fas fa-check-circle"></i>
+                      {{ cert }}
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+              <div class="candidate-actions">
+                <button class="btn btn-outline" (click)="viewProfile(candidate.id)">
+                  <i class="fas fa-eye"></i>
+                  View Profile
+                </button>
+                <button class="btn btn-primary" (click)="inviteToApply(candidate.id)">
+                  <i class="fas fa-paper-plane"></i>
+                  Invite to Apply
+                </button>
+                <button class="btn btn-secondary" (click)="messageCandidate(candidate.id)">
+                  <i class="fas fa-message"></i>
+                  Message
+                </button>
+                <button class="btn btn-info" (click)="explainRecommendation('candidate', candidate.id)">
+                  <i class="fas fa-question-circle"></i>
+                  Why recommended?
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Training Tab -->
+        <div class="tab-pane" [class.active]="activeTab === 'training'">
+          <div class="training-grid">
+            <div class="training-card" *ngFor="let training of trainings">
+              <div class="training-header">
+                <div class="training-provider">{{ training.provider }}</div>
+                <div class="training-level" [class]="getLevelBadgeClass(training.level)">
+                  {{ training.level }}
+                </div>
+              </div>
+              
+              <div class="training-body">
+                <h3 class="training-title">{{ training.title }}</h3>
+                <p class="training-description">{{ training.description }}</p>
+                
+                <div class="training-meta">
+                  <div class="meta-item">
+                    <i class="fas fa-clock"></i>
+                    <span>{{ training.duration }}</span>
+                  </div>
+                  <div class="meta-item">
+                    <i class="fas fa-chart-line"></i>
+                    <span>+{{ training.employabilityBoost }}% hiring chance</span>
+                  </div>
+                  <div class="meta-item">
+                    <i class="fas fa-tag"></i>
+                    <span>{{ training.category }}</span>
+                  </div>
+                </div>
+              </div>
+              
+              <div class="training-actions">
+                <button class="btn btn-primary" (click)="assignTraining(training.id)">
+                  <i class="fas fa-user-plus"></i>
+                  Assign to Candidates
+                </button>
+                <button class="btn btn-info" (click)="explainRecommendation('training', training.id)">
+                  <i class="fas fa-question-circle"></i>
+                  Why recommended?
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Insights Tab -->
+        <div class="tab-pane" [class.active]="activeTab === 'insights'">
+          <div class="insights-dashboard">
+            <div class="insights-grid">
+              <!-- Top Skills Needed -->
+              <div class="insight-card">
+                <h3 class="card-title">
+                  <i class="fas fa-chart-bar"></i>
+                  Top Skills in Demand
+                </h3>
+                <div class="skills-chart">
+                  <div class="skill-bar" *ngFor="let skill of skillGaps">
+                    <div class="skill-info">
+                      <span class="skill-name">{{ skill.skill }}</span>
+                      <span class="skill-percentage">{{ skill.demandPercentage }}%</span>
+                    </div>
+                    <div class="progress-bar">
+                      <div class="progress-fill" [style.width.%]="skill.demandPercentage"></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Skill Gap Analysis -->
+              <div class="insight-card">
+                <h3 class="card-title">
+                  <i class="fas fa-pie-chart"></i>
+                  Skill Gap Analysis
+                </h3>
+                <div class="gap-analysis">
+                  <div class="gap-item" *ngFor="let skill of skillGaps">
+                    <div class="gap-header">
+                      <span class="gap-skill">{{ skill.skill }}</span>
+                      <span class="gap-percentage" [class]="getGapSeverity(getSkillGapPercentage(skill))">
+                        {{ getSkillGapPercentage(skill) }}% have this skill
+                      </span>
+                    </div>
+                    <div class="gap-bar">
+                      <div class="gap-fill" [style.width.%]="getSkillGapPercentage(skill)"></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Training Impact Projection -->
+              <div class="insight-card full-width">
+                <h3 class="card-title">
+                  <i class="fas fa-rocket"></i>
+                  Training Impact Projection
+                </h3>
+                <div class="impact-grid">
+                  <div class="impact-stat">
+                    <div class="stat-number">75%</div>
+                    <div class="stat-label">Would qualify after React training</div>
+                  </div>
+                  <div class="impact-stat">
+                    <div class="stat-number">60%</div>
+                    <div class="stat-label">Would qualify after Python training</div>
+                  </div>
+                  <div class="impact-stat">
+                    <div class="stat-number">45%</div>
+                    <div class="stat-label">Would qualify after AWS training</div>
+                  </div>
+                  <div class="impact-stat">
+                    <div class="stat-number">85%</div>
+                    <div class="stat-label">Overall pipeline improvement potential</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- AI Chatbot -->
+  <div class="chatbot-container" [class.open]="isChatOpen">
+    <div class="chat-header" (click)="toggleChat()">
+      <div class="chat-title">
+        <i class="fas fa-robot"></i>
+        AI Assistant
+      </div>
+      <button class="chat-toggle">
+        <i class="fas" [class.fa-chevron-down]="!isChatOpen" [class.fa-chevron-up]="isChatOpen"></i>
+      </button>
+    </div>
+    
+    <div class="chat-body" *ngIf="isChatOpen">
+      <div class="chat-messages">
+        <div 
+          class="chat-message" 
+          *ngFor="let message of chatMessages"
+          [class.user-message]="message.isUser"
+          [class.ai-message]="!message.isUser">
+          <div class="message-content">{{ message.message }}</div>
+          <div class="message-time">
+            {{ message.timestamp | date:'short' }}
+          </div>
+        </div>
+      </div>
+      
+      <div class="chat-input">
+        <input 
+          type="text" 
+          [(ngModel)]="currentChatMessage"
+          (keypress)="onChatKeyPress($event)"
+          placeholder="Ask me about candidates, training, or insights..."
+          class="chat-input-field">
+        <button class="chat-send-btn" (click)="sendChatMessage()" [disabled]="!currentChatMessage.trim()">
+          <i class="fas fa-paper-plane"></i>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Quick Actions Suggestions -->
+  <div class="quick-actions" *ngIf="isChatOpen">
+    <button class="quick-action" (click)="addChatMessage('Show me top candidates for my Marketing Manager role.', true); sendChatMessage()">
+      Top candidates for Marketing Manager
+    </button>
+    <button class="quick-action" (click)="addChatMessage('Which trainings will boost my pipeline for Data Analysts?', true); sendChatMessage()">
+      Best trainings for Data Analysts
+    </button>
+    <button class="quick-action" (click)="addChatMessage('What are the biggest skill gaps in my candidate pool?', true); sendChatMessage()">
+      Show skill gaps analysis
+    </button>
+  </div>
+</div>
