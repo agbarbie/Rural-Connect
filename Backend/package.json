@@ -3,48 +3,33 @@
   "version": "1.0.0",
   "description": "Job Portal Backend API",
   "main": "dist/server.js",
-  "type": "module",
-  "engines": {
-    "node": ">=18.0.0"
-  },
   "scripts": {
     "dev": "nodemon src/server.ts",
     "build": "tsc",
-    "start": "node --no-warnings dist/server.js",
+    "start": "node dist/server.js",
     "clean": "rimraf dist",
     "build:clean": "npm run clean && npm run build",
     "watch": "tsc --watch",
-    "serve": "npm run build && npm run start",
-    "lint": "eslint src --ext .ts",
-    "lint:fix": "eslint src --ext .ts --fix",
-    "test": "jest"
+    "serve": "npm run build && npm start"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
     "cors": "^2.8.5",
-    "dotenv": "^16.4.5",
-    "express": "^4.21.1",
+    "dotenv": "^16.3.1",
+    "express": "^4.18.2",
     "jsonwebtoken": "^9.0.2",
-    "pg": "^8.13.0"
+    "pg": "^8.11.3"
   },
   "devDependencies": {
-    "@types/bcryptjs": "^2.4.6",
-    "@types/cors": "^2.8.17",
-    "@types/express": "^4.17.21",
-    "@types/jest": "^29.5.13",
-    "@types/jsonwebtoken": "^9.0.7",
-    "@types/node": "^20.16.11",
-    "@types/pg": "^8.11.6",
-    "@types/supertest": "^6.0.2",
-    "@typescript-eslint/eslint-plugin": "^8.8.1",
-    "@typescript-eslint/parser": "^8.8.1",
-    "eslint": "^8.57.1",
-    "jest": "^29.7.0",
-    "nodemon": "^3.1.7",
-    "rimraf": "^6.0.1",
-    "supertest": "^7.0.0",
-    "ts-jest": "^29.2.5",
-    "ts-node": "^10.9.2",
-    "typescript": "^5.6.3"
+    "@types/bcryptjs": "^2.4.2",
+    "@types/cors": "^2.8.19",
+    "@types/express": "^4.17.17",
+    "@types/jsonwebtoken": "^9.0.2",
+    "@types/node": "^20.5.0",
+    "@types/pg": "^8.10.2",
+    "nodemon": "^3.1.10",
+    "rimraf": "^5.0.1",
+    "ts-node": "^10.9.1",
+    "typescript": "^5.1.6"
   }
 }
