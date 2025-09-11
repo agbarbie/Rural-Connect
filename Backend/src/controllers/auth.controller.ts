@@ -54,7 +54,7 @@ export class AuthController {
   });
 
   getProfile = asyncHandler(async (req: RequestWithUser, res: Response): Promise<void> => {
-    // Ensure req.user is defined (set by protect middleware)
+    // Ensure req.user is defined
     if (!req.user) {
       res.status(401).json({
         success: false,
@@ -66,7 +66,7 @@ export class AuthController {
     // Log for debugging (remove in production)
     console.log('getProfile - req.user:', req.user);
 
-    // Return data directly from req.user (no DB query needed, as middleware already fetched it)
+    // Return data from req.user
     res.status(200).json({
       success: true,
       message: 'Profile retrieved successfully',
@@ -81,7 +81,7 @@ export class AuthController {
   });
 
   logout = asyncHandler(async (req: Request, res: Response): Promise<void> => {
-    // With JWT, logout is typically handled client-side by removing the token
+    // JWT logout is client-side
     res.status(200).json({
       success: true,
       message: 'Logged out successfully'

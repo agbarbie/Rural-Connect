@@ -3,11 +3,11 @@ import jwt from 'jsonwebtoken';
 import pool from '../db/db.config';
 import { AppError } from './errorMiddlewares';
 import asyncHandler from '../middleware/asyncHandler';
-import { AuthUser } from '../../src/types/user.type';
+import { AuthUser, JwtPayload } from '../../src/types/user.type';
+
 export interface RequestWithUser extends Request {
   user?: AuthUser;
 }
-import { JwtPayload } from '../../src/types/user.type';
 
 // Auth middleware to protect routes
 export const protect = asyncHandler(async (req: RequestWithUser, res: Response, next: NextFunction) => {
@@ -43,7 +43,7 @@ export const protect = asyncHandler(async (req: RequestWithUser, res: Response, 
     // Fetch the user from the database
     const userQuery = await pool.query(
       "SELECT id, name, email, user_type FROM users WHERE id = $1",
-      [decoded.id] // Use decoded.id as per JwtPayload interface
+      [decoded.id]
     );
 
     if (userQuery.rows.length === 0) {
@@ -66,8 +66,8 @@ export const protect = asyncHandler(async (req: RequestWithUser, res: Response, 
 
     // Proceed to the next middleware
     next();
-  } catch (error) {
-    console.error("JWT Error:", error);
+  } catch (error: any) {
+    console.error("JWT Error:", error.message);
 
     // Handle token expiration or invalid token
     if (error instanceof jwt.TokenExpiredError) {
@@ -76,7 +76,7 @@ export const protect = asyncHandler(async (req: RequestWithUser, res: Response, 
       return next(new AppError('Invalid token, not authorized', 401));
     }
 
-    return next(new AppError('Not authorized, token failed', 401));
+    return next(new AppError('Not authorized, token failed: ' + error.message, 401));
   }
 });
 

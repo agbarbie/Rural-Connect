@@ -45,7 +45,6 @@ export interface AuthUser {
   user_type: string;
 }
 
-// JWT payload interface for backend
 export interface JwtPayload {
   id: number;
   email: string;

@@ -1,4 +1,4 @@
-import pool from '../db/db.config'; // or '../db/db.config' - use your actual path
+import pool from '../db/db.config';
 import { User, CreateUserRequest, LoginRequest, AuthResponse } from '../types/user.type';
 import { hashPassword, comparePassword, generateToken } from '../utils/helpers';
 
@@ -33,8 +33,8 @@ export class AuthService {
       const result = await client.query(`
         INSERT INTO users (
           name, email, password, user_type, location, contact_number, 
-          company_name, company_password, role_in_company
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+          company_name, company_password, role_in_company, created_at, updated_at
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW(), NOW())
         RETURNING id, name, email, user_type, location, contact_number, 
                  company_name, role_in_company, created_at, updated_at
       `, [
@@ -58,7 +58,6 @@ export class AuthService {
         token,
         user: newUser
       };
-
     } catch (error: any) {
       console.error('Registration error:', error);
       return {
@@ -110,7 +109,6 @@ export class AuthService {
         token,
         user: userWithoutPassword
       };
-
     } catch (error: any) {
       console.error('Login error:', error);
       return {
