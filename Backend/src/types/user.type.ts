@@ -36,6 +36,7 @@ export interface AuthResponse {
   token?: string;
   user?: Omit<User, 'password'>;
 }
+
 export interface AuthUser {
   id: string;
   email: string;

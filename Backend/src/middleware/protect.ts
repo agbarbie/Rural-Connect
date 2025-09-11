@@ -1,13 +1,13 @@
-import { Response,Request, NextFunction } from 'express';
+import { Response, Request, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import pool from '../db/db.config';
 import { AppError } from './errorMiddlewares';
 import asyncHandler from '../middleware/asyncHandler';
-import { AuthUser } from '../../src/types/user.type'
+import { AuthUser } from '../../src/types/user.type';
 export interface RequestWithUser extends Request {
   user?: AuthUser;
 }
-import { JwtPayload } from 'jsonwebtoken';
+import { JwtPayload } from '../../src/types/user.type';
 
 // Auth middleware to protect routes
 export const protect = asyncHandler(async (req: RequestWithUser, res: Response, next: NextFunction) => {
@@ -17,11 +17,6 @@ export const protect = asyncHandler(async (req: RequestWithUser, res: Response, 
   if (req.headers.authorization && req.headers.authorization.startsWith("Bearer")) {
     token = req.headers.authorization.split(" ")[1];
   }
-
-  // // Check for token in cookies as fallback
-  // else if (req.cookies && req.cookies.access_token) {
-  //   token = req.cookies.access_token;
-  // }
 
   // If no token is found
   if (!token) {
@@ -37,10 +32,18 @@ export const protect = asyncHandler(async (req: RequestWithUser, res: Response, 
     // Verify the token
     const decoded = jwt.verify(token, process.env.JWT_SECRET) as JwtPayload;
 
+    // Log decoded for debugging (remove in production)
+    console.log('Decoded JWT in protect:', decoded);
+
+    // Check if id exists in decoded payload
+    if (!decoded.id) {
+      return next(new AppError('Invalid token, no id found in payload', 401));
+    }
+
     // Fetch the user from the database
     const userQuery = await pool.query(
       "SELECT id, name, email, user_type FROM users WHERE id = $1",
-      [decoded.id] // Note: using decoded.id instead of decoded.userId
+      [decoded.id] // Use decoded.id as per JwtPayload interface
     );
 
     if (userQuery.rows.length === 0) {
@@ -51,12 +54,15 @@ export const protect = asyncHandler(async (req: RequestWithUser, res: Response, 
 
     // Attach the user to the request (mapping user_type to role for consistency)
     req.user = {
-      id: user.id,
+      id: user.id.toString(), // Convert number to string to match AuthUser
       email: user.email,
-      role: user.user_type, // Map user_type to role for your existing code
+      role: user.user_type,
       name: user.name,
       user_type: user.user_type
     } as AuthUser;
+
+    // Log req.user for debugging (remove in production)
+    console.log('req.user set in protect:', req.user);
 
     // Proceed to the next middleware
     next();
@@ -70,7 +76,7 @@ export const protect = asyncHandler(async (req: RequestWithUser, res: Response, 
       return next(new AppError('Invalid token, not authorized', 401));
     }
 
-    next(new AppError('Not authorized, token failed', 401));
+    return next(new AppError('Not authorized, token failed', 401));
   }
 });
 
