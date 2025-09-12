@@ -33,8 +33,8 @@ export class JobService {
           employer_id, company_id, title, description, requirements, responsibilities,
           location, employment_type, work_arrangement, salary_min, salary_max,
           currency, skills_required, experience_level, education_level, benefits,
-          department, application_deadline, is_featured
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
+          department, application_deadline, is_featured, status, applications_count, views_count
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)
         RETURNING *
       `;
       
@@ -57,7 +57,10 @@ export class JobService {
         jobData.benefits || null,
         jobData.department || null,
         jobData.application_deadline ? new Date(jobData.application_deadline) : null,
-        jobData.is_featured || false
+        jobData.is_featured || false,
+        'Open', // Default status
+        0, // Initial applications count
+        0  // Initial views count
       ];
       
       const result = await client.query(insertQuery, values);
@@ -66,6 +69,7 @@ export class JobService {
       return result.rows[0] as Job;
     } catch (error) {
       await client.query('ROLLBACK');
+      console.error('Error creating job:', error);
       throw error;
     } finally {
       client.release();
@@ -73,231 +77,246 @@ export class JobService {
   }
 
   async getJobsByEmployer(employerId: string, query: JobQuery = {}): Promise<{ jobs: JobWithCompany[]; total: number }> {
-    const { 
-      page = 1, 
-      limit = 10, 
-      status, 
-      employment_type, 
-      work_arrangement,
-      search,
-      sort_by = 'created_at',
-      sort_order = 'DESC'
-    } = query;
-    
-    const offset = (page - 1) * limit;
-    
-    let whereConditions = ['j.employer_id = $1'];
-    let queryParams: any[] = [employerId];
-    let paramCount = 1;
-    
-    if (status) {
-      paramCount++;
-      whereConditions.push(`j.status = $${paramCount}`);
-      queryParams.push(status);
+    try {
+      const { 
+        page = 1, 
+        limit = 10, 
+        status, 
+        employment_type, 
+        work_arrangement,
+        search,
+        sort_by = 'created_at',
+        sort_order = 'DESC'
+      } = query;
+      
+      const offset = (page - 1) * limit;
+      
+      let whereConditions = ['j.employer_id = $1'];
+      let queryParams: any[] = [employerId];
+      let paramCount = 1;
+      
+      if (status) {
+        paramCount++;
+        whereConditions.push(`j.status = $${paramCount}`);
+        queryParams.push(status);
+      }
+      
+      if (employment_type) {
+        paramCount++;
+        whereConditions.push(`j.employment_type = $${paramCount}`);
+        queryParams.push(employment_type);
+      }
+      
+      if (work_arrangement) {
+        paramCount++;
+        whereConditions.push(`j.work_arrangement = $${paramCount}`);
+        queryParams.push(work_arrangement);
+      }
+      
+      if (search) {
+        paramCount++;
+        whereConditions.push(`(
+          j.title ILIKE $${paramCount} OR 
+          j.description ILIKE $${paramCount} OR 
+          j.location ILIKE $${paramCount} OR 
+          array_to_string(j.skills_required, ',') ILIKE $${paramCount}
+        )`);
+        queryParams.push(`%${search}%`);
+      }
+      
+      const whereClause = whereConditions.join(' AND ');
+      
+      // Validate sort_by to prevent SQL injection
+      const allowedSortFields = ['created_at', 'updated_at', 'title', 'salary_max', 'applications_count', 'views_count'];
+      const sortField = allowedSortFields.includes(sort_by) ? sort_by : 'created_at';
+      const sortDirection = sort_order === 'ASC' ? 'ASC' : 'DESC';
+      
+      const baseQuery = `
+        FROM jobs j
+        LEFT JOIN companies c ON j.company_id = c.id
+        WHERE ${whereClause}
+      `;
+      
+      // Get total count
+      const countResult = await this.db.query(`
+        SELECT COUNT(*) as total ${baseQuery}
+      `, queryParams);
+      
+      const total = parseInt(countResult.rows[0].total);
+      
+      // Get jobs with pagination
+      const jobsResult = await this.db.query(`
+        SELECT 
+          j.*,
+          c.name as company_name,
+          c.logo_url as company_logo,
+          c.industry as company_industry,
+          c.company_size,
+          c.website_url as company_website
+        ${baseQuery}
+        ORDER BY j.${sortField} ${sortDirection}
+        LIMIT $${paramCount + 1} OFFSET $${paramCount + 2}
+      `, [...queryParams, limit, offset]);
+      
+      return {
+        jobs: jobsResult.rows as JobWithCompany[],
+        total
+      };
+    } catch (error) {
+      console.error('Error fetching jobs by employer:', error);
+      throw error;
     }
-    
-    if (employment_type) {
-      paramCount++;
-      whereConditions.push(`j.employment_type = $${paramCount}`);
-      queryParams.push(employment_type);
-    }
-    
-    if (work_arrangement) {
-      paramCount++;
-      whereConditions.push(`j.work_arrangement = $${paramCount}`);
-      queryParams.push(work_arrangement);
-    }
-    
-    if (search) {
-      paramCount++;
-      whereConditions.push(`(
-        j.title ILIKE $${paramCount} OR 
-        j.description ILIKE $${paramCount} OR 
-        j.location ILIKE $${paramCount} OR 
-        array_to_string(j.skills_required, ',') ILIKE $${paramCount}
-      )`);
-      queryParams.push(`%${search}%`);
-    }
-    
-    const whereClause = whereConditions.join(' AND ');
-    
-    // Validate sort_by to prevent SQL injection
-    const allowedSortFields = ['created_at', 'updated_at', 'title', 'salary_max', 'applications_count', 'views_count'];
-    const sortField = allowedSortFields.includes(sort_by) ? sort_by : 'created_at';
-    const sortDirection = sort_order === 'ASC' ? 'ASC' : 'DESC';
-    
-    const baseQuery = `
-      FROM jobs j
-      LEFT JOIN companies c ON j.company_id = c.id
-      WHERE ${whereClause}
-    `;
-    
-    // Get total count
-    const countResult = await this.db.query(`
-      SELECT COUNT(*) as total ${baseQuery}
-    `, queryParams);
-    
-    const total = parseInt(countResult.rows[0].total);
-    
-    // Get jobs with pagination
-    const jobsResult = await this.db.query(`
-      SELECT 
-        j.*,
-        c.name as company_name,
-        c.logo_url as company_logo,
-        c.industry as company_industry,
-        c.company_size,
-        c.website_url as company_website
-      ${baseQuery}
-      ORDER BY j.${sortField} ${sortDirection}
-      LIMIT $${paramCount + 1} OFFSET $${paramCount + 2}
-    `, [...queryParams, limit, offset]);
-    
-    return {
-      jobs: jobsResult.rows as JobWithCompany[],
-      total
-    };
   }
 
   async getAllJobs(query: JobQuery = {}): Promise<{ jobs: JobWithCompany[]; total: number }> {
-    const { 
-      page = 1, 
-      limit = 10, 
-      status = 'Open',
-      employment_type, 
-      work_arrangement,
-      location,
-      skills,
-      salary_min,
-      salary_max,
-      search,
-      sort_by = 'created_at',
-      sort_order = 'DESC',
-      company_id,
-      employer_id
-    } = query;
-    
-    const offset = (page - 1) * limit;
-    
-    let whereConditions = ['j.status = $1'];
-    let queryParams: any[] = [status];
-    let paramCount = 1;
-    
-    if (employment_type) {
-      paramCount++;
-      whereConditions.push(`j.employment_type = $${paramCount}`);
-      queryParams.push(employment_type);
+    try {
+      const { 
+        page = 1, 
+        limit = 10, 
+        status = 'Open',
+        employment_type, 
+        work_arrangement,
+        location,
+        skills,
+        salary_min,
+        salary_max,
+        search,
+        sort_by = 'created_at',
+        sort_order = 'DESC',
+        company_id,
+        employer_id
+      } = query;
+      
+      const offset = (page - 1) * limit;
+      
+      let whereConditions = ['j.status = $1'];
+      let queryParams: any[] = [status];
+      let paramCount = 1;
+      
+      if (employment_type) {
+        paramCount++;
+        whereConditions.push(`j.employment_type = $${paramCount}`);
+        queryParams.push(employment_type);
+      }
+      
+      if (work_arrangement) {
+        paramCount++;
+        whereConditions.push(`j.work_arrangement = $${paramCount}`);
+        queryParams.push(work_arrangement);
+      }
+      
+      if (location) {
+        paramCount++;
+        whereConditions.push(`j.location ILIKE $${paramCount}`);
+        queryParams.push(`%${location}%`);
+      }
+      
+      if (skills && skills.length > 0) {
+        paramCount++;
+        whereConditions.push(`j.skills_required && $${paramCount}`);
+        queryParams.push(skills);
+      }
+      
+      if (salary_min) {
+        paramCount++;
+        whereConditions.push(`j.salary_max >= $${paramCount}`);
+        queryParams.push(salary_min);
+      }
+      
+      if (salary_max) {
+        paramCount++;
+        whereConditions.push(`j.salary_min <= $${paramCount}`);
+        queryParams.push(salary_max);
+      }
+      
+      if (company_id) {
+        paramCount++;
+        whereConditions.push(`j.company_id = $${paramCount}`);
+        queryParams.push(company_id);
+      }
+      
+      if (employer_id) {
+        paramCount++;
+        whereConditions.push(`j.employer_id = $${paramCount}`);
+        queryParams.push(employer_id);
+      }
+      
+      if (search) {
+        paramCount++;
+        whereConditions.push(`(
+          j.title ILIKE $${paramCount} OR 
+          j.description ILIKE $${paramCount} OR 
+          j.location ILIKE $${paramCount} OR 
+          c.name ILIKE $${paramCount} OR
+          array_to_string(j.skills_required, ',') ILIKE $${paramCount}
+        )`);
+        queryParams.push(`%${search}%`);
+      }
+      
+      const whereClause = whereConditions.join(' AND ');
+      
+      // Validate sort_by to prevent SQL injection
+      const allowedSortFields = ['created_at', 'updated_at', 'title', 'salary_max', 'applications_count', 'views_count'];
+      const sortField = allowedSortFields.includes(sort_by) ? sort_by : 'created_at';
+      const sortDirection = sort_order === 'ASC' ? 'ASC' : 'DESC';
+      
+      const baseQuery = `
+        FROM jobs j
+        LEFT JOIN companies c ON j.company_id = c.id
+        WHERE ${whereClause}
+      `;
+      
+      // Get total count
+      const countResult = await this.db.query(`
+        SELECT COUNT(*) as total ${baseQuery}
+      `, queryParams);
+      
+      const total = parseInt(countResult.rows[0].total);
+      
+      // Get jobs with pagination
+      const jobsResult = await this.db.query(`
+        SELECT 
+          j.*,
+          c.name as company_name,
+          c.logo_url as company_logo,
+          c.industry as company_industry,
+          c.company_size,
+          c.website_url as company_website
+        ${baseQuery}
+        ORDER BY j.${sortField} ${sortDirection}
+        LIMIT $${paramCount + 1} OFFSET $${paramCount + 2}
+      `, [...queryParams, limit, offset]);
+      
+      return {
+        jobs: jobsResult.rows as JobWithCompany[],
+        total
+      };
+    } catch (error) {
+      console.error('Error fetching all jobs:', error);
+      throw error;
     }
-    
-    if (work_arrangement) {
-      paramCount++;
-      whereConditions.push(`j.work_arrangement = $${paramCount}`);
-      queryParams.push(work_arrangement);
-    }
-    
-    if (location) {
-      paramCount++;
-      whereConditions.push(`j.location ILIKE $${paramCount}`);
-      queryParams.push(`%${location}%`);
-    }
-    
-    if (skills && skills.length > 0) {
-      paramCount++;
-      whereConditions.push(`j.skills_required && $${paramCount}`);
-      queryParams.push(skills);
-    }
-    
-    if (salary_min) {
-      paramCount++;
-      whereConditions.push(`j.salary_max >= $${paramCount}`);
-      queryParams.push(salary_min);
-    }
-    
-    if (salary_max) {
-      paramCount++;
-      whereConditions.push(`j.salary_min <= $${paramCount}`);
-      queryParams.push(salary_max);
-    }
-    
-    if (company_id) {
-      paramCount++;
-      whereConditions.push(`j.company_id = $${paramCount}`);
-      queryParams.push(company_id);
-    }
-    
-    if (employer_id) {
-      paramCount++;
-      whereConditions.push(`j.employer_id = $${paramCount}`);
-      queryParams.push(employer_id);
-    }
-    
-    if (search) {
-      paramCount++;
-      whereConditions.push(`(
-        j.title ILIKE $${paramCount} OR 
-        j.description ILIKE $${paramCount} OR 
-        j.location ILIKE $${paramCount} OR 
-        c.name ILIKE $${paramCount} OR
-        array_to_string(j.skills_required, ',') ILIKE $${paramCount}
-      )`);
-      queryParams.push(`%${search}%`);
-    }
-    
-    const whereClause = whereConditions.join(' AND ');
-    
-    // Validate sort_by to prevent SQL injection
-    const allowedSortFields = ['created_at', 'updated_at', 'title', 'salary_max', 'applications_count', 'views_count'];
-    const sortField = allowedSortFields.includes(sort_by) ? sort_by : 'created_at';
-    const sortDirection = sort_order === 'ASC' ? 'ASC' : 'DESC';
-    
-    const baseQuery = `
-      FROM jobs j
-      LEFT JOIN companies c ON j.company_id = c.id
-      WHERE ${whereClause}
-    `;
-    
-    // Get total count
-    const countResult = await this.db.query(`
-      SELECT COUNT(*) as total ${baseQuery}
-    `, queryParams);
-    
-    const total = parseInt(countResult.rows[0].total);
-    
-    // Get jobs with pagination
-    const jobsResult = await this.db.query(`
-      SELECT 
-        j.*,
-        c.name as company_name,
-        c.logo_url as company_logo,
-        c.industry as company_industry,
-        c.company_size,
-        c.website_url as company_website
-      ${baseQuery}
-      ORDER BY j.${sortField} ${sortDirection}
-      LIMIT $${paramCount + 1} OFFSET $${paramCount + 2}
-    `, [...queryParams, limit, offset]);
-    
-    return {
-      jobs: jobsResult.rows as JobWithCompany[],
-      total
-    };
   }
 
   async getJobById(jobId: string): Promise<JobWithCompany | null> {
-    const result = await this.db.query(`
-      SELECT 
-        j.*,
-        c.name as company_name,
-        c.logo_url as company_logo,
-        c.industry as company_industry,
-        c.company_size,
-        c.website_url as company_website
-      FROM jobs j
-      LEFT JOIN companies c ON j.company_id = c.id
-      WHERE j.id = $1
-    `, [jobId]);
-    
-    return result.rows.length > 0 ? result.rows[0] as JobWithCompany : null;
+    try {
+      const result = await this.db.query(`
+        SELECT 
+          j.*,
+          c.name as company_name,
+          c.logo_url as company_logo,
+          c.industry as company_industry,
+          c.company_size,
+          c.website_url as company_website
+        FROM jobs j
+        LEFT JOIN companies c ON j.company_id = c.id
+        WHERE j.id = $1
+      `, [jobId]);
+      
+      return result.rows.length > 0 ? result.rows[0] as JobWithCompany : null;
+    } catch (error) {
+      console.error('Error fetching job by ID:', error);
+      throw error;
+    }
   }
 
   async updateJob(jobId: string, employerId: string, updateData: UpdateJobRequest): Promise<Job | null> {
@@ -375,18 +394,26 @@ export class JobService {
       
       const result = await client.query(updateQuery, updateValues);
       return result.rows[0] as Job;
+    } catch (error) {
+      console.error('Error updating job:', error);
+      throw error;
     } finally {
       client.release();
     }
   }
 
   async deleteJob(jobId: string, employerId: string): Promise<boolean> {
-    const result = await this.db.query(
-      'DELETE FROM jobs WHERE id = $1 AND employer_id = $2 RETURNING id',
-      [jobId, employerId]
-    );
-    
-    return result.rows.length > 0;
+    try {
+      const result = await this.db.query(
+        'DELETE FROM jobs WHERE id = $1 AND employer_id = $2 RETURNING id',
+        [jobId, employerId]
+      );
+      
+      return result.rows.length > 0;
+    } catch (error) {
+      console.error('Error deleting job:', error);
+      throw error;
+    }
   }
 
   async incrementJobViews(jobId: string, ipAddress?: string, userAgent?: string, jobseekerId?: string): Promise<void> {
@@ -410,6 +437,7 @@ export class JobService {
       await client.query('COMMIT');
     } catch (error) {
       await client.query('ROLLBACK');
+      console.error('Error incrementing job views:', error);
       throw error;
     } finally {
       client.release();
@@ -417,263 +445,324 @@ export class JobService {
   }
 
   async getJobStats(employerId?: string): Promise<JobStats> {
-    let whereCondition = '';
-    const queryParams: any[] = [];
-    
-    if (employerId) {
-      whereCondition = 'WHERE employer_id = $1';
-      queryParams.push(employerId);
+    try {
+      let whereCondition = '';
+      const queryParams: any[] = [];
+      
+      if (employerId) {
+        whereCondition = 'WHERE employer_id = $1';
+        queryParams.push(employerId);
+      }
+      
+      const result = await this.db.query(`
+        SELECT 
+          COUNT(*) as total_jobs,
+          SUM(CASE WHEN status = 'Open' THEN 1 ELSE 0 END) as active_jobs,
+          SUM(CASE WHEN status = 'Paused' THEN 1 ELSE 0 END) as paused_jobs,
+          SUM(CASE WHEN status = 'Closed' OR status = 'Filled' THEN 1 ELSE 0 END) as closed_jobs,
+          COALESCE(SUM(applications_count), 0) as total_applications,
+          CASE 
+            WHEN COUNT(*) > 0 THEN ROUND(COALESCE(SUM(applications_count), 0)::numeric / COUNT(*), 2)
+            ELSE 0 
+          END as average_applications_per_job,
+          SUM(CASE WHEN is_featured = true THEN 1 ELSE 0 END) as featured_jobs_count,
+          SUM(CASE WHEN work_arrangement = 'Remote' THEN 1 ELSE 0 END) as remote_jobs_count,
+          SUM(CASE WHEN work_arrangement = 'Hybrid' THEN 1 ELSE 0 END) as hybrid_jobs_count
+        FROM jobs 
+        ${whereCondition}
+      `, queryParams);
+      
+      const row = result.rows[0];
+      return {
+        total_jobs: parseInt(row.total_jobs) || 0,
+        active_jobs: parseInt(row.active_jobs) || 0,
+        paused_jobs: parseInt(row.paused_jobs) || 0,
+        closed_jobs: parseInt(row.closed_jobs) || 0,
+        total_applications: parseInt(row.total_applications) || 0,
+        average_applications_per_job: parseFloat(row.average_applications_per_job) || 0,
+        featured_jobs_count: parseInt(row.featured_jobs_count) || 0,
+        remote_jobs_count: parseInt(row.remote_jobs_count) || 0,
+        hybrid_jobs_count: parseInt(row.hybrid_jobs_count) || 0
+      };
+    } catch (error) {
+      console.error('Error fetching job stats:', error);
+      throw error;
     }
-    
-    const result = await this.db.query(`
-      SELECT 
-        COUNT(*) as total_jobs,
-        SUM(CASE WHEN status = 'Open' THEN 1 ELSE 0 END) as active_jobs,
-        SUM(CASE WHEN status = 'Paused' THEN 1 ELSE 0 END) as paused_jobs,
-        SUM(CASE WHEN status = 'Closed' OR status = 'Filled' THEN 1 ELSE 0 END) as closed_jobs,
-        SUM(applications_count) as total_applications,
-        CASE 
-          WHEN COUNT(*) > 0 THEN ROUND(SUM(applications_count)::numeric / COUNT(*), 2)
-          ELSE 0 
-        END as average_applications_per_job,
-        SUM(CASE WHEN is_featured = true THEN 1 ELSE 0 END) as featured_jobs_count,
-        SUM(CASE WHEN work_arrangement = 'Remote' THEN 1 ELSE 0 END) as remote_jobs_count,
-        SUM(CASE WHEN work_arrangement = 'Hybrid' THEN 1 ELSE 0 END) as hybrid_jobs_count
-      FROM jobs 
-      ${whereCondition}
-    `, queryParams);
-    
-    const row = result.rows[0];
-    return {
-      total_jobs: parseInt(row.total_jobs),
-      active_jobs: parseInt(row.active_jobs),
-      paused_jobs: parseInt(row.paused_jobs),
-      closed_jobs: parseInt(row.closed_jobs),
-      total_applications: parseInt(row.total_applications),
-      average_applications_per_job: parseFloat(row.average_applications_per_job),
-      featured_jobs_count: parseInt(row.featured_jobs_count),
-      remote_jobs_count: parseInt(row.remote_jobs_count),
-      hybrid_jobs_count: parseInt(row.hybrid_jobs_count)
-    };
   }
 
+  // Rest of the methods remain the same...
   async bookmarkJob(jobId: string, jobseekerId: string): Promise<JobBookmark> {
-    // Check if bookmark already exists
-    const existingBookmark = await this.db.query(
-      'SELECT id FROM job_bookmarks WHERE job_id = $1 AND jobseeker_id = $2',
-      [jobId, jobseekerId]
-    );
-    
-    if (existingBookmark.rows.length > 0) {
-      throw new Error('Job already bookmarked');
+    try {
+      // Check if bookmark already exists
+      const existingBookmark = await this.db.query(
+        'SELECT id FROM job_bookmarks WHERE job_id = $1 AND jobseeker_id = $2',
+        [jobId, jobseekerId]
+      );
+      
+      if (existingBookmark.rows.length > 0) {
+        throw new Error('Job already bookmarked');
+      }
+      
+      const result = await this.db.query(`
+        INSERT INTO job_bookmarks (job_id, jobseeker_id)
+        VALUES ($1, $2)
+        RETURNING *
+      `, [jobId, jobseekerId]);
+      
+      return result.rows[0] as JobBookmark;
+    } catch (error) {
+      console.error('Error bookmarking job:', error);
+      throw error;
     }
-    
-    const result = await this.db.query(`
-      INSERT INTO job_bookmarks (job_id, jobseeker_id)
-      VALUES ($1, $2)
-      RETURNING *
-    `, [jobId, jobseekerId]);
-    
-    return result.rows[0] as JobBookmark;
   }
 
   async removeBookmark(jobId: string, jobseekerId: string): Promise<boolean> {
-    const result = await this.db.query(
-      'DELETE FROM job_bookmarks WHERE job_id = $1 AND jobseeker_id = $2 RETURNING id',
-      [jobId, jobseekerId]
-    );
-    
-    return result.rows.length > 0;
+    try {
+      const result = await this.db.query(
+        'DELETE FROM job_bookmarks WHERE job_id = $1 AND jobseeker_id = $2 RETURNING id',
+        [jobId, jobseekerId]
+      );
+      
+      return result.rows.length > 0;
+    } catch (error) {
+      console.error('Error removing bookmark:', error);
+      throw error;
+    }
   }
 
   async getBookmarkedJobs(jobseekerId: string, query: JobQuery = {}): Promise<{ jobs: JobWithCompany[]; total: number }> {
-    const { 
-      page = 1, 
-      limit = 10,
-      sort_by = 'created_at',
-      sort_order = 'DESC'
-    } = query;
-    
-    const offset = (page - 1) * limit;
-    
-    // Validate sort_by to prevent SQL injection
-    const allowedSortFields = ['created_at', 'updated_at', 'title', 'salary_max'];
-    const sortField = allowedSortFields.includes(sort_by) ? sort_by : 'created_at';
-    const sortDirection = sort_order === 'ASC' ? 'ASC' : 'DESC';
-    
-    const baseQuery = `
-      FROM job_bookmarks jb
-      INNER JOIN jobs j ON jb.job_id = j.id
-      LEFT JOIN companies c ON j.company_id = c.id
-      WHERE jb.jobseeker_id = $1
-    `;
-    
-    // Get total count
-    const countResult = await this.db.query(`
-      SELECT COUNT(*) as total ${baseQuery}
-    `, [jobseekerId]);
-    
-    const total = parseInt(countResult.rows[0].total);
-    
-    // Get bookmarked jobs with pagination
-    const jobsResult = await this.db.query(`
-      SELECT 
-        j.*,
-        c.name as company_name,
-        c.logo_url as company_logo,
-        c.industry as company_industry,
-        c.company_size,
-        c.website_url as company_website
-      ${baseQuery}
-      ORDER BY jb.${sortField} ${sortDirection}
-      LIMIT $2 OFFSET $3
-    `, [jobseekerId, limit, offset]);
-    
-    return {
-      jobs: jobsResult.rows as JobWithCompany[],
-      total
-    };
+    try {
+      const { 
+        page = 1, 
+        limit = 10,
+        sort_by = 'created_at',
+        sort_order = 'DESC'
+      } = query;
+      
+      const offset = (page - 1) * limit;
+      
+      // Validate sort_by to prevent SQL injection
+      const allowedSortFields = ['created_at', 'updated_at', 'title', 'salary_max'];
+      const sortField = allowedSortFields.includes(sort_by) ? sort_by : 'created_at';
+      const sortDirection = sort_order === 'ASC' ? 'ASC' : 'DESC';
+      
+      const baseQuery = `
+        FROM job_bookmarks jb
+        INNER JOIN jobs j ON jb.job_id = j.id
+        LEFT JOIN companies c ON j.company_id = c.id
+        WHERE jb.jobseeker_id = $1
+      `;
+      
+      // Get total count
+      const countResult = await this.db.query(`
+        SELECT COUNT(*) as total ${baseQuery}
+      `, [jobseekerId]);
+      
+      const total = parseInt(countResult.rows[0].total);
+      
+      // Get bookmarked jobs with pagination
+      const jobsResult = await this.db.query(`
+        SELECT 
+          j.*,
+          c.name as company_name,
+          c.logo_url as company_logo,
+          c.industry as company_industry,
+          c.company_size,
+          c.website_url as company_website
+        ${baseQuery}
+        ORDER BY jb.${sortField} ${sortDirection}
+        LIMIT $2 OFFSET $3
+      `, [jobseekerId, limit, offset]);
+      
+      return {
+        jobs: jobsResult.rows as JobWithCompany[],
+        total
+      };
+    } catch (error) {
+      console.error('Error fetching bookmarked jobs:', error);
+      throw error;
+    }
   }
 
   async isJobBookmarked(jobId: string, jobseekerId: string): Promise<boolean> {
-    const result = await this.db.query(
-      'SELECT id FROM job_bookmarks WHERE job_id = $1 AND jobseeker_id = $2',
-      [jobId, jobseekerId]
-    );
-    
-    return result.rows.length > 0;
+    try {
+      const result = await this.db.query(
+        'SELECT id FROM job_bookmarks WHERE job_id = $1 AND jobseeker_id = $2',
+        [jobId, jobseekerId]
+      );
+      
+      return result.rows.length > 0;
+    } catch (error) {
+      console.error('Error checking bookmark status:', error);
+      return false;
+    }
   }
 
   async getJobViews(jobId: string, page: number = 1, limit: number = 10): Promise<{ views: JobView[]; total: number }> {
-    const offset = (page - 1) * limit;
-    
-    // Get total count
-    const countResult = await this.db.query(
-      'SELECT COUNT(*) as total FROM job_views WHERE job_id = $1',
-      [jobId]
-    );
-    
-    const total = parseInt(countResult.rows[0].total);
-    
-    // Get views with pagination
-    const viewsResult = await this.db.query(`
-      SELECT *
-      FROM job_views
-      WHERE job_id = $1
-      ORDER BY viewed_at DESC
-      LIMIT $2 OFFSET $3
-    `, [jobId, limit, offset]);
-    
-    return {
-      views: viewsResult.rows as JobView[],
-      total
-    };
+    try {
+      const offset = (page - 1) * limit;
+      
+      // Get total count
+      const countResult = await this.db.query(
+        'SELECT COUNT(*) as total FROM job_views WHERE job_id = $1',
+        [jobId]
+      );
+      
+      const total = parseInt(countResult.rows[0].total);
+      
+      // Get views with pagination
+      const viewsResult = await this.db.query(`
+        SELECT *
+        FROM job_views
+        WHERE job_id = $1
+        ORDER BY viewed_at DESC
+        LIMIT $2 OFFSET $3
+      `, [jobId, limit, offset]);
+      
+      return {
+        views: viewsResult.rows as JobView[],
+        total
+      };
+    } catch (error) {
+      console.error('Error fetching job views:', error);
+      throw error;
+    }
   }
 
   async updateJobApplicationCount(jobId: string): Promise<void> {
-    await this.db.query(`
-      UPDATE jobs 
-      SET applications_count = (
-        SELECT COUNT(*) 
-        FROM job_applications 
-        WHERE job_id = $1
-      )
-      WHERE id = $1
-    `, [jobId]);
+    try {
+      await this.db.query(`
+        UPDATE jobs 
+        SET applications_count = (
+          SELECT COUNT(*) 
+          FROM job_applications 
+          WHERE job_id = $1
+        )
+        WHERE id = $1
+      `, [jobId]);
+    } catch (error) {
+      console.error('Error updating job application count:', error);
+      throw error;
+    }
   }
 
   async getFeaturedJobs(limit: number = 5): Promise<JobWithCompany[]> {
-    const result = await this.db.query(`
-      SELECT 
-        j.*,
-        c.name as company_name,
-        c.logo_url as company_logo,
-        c.industry as company_industry,
-        c.company_size,
-        c.website_url as company_website
-      FROM jobs j
-      LEFT JOIN companies c ON j.company_id = c.id
-      WHERE j.is_featured = true AND j.status = 'Open'
-      ORDER BY j.created_at DESC
-      LIMIT $1
-    `, [limit]);
-    
-    return result.rows as JobWithCompany[];
+    try {
+      const result = await this.db.query(`
+        SELECT 
+          j.*,
+          c.name as company_name,
+          c.logo_url as company_logo,
+          c.industry as company_industry,
+          c.company_size,
+          c.website_url as company_website
+        FROM jobs j
+        LEFT JOIN companies c ON j.company_id = c.id
+        WHERE j.is_featured = true AND j.status = 'Open'
+        ORDER BY j.created_at DESC
+        LIMIT $1
+      `, [limit]);
+      
+      return result.rows as JobWithCompany[];
+    } catch (error) {
+      console.error('Error fetching featured jobs:', error);
+      throw error;
+    }
   }
 
   async getRecentJobs(limit: number = 10): Promise<JobWithCompany[]> {
-    const result = await this.db.query(`
-      SELECT 
-        j.*,
-        c.name as company_name,
-        c.logo_url as company_logo,
-        c.industry as company_industry,
-        c.company_size,
-        c.website_url as company_website
-      FROM jobs j
-      LEFT JOIN companies c ON j.company_id = c.id
-      WHERE j.status = 'Open'
-      ORDER BY j.created_at DESC
-      LIMIT $1
-    `, [limit]);
-    
-    return result.rows as JobWithCompany[];
+    try {
+      const result = await this.db.query(`
+        SELECT 
+          j.*,
+          c.name as company_name,
+          c.logo_url as company_logo,
+          c.industry as company_industry,
+          c.company_size,
+          c.website_url as company_website
+        FROM jobs j
+        LEFT JOIN companies c ON j.company_id = c.id
+        WHERE j.status = 'Open'
+        ORDER BY j.created_at DESC
+        LIMIT $1
+      `, [limit]);
+      
+      return result.rows as JobWithCompany[];
+    } catch (error) {
+      console.error('Error fetching recent jobs:', error);
+      throw error;
+    }
   }
 
   async getPopularJobs(limit: number = 10): Promise<JobWithCompany[]> {
-    const result = await this.db.query(`
-      SELECT 
-        j.*,
-        c.name as company_name,
-        c.logo_url as company_logo,
-        c.industry as company_industry,
-        c.company_size,
-        c.website_url as company_website
-      FROM jobs j
-      LEFT JOIN companies c ON j.company_id = c.id
-      WHERE j.status = 'Open'
-      ORDER BY j.applications_count DESC, j.views_count DESC
-      LIMIT $1
-    `, [limit]);
-    
-    return result.rows as JobWithCompany[];
+    try {
+      const result = await this.db.query(`
+        SELECT 
+          j.*,
+          c.name as company_name,
+          c.logo_url as company_logo,
+          c.industry as company_industry,
+          c.company_size,
+          c.website_url as company_website
+        FROM jobs j
+        LEFT JOIN companies c ON j.company_id = c.id
+        WHERE j.status = 'Open'
+        ORDER BY j.applications_count DESC, j.views_count DESC
+        LIMIT $1
+      `, [limit]);
+      
+      return result.rows as JobWithCompany[];
+    } catch (error) {
+      console.error('Error fetching popular jobs:', error);
+      throw error;
+    }
   }
 
   async searchJobsBySkills(skills: string[], limit: number = 10): Promise<JobWithCompany[]> {
-    const result = await this.db.query(`
-      SELECT 
-        j.*,
-        c.name as company_name,
-        c.logo_url as company_logo,
-        c.industry as company_industry,
-        c.company_size,
-        c.website_url as company_website
-      FROM jobs j
-      LEFT JOIN companies c ON j.company_id = c.id
-      WHERE j.status = 'Open' AND j.skills_required && $1
-      ORDER BY j.created_at DESC
-      LIMIT $2
-    `, [skills, limit]);
-    
-    return result.rows as JobWithCompany[];
+    try {
+      const result = await this.db.query(`
+        SELECT 
+          j.*,
+          c.name as company_name,
+          c.logo_url as company_logo,
+          c.industry as company_industry,
+          c.company_size,
+          c.website_url as company_website
+        FROM jobs j
+        LEFT JOIN companies c ON j.company_id = c.id
+        WHERE j.status = 'Open' AND j.skills_required && $1
+        ORDER BY j.created_at DESC
+        LIMIT $2
+      `, [skills, limit]);
+      
+      return result.rows as JobWithCompany[];
+    } catch (error) {
+      console.error('Error searching jobs by skills:', error);
+      throw error;
+    }
   }
 
   async getJobsByLocation(location: string, limit: number = 10): Promise<JobWithCompany[]> {
-    const result = await this.db.query(`
-      SELECT 
-        j.*,
-        c.name as company_name,
-        c.logo_url as company_logo,
-        c.industry as company_industry,
-        c.company_size,
-        c.website_url as company_website
-      FROM jobs j
-      LEFT JOIN companies c ON j.company_id = c.id
-      WHERE j.status = 'Open' AND j.location ILIKE $1
-      ORDER BY j.created_at DESC
-      LIMIT $2
-    `, [`%${location}%`, limit]);
-    
-    return result.rows as JobWithCompany[];
+    try {
+      const result = await this.db.query(`
+        SELECT 
+          j.*,
+          c.name as company_name,
+          c.logo_url as company_logo,
+          c.industry as company_industry,
+          c.company_size,
+          c.website_url as company_website
+        FROM jobs j
+        LEFT JOIN companies c ON j.company_id = c.id
+        WHERE j.status = 'Open' AND j.location ILIKE $1
+        ORDER BY j.created_at DESC
+        LIMIT $2
+      `, [`%${location}%`, limit]);
+      
+      return result.rows as JobWithCompany[];
+    } catch (error) {
+      console.error('Error fetching jobs by location:', error);
+      throw error;
+    }
   }
 }

@@ -1,13 +1,30 @@
-// src/controllers/postjobs.controller.ts
 import { Request, Response, NextFunction } from 'express';
 import { JobService } from '../services/job.service';
 import { CreateJobRequest, UpdateJobRequest, JobQuery } from '../types/job.types';
-type AuthRequest = Request & { user?: { id?: string; user_type?: string } }; 
+// If AuthRequest is actually exported from a different file, update the import path accordingly, for example:
+// import { AuthRequest } from '../types/user.type';
 
+// Or, if AuthRequest is not defined anywhere, you can define it here:
+export interface AuthRequest extends Request {
+  user?: {
+    id: string;
+    user_type: string;
+    // add other user properties as needed
+  };
+}
+
+/**
+ * Controller for handling job posting operations
+ */
 export class PostJobsController {
   constructor(private jobService: JobService) {}
 
-  // Create a new job posting
+  /**
+   * Creates a new job posting
+   * @param req Authenticated request containing job data
+   * @param res Response object
+   * @param next Error handling middleware
+   */
   async createJob(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
     try {
       const employerId = req.user?.id;
@@ -28,7 +45,6 @@ export class PostJobsController {
         return;
       }
 
-      // Validate required fields
       const {
         title,
         description,
@@ -38,6 +54,7 @@ export class PostJobsController {
         skills_required
       } = req.body as CreateJobRequest;
 
+      // Validate required fields
       if (!title || !description || !location || !employment_type || !work_arrangement) {
         res.status(400).json({
           success: false,
@@ -59,7 +76,7 @@ export class PostJobsController {
       if (!validEmploymentTypes.includes(employment_type)) {
         res.status(400).json({
           success: false,
-          message: 'Invalid employment type. Must be one of: ' + validEmploymentTypes.join(', ')
+          message: `Invalid employment type. Must be one of: ${validEmploymentTypes.join(', ')}`
         });
         return;
       }
@@ -69,14 +86,14 @@ export class PostJobsController {
       if (!validWorkArrangements.includes(work_arrangement)) {
         res.status(400).json({
           success: false,
-          message: 'Invalid work arrangement. Must be one of: ' + validWorkArrangements.join(', ')
+          message: `Invalid work arrangement. Must be one of: ${validWorkArrangements.join(', ')}`
         });
         return;
       }
 
       // Validate salary range if provided
       const { salary_min, salary_max } = req.body;
-      if (salary_min && salary_max && salary_min > salary_max) {
+      if (salary_min !== undefined && salary_max !== undefined && Number(salary_min) > Number(salary_max)) {
         res.status(400).json({
           success: false,
           message: 'Minimum salary cannot be greater than maximum salary'
@@ -87,20 +104,20 @@ export class PostJobsController {
       const jobData: CreateJobRequest = {
         title: title.trim(),
         description: description.trim(),
-        requirements: req.body.requirements?.trim() || undefined,
-        responsibilities: req.body.responsibilities?.trim() || undefined,
+        requirements: req.body.requirements?.trim(),
+        responsibilities: req.body.responsibilities?.trim(),
         location: location.trim(),
         employment_type,
         work_arrangement,
-        salary_min: salary_min ? parseInt(salary_min) : undefined,
-        salary_max: salary_max ? parseInt(salary_max) : undefined,
+        salary_min: salary_min ? Number(salary_min) : undefined,
+        salary_max: salary_max ? Number(salary_max) : undefined,
         currency: req.body.currency || 'USD',
         skills_required: skills_required.map((skill: string) => skill.trim()),
-        experience_level: req.body.experience_level?.trim() || undefined,
-        education_level: req.body.education_level?.trim() || undefined,
-        benefits: req.body.benefits || undefined,
-        department: req.body.department?.trim() || undefined,
-        application_deadline: req.body.application_deadline || undefined,
+        experience_level: req.body.experience_level?.trim(),
+        education_level: req.body.education_level?.trim(),
+        benefits: req.body.benefits,
+        department: req.body.department?.trim(),
+        application_deadline: req.body.application_deadline,
         is_featured: req.body.is_featured || false
       };
 
@@ -123,7 +140,12 @@ export class PostJobsController {
     }
   }
 
-  // Get all jobs posted by the authenticated employer
+  /**
+   * Retrieves all jobs posted by the authenticated employer
+   * @param req Authenticated request containing query parameters
+   * @param res Response object
+   * @param next Error handling middleware
+   */
   async getMyJobs(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
     try {
       const employerId = req.user?.id;
@@ -145,14 +167,20 @@ export class PostJobsController {
       }
 
       const query: JobQuery = {
-        page: parseInt(req.query.page as string) || 1,
-        limit: Math.min(parseInt(req.query.limit as string) || 10, 50), // Max 50 per page
-        status: req.query.status as any,
+        page: Number(req.query.page) || 1,
+        limit: Math.min(Number(req.query.limit) || 10, 50),
+        status: ['Open', 'Closed', 'Paused', 'Filled'].includes(req.query.status as string)
+          ? (req.query.status as 'Open' | 'Closed' | 'Paused' | 'Filled')
+          : undefined,
         employment_type: req.query.employment_type as string,
         work_arrangement: req.query.work_arrangement as string,
         search: req.query.search as string,
-        sort_by: req.query.sort_by as any || 'created_at',
-        sort_order: req.query.sort_order as any || 'DESC'
+        sort_by: ['created_at', 'salary_max', 'applications_count', 'views_count'].includes(req.query.sort_by as string)
+          ? (req.query.sort_by as 'created_at' | 'salary_max' | 'applications_count' | 'views_count')
+          : 'created_at',
+        sort_order: (req.query.sort_order === 'ASC' || req.query.sort_order === 'DESC')
+          ? (req.query.sort_order as 'ASC' | 'DESC')
+          : 'DESC'
       };
 
       const result = await this.jobService.getJobsByEmployer(employerId, query);
@@ -166,7 +194,7 @@ export class PostJobsController {
             current_page: query.page,
             per_page: query.limit,
             total: result.total,
-            total_pages: Math.ceil(result.total / query.limit!)
+            total_pages: Math.ceil(result.total / (query.limit || 10))
           }
         }
       });
@@ -175,7 +203,12 @@ export class PostJobsController {
     }
   }
 
-  // Get a specific job by ID (only if owned by the employer)
+  /**
+   * Retrieves a specific job by ID if owned by the employer
+   * @param req Authenticated request containing job ID
+   * @param res Response object
+   * @param next Error handling middleware
+   */
   async getJobById(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
     try {
       const { jobId } = req.params;
@@ -207,7 +240,6 @@ export class PostJobsController {
         return;
       }
 
-      // Check if the job belongs to the authenticated employer
       if (job.employer_id !== employerId && req.user?.user_type !== 'admin') {
         res.status(403).json({
           success: false,
@@ -226,7 +258,12 @@ export class PostJobsController {
     }
   }
 
-  // Update a job posting
+  /**
+   * Updates an existing job posting
+   * @param req Authenticated request containing job ID and update data
+   * @param res Response object
+   * @param next Error handling middleware
+   */
   async updateJob(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
     try {
       const { jobId } = req.params;
@@ -256,15 +293,14 @@ export class PostJobsController {
         return;
       }
 
-      // Validate employment_type if provided
-      const { employment_type, work_arrangement, salary_min, salary_max } = req.body;
-      
+      const { employment_type, work_arrangement, salary_min, salary_max, status } = req.body;
+
       if (employment_type) {
         const validEmploymentTypes = ['Full-time', 'Part-time', 'Contract', 'Internship'];
         if (!validEmploymentTypes.includes(employment_type)) {
           res.status(400).json({
             success: false,
-            message: 'Invalid employment type. Must be one of: ' + validEmploymentTypes.join(', ')
+            message: `Invalid employment type. Must be one of: ${validEmploymentTypes.join(', ')}`
           });
           return;
         }
@@ -275,14 +311,13 @@ export class PostJobsController {
         if (!validWorkArrangements.includes(work_arrangement)) {
           res.status(400).json({
             success: false,
-            message: 'Invalid work arrangement. Must be one of: ' + validWorkArrangements.join(', ')
+            message: `Invalid work arrangement. Must be one of: ${validWorkArrangements.join(', ')}`
           });
           return;
         }
       }
 
-      // Validate salary range if both are provided
-      if (salary_min !== undefined && salary_max !== undefined && salary_min > salary_max) {
+      if (salary_min !== undefined && salary_max !== undefined && Number(salary_min) > Number(salary_max)) {
         res.status(400).json({
           success: false,
           message: 'Minimum salary cannot be greater than maximum salary'
@@ -290,33 +325,32 @@ export class PostJobsController {
         return;
       }
 
-      // Validate status if provided
-      if (req.body.status) {
+      if (status) {
         const validStatuses = ['Open', 'Closed', 'Paused', 'Filled'];
-        if (!validStatuses.includes(req.body.status)) {
+        if (!validStatuses.includes(status)) {
           res.status(400).json({
             success: false,
-            message: 'Invalid status. Must be one of: ' + validStatuses.join(', ')
+            message: `Invalid status. Must be one of: ${validStatuses.join(', ')}`
           });
           return;
         }
       }
 
       const updateData: UpdateJobRequest = {};
-
-      // Only include fields that are provided in the request
       const updatableFields = [
-        'title', 'description', 'requirements', 'responsibilities', 
-        'location', 'employment_type', 'work_arrangement', 'salary_min', 
-        'salary_max', 'currency', 'skills_required', 'experience_level', 
-        'education_level', 'benefits', 'department', 'status', 
+        'title', 'description', 'requirements', 'responsibilities',
+        'location', 'employment_type', 'work_arrangement', 'salary_min',
+        'salary_max', 'currency', 'skills_required', 'experience_level',
+        'education_level', 'benefits', 'department', 'status',
         'application_deadline', 'is_featured'
       ];
 
       updatableFields.forEach(field => {
         if (req.body[field] !== undefined) {
           if (field === 'skills_required' && Array.isArray(req.body[field])) {
-            (updateData as any)[field] = req.body[field].map((skill: string) => skill.trim());
+            updateData[field] = req.body[field].map((skill: string) => skill.trim());
+          } else if (field === 'salary_min' || field === 'salary_max') {
+            updateData[field] = req.body[field] ? Number(req.body[field]) : undefined;
           } else if (typeof req.body[field] === 'string') {
             (updateData as any)[field] = req.body[field].trim();
           } else {
@@ -360,7 +394,12 @@ export class PostJobsController {
     }
   }
 
-  // Delete a job posting
+  /**
+   * Deletes a job posting
+   * @param req Authenticated request containing job ID
+   * @param res Response object
+   * @param next Error handling middleware
+   */
   async deleteJob(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
     try {
       const { jobId } = req.params;
@@ -409,7 +448,12 @@ export class PostJobsController {
     }
   }
 
-  // Get job statistics for the employer
+  /**
+   * Retrieves job statistics for the employer
+   * @param req Authenticated request
+   * @param res Response object
+   * @param next Error handling middleware
+   */
   async getJobStats(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
     try {
       const employerId = req.user?.id;
@@ -442,7 +486,12 @@ export class PostJobsController {
     }
   }
 
-  // Get job views for a specific job
+  /**
+   * Retrieves view analytics for a specific job
+   * @param req Authenticated request containing job ID
+   * @param res Response object
+   * @param next Error handling middleware
+   */
   async getJobViews(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
     try {
       const { jobId } = req.params;
@@ -464,7 +513,6 @@ export class PostJobsController {
         return;
       }
 
-      // Verify job ownership
       const job = await this.jobService.getJobById(jobId);
       if (!job || (job.employer_id !== employerId && req.user?.user_type !== 'admin')) {
         res.status(403).json({
@@ -474,8 +522,8 @@ export class PostJobsController {
         return;
       }
 
-      const page = parseInt(req.query.page as string) || 1;
-      const limit = Math.min(parseInt(req.query.limit as string) || 10, 100);
+      const page = Number(req.query.page) || 1;
+      const limit = Math.min(Number(req.query.limit) || 10, 100);
 
       const result = await this.jobService.getJobViews(jobId, page, limit);
 
@@ -497,7 +545,12 @@ export class PostJobsController {
     }
   }
 
-  // Toggle job status (Open/Paused)
+  /**
+   * Toggles job status between Open and Paused
+   * @param req Authenticated request containing job ID
+   * @param res Response object
+   * @param next Error handling middleware
+   */
   async toggleJobStatus(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
     try {
       const { jobId } = req.params;
@@ -519,7 +572,6 @@ export class PostJobsController {
         return;
       }
 
-      // Get current job status
       const job = await this.jobService.getJobById(jobId);
       
       if (!job) {
@@ -538,9 +590,7 @@ export class PostJobsController {
         return;
       }
 
-      // Toggle between Open and Paused
       const newStatus = job.status === 'Open' ? 'Paused' : 'Open';
-
       const updatedJob = await this.jobService.updateJob(jobId, employerId, { status: newStatus });
 
       res.status(200).json({
@@ -553,7 +603,12 @@ export class PostJobsController {
     }
   }
 
-  // Mark job as filled
+  /**
+   * Marks a job as filled
+   * @param req Authenticated request containing job ID
+   * @param res Response object
+   * @param next Error handling middleware
+   */
   async markJobAsFilled(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
     try {
       const { jobId } = req.params;
@@ -595,7 +650,12 @@ export class PostJobsController {
     }
   }
 
-  // Duplicate/Clone a job posting
+  /**
+   * Creates a duplicate of an existing job
+   * @param req Authenticated request containing job ID
+   * @param res Response object
+   * @param next Error handling middleware
+   */
   async duplicateJob(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
     try {
       const { jobId } = req.params;
@@ -617,7 +677,6 @@ export class PostJobsController {
         return;
       }
 
-      // Get the original job
       const originalJob = await this.jobService.getJobById(jobId);
       
       if (!originalJob) {
@@ -636,7 +695,6 @@ export class PostJobsController {
         return;
       }
 
-      // Create new job data based on original
       const duplicateJobData: CreateJobRequest = {
         title: `${originalJob.title} (Copy)`,
         description: originalJob.description,
@@ -653,7 +711,7 @@ export class PostJobsController {
         education_level: originalJob.education_level,
         benefits: originalJob.benefits,
         department: originalJob.department,
-        is_featured: false // New jobs should not be featured by default
+        is_featured: false
       };
 
       const duplicatedJob = await this.jobService.createJob(employerId, duplicateJobData);
