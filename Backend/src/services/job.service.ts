@@ -490,7 +490,6 @@ export class JobService {
     }
   }
 
-  // Rest of the methods remain the same...
   async bookmarkJob(jobId: string, jobseekerId: string): Promise<JobBookmark> {
     try {
       // Check if bookmark already exists
