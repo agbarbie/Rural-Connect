@@ -1,23 +1,18 @@
 import { Request, Response, NextFunction } from 'express';
 import { JobService } from '../services/job.service';
 import { CreateJobRequest, UpdateJobRequest, JobQuery } from '../types/job.types';
-// If AuthRequest is actually exported from a different file, update the import path accordingly, for example:
-// import { AuthRequest } from '../types/user.type';
-
-// Or, if AuthRequest is not defined anywhere, you can define it here:
-export interface AuthRequest extends Request {
-  user?: {
-    id: string;
-    user_type: string;
-    // add other user properties as needed
-  };
-}
+import { AuthenticatedRequest } from '../middleware/auth.middleware';
 
 /**
  * Controller for handling job posting operations
  */
 export class PostJobsController {
-  constructor(private jobService: JobService) {}
+  private jobService: JobService;
+
+  constructor() {
+    // Create JobService instance without parameters since it imports pool directly
+    this.jobService = new JobService();
+  }
 
   /**
    * Creates a new job posting
@@ -25,22 +20,15 @@ export class PostJobsController {
    * @param res Response object
    * @param next Error handling middleware
    */
-  async createJob(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+  async createJob(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
-      const employerId = req.user?.id;
+      // Use employer_id if available, otherwise use user_id as fallback
+      const employerId = req.user?.employer_id || req.user?.id;
       
       if (!employerId) {
         res.status(401).json({
           success: false,
-          message: 'Unauthorized: Employer ID not found'
-        });
-        return;
-      }
-
-      if (req.user?.user_type !== 'employer') {
-        res.status(403).json({
-          success: false,
-          message: 'Forbidden: Only employers can create job postings'
+          message: 'User ID not found in authentication token'
         });
         return;
       }
@@ -121,6 +109,10 @@ export class PostJobsController {
         is_featured: req.body.is_featured || false
       };
 
+      console.log('DEBUG - Creating job with employer_id:', employerId);
+      console.log('DEBUG - Job data:', jobData);
+
+      // Pass the employer ID (either employer_id or user_id as fallback)
       const job = await this.jobService.createJob(employerId, jobData);
 
       res.status(201).json({
@@ -129,13 +121,42 @@ export class PostJobsController {
         data: job
       });
     } catch (error: any) {
-      if (error.message === 'Employer not found' || error.message === 'Employer must be associated with a company to post jobs') {
-        res.status(400).json({
+      console.error('CreateJob error:', error);
+      
+      // Handle specific business logic errors
+      if (error.message === 'Employer not found') {
+        res.status(404).json({
           success: false,
-          message: error.message
+          message: 'Employer profile not found. Please create an employer profile first.'
         });
         return;
       }
+      
+      if (error.message === 'Employer must be associated with a company to post jobs') {
+        res.status(400).json({
+          success: false,
+          message: 'You must be associated with a company to post jobs. Please complete your company profile or contact support.'
+        });
+        return;
+      }
+
+      if (error.message === 'Company profile required') {
+        res.status(400).json({
+          success: false,
+          message: 'A company profile is required to post jobs. Please create a company profile first.'
+        });
+        return;
+      }
+      
+      // Handle database constraint errors
+      if (error.code === '23503') { // Foreign key constraint violation
+        res.status(400).json({
+          success: false,
+          message: 'Invalid reference data provided. Please check your employer or company information.'
+        });
+        return;
+      }
+      
       next(error);
     }
   }
@@ -146,14 +167,14 @@ export class PostJobsController {
    * @param res Response object
    * @param next Error handling middleware
    */
-  async getMyJobs(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+  async getMyJobs(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
-      const employerId = req.user?.id;
+      const userId = req.user?.id;
       
-      if (!employerId) {
+      if (!userId) {
         res.status(401).json({
           success: false,
-          message: 'Unauthorized: Employer ID not found'
+          message: 'Unauthorized: User ID not found'
         });
         return;
       }
@@ -183,7 +204,10 @@ export class PostJobsController {
           : 'DESC'
       };
 
-      const result = await this.jobService.getJobsByEmployer(employerId, query);
+      // Use employer_id if available, otherwise use user_id for backward compatibility
+      const employerIdForQuery = req.user?.employer_id || userId;
+      
+      const result = await this.jobService.getJobsByEmployer(String(employerIdForQuery), query);
 
       res.status(200).json({
         success: true,
@@ -209,15 +233,16 @@ export class PostJobsController {
    * @param res Response object
    * @param next Error handling middleware
    */
-  async getJobById(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+  async getJobById(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
       const { jobId } = req.params;
-      const employerId = req.user?.id;
+      const userId = req.user?.id;
+      const employerId = req.user?.employer_id || userId;
 
-      if (!employerId) {
+      if (!userId) {
         res.status(401).json({
           success: false,
-          message: 'Unauthorized: Employer ID not found'
+          message: 'Unauthorized: User ID not found'
         });
         return;
       }
@@ -240,7 +265,12 @@ export class PostJobsController {
         return;
       }
 
-      if (job.employer_id !== employerId && req.user?.user_type !== 'admin') {
+      // Check ownership using either employer_id or user_id
+      const isOwner = employerId ? 
+        job.employer_id === employerId : 
+        job.employer_id === userId;
+
+      if (!isOwner && req.user?.user_type !== 'admin') {
         res.status(403).json({
           success: false,
           message: 'Forbidden: You can only view your own job postings'
@@ -264,15 +294,16 @@ export class PostJobsController {
    * @param res Response object
    * @param next Error handling middleware
    */
-  async updateJob(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+  async updateJob(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
       const { jobId } = req.params;
-      const employerId = req.user?.id;
+      const userId = req.user?.id;
+      const employerId = req.user?.employer_id || userId;
 
-      if (!employerId) {
+      if (!userId) {
         res.status(401).json({
           success: false,
-          message: 'Unauthorized: Employer ID not found'
+          message: 'Unauthorized: User ID not found'
         });
         return;
       }
@@ -367,7 +398,9 @@ export class PostJobsController {
         return;
       }
 
-      const updatedJob = await this.jobService.updateJob(jobId, employerId, updateData);
+      // Use employer_id if available, otherwise use user_id
+      const employerIdForUpdate = employerId;
+      const updatedJob = await this.jobService.updateJob(jobId, String(employerIdForUpdate), updateData);
 
       if (!updatedJob) {
         res.status(404).json({
@@ -400,15 +433,16 @@ export class PostJobsController {
    * @param res Response object
    * @param next Error handling middleware
    */
-  async deleteJob(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+  async deleteJob(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
       const { jobId } = req.params;
-      const employerId = req.user?.id;
+      const userId = req.user?.id;
+      const employerId = req.user?.employer_id || userId;
 
-      if (!employerId) {
+      if (!userId) {
         res.status(401).json({
           success: false,
-          message: 'Unauthorized: Employer ID not found'
+          message: 'Unauthorized: User ID not found'
         });
         return;
       }
@@ -429,7 +463,9 @@ export class PostJobsController {
         return;
       }
 
-      const deleted = await this.jobService.deleteJob(jobId, employerId);
+      // Use employer_id if available, otherwise use user_id
+      const employerIdForDelete = employerId;
+      const deleted = await this.jobService.deleteJob(jobId, String(employerIdForDelete));
 
       if (!deleted) {
         res.status(404).json({
@@ -454,14 +490,15 @@ export class PostJobsController {
    * @param res Response object
    * @param next Error handling middleware
    */
-  async getJobStats(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+  async getJobStats(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
-      const employerId = req.user?.id;
+      const userId = req.user?.id;
+      const employerId = req.user?.employer_id || userId;
 
-      if (!employerId) {
+      if (!userId) {
         res.status(401).json({
           success: false,
-          message: 'Unauthorized: Employer ID not found'
+          message: 'Unauthorized: User ID not found'
         });
         return;
       }
@@ -474,7 +511,9 @@ export class PostJobsController {
         return;
       }
 
-      const stats = await this.jobService.getJobStats(employerId);
+      // Use employer_id if available, otherwise use user_id
+      const employerIdForStats = employerId;
+      const stats = await this.jobService.getJobStats(String(employerIdForStats));
 
       res.status(200).json({
         success: true,
@@ -492,15 +531,16 @@ export class PostJobsController {
    * @param res Response object
    * @param next Error handling middleware
    */
-  async getJobViews(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+  async getJobViews(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
       const { jobId } = req.params;
-      const employerId = req.user?.id;
+      const userId = req.user?.id;
+      const employerId = req.user?.employer_id || userId;
 
-      if (!employerId) {
+      if (!userId) {
         res.status(401).json({
           success: false,
-          message: 'Unauthorized: Employer ID not found'
+          message: 'Unauthorized: User ID not found'
         });
         return;
       }
@@ -514,7 +554,13 @@ export class PostJobsController {
       }
 
       const job = await this.jobService.getJobById(jobId);
-      if (!job || (job.employer_id !== employerId && req.user?.user_type !== 'admin')) {
+      
+      // Check ownership using either employer_id or user_id
+      const isOwner = employerId ? 
+        job?.employer_id === employerId : 
+        job?.employer_id === userId;
+
+      if (!job || (!isOwner && req.user?.user_type !== 'admin')) {
         res.status(403).json({
           success: false,
           message: 'Forbidden: You can only view analytics for your own jobs'
@@ -551,15 +597,16 @@ export class PostJobsController {
    * @param res Response object
    * @param next Error handling middleware
    */
-  async toggleJobStatus(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+  async toggleJobStatus(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
       const { jobId } = req.params;
-      const employerId = req.user?.id;
+      const userId = req.user?.id;
+      const employerId = req.user?.employer_id || userId;
 
-      if (!employerId) {
+      if (!userId) {
         res.status(401).json({
           success: false,
-          message: 'Unauthorized: Employer ID not found'
+          message: 'Unauthorized: User ID not found'
         });
         return;
       }
@@ -582,7 +629,12 @@ export class PostJobsController {
         return;
       }
 
-      if (job.employer_id !== employerId) {
+      // Check ownership using either employer_id or user_id
+      const isOwner = employerId ? 
+        job.employer_id === employerId : 
+        job.employer_id === userId;
+
+      if (!isOwner) {
         res.status(403).json({
           success: false,
           message: 'Forbidden: You can only modify your own job postings'
@@ -591,7 +643,8 @@ export class PostJobsController {
       }
 
       const newStatus = job.status === 'Open' ? 'Paused' : 'Open';
-      const updatedJob = await this.jobService.updateJob(jobId, employerId, { status: newStatus });
+      const employerIdForUpdate = employerId;
+      const updatedJob = await this.jobService.updateJob(jobId, String(employerIdForUpdate), { status: newStatus });
 
       res.status(200).json({
         success: true,
@@ -609,15 +662,16 @@ export class PostJobsController {
    * @param res Response object
    * @param next Error handling middleware
    */
-  async markJobAsFilled(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+  async markJobAsFilled(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
       const { jobId } = req.params;
-      const employerId = req.user?.id;
+      const userId = req.user?.id;
+      const employerId = req.user?.employer_id || userId;
 
-      if (!employerId) {
+      if (!userId) {
         res.status(401).json({
           success: false,
-          message: 'Unauthorized: Employer ID not found'
+          message: 'Unauthorized: User ID not found'
         });
         return;
       }
@@ -630,7 +684,9 @@ export class PostJobsController {
         return;
       }
 
-      const updatedJob = await this.jobService.updateJob(jobId, employerId, { status: 'Filled' });
+      // Use employer_id if available, otherwise use user_id
+      const employerIdForUpdate = employerId;
+      const updatedJob = await this.jobService.updateJob(jobId, String(employerIdForUpdate), { status: 'Filled' });
 
       if (!updatedJob) {
         res.status(404).json({
@@ -656,15 +712,16 @@ export class PostJobsController {
    * @param res Response object
    * @param next Error handling middleware
    */
-  async duplicateJob(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+  async duplicateJob(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
       const { jobId } = req.params;
-      const employerId = req.user?.id;
+      const userId = req.user?.id;
+      const employerId = req.user?.employer_id || userId;
 
-      if (!employerId) {
+      if (!userId) {
         res.status(401).json({
           success: false,
-          message: 'Unauthorized: Employer ID not found'
+          message: 'Unauthorized: User ID not found'
         });
         return;
       }
@@ -687,7 +744,12 @@ export class PostJobsController {
         return;
       }
 
-      if (originalJob.employer_id !== employerId) {
+      // Check ownership using either employer_id or user_id
+      const isOwner = employerId ? 
+        originalJob.employer_id === employerId : 
+        originalJob.employer_id === userId;
+
+      if (!isOwner) {
         res.status(403).json({
           success: false,
           message: 'Forbidden: You can only duplicate your own job postings'
@@ -714,7 +776,9 @@ export class PostJobsController {
         is_featured: false
       };
 
-      const duplicatedJob = await this.jobService.createJob(employerId, duplicateJobData);
+      // Use employer_id if available, otherwise use user_id
+      const employerIdForDuplicate = employerId;
+      const duplicatedJob = await this.jobService.createJob(String(employerIdForDuplicate), duplicateJobData);
 
       res.status(201).json({
         success: true,

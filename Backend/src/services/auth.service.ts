@@ -1,6 +1,7 @@
-import pool from '../db/db.config'; // or '../db/db.config' - use your actual path
+import pool from '../db/db.config';
 import { User, CreateUserRequest, LoginRequest, AuthResponse, Employer, EmployerWithDetails, Jobseeker, JobseekerWithDetails } from '../types/user.type';
 import { hashPassword, comparePassword, generateToken } from '../utils/helpers';
+import { validate as isValidUUID } from 'uuid';
 
 export class AuthService {
   async register(userData: CreateUserRequest): Promise<AuthResponse> {
@@ -12,7 +13,7 @@ export class AuthService {
       // Check if user already exists
       const existingUser = await client.query(
         'SELECT id FROM users WHERE email = $1',
-        [userData.email]
+        [userData.email.trim()]
       );
 
       if (existingUser.rows.length > 0) {
@@ -31,17 +32,17 @@ export class AuthService {
         hashedCompanyPassword = await hashPassword(userData.company_password);
       }
 
-      // Insert new user
+      // Insert new user - ensure UUID is generated and returned as string
       const userResult = await client.query(`
         INSERT INTO users (
           name, email, password, user_type, location, contact_number, 
           company_name, company_password, role_in_company
         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-        RETURNING id, name, email, user_type, location, contact_number, 
+        RETURNING id::text as id, name, email, user_type, location, contact_number, 
                  company_name, role_in_company, created_at, updated_at
       `, [
         userData.name,
-        userData.email,
+        userData.email.trim(),
         hashedPassword,
         userData.user_type,
         userData.location || null,
@@ -52,6 +53,12 @@ export class AuthService {
       ]);
 
       const newUser = userResult.rows[0];
+      console.log(`DEBUG - Registered user with id: ${newUser.id}`);
+
+      // Validate UUID
+      if (!isValidUUID(newUser.id)) {
+        throw new Error(`Invalid UUID generated for user: ${newUser.id}`);
+      }
 
       // Create associated profile based on user type
       if (userData.user_type === 'employer') {
@@ -84,7 +91,7 @@ export class AuthService {
 
     } catch (error: any) {
       await client.query('ROLLBACK');
-      console.error('Registration error:', error);
+      console.error('Registration error:', error.message);
       return {
         success: false,
         message: error.message || 'Registration failed'
@@ -98,12 +105,12 @@ export class AuthService {
     const client = await pool.connect();
     
     try {
-      // Find user by email
+      // Find user by email - ensure UUID is returned as string
       const result = await client.query(`
-        SELECT id, name, email, password, user_type, location, contact_number, 
+        SELECT id::text as id, name, email, password, user_type, location, contact_number, 
                company_name, role_in_company, created_at, updated_at
         FROM users WHERE email = $1
-      `, [loginData.email]);
+      `, [loginData.email.trim()]);
 
       if (result.rows.length === 0) {
         return {
@@ -113,6 +120,16 @@ export class AuthService {
       }
 
       const user = result.rows[0];
+      console.log(`DEBUG - Found user with id: ${user.id}`);
+
+      // Validate UUID
+      if (!isValidUUID(user.id)) {
+        console.error(`Invalid UUID for user: ${user.id}`);
+        return {
+          success: false,
+          message: 'Invalid user ID format'
+        };
+      }
 
       // Verify password
       const isPasswordValid = await comparePassword(loginData.password, user.password);
@@ -126,6 +143,8 @@ export class AuthService {
 
       // Remove password from user object
       const { password, ...userWithoutPassword } = user;
+      
+      // Generate token with UUID string
       const token = generateToken(userWithoutPassword);
 
       return {
@@ -136,7 +155,7 @@ export class AuthService {
       };
 
     } catch (error: any) {
-      console.error('Login error:', error);
+      console.error('Login error:', error.message);
       return {
         success: false,
         message: 'Login failed'
@@ -146,38 +165,62 @@ export class AuthService {
     }
   }
 
-  async getUserById(userId: number): Promise<User | null> {
+  async getUserById(userId: string): Promise<User | null> {
     const client = await pool.connect();
     
     try {
-      const result = await client.query(`
-        SELECT id, name, email, user_type, location, contact_number, 
-               company_name, role_in_company, created_at, updated_at
-        FROM users WHERE id = $1
-      `, [userId]);
+      const trimmedUserId = userId.trim();
+      console.log(`DEBUG - Querying user with id: ${trimmedUserId}`);
 
+      // Validate UUID format
+      if (!isValidUUID(trimmedUserId)) {
+        console.log(`DEBUG - Invalid UUID format: ${trimmedUserId}`);
+        return null;
+      }
+
+      const result = await client.query(`
+        SELECT id::text as id, name, email, user_type, location, contact_number, 
+               company_name, role_in_company, created_at, updated_at
+        FROM users WHERE id = $1::uuid
+      `, [trimmedUserId]);
+
+      if (!result.rows[0]) {
+        console.log(`DEBUG - No user found for id: ${trimmedUserId}`);
+      }
       return result.rows[0] || null;
-    } catch (error) {
-      console.error('Get user error:', error);
+    } catch (error: any) {
+      console.error(`Get user error for id ${userId}:`, error.message);
       return null;
     } finally {
       client.release();
     }
   }
 
-  async getEmployerByUserId(userId: number): Promise<Employer | null> {
+  async getEmployerByUserId(userId: string): Promise<Employer | null> {
     const client = await pool.connect();
     
     try {
-      const result = await client.query(`
-        SELECT id, user_id, company_id, role_in_company, department, 
-               can_post_jobs, can_manage_candidates, created_at, updated_at
-        FROM employers WHERE user_id = $1
-      `, [userId]);
+      const trimmedUserId = userId.trim();
+      console.log(`DEBUG - Querying employer with user_id: ${trimmedUserId}`);
 
+      if (!isValidUUID(trimmedUserId)) {
+        console.log(`DEBUG - Invalid UUID format: ${trimmedUserId}`);
+        return null;
+      }
+
+      const result = await client.query(`
+        SELECT id::text as id, user_id::text as user_id, company_id::text as company_id, 
+               role_in_company, department, can_post_jobs, can_manage_candidates, 
+               created_at, updated_at
+        FROM employers WHERE user_id = $1::uuid
+      `, [trimmedUserId]);
+
+      if (!result.rows[0]) {
+        console.log(`DEBUG - No employer found for user_id: ${trimmedUserId}`);
+      }
       return result.rows[0] || null;
-    } catch (error) {
-      console.error('Get employer error:', error);
+    } catch (error: any) {
+      console.error(`Get employer error for user_id ${userId}:`, error.message);
       return null;
     } finally {
       client.release();
@@ -188,18 +231,27 @@ export class AuthService {
     const client = await pool.connect();
     
     try {
+      const trimmedEmployerId = employerId.trim();
+      if (!isValidUUID(trimmedEmployerId)) {
+        console.log(`DEBUG - Invalid UUID format: ${trimmedEmployerId}`);
+        return null;
+      }
+
       const result = await client.query(`
         SELECT 
-          e.id, e.user_id, e.company_id, e.role_in_company, e.department,
-          e.can_post_jobs, e.can_manage_candidates, e.created_at, e.updated_at,
+          e.id::text as id, e.user_id::text as user_id, e.company_id::text as company_id, 
+          e.role_in_company, e.department, e.can_post_jobs, e.can_manage_candidates, 
+          e.created_at, e.updated_at,
           u.name, u.email, u.user_type, u.location, u.contact_number, u.company_name,
-          c.name as company_name_full, c.description as company_description,
-          c.industry, c.company_size, c.website_url, c.logo_url
+          c.id::text as company_id_full, c.name as company_name_full, 
+          c.description as company_description, c.industry, c.company_size, 
+          c.website_url, c.logo_url, c.is_verified, c.created_at as company_created_at,
+          c.updated_at as company_updated_at
         FROM employers e
         INNER JOIN users u ON e.user_id = u.id
         LEFT JOIN companies c ON e.company_id = c.id
-        WHERE e.id = $1
-      `, [employerId]);
+        WHERE e.id = $1::uuid
+      `, [trimmedEmployerId]);
 
       if (result.rows.length === 0) {
         return null;
@@ -220,7 +272,7 @@ export class AuthService {
           id: row.user_id,
           name: row.name,
           email: row.email,
-          password: '', // Never return password
+          password: '',
           user_type: row.user_type,
           location: row.location,
           contact_number: row.contact_number,
@@ -230,40 +282,50 @@ export class AuthService {
           updated_at: row.updated_at
         },
         company: row.company_id ? {
-          id: row.company_id,
+          id: row.company_id_full,
           name: row.company_name_full,
           description: row.company_description,
           industry: row.industry,
           company_size: row.company_size,
           website_url: row.website_url,
           logo_url: row.logo_url,
-          is_verified: true, // You might want to include this field in the query
-          created_at: new Date(), // You might want to include this field in the query
-          updated_at: new Date() // You might want to include this field in the query
+          is_verified: row.is_verified || false,
+          created_at: row.company_created_at || new Date(),
+          updated_at: row.company_updated_at || new Date()
         } : undefined
       };
-    } catch (error) {
-      console.error('Get employer with details error:', error);
+    } catch (error: any) {
+      console.error(`Get employer with details error for id ${employerId}:`, error.message);
       return null;
     } finally {
       client.release();
     }
   }
 
-  async getJobseekerByUserId(userId: number): Promise<Jobseeker | null> {
+  async getJobseekerByUserId(userId: string): Promise<Jobseeker | null> {
     const client = await pool.connect();
     
     try {
-      const result = await client.query(`
-        SELECT id, user_id, location, contact_number, skills, experience_level,
-               preferred_salary_min, preferred_salary_max, availability,
-               profile_picture, bio, resume_url, portfolio_url, created_at, updated_at
-        FROM jobseekers WHERE user_id = $1
-      `, [userId]);
+      const trimmedUserId = userId.trim();
+      if (!isValidUUID(trimmedUserId)) {
+        console.log(`DEBUG - Invalid UUID format: ${trimmedUserId}`);
+        return null;
+      }
 
+      const result = await client.query(`
+        SELECT id::text as id, user_id::text as user_id, location, contact_number, 
+               skills, experience_level, preferred_salary_min, preferred_salary_max, 
+               availability, profile_picture, bio, resume_url, portfolio_url, 
+               created_at, updated_at
+        FROM jobseekers WHERE user_id = $1::uuid
+      `, [trimmedUserId]);
+
+      if (!result.rows[0]) {
+        console.log(`DEBUG - No jobseeker found for user_id: ${trimmedUserId}`);
+      }
       return result.rows[0] || null;
-    } catch (error) {
-      console.error('Get jobseeker error:', error);
+    } catch (error: any) {
+      console.error(`Get jobseeker error for user_id ${userId}:`, error.message);
       return null;
     } finally {
       client.release();
@@ -274,16 +336,24 @@ export class AuthService {
     const client = await pool.connect();
     
     try {
+      const trimmedJobseekerId = jobseekerId.trim();
+      if (!isValidUUID(trimmedJobseekerId)) {
+        console.log(`DEBUG - Invalid UUID format: ${trimmedJobseekerId}`);
+        return null;
+      }
+
       const result = await client.query(`
         SELECT 
-          j.id, j.user_id, j.location, j.contact_number, j.skills, j.experience_level,
-          j.preferred_salary_min, j.preferred_salary_max, j.availability,
-          j.profile_picture, j.bio, j.resume_url, j.portfolio_url, j.created_at, j.updated_at,
-          u.name, u.email, u.user_type, u.location as user_location, u.contact_number as user_contact
+          j.id::text as id, j.user_id::text as user_id, j.location, j.contact_number, 
+          j.skills, j.experience_level, j.preferred_salary_min, j.preferred_salary_max, 
+          j.availability, j.profile_picture, j.bio, j.resume_url, j.portfolio_url, 
+          j.created_at, j.updated_at,
+          u.name, u.email, u.user_type, u.location as user_location, 
+          u.contact_number as user_contact
         FROM jobseekers j
         INNER JOIN users u ON j.user_id = u.id
-        WHERE j.id = $1
-      `, [jobseekerId]);
+        WHERE j.id = $1::uuid
+      `, [trimmedJobseekerId]);
 
       if (result.rows.length === 0) {
         return null;
@@ -310,7 +380,7 @@ export class AuthService {
           id: row.user_id,
           name: row.name,
           email: row.email,
-          password: '', // Never return password
+          password: '',
           user_type: row.user_type,
           location: row.user_location,
           contact_number: row.user_contact,
@@ -318,18 +388,24 @@ export class AuthService {
           updated_at: row.updated_at
         }
       };
-    } catch (error) {
-      console.error('Get jobseeker with details error:', error);
+    } catch (error: any) {
+      console.error(`Get jobseeker with details error for id ${jobseekerId}:`, error.message);
       return null;
     } finally {
       client.release();
     }
   }
 
-  async updateUserProfile(userId: number, updateData: Partial<User>): Promise<User | null> {
+  async updateUserProfile(userId: string, updateData: Partial<User>): Promise<User | null> {
     const client = await pool.connect();
     
     try {
+      const trimmedUserId = userId.trim();
+      if (!isValidUUID(trimmedUserId)) {
+        console.log(`DEBUG - Invalid UUID format: ${trimmedUserId}`);
+        return null;
+      }
+
       const updateFields: string[] = [];
       const updateValues: any[] = [];
       let paramCount = 0;
@@ -345,108 +421,118 @@ export class AuthService {
       });
 
       if (updateFields.length === 0) {
-        return this.getUserById(userId);
+        return this.getUserById(trimmedUserId);
       }
 
-      // Add updated_at
       paramCount++;
       updateFields.push(`updated_at = $${paramCount}`);
       updateValues.push(new Date());
 
-      // Add WHERE condition
       paramCount++;
-      updateValues.push(userId);
+      updateValues.push(trimmedUserId);
 
       const updateQuery = `
         UPDATE users 
         SET ${updateFields.join(', ')}
-        WHERE id = $${paramCount}
-        RETURNING id, name, email, user_type, location, contact_number, 
+        WHERE id = $${paramCount}::uuid
+        RETURNING id::text as id, name, email, user_type, location, contact_number, 
                  company_name, role_in_company, created_at, updated_at
       `;
 
       const result = await client.query(updateQuery, updateValues);
       return result.rows[0] || null;
-    } catch (error) {
-      console.error('Update user profile error:', error);
+    } catch (error: any) {
+      console.error(`Update user profile error for id ${userId}:`, error.message);
       return null;
     } finally {
       client.release();
     }
   }
 
-  async changePassword(userId: number, currentPassword: string, newPassword: string): Promise<boolean> {
+  async changePassword(userId: string, currentPassword: string, newPassword: string): Promise<boolean> {
     const client = await pool.connect();
     
     try {
-      // First, get the current password hash
+      const trimmedUserId = userId.trim();
+      if (!isValidUUID(trimmedUserId)) {
+        console.log(`DEBUG - Invalid UUID format: ${trimmedUserId}`);
+        return false;
+      }
+
       const userResult = await client.query(
-        'SELECT password FROM users WHERE id = $1',
-        [userId]
+        'SELECT password FROM users WHERE id = $1::uuid',
+        [trimmedUserId]
       );
 
       if (userResult.rows.length === 0) {
         return false;
       }
 
-      // Verify current password
       const isCurrentPasswordValid = await comparePassword(currentPassword, userResult.rows[0].password);
       
       if (!isCurrentPasswordValid) {
         return false;
       }
 
-      // Hash new password
       const hashedNewPassword = await hashPassword(newPassword);
 
-      // Update password
       await client.query(
-        'UPDATE users SET password = $1, updated_at = $2 WHERE id = $3',
-        [hashedNewPassword, new Date(), userId]
+        'UPDATE users SET password = $1, updated_at = $2 WHERE id = $3::uuid',
+        [hashedNewPassword, new Date(), trimmedUserId]
       );
 
       return true;
-    } catch (error) {
-      console.error('Change password error:', error);
+    } catch (error: any) {
+      console.error(`Change password error for id ${userId}:`, error.message);
       return false;
     } finally {
       client.release();
     }
   }
 
-  async deleteUser(userId: number): Promise<boolean> {
+  async deleteUser(userId: string): Promise<boolean> {
     const client = await pool.connect();
     
     try {
+      const trimmedUserId = userId.trim();
+      if (!isValidUUID(trimmedUserId)) {
+        console.log(`DEBUG - Invalid UUID format: ${trimmedUserId}`);
+        return false;
+      }
+
       await client.query('BEGIN');
 
-      // Delete related records first
-      await client.query('DELETE FROM employers WHERE user_id = $1', [userId]);
-      await client.query('DELETE FROM jobseekers WHERE user_id = $1', [userId]);
-      await client.query('DELETE FROM admins WHERE user_id = $1', [userId]);
+      await client.query('DELETE FROM employers WHERE user_id = $1::uuid', [trimmedUserId]);
+      await client.query('DELETE FROM jobseekers WHERE user_id = $1::uuid', [trimmedUserId]);
+      await client.query('DELETE FROM admins WHERE user_id = $1::uuid', [trimmedUserId]);
 
-      // Delete user
-      const result = await client.query('DELETE FROM users WHERE id = $1', [userId]);
+      const result = await client.query('DELETE FROM users WHERE id = $1::uuid', [trimmedUserId]);
       
       await client.query('COMMIT');
       return (result.rowCount ?? 0) > 0;
-    } catch (error) {
+    } catch (error: any) {
       await client.query('ROLLBACK');
-      console.error('Delete user error:', error);
+      console.error(`Delete user error for id ${userId}:`, error.message);
       return false;
     } finally {
       client.release();
     }
   }
 
-  async verifyUserExists(userId: number): Promise<boolean> {
+  async verifyUserExists(userId: string): Promise<boolean> {
     const client = await pool.connect();
     
     try {
-      const result = await client.query('SELECT id FROM users WHERE id = $1', [userId]);
+      const trimmedUserId = userId.trim();
+      if (!isValidUUID(trimmedUserId)) {
+        console.log(`DEBUG - Invalid UUID format: ${trimmedUserId}`);
+        return false;
+      }
+
+      const result = await client.query('SELECT id FROM users WHERE id = $1::uuid', [trimmedUserId]);
       return result.rows.length > 0;
-    } catch (error) {
-      console.error('Verify user exists error:', error);
+    } catch (error: any) {
+      console.error(`Verify user exists error for id ${userId}:`, error.message);
       return false;
     } finally {
       client.release();

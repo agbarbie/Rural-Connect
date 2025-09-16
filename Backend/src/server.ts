@@ -1,16 +1,24 @@
-import express from 'express';
 import dotenv from 'dotenv';
+import express from 'express';
 import cors from 'cors';
-import { Pool } from 'pg';
 import authRoutes from './routes/auth.routes';
 import jobRoutes from './routes/jobs.routes';
-import { authenticateToken } from './middleware/auth.middleware';
+import pool from './db/db.config'; // Import your existing db config
 
 // Load environment variables
 dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+// Debug database connection values
+console.log('DB Connection Debug:');
+console.log('DB_HOST:', process.env.DB_HOST);
+console.log('DB_NAME:', process.env.DB_NAME);
+console.log('DB_USER:', process.env.DB_USER);
+console.log('DB_PASSWORD type:', typeof process.env.DB_PASSWORD);
+console.log('DB_PASSWORD length:', process.env.DB_PASSWORD?.length);
+console.log('DB_PORT:', process.env.DB_PORT);
 
 // Validate required environment variables
 const requiredEnvVars = ['DB_HOST', 'DB_NAME', 'DB_USER', 'DB_PASSWORD'];
@@ -21,41 +29,48 @@ if (missingEnvVars.length > 0) {
   process.exit(1);
 }
 
-// Database connection with explicit string conversion
-const db = new Pool({
-  user: process.env.DB_USER,
-  host: process.env.DB_HOST,
-  database: process.env.DB_NAME,
-  password: String(process.env.DB_PASSWORD), // Ensure password is a string
-  port: parseInt(process.env.DB_PORT || '5432'),
-});
-
-// Test database connection on startup
-db.connect()
+// Test database connection on startup using the imported pool
+pool.connect()
   .then((client) => {
     console.log('Database connected successfully');
     client.release();
   })
   .catch((err) => {
     console.error('Database connection error:', err);
+    console.error('Error details:', {
+      message: err.message,
+      code: err.code,
+      detail: err.detail
+    });
     process.exit(1);
   });
 
 // CORS configuration
 const corsOptions = {
-  origin: ['http://localhost:4200'],
+  origin: ['http://localhost:4200', 'http://localhost:3000'],
   credentials: true,
-  allowedHeaders: ['Content-Type', 'Authorization']
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS']
 };
 
 // Middleware
 app.use(cors(corsOptions));
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// Request logging
+app.use((req, res, next) => {
+  console.log(`${new Date().toISOString()} - ${req.method} ${req.url}`);
+  console.log('Headers:', req.headers);
+  if (req.body && Object.keys(req.body).length > 0) {
+    console.log('Body:', req.body);
+  }
+  next();
+});
 
 // Routes
 app.use('/api/auth', authRoutes);
-app.use('/api/jobs', authenticateToken, jobRoutes);
+app.use('/api/jobs', jobRoutes);
 
 // Health check route
 app.get('/health', (req, res) => {
@@ -70,13 +85,15 @@ app.get('/health', (req, res) => {
 // Database health check
 app.get('/health/db', async (req, res) => {
   try {
-    await db.query('SELECT 1');
+    const result = await pool.query('SELECT NOW() as current_time');
     res.status(200).json({
       success: true,
       message: 'Database connection is healthy',
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
+      db_time: result.rows[0].current_time
     });
   } catch (error) {
+    console.error('Database health check failed:', error);
     res.status(500).json({
       success: false,
       message: 'Database connection failed',
@@ -87,41 +104,49 @@ app.get('/health/db', async (req, res) => {
 
 // 404 handler
 app.use('*', (req, res) => {
+  console.log(`404 - Route not found: ${req.method} ${req.originalUrl}`);
   res.status(404).json({
     success: false,
-    message: 'Route not found'
+    message: `Route ${req.method} ${req.originalUrl} not found`
   });
 });
 
 // Error handling middleware
 app.use((error: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
   console.error('Unhandled error:', error);
-  res.status(500).json({
+  res.status(error.status || 500).json({
     success: false,
-    message: 'Internal server error',
-    ...(process.env.NODE_ENV === 'development' && { error: error.message })
+    message: error.message || 'Internal server error',
+    ...(process.env.NODE_ENV === 'development' && { 
+      error: error.message,
+      stack: error.stack 
+    })
   });
 });
 
 // Graceful shutdown
-process.on('SIGINT', async () => {
-  console.log('Shutting down gracefully...');
-  await db.end();
-  process.exit(0);
-});
+const gracefulShutdown = async (signal: string) => {
+  console.log(`\nReceived ${signal}. Shutting down gracefully...`);
+  try {
+    await pool.end();
+    console.log('Database connections closed.');
+    process.exit(0);
+  } catch (error) {
+    console.error('Error during graceful shutdown:', error);
+    process.exit(1);
+  }
+};
 
-process.on('SIGTERM', async () => {
-  console.log('Shutting down gracefully...');
-  await db.end();
-  process.exit(0);
-});
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
 
 // Start server
 app.listen(PORT, () => {
-  console.log(`Server is running on port ${PORT}`);
-  console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
-  console.log(`Health check: http://localhost:${PORT}/health`);
-  console.log(`Database health: http://localhost:${PORT}/health/db`);
+  console.log(`\n🚀 Server is running on port ${PORT}`);
+  console.log(`📍 Environment: ${process.env.NODE_ENV || 'development'}`);
+  console.log(`🏥 Health check: http://localhost:${PORT}/health`);
+  console.log(`💾 Database health: http://localhost:${PORT}/health/db`);
+  console.log(`📝 API Documentation: http://localhost:${PORT}/api`);
 });
 
 export default app;

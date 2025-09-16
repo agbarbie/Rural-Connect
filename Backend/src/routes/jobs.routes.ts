@@ -1,38 +1,48 @@
 // src/routes/job.routes.ts
 import { Router } from 'express';
-import { Pool } from 'pg';
-import { JobService } from '../services/job.service';
 import { PostJobsController } from '../controllers/postjobs.controller';
-import { requireEmployer } from '../middleware/auth.middleware';
+import { 
+  authenticateToken, 
+  requireEmployer, 
+  requireEmployerWithId,
+  AuthenticatedRequest 
+} from '../middleware/auth.middleware';
+
+// Extend Express Request type to include 'user'
+declare global {
+  namespace Express {
+    interface Request {
+      user?: any;
+    }
+  }
+}
 
 const router = Router();
 
-// Database connection
-const db = new Pool({
-  user: process.env.DB_USER,
-  host: process.env.DB_HOST,
-  database: process.env.DB_NAME,
-  password: process.env.DB_PASSWORD,
-  port: parseInt(process.env.DB_PORT || '5432'),
+// Initialize controllers
+const postJobsController = new PostJobsController();
+
+// Middleware logging
+router.use((req, res, next) => {
+  console.log(`Job routes - ${req.method} ${req.url}`);
+  console.log('User from auth:', req.user ? 'Authenticated' : 'Not authenticated');
+  next();
 });
 
-// Initialize services and controllers
-const jobService = new JobService(db);
-const postJobsController = new PostJobsController(jobService);
+// Job creation route - requires employer with ID populated
+router.post('/', requireEmployerWithId, postJobsController.createJob.bind(postJobsController));
 
-// All routes require employer authentication
-router.use(requireEmployer);
+// Routes that need employer authentication but don't need employer_id populated
+router.get('/my-jobs', authenticateToken, requireEmployer, postJobsController.getMyJobs.bind(postJobsController));
+router.get('/stats', authenticateToken, requireEmployer, postJobsController.getJobStats.bind(postJobsController));
 
-// Job management routes
-router.post('/', postJobsController.createJob.bind(postJobsController));
-router.get('/my-jobs', postJobsController.getMyJobs.bind(postJobsController));
-router.get('/stats', postJobsController.getJobStats.bind(postJobsController));
-router.get('/:jobId', postJobsController.getJobById.bind(postJobsController));
-router.put('/:jobId', postJobsController.updateJob.bind(postJobsController));
-router.delete('/:jobId', postJobsController.deleteJob.bind(postJobsController));
-router.get('/:jobId/views', postJobsController.getJobViews.bind(postJobsController));
-router.patch('/:jobId/toggle-status', postJobsController.toggleJobStatus.bind(postJobsController));
-router.patch('/:jobId/mark-filled', postJobsController.markJobAsFilled.bind(postJobsController));
-router.post('/:jobId/duplicate', postJobsController.duplicateJob.bind(postJobsController));
+// Routes that need employer authentication and employer_id for ownership checks
+router.get('/:jobId', requireEmployerWithId, postJobsController.getJobById.bind(postJobsController));
+router.put('/:jobId', requireEmployerWithId, postJobsController.updateJob.bind(postJobsController));
+router.delete('/:jobId', requireEmployerWithId, postJobsController.deleteJob.bind(postJobsController));
+router.get('/:jobId/views', requireEmployerWithId, postJobsController.getJobViews.bind(postJobsController));
+router.patch('/:jobId/toggle-status', requireEmployerWithId, postJobsController.toggleJobStatus.bind(postJobsController));
+router.patch('/:jobId/mark-filled', requireEmployerWithId, postJobsController.markJobAsFilled.bind(postJobsController));
+router.post('/:jobId/duplicate', requireEmployerWithId, postJobsController.duplicateJob.bind(postJobsController));
 
 export default router;
