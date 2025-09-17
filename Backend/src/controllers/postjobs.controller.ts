@@ -13,7 +13,77 @@ export class PostJobsController {
     // Create JobService instance without parameters since it imports pool directly
     this.jobService = new JobService();
   }
+  // Add this method to your PostJobsController class
 
+  /**
+   * Get job applications for a specific job (for employers)
+   * @param req Authenticated request containing job ID
+   * @param res Response object
+   * @param next Error handling middleware
+   */
+  async getJobApplications(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const { jobId } = req.params;
+      const userId = req.user?.id;
+      const employerId = req.user?.employer_id || userId;
+
+      if (!userId) {
+        res.status(401).json({
+          success: false,
+          message: 'Unauthorized: User ID not found'
+        });
+        return;
+      }
+
+      if (!jobId) {
+        res.status(400).json({
+          success: false,
+          message: 'Job ID is required'
+        });
+        return;
+      }
+
+      // Verify job ownership
+      const job = await this.jobService.getJobById(jobId);
+      
+      if (!job) {
+        res.status(404).json({
+          success: false,
+          message: 'Job not found'
+        });
+        return;
+      }
+
+      // Check ownership using either employer_id or user_id
+      const isOwner = employerId ? 
+        job.employer_id === employerId : 
+        job.employer_id === userId;
+
+      if (!isOwner && req.user?.user_type !== 'admin') {
+        res.status(403).json({
+          success: false,
+          message: 'Forbidden: You can only view applications for your own jobs'
+        });
+        return;
+      }
+
+      const { page = 1, limit = 10, status } = req.query;
+
+      const applications = await this.jobService.getJobApplications(jobId, {
+        page: parseInt(page as string),
+        limit: parseInt(limit as string),
+        status: status as string
+      });
+
+      res.status(200).json({
+        success: true,
+        message: 'Job applications retrieved successfully',
+        data: applications
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
   /**
    * Creates a new job posting
    * @param req Authenticated request containing job data

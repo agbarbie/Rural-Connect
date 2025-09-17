@@ -3,6 +3,72 @@ import pool from '../db/db.config';
 import { Job, CreateJobRequest, UpdateJobRequest, JobQuery, JobWithCompany, JobStats, JobBookmark, JobView } from '../types/job.types';
 
 export class JobService {
+  // Add this method to your JobService class
+
+  /**
+   * Get applications for a specific job (for employers)
+   */
+  async getJobApplications(
+    jobId: string, 
+    query: { page?: number; limit?: number; status?: string } = {}
+  ): Promise<{ applications: any[]; total: number }> {
+    try {
+      const { page = 1, limit = 10, status } = query;
+      const offset = (page - 1) * limit;
+
+      let whereConditions = ['ja.job_id = $1'];
+      let queryParams: any[] = [jobId];
+      let paramCount = 1;
+
+      if (status) {
+        paramCount++;
+        whereConditions.push(`ja.status = $${paramCount}`);
+        queryParams.push(status);
+      }
+
+      const whereClause = whereConditions.join(' AND ');
+
+      const baseQuery = `
+        FROM job_applications ja
+        LEFT JOIN users u ON ja.user_id = u.id
+        LEFT JOIN user_profiles up ON ja.user_id = up.user_id
+        WHERE ${whereClause}
+      `;
+
+      // Count query
+      const countResult = await pool.query(`
+        SELECT COUNT(*) as total ${baseQuery}
+      `, queryParams);
+
+      const total = parseInt(countResult.rows[0].total);
+
+      // Data query
+      const applicationsResult = await pool.query(`
+        SELECT 
+          ja.*,
+          u.first_name,
+          u.last_name,
+          u.email,
+          up.phone,
+          up.location,
+          up.skills,
+          up.experience_level,
+          up.linkedin_url,
+          up.portfolio_url as profile_portfolio_url
+        ${baseQuery}
+        ORDER BY ja.applied_at DESC
+        LIMIT $${paramCount + 1} OFFSET $${paramCount + 2}
+      `, [...queryParams, limit, offset]);
+
+      return {
+        applications: applicationsResult.rows,
+        total
+      };
+    } catch (error) {
+      console.error('Error fetching job applications:', error);
+      throw error;
+    }
+  }
   /**
    * Helper method to ensure employer has a company association
    * @param employerId The ID of the employer

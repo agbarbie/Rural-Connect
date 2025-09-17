@@ -11,7 +11,7 @@ import {
 export class TrainingController {
   constructor(private trainingService: TrainingService) {}
 
-  getAllTrainings = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  getAllTrainings = async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
       const params: TrainingSearchParams = {
         page: parseInt(req.query.page as string) || 1,
@@ -34,19 +34,21 @@ export class TrainingController {
       });
     } catch (error) {
       next(error);
+      return;
     }
   };
 
-  getTrainingById = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  getTrainingById = async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
       const { id } = req.params;
       const training = await this.trainingService.getTrainingById(id);
       
       if (!training) {
-        return res.status(404).json({
+        res.status(404).json({
           success: false,
           message: 'Training not found'
         });
+        return;
       }
 
       res.status(200).json({
@@ -55,20 +57,16 @@ export class TrainingController {
       });
     } catch (error) {
       next(error);
+      return;
     }
   };
 
-  createTraining = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  createTraining = async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
-      if (req.user?.user_type !== 'employer' || !req.user.employer_id) {
-        return res.status(403).json({
-          success: false,
-          message: 'Only employers can create trainings'
-        });
-      }
-
+      // Remove duplicate authorization - middleware already handles this
+      // The requireEmployerWithId middleware ensures we have employer_id
       const trainingData: CreateTrainingRequest = req.body;
-      const training = await this.trainingService.createTraining(trainingData, req.user.employer_id);
+      const training = await this.trainingService.createTraining(trainingData, req.user!.employer_id!);
       
       res.status(201).json({
         success: true,
@@ -77,28 +75,24 @@ export class TrainingController {
       });
     } catch (error) {
       next(error);
+      return;
     }
   };
 
-  updateTraining = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  updateTraining = async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
-      if (req.user?.user_type !== 'employer' || !req.user.employer_id) {
-        return res.status(403).json({
-          success: false,
-          message: 'Only employers can update trainings'
-        });
-      }
-
+      // Remove duplicate authorization - middleware already handles this
       const { id } = req.params;
       const updateData: UpdateTrainingRequest = req.body;
       
-      const training = await this.trainingService.updateTraining(id, updateData, req.user.employer_id);
+      const training = await this.trainingService.updateTraining(id, updateData, req.user!.employer_id!);
       
       if (!training) {
-        return res.status(404).json({
+        res.status(404).json({
           success: false,
           message: 'Training not found or access denied'
         });
+        return;
       }
       
       res.status(200).json({
@@ -108,26 +102,22 @@ export class TrainingController {
       });
     } catch (error) {
       next(error);
+      return;
     }
   };
 
-  deleteTraining = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  deleteTraining = async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
-      if (req.user?.user_type !== 'employer' || !req.user.employer_id) {
-        return res.status(403).json({
-          success: false,
-          message: 'Only employers can delete trainings'
-        });
-      }
-
+      // Remove duplicate authorization - middleware already handles this
       const { id } = req.params;
-      const deleted = await this.trainingService.deleteTraining(id, req.user.employer_id);
+      const deleted = await this.trainingService.deleteTraining(id, req.user!.employer_id!);
       
       if (!deleted) {
-        return res.status(404).json({
+        res.status(404).json({
           success: false,
           message: 'Training not found or access denied'
         });
+        return;
       }
       
       res.status(200).json({
@@ -136,19 +126,14 @@ export class TrainingController {
       });
     } catch (error) {
       next(error);
+      return;
     }
   };
 
-  getTrainingStats = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  getTrainingStats = async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
-      if (req.user?.user_type !== 'employer' || !req.user.employer_id) {
-        return res.status(403).json({
-          success: false,
-          message: 'Only employers can view training statistics'
-        });
-      }
-
-      const stats = await this.trainingService.getTrainingStats(req.user.employer_id);
+      // Remove duplicate authorization - middleware already handles this
+      const stats = await this.trainingService.getTrainingStats(req.user!.employer_id!);
       
       res.status(200).json({
         success: true,
@@ -156,30 +141,26 @@ export class TrainingController {
       });
     } catch (error) {
       next(error);
+      return;
     }
   };
 
-  publishTraining = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  publishTraining = async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
-      if (req.user?.user_type !== 'employer' || !req.user.employer_id) {
-        return res.status(403).json({
-          success: false,
-          message: 'Only employers can publish trainings'
-        });
-      }
-
+      // Remove duplicate authorization - middleware already handles this
       const { id } = req.params;
       const training = await this.trainingService.updateTraining(
         id, 
         { status: 'published' }, 
-        req.user.employer_id
+        req.user!.employer_id!
       );
       
       if (!training) {
-        return res.status(404).json({
+        res.status(404).json({
           success: false,
           message: 'Training not found or access denied'
         });
+        return;
       }
       
       res.status(200).json({
@@ -189,6 +170,7 @@ export class TrainingController {
       });
     } catch (error) {
       next(error);
+      return;
     }
   };
 }

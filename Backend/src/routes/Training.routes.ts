@@ -4,7 +4,7 @@ import { TrainingController } from '../controllers/Training.controller';
 import { TrainingService } from '../services/training.service';
 import {
    authenticateToken,
-   requireEmployer,
+   requireEmployerWithId, // Changed from requireEmployer
    optionalAuth
 } from '../middleware/auth.middleware';
 import db from '../db/db.config';
@@ -20,11 +20,11 @@ router.get('/', optionalAuth, trainingController.getAllTrainings);
 router.use(authenticateToken);
 
 // Employer-only routes - SPECIFIC ROUTES FIRST!
-router.get('/stats/overview', requireEmployer, trainingController.getTrainingStats);
-router.post('/', requireEmployer, trainingController.createTraining);
-router.put('/:id', requireEmployer, trainingController.updateTraining);
-router.delete('/:id', requireEmployer, trainingController.deleteTraining);
-router.post('/:id/publish', requireEmployer, trainingController.publishTraining);
+router.get('/stats/overview', requireEmployerWithId, trainingController.getTrainingStats);
+router.post('/', requireEmployerWithId, trainingController.createTraining);
+router.put('/:id', requireEmployerWithId, trainingController.updateTraining);
+router.delete('/:id', requireEmployerWithId, trainingController.deleteTraining);
+router.post('/:id/publish', requireEmployerWithId, trainingController.publishTraining);
 
 // PARAMETERIZED ROUTES LAST
 router.get('/:id', optionalAuth, trainingController.getTrainingById);
