@@ -449,6 +449,73 @@ export class AuthService {
     }
   }
 
+  async updateJobseekerProfile(userId: string, updateData: Partial<Jobseeker>): Promise<Jobseeker | null> {
+    const client = await pool.connect();
+    
+    try {
+      const trimmedUserId = userId.trim();
+      if (!isValidUUID(trimmedUserId)) {
+        console.log(`DEBUG - Invalid UUID format: ${trimmedUserId}`);
+        return null;
+      }
+
+      const updateFields: string[] = [];
+      const updateValues: any[] = [];
+      let paramCount = 0;
+
+      const updatableFields = [
+        'location',
+        'contact_number',
+        'skills',
+        'experience_level',
+        'preferred_salary_min',
+        'preferred_salary_max',
+        'availability',
+        'profile_picture',
+        'bio',
+        'resume_url',
+        'portfolio_url'
+      ];
+
+      Object.entries(updateData).forEach(([key, value]) => {
+        if (updatableFields.includes(key) && value !== undefined) {
+          paramCount++;
+          updateFields.push(`${key} = $${paramCount}`);
+          updateValues.push(value);
+        }
+      });
+
+      if (updateFields.length === 0) {
+        return this.getJobseekerByUserId(trimmedUserId);
+      }
+
+      paramCount++;
+      updateFields.push(`updated_at = $${paramCount}`);
+      updateValues.push(new Date());
+
+      paramCount++;
+      updateValues.push(trimmedUserId);
+
+      const updateQuery = `
+        UPDATE jobseekers 
+        SET ${updateFields.join(', ')}
+        WHERE user_id = $${paramCount}::uuid
+        RETURNING id::text as id, user_id::text as user_id, location, contact_number, 
+                 skills, experience_level, preferred_salary_min, preferred_salary_max, 
+                 availability, profile_picture, bio, resume_url, portfolio_url, 
+                 created_at, updated_at
+      `;
+
+      const result = await client.query(updateQuery, updateValues);
+      return result.rows[0] || null;
+    } catch (error: any) {
+      console.error(`Update jobseeker profile error for id ${userId}:`, error.message);
+      return null;
+    } finally {
+      client.release();
+    }
+  }
+
   async changePassword(userId: string, currentPassword: string, newPassword: string): Promise<boolean> {
     const client = await pool.connect();
     

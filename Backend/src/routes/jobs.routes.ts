@@ -60,6 +60,7 @@ router.get('/jobseeker/bookmarked', jobseekerJobController.getSavedJobs);
 router.post('/jobseeker/apply/:jobId', jobseekerJobController.applyToJob);
 router.get('/jobseeker/applications', jobseekerJobController.getAppliedJobs);
 
+
 // Get application status for a specific job
 router.get('/jobseeker/application-status/:jobId', jobseekerJobController.getApplicationStatus);
 

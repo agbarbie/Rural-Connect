@@ -1,8 +1,8 @@
-import { Request, Response } from 'express';
+import { Request, Response, NextFunction } from 'express';
+import { AuthenticatedRequest } from '../middleware/auth.middleware';
 import { AuthService } from '../services/auth.service';
-import { CreateUserRequest, LoginRequest, AuthUser } from '../types/user.type';
-import { RequestWithUser } from '../middleware/protect';
-import asyncHandler from '../middleware/asyncHandler';
+import { validate as isValidUUID } from 'uuid';
+import { CreateUserRequest, LoginRequest, AuthResponse, User, Jobseeker } from '../types/user.type';
 
 export class AuthController {
   private authService: AuthService;
@@ -11,80 +11,152 @@ export class AuthController {
     this.authService = new AuthService();
   }
 
-  register = asyncHandler(async (req: Request, res: Response): Promise<void> => {
-    const userData: CreateUserRequest = req.body;
-    
-    // Basic validation
-    if (!userData.name || !userData.email || !userData.password || !userData.user_type) {
-      res.status(400).json({
-        success: false,
-        message: 'Name, email, password, and user_type are required'
-      });
-      return;
-    }
-
-    const result = await this.authService.register(userData);
-    
-    if (result.success) {
-      res.status(201).json(result);
-    } else {
-      res.status(400).json(result);
-    }
-  });
-
-  login = asyncHandler(async (req: Request, res: Response): Promise<void> => {
-    const loginData: LoginRequest = req.body;
-    
-    // Basic validation
-    if (!loginData.email || !loginData.password) {
-      res.status(400).json({
-        success: false,
-        message: 'Email and password are required'
-      });
-      return;
-    }
-
-    const result = await this.authService.login(loginData);
-    
-    if (result.success) {
-      res.status(200).json(result);
-    } else {
-      res.status(401).json(result);
-    }
-  });
-
-  getProfile = asyncHandler(async (req: RequestWithUser, res: Response): Promise<void> => {
-    // Ensure req.user is defined
-    if (!req.user) {
-      res.status(401).json({
-        success: false,
-        message: 'User not authenticated'
-      });
-      return;
-    }
-
-    // Log for debugging (remove in production)
-    console.log('getProfile - req.user:', req.user);
-
-    // Return data from req.user
-    res.status(200).json({
-      success: true,
-      message: 'Profile retrieved successfully',
-      data: {
-        id: req.user.id,
-        name: req.user.name,
-        email: req.user.email,
-        role: req.user.role,
-        user_type: req.user.user_type
+  register = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const userData: CreateUserRequest = req.body;
+      const result = await this.authService.register(userData);
+      if (!result.success) {
+        res.status(400).json(result);
+        return;
       }
-    });
-  });
+      res.status(201).json(result);
+    } catch (error) {
+      next(error);
+    }
+  };
 
-  logout = asyncHandler(async (req: Request, res: Response): Promise<void> => {
-    // JWT logout is client-side
-    res.status(200).json({
-      success: true,
-      message: 'Logged out successfully'
-    });
-  });
+  login = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const loginData: LoginRequest = req.body;
+      const result = await this.authService.login(loginData);
+      if (!result.success) {
+        res.status(401).json(result);
+        return;
+      }
+      res.status(200).json(result);
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  logout = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      res.status(200).json({
+        success: true,
+        message: 'Logged out successfully'
+      });
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  getProfile = async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const userId = req.user?.id;
+      if (!userId || !isValidUUID(userId)) {
+        res.status(401).json({
+          success: false,
+          message: 'Invalid or missing user ID'
+        });
+        return;
+      }
+
+      const user = await this.authService.getUserById(userId);
+      if (!user) {
+        res.status(404).json({
+          success: false,
+          message: 'User not found'
+        });
+        return;
+      }
+
+      let profileData: any = user;
+      if (user.user_type === 'jobseeker') {
+        const jobseeker = await this.authService.getJobseekerWithDetails(userId);
+        if (jobseeker) {
+          profileData = { ...user, jobseeker };
+        }
+      } else if (user.user_type === 'employer') {
+        const employer = await this.authService.getEmployerWithDetails(userId);
+        if (employer) {
+          profileData = { ...user, employer };
+        }
+      }
+
+      res.status(200).json({
+        success: true,
+        data: profileData
+      });
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  updateProfile = async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const userId = req.user?.id;
+      if (!userId || !isValidUUID(userId)) {
+        res.status(401).json({
+          success: false,
+          message: 'Invalid or missing user ID'
+        });
+        return;
+      }
+
+      if (req.user?.user_type !== 'jobseeker') {
+        res.status(403).json({
+          success: false,
+          message: 'Only jobseekers can update their profiles'
+        });
+        return;
+      }
+
+      const { name, location, contact_number, skills, bio, resume_url, portfolio_url, experience_level, preferred_salary_min, preferred_salary_max, availability } = req.body;
+
+      // Update user table (common fields)
+      const userUpdateData: Partial<User> = {
+        name,
+        location,
+        contact_number
+      };
+
+      const updatedUser = await this.authService.updateUserProfile(userId, userUpdateData);
+      if (!updatedUser) {
+        res.status(404).json({
+          success: false,
+          message: 'User not found'
+        });
+        return;
+      }
+
+      // Update jobseeker table (jobseeker-specific fields)
+      const jobseekerUpdateData: Partial<Jobseeker> = {
+        skills,
+        bio,
+        resume_url,
+        portfolio_url,
+        experience_level,
+        preferred_salary_min,
+        preferred_salary_max,
+        availability
+      };
+
+      const updatedJobseeker = await this.authService.updateJobseekerProfile(userId, jobseekerUpdateData);
+      if (!updatedJobseeker) {
+        res.status(404).json({
+          success: false,
+          message: 'Jobseeker profile not found'
+        });
+        return;
+      }
+
+      res.status(200).json({
+        success: true,
+        message: 'Profile updated successfully',
+        data: { ...updatedUser, jobseeker: updatedJobseeker }
+      });
+    } catch (error) {
+      next(error);
+    }
+  };
 }

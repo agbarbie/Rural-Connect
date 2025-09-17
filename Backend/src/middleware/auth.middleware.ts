@@ -1,8 +1,8 @@
 import { Request, Response, NextFunction } from 'express';
 import { verifyToken } from '../utils/helpers';
 import { AuthService } from '../services/auth.service';
-import { JwtPayload } from '../types/user.type';
 import { validate as isValidUUID } from 'uuid';
+import jwt, { JwtPayload } from 'jsonwebtoken';
 
 export interface AuthenticatedRequest extends Request {
   user?: {
@@ -31,6 +31,8 @@ export const authenticateToken = async (req: AuthenticatedRequest, res: Response
     });
     return;
   }
+
+  console.log('DEBUG - Token received:', token.substring(0, 10) + '...'); // Log first 10 chars of token
 
   try {
     const decoded = verifyToken(token) as JwtPayload;
@@ -72,10 +74,32 @@ export const authenticateToken = async (req: AuthenticatedRequest, res: Response
     console.log('DEBUG - req.user set to:', req.user);
     next();
   } catch (error: any) {
-    console.error('Token verification error:', error.message);
+    console.error('Token verification error:', {
+      message: error.message,
+      name: error.name,
+      stack: error.stack,
+      tokenSnippet: token.substring(0, 10) + '...'
+    });
+
+    if (error instanceof jwt.TokenExpiredError) {
+      res.status(401).json({
+        success: false,
+        message: 'Token expired',
+        expiredAt: error.expiredAt
+      });
+      return;
+    } else if (error instanceof jwt.JsonWebTokenError) {
+      res.status(401).json({
+        success: false,
+        message: 'Invalid token'
+      });
+      return;
+    }
+
     res.status(403).json({
       success: false,
-      message: 'Invalid or expired token'
+      message: 'Invalid or expired token',
+      error: error.message
     });
     return;
   }
@@ -269,27 +293,6 @@ export const requireEmployerWithId = async (req: AuthenticatedRequest, res: Resp
     });
     return;
   }
-};
-
-export const authenticateAndAuthorize = (requiredRole?: 'jobseeker' | 'employer' | 'admin') => {
-  return async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
-    await authenticateToken(req, res, () => {});
-    
-    if (!req.user) {
-      return;
-    }
-
-    if (requiredRole && req.user.user_type !== requiredRole) {
-      console.log(`DEBUG - User type ${req.user.user_type} does not match required role: ${requiredRole}`);
-      res.status(403).json({
-        success: false,
-        message: `${requiredRole.charAt(0).toUpperCase() + requiredRole.slice(1)} access required`
-      });
-      return;
-    }
-
-    next();
-  };
 };
 
 export interface EmployerAuthenticatedRequest extends AuthenticatedRequest {

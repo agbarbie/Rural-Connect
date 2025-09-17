@@ -2,7 +2,7 @@ import dotenv from 'dotenv';
 import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import authRoutes from './routes/auth.routes';
-import jobRoutes from './routes/jobs.routes'; // Adjusted import path for consistency
+import jobRoutes from './routes/jobs.routes';
 import trainingRoutes from './routes/Training.routes';
 import pool from './db/db.config';
 
@@ -67,7 +67,7 @@ pool.connect()
     process.exit(1);
   });
 
-// CORS configuration - Updated for job system
+// CORS configuration
 const corsOptions = {
   origin: [
     'http://localhost:4200', // Angular dev server
@@ -88,7 +88,6 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Security middleware
 app.use((req: Request, res: Response, next: NextFunction) => {
-  // Basic security headers
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('X-Frame-Options', 'DENY');
   res.setHeader('X-XSS-Protection', '1; mode=block');
@@ -100,15 +99,12 @@ app.use((req: Request, res: Response, next: NextFunction) => {
   const timestamp = new Date().toISOString();
   console.log(`${timestamp} - ${req.method} ${req.url}`);
   
-  // Log authentication header presence (not content)
   if (req.headers.authorization) {
     console.log('Authorization header present');
   }
   
-  // Log body for non-GET requests (but sanitize sensitive data)
   if (req.method !== 'GET' && req.body && Object.keys(req.body).length > 0) {
     const sanitizedBody = { ...req.body };
-    // Remove sensitive fields from logs
     ['password', 'token', 'secret'].forEach(field => {
       if (sanitizedBody[field]) {
         sanitizedBody[field] = '[REDACTED]';
@@ -119,6 +115,32 @@ app.use((req: Request, res: Response, next: NextFunction) => {
   
   next();
 });
+
+// Status code validation middleware
+app.use((req: Request, res: Response, next: NextFunction) => {
+  const originalStatus = res.status;
+  res.status = function (code: any) {
+    if (typeof code !== 'number' || isNaN(code) || code < 100 || code > 599) {
+      console.error(`Invalid status code detected: ${code} for ${req.method} ${req.url}`);
+      console.error('Stack trace:', new Error('Invalid status code').stack);
+      return originalStatus.call(this, 500).json({
+        success: false,
+        message: 'Internal server error: Invalid status code provided',
+        endpoint: `${req.method} ${req.url}`,
+        invalidCode: code,
+        timestamp: new Date().toISOString()
+      });
+    }
+    return originalStatus.call(this, code);
+  };
+  next();
+});
+
+// Debug route registration
+console.log('Registering routes:');
+console.log('- Auth routes: /api/auth/*');
+console.log('- Job routes: /api/jobs/*');
+console.log('- Training routes: /api/trainings/*');
 
 // API Routes
 app.use('/api/auth', authRoutes);
@@ -192,7 +214,6 @@ app.get('/api', (req: Request, res: Response) => {
         routes: [
           'POST /api/auth/register',
           'POST /api/auth/login',
-          'POST /api/auth/refresh',
           'POST /api/auth/logout',
           'GET /api/auth/profile',
           'PUT /api/auth/profile'
@@ -324,11 +345,9 @@ app.use((error: any, req: Request, res: Response, next: NextFunction): void => {
 const gracefulShutdown = async (signal: string) => {
   console.log(`\nReceived ${signal}. Shutting down gracefully...`);
   try {
-    // Close database connections
     await pool.end();
     console.log('Database connections closed.');
     
-    // Give time for any ongoing requests to complete
     setTimeout(() => {
       console.log('Server shutdown complete.');
       process.exit(0);

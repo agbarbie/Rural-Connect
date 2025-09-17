@@ -13,6 +13,13 @@ export class PostJobsController {
     // Create JobService instance without parameters since it imports pool directly
     this.jobService = new JobService();
   }
+
+  /**
+   * Creates a new job posting
+   * @param req Authenticated request containing job data
+   * @param res Response object
+   * @param next Error handling middleware
+   */
   // Add this method to your PostJobsController class
 
   /**
@@ -84,12 +91,6 @@ export class PostJobsController {
       next(error);
     }
   }
-  /**
-   * Creates a new job posting
-   * @param req Authenticated request containing job data
-   * @param res Response object
-   * @param next Error handling middleware
-   */
   async createJob(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
       // Use employer_id if available, otherwise use user_id as fallback
