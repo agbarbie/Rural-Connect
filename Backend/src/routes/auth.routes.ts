@@ -23,4 +23,7 @@ router.post('/logout', asyncHandler(authController.logout));
 router.get('/profile', authenticateToken, asyncHandler(authController.getProfile));
 router.put('/profile', authenticateToken, requireJobseeker, asyncHandler(authController.updateProfile));
 
+// ADD THIS DEBUG ROUTE (temporary - remove after fixing)
+router.get('/debug-token', authController.debugJWT);
+
 export default router;
