@@ -48,10 +48,24 @@ pool.connect()
       
       await client.query('SELECT 1 FROM job_applications LIMIT 1');
       console.log('✓ Job applications table accessible');
+
+      // Test training-related tables
+      await client.query('SELECT 1 FROM trainings LIMIT 1');
+      console.log('✓ Trainings table accessible');
+      
+      await client.query('SELECT 1 FROM training_enrollments LIMIT 1');
+      console.log('✓ Training enrollments table accessible');
       
     } catch (tableError: any) {
       console.warn('Database tables might need migration:', tableError.message);
       console.warn('Please run the database migration script to ensure all tables exist');
+      
+      // List expected training tables
+      const expectedTables = [
+        'trainings', 'training_videos', 'training_outcomes', 
+        'training_enrollments', 'training_video_progress', 'training_reviews'
+      ];
+      console.warn('Expected training tables:', expectedTables.join(', '));
     }
     
     client.release();
@@ -244,17 +258,58 @@ app.get('/api', (req: Request, res: Response) => {
       },
       trainings: {
         base: '/api/trainings',
-        routes: [
-          'GET /api/trainings - Get all trainings',
-          'POST /api/trainings - Create training',
-          'GET /api/trainings/:id - Get training by ID'
+        public_routes: [
+          'GET /api/trainings - Get all trainings (with optional auth)',
+          'GET /api/trainings/categories - Get training categories',
+          'GET /api/trainings/:id - Get training by ID (with optional auth)'
+        ],
+        jobseeker_routes: [
+          'GET /api/trainings/jobseeker/available - Get available trainings for jobseekers',
+          'GET /api/trainings/jobseeker/enrolled - Get enrolled trainings',
+          'GET /api/trainings/jobseeker/stats - Get jobseeker training statistics',
+          'GET /api/trainings/jobseeker/recommendations - Get recommended trainings',
+          'POST /api/trainings/:trainingId/enroll - Enroll in a training',
+          'DELETE /api/trainings/:trainingId/enroll - Unenroll from a training',
+          'GET /api/trainings/:trainingId/progress - Get training progress',
+          'PUT /api/trainings/:trainingId/progress - Update training progress',
+          'POST /api/trainings/:trainingId/review - Submit training review'
+        ],
+        employer_routes: [
+          'GET /api/trainings/stats/overview - Get training statistics overview',
+          'POST /api/trainings - Create new training',
+          'PUT /api/trainings/:id - Update training',
+          'DELETE /api/trainings/:id - Delete training',
+          'POST /api/trainings/:id/publish - Publish training'
         ]
       }
     },
     authentication: {
       type: 'Bearer Token',
       header: 'Authorization: Bearer <token>',
-      note: 'Include JWT token for protected routes'
+      note: 'Include JWT token for protected routes',
+      user_types: {
+        jobseeker: 'Can enroll in trainings, track progress, submit reviews',
+        employer: 'Can create, manage, and publish trainings',
+        admin: 'Full system access'
+      }
+    },
+    training_features: {
+      jobseeker_capabilities: [
+        'Browse and search available trainings',
+        'Enroll in and unenroll from trainings',
+        'Track learning progress and completion',
+        'Submit reviews and ratings',
+        'Get personalized recommendations',
+        'View training statistics and achievements'
+      ],
+      employer_capabilities: [
+        'Create and manage training content',
+        'Add videos, outcomes, and materials',
+        'Set pricing and access controls',
+        'Monitor enrollment and completion rates',
+        'Publish/unpublish trainings',
+        'View detailed analytics'
+      ]
     }
   });
 });
@@ -273,6 +328,7 @@ app.use('*', (req: Request, res: Response) => {
       '/health/db',
       '/api'
     ],
+    training_routes_hint: 'Use /api/trainings for training-related operations',
     timestamp: new Date().toISOString()
   });
 });
@@ -323,6 +379,27 @@ app.use((error: any, req: Request, res: Response, next: NextFunction): void => {
       success: false,
       message: 'Validation error',
       details: error.message,
+      timestamp: new Date().toISOString()
+    });
+    return;
+  }
+
+  // Training specific errors
+  if (error.code === '23505') { // Unique constraint violation
+    res.status(409).json({
+      success: false,
+      message: 'Resource already exists',
+      details: 'This operation conflicts with existing data',
+      timestamp: new Date().toISOString()
+    });
+    return;
+  }
+
+  if (error.code === '23503') { // Foreign key constraint violation
+    res.status(400).json({
+      success: false,
+      message: 'Invalid reference',
+      details: 'Referenced resource does not exist',
       timestamp: new Date().toISOString()
     });
     return;
@@ -386,6 +463,9 @@ app.listen(PORT, () => {
   console.log(`   • Authentication: http://localhost:${PORT}/api/auth`);
   console.log(`   • Jobs: http://localhost:${PORT}/api/jobs`);
   console.log(`   • Training: http://localhost:${PORT}/api/trainings`);
+  console.log(`\n🎓 Training Features:`);
+  console.log(`   • Jobseekers: Enroll, track progress, submit reviews`);
+  console.log(`   • Employers: Create, manage, publish trainings`);
   console.log(`\n🔐 Remember to include 'Authorization: Bearer <token>' header for protected routes`);
 });
 
