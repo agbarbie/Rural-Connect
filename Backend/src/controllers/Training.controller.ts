@@ -13,146 +13,144 @@ export class TrainingController {
 
   // EMPLOYER METHODS (existing)
 
-  // Add these methods to your TrainingController class
-
-// Training status management methods
-unpublishTraining = async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
-  try {
-    const { id } = req.params;
-    const training = await this.trainingService.updateTraining(
-      id, 
-      { status: 'draft' }, 
-      req.user!.employer_id!
-    );
-    
-    if (!training) {
-      res.status(404).json({
-        success: false,
-        message: 'Training not found or access denied'
+  // Training status management methods
+  unpublishTraining = async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const { id } = req.params;
+      const training = await this.trainingService.updateTraining(
+        id, 
+        { status: 'draft' }, 
+        req.user!.employer_id!
+      );
+      
+      if (!training) {
+        res.status(404).json({
+          success: false,
+          message: 'Training not found or access denied'
+        });
+        return;
+      }
+      
+      res.status(200).json({
+        success: true,
+        message: 'Training unpublished successfully',
+        data: training
       });
-      return;
+    } catch (error) {
+      next(error);
     }
-    
-    res.status(200).json({
-      success: true,
-      message: 'Training unpublished successfully',
-      data: training
-    });
-  } catch (error) {
-    next(error);
-  }
-};
+  };
 
-suspendTraining = async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
-  try {
-    const { id } = req.params;
-    const training = await this.trainingService.updateTraining(
-      id, 
-      { status: 'suspended' }, 
-      req.user!.employer_id!
-    );
-    
-    if (!training) {
-      res.status(404).json({
-        success: false,
-        message: 'Training not found or access denied'
+  suspendTraining = async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const { id } = req.params;
+      const training = await this.trainingService.updateTraining(
+        id, 
+        { status: 'suspended' }, 
+        req.user!.employer_id!
+      );
+      
+      if (!training) {
+        res.status(404).json({
+          success: false,
+          message: 'Training not found or access denied'
+        });
+        return;
+      }
+      
+      res.status(200).json({
+        success: true,
+        message: 'Training suspended successfully',
+        data: training
       });
-      return;
+    } catch (error) {
+      next(error);
     }
-    
-    res.status(200).json({
-      success: true,
-      message: 'Training suspended successfully',
-      data: training
-    });
-  } catch (error) {
-    next(error);
-  }
-};
+  };
 
-// Training enrollment management (for employers)
-getTrainingEnrollments = async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
-  try {
-    const { id } = req.params;
-    const params = {
-      page: parseInt(req.query.page as string) || 1,
-      limit: parseInt(req.query.limit as string) || 10,
-      status: req.query.status as string
-    };
+  // Training enrollment management (for employers)
+  getTrainingEnrollments = async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const { id } = req.params;
+      const params = {
+        page: parseInt(req.query.page as string) || 1,
+        limit: parseInt(req.query.limit as string) || 10,
+        status: req.query.status as string
+      };
 
-    const enrollments = await this.trainingService.getTrainingEnrollments(id, req.user!.employer_id!, params);
-    
-    if (!enrollments) {
-      res.status(404).json({
-        success: false,
-        message: 'Training not found or access denied'
+      const enrollments = await this.trainingService.getTrainingEnrollments(id, req.user!.employer_id!, params);
+      
+      if (!enrollments) {
+        res.status(404).json({
+          success: false,
+          message: 'Training not found or access denied'
+        });
+        return;
+      }
+
+      res.status(200).json({
+        success: true,
+        data: enrollments
       });
-      return;
+    } catch (error) {
+      next(error);
     }
+  };
 
-    res.status(200).json({
-      success: true,
-      data: enrollments
-    });
-  } catch (error) {
-    next(error);
-  }
-};
+  // Training analytics (for employers)
+  getTrainingAnalytics = async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const { id } = req.params;
+      const timeRange = req.query.range as string || '30days';
 
-// Training analytics (for employers)
-getTrainingAnalytics = async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
-  try {
-    const { id } = req.params;
-    const timeRange = req.query.range as string || '30days';
+      const analytics = await this.trainingService.getTrainingAnalytics(id, req.user!.employer_id!, timeRange);
+      
+      if (!analytics) {
+        res.status(404).json({
+          success: false,
+          message: 'Training not found or access denied'
+        });
+        return;
+      }
 
-    const analytics = await this.trainingService.getTrainingAnalytics(id, req.user!.employer_id!, timeRange);
-    
-    if (!analytics) {
-      res.status(404).json({
-        success: false,
-        message: 'Training not found or access denied'
+      res.status(200).json({
+        success: true,
+        data: analytics
       });
-      return;
+    } catch (error) {
+      next(error);
     }
+  };
 
-    res.status(200).json({
-      success: true,
-      data: analytics
-    });
-  } catch (error) {
-    next(error);
-  }
-};
+  // Training reviews (view for both user types)
+  getTrainingReviews = async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const { id } = req.params;
+      const params = {
+        page: parseInt(req.query.page as string) || 1,
+        limit: parseInt(req.query.limit as string) || 10,
+        sort_by: (req.query.sort_by as string) || 'created_at',
+        sort_order: (req.query.sort_order as 'asc' | 'desc') || 'desc'
+      };
 
-// Training reviews (view for both user types)
-getTrainingReviews = async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
-  try {
-    const { id } = req.params;
-    const params = {
-      page: parseInt(req.query.page as string) || 1,
-      limit: parseInt(req.query.limit as string) || 10,
-      sort_by: (req.query.sort_by as string) || 'created_at',
-      sort_order: (req.query.sort_order as 'asc' | 'desc') || 'desc'
-    };
+      const reviews = await this.trainingService.getTrainingReviews(id, params);
+      
+      if (!reviews) {
+        res.status(404).json({
+          success: false,
+          message: 'Training not found'
+        });
+        return;
+      }
 
-    const reviews = await this.trainingService.getTrainingReviews(id, params);
-    
-    if (!reviews) {
-      res.status(404).json({
-        success: false,
-        message: 'Training not found'
+      res.status(200).json({
+        success: true,
+        data: reviews
       });
-      return;
+    } catch (error) {
+      next(error);
     }
-
-    res.status(200).json({
-      success: true,
-      data: reviews
-    });
-  } catch (error) {
-    next(error);
-  }
-}; 
+  }; 
 
   getAllTrainings = async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
@@ -406,28 +404,38 @@ getTrainingReviews = async (req: AuthenticatedRequest, res: Response, next: Next
     }
   };
 
+  // FIXED: Updated to use the new updateTrainingProgress method
   updateTrainingProgress = async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
       const { trainingId } = req.params;
       const userId = req.user!.id;
       const progressData = req.body;
 
-      const updatedProgress = await this.trainingService.updateUserProgress(trainingId, userId, progressData);
-      
-      if (!updatedProgress) {
-        res.status(404).json({
+      // Validate required fields
+      if (progressData.progress_percentage === undefined) {
+        res.status(400).json({
           success: false,
-          message: 'Training enrollment not found'
+          message: 'Progress percentage is required'
         });
         return;
       }
 
+      const updatedProgress = await this.trainingService.updateTrainingProgress(trainingId, userId, progressData);
+      
       res.status(200).json({
         success: true,
         message: 'Progress updated successfully',
         data: updatedProgress
       });
     } catch (error) {
+      // Handle the specific error message
+      if (error instanceof Error && error.message === 'Training enrollment not found') {
+        res.status(404).json({
+          success: false,
+          message: error.message
+        });
+        return;
+      }
       next(error);
     }
   };
@@ -462,16 +470,18 @@ getTrainingReviews = async (req: AuthenticatedRequest, res: Response, next: Next
       const userId = req.user!.id;
       const { rating, review_text } = req.body;
 
-      if (!rating || rating < 1 || rating > 5) {
+      // Validate rating - ensure it's an integer between 1 and 5
+      const ratingInt = parseInt(rating);
+      if (!ratingInt || ratingInt < 1 || ratingInt > 5 || !Number.isInteger(ratingInt)) {
         res.status(400).json({
           success: false,
-          message: 'Rating must be between 1 and 5'
+          message: 'Rating must be an integer between 1 and 5'
         });
         return;
       }
 
       const review = await this.trainingService.submitTrainingReview(trainingId, userId, {
-        rating,
+        rating: ratingInt,
         review_text
       });
       

@@ -28,13 +28,25 @@ router.get('/categories', trainingController.getTrainingCategories);
 router.use(authenticateToken);
 
 // ==============================================
-// JOBSEEKER-SPECIFIC ROUTES
+// SPECIFIC NAMED ROUTES (MUST COME BEFORE /:id PATTERNS)
 // ==============================================
-// Training browsing and discovery
+
+// JOBSEEKER-SPECIFIC ROUTES
 router.get('/jobseeker/available', requireJobseeker, trainingController.getJobseekerTrainings);
 router.get('/jobseeker/enrolled', requireJobseekerWithId, trainingController.getEnrolledTrainings);
 router.get('/jobseeker/stats', requireJobseekerWithId, trainingController.getJobseekerTrainingStats);
 router.get('/jobseeker/recommendations', requireJobseekerWithId, trainingController.getRecommendedTrainings);
+
+// EMPLOYER-SPECIFIC ROUTES  
+router.get('/employer/stats', requireEmployerWithId, trainingController.getTrainingStats);
+router.get('/employer/my-trainings', requireEmployerWithId, trainingController.getAllTrainings);
+
+// If you have a direct /recommendations route (without /jobseeker prefix), add it here:
+// router.get('/recommendations', requireJobseekerWithId, trainingController.getRecommendedTrainings);
+
+// ==============================================
+// PARAMETERIZED ROUTES (MUST COME AFTER NAMED ROUTES)
+// ==============================================
 
 // Training enrollment operations (jobseeker only)
 router.post('/:trainingId/enroll', requireJobseekerWithId, trainingController.enrollInTraining);
@@ -46,13 +58,6 @@ router.put('/:trainingId/progress', requireJobseekerWithId, trainingController.u
 
 // Reviews and ratings (jobseeker only)
 router.post('/:trainingId/review', requireJobseekerWithId, trainingController.submitTrainingReview);
-
-// ==============================================
-// EMPLOYER-SPECIFIC ROUTES
-// ==============================================
-// Training management overview
-router.get('/employer/stats', requireEmployerWithId, trainingController.getTrainingStats);
-router.get('/employer/my-trainings', requireEmployerWithId, trainingController.getAllTrainings);
 
 // Training CRUD operations (employer only)
 router.post('/', requireEmployerWithId, trainingController.createTraining);
@@ -68,14 +73,15 @@ router.post('/:id/suspend', requireEmployerWithId, trainingController.suspendTra
 router.get('/:id/enrollments', requireEmployerWithId, trainingController.getTrainingEnrollments);
 router.get('/:id/analytics', requireEmployerWithId, trainingController.getTrainingAnalytics);
 
-// ==============================================
-// SHARED ROUTES (both employers and jobseekers)
-// ==============================================
-// Training details (different permissions based on user type)
-router.get('/:id', requireEmployerOrJobseeker, trainingController.getTrainingById);
-
 // Training reviews (view for both, create for jobseekers only)
 router.get('/:id/reviews', requireEmployerOrJobseeker, trainingController.getTrainingReviews);
+
+// ==============================================
+// CATCH-ALL ROUTES (MUST BE LAST)
+// ==============================================
+
+// Training details (different permissions based on user type) - MUST BE LAST
+router.get('/:id', requireEmployerOrJobseeker, trainingController.getTrainingById);
 
 // ==============================================
 // ADMIN ROUTES (future enhancement)
