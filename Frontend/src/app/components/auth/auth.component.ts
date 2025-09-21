@@ -95,6 +95,49 @@ export class AuthComponent {
     this.success = '';
   }
 
+  // Helper method to navigate based on user type
+  private navigateToUserDashboard(userType: string): void {
+    console.log('Navigating for user type:', userType);
+    
+    // Ensure we have a valid user type
+    if (!userType) {
+      console.error('No user type provided for navigation');
+      this.router.navigate(['/']);
+      return;
+    }
+    
+    switch (userType.toLowerCase()) {
+      case 'jobseeker':
+        console.log('Navigating to jobseeker dashboard');
+        this.router.navigate(['/jobseeker/dashboard']).then(success => {
+          if (!success) {
+            console.error('Navigation to jobseeker dashboard failed');
+          }
+        });
+        break;
+      case 'employer':
+        console.log('Navigating to employer dashboard');
+        this.router.navigate(['/employer/employer-dashboard']).then(success => {
+          if (!success) {
+            console.error('Navigation to employer dashboard failed');
+          }
+        });
+        break;
+      case 'admin':
+        console.log('Navigating to admin dashboard');
+        this.router.navigate(['/admin/dashboard']).then(success => {
+          if (!success) {
+            console.error('Navigation to admin dashboard failed');
+          }
+        });
+        break;
+      default:
+        console.log('Unknown user type:', userType, 'redirecting to landing');
+        this.router.navigate(['/']);
+        break;
+    }
+  }
+
   onLogin(): void {
     // Validation
     if (!this.loginEmail || !this.loginPassword) {
@@ -106,29 +149,31 @@ export class AuthComponent {
     this.clearMessages();
 
     const loginData: LoginRequest = {
-      email: this.loginEmail,
+      email: this.loginEmail.trim(),
       password: this.loginPassword
     };
 
-    console.log('Login attempt:', loginData);
+    console.log('Login attempt:', { email: loginData.email });
 
     this.authService.login(loginData).subscribe({
       next: (response) => {
         this.loading = false;
+        console.log('Full login response:', response);
+        
         if (response.success) {
           this.success = 'Login successful!';
-          console.log('Login successful:', response);
           
-          // Navigate based on user type
-          setTimeout(() => {
-            if (response.user?.user_type === 'jobseeker') {
-              this.router.navigate(['/jobseeker/dashboard']);
-            } else if (response.user?.user_type === 'employer') {
-              this.router.navigate(['/employer/employer-dashboard']);
-            } else if (response.user?.user_type === 'admin') {
-              this.router.navigate(['/admin/dashboard']);
-            }
-          }, 1000);
+          // Get user type from response (based on your backend structure)
+          let userType = response.user?.user_type || null;
+          
+          console.log('User object from response:', response.user);
+          console.log('User type from response.user.user_type:', userType);
+          
+          console.log('Detected user type:', userType);
+          
+          // Navigate immediately with the correct user type
+          this.navigateToUserDashboard(userType ?? '');
+          
         } else {
           this.error = response.message || 'Login failed';
         }
@@ -136,7 +181,7 @@ export class AuthComponent {
       error: (error) => {
         this.loading = false;
         console.error('Login error:', error);
-        this.error = error.error?.message || 'Login failed. Please try again.';
+        this.error = error.message || 'Login failed. Please try again.';
       }
     });
   }
@@ -171,43 +216,49 @@ export class AuthComponent {
 
     // Build registration data based on user type
     const registerData: RegisterRequest = {
-      name: this.signupName,
-      email: this.signupEmail,
+      name: this.signupName.trim(),
+      email: this.signupEmail.trim(),
       password: this.signupPassword,
       user_type: this.activeUserType
     };
 
     // Add user type specific fields
     if (this.activeUserType === 'jobseeker') {
-      registerData.location = this.signupLocation;
-      registerData.contact_number = this.contactNumber;
+      registerData.location = this.signupLocation.trim();
+      registerData.contact_number = this.contactNumber.trim();
     } else if (this.activeUserType === 'employer') {
-      registerData.company_name = this.companyName;
+      registerData.company_name = this.companyName.trim();
       registerData.company_password = this.companyPassword;
-      registerData.role_in_company = this.RoleInTheCompany;
+      registerData.role_in_company = this.RoleInTheCompany.trim();
     } else if (this.activeUserType === 'admin') {
-      registerData.contact_number = this.contactNumber;
+      registerData.contact_number = this.contactNumber.trim();
     }
 
-    console.log('Signup attempt:', registerData);
+    console.log('Signup attempt:', { 
+      email: registerData.email, 
+      name: registerData.name, 
+      user_type: registerData.user_type 
+    });
 
     this.authService.register(registerData).subscribe({
       next: (response) => {
         this.loading = false;
+        console.log('Full registration response:', response);
+        
         if (response.success) {
           this.success = 'Registration successful!';
-          console.log('Registration successful:', response);
           
-          // Navigate based on user type
-          setTimeout(() => {
-            if (response.user?.user_type === 'jobseeker') {
-              this.router.navigate(['/jobseeker/dashboard']);
-            } else if (response.user?.user_type === 'employer') {
-              this.router.navigate(['/employer/employer-dashboard']);
-            } else if (response.user?.user_type === 'admin') {
-              this.router.navigate(['/admin/dashboard']);
-            }
-          }, 1000);
+          // Get user type from response (your backend returns it in response.user.user_type)
+          let userType = response.user?.user_type || this.activeUserType;
+          
+          console.log('User object from response:', response.user);
+          console.log('User type from response:', userType);
+          
+          console.log('Registration user type:', userType);
+          
+          // Navigate immediately with the correct user type
+          this.navigateToUserDashboard(userType);
+          
         } else {
           this.error = response.message || 'Registration failed';
         }
@@ -215,7 +266,7 @@ export class AuthComponent {
       error: (error) => {
         this.loading = false;
         console.error('Registration error:', error);
-        this.error = error.error?.message || 'Registration failed. Please try again.';
+        this.error = error.message || 'Registration failed. Please try again.';
       }
     });
   }

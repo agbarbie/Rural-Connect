@@ -13,10 +13,11 @@ export class AuthService {
       // Check if user already exists
       const existingUser = await client.query(
         'SELECT id FROM users WHERE email = $1',
-        [userData.email.trim()]
+        [userData.email.trim().toLowerCase()]
       );
 
       if (existingUser.rows.length > 0) {
+        await client.query('ROLLBACK');
         return {
           success: false,
           message: 'User with this email already exists'
@@ -32,7 +33,7 @@ export class AuthService {
         hashedCompanyPassword = await hashPassword(userData.company_password);
       }
 
-      // Insert new user - ensure UUID is generated and returned as string
+      // Insert new user
       const userResult = await client.query(`
         INSERT INTO users (
           name, email, password, user_type, location, contact_number, 
@@ -41,8 +42,8 @@ export class AuthService {
         RETURNING id::text as id, name, email, user_type, location, contact_number, 
                  company_name, role_in_company, created_at, updated_at
       `, [
-        userData.name,
-        userData.email.trim(),
+        userData.name.trim(),
+        userData.email.trim().toLowerCase(),
         hashedPassword,
         userData.user_type,
         userData.location || null,
@@ -57,6 +58,7 @@ export class AuthService {
 
       // Validate UUID
       if (!isValidUUID(newUser.id)) {
+        await client.query('ROLLBACK');
         throw new Error(`Invalid UUID generated for user: ${newUser.id}`);
       }
 
@@ -80,6 +82,7 @@ export class AuthService {
 
       await client.query('COMMIT');
 
+      // Generate token using your existing helper
       const token = generateToken(newUser);
 
       return {
@@ -105,12 +108,12 @@ export class AuthService {
     const client = await pool.connect();
     
     try {
-      // Find user by email - ensure UUID is returned as string
+      // Find user by email
       const result = await client.query(`
         SELECT id::text as id, name, email, password, user_type, location, contact_number, 
                company_name, role_in_company, created_at, updated_at
         FROM users WHERE email = $1
-      `, [loginData.email.trim()]);
+      `, [loginData.email.trim().toLowerCase()]);
 
       if (result.rows.length === 0) {
         return {
@@ -144,7 +147,7 @@ export class AuthService {
       // Remove password from user object
       const { password, ...userWithoutPassword } = user;
       
-      // Generate token with UUID string
+      // Generate token using your existing helper
       const token = generateToken(userWithoutPassword);
 
       return {
@@ -155,7 +158,7 @@ export class AuthService {
       };
 
     } catch (error: any) {
-      console.error('Login error:', error.message);
+      console.error('Login service error:', error.message);
       return {
         success: false,
         message: 'Login failed'
@@ -172,7 +175,6 @@ export class AuthService {
       const trimmedUserId = userId.trim();
       console.log(`DEBUG - Querying user with id: ${trimmedUserId}`);
 
-      // Validate UUID format
       if (!isValidUUID(trimmedUserId)) {
         console.log(`DEBUG - Invalid UUID format: ${trimmedUserId}`);
         return null;
@@ -186,8 +188,10 @@ export class AuthService {
 
       if (!result.rows[0]) {
         console.log(`DEBUG - No user found for id: ${trimmedUserId}`);
+        return null;
       }
-      return result.rows[0] || null;
+      
+      return result.rows[0];
     } catch (error: any) {
       console.error(`Get user error for id ${userId}:`, error.message);
       return null;
@@ -217,8 +221,10 @@ export class AuthService {
 
       if (!result.rows[0]) {
         console.log(`DEBUG - No employer found for user_id: ${trimmedUserId}`);
+        return null;
       }
-      return result.rows[0] || null;
+      
+      return result.rows[0];
     } catch (error: any) {
       console.error(`Get employer error for user_id ${userId}:`, error.message);
       return null;
@@ -250,7 +256,7 @@ export class AuthService {
         FROM employers e
         INNER JOIN users u ON e.user_id = u.id
         LEFT JOIN companies c ON e.company_id = c.id
-        WHERE e.id = $1::uuid
+        WHERE e.user_id = $1::uuid
       `, [trimmedEmployerId]);
 
       if (result.rows.length === 0) {
@@ -322,8 +328,10 @@ export class AuthService {
 
       if (!result.rows[0]) {
         console.log(`DEBUG - No jobseeker found for user_id: ${trimmedUserId}`);
+        return null;
       }
-      return result.rows[0] || null;
+      
+      return result.rows[0];
     } catch (error: any) {
       console.error(`Get jobseeker error for user_id ${userId}:`, error.message);
       return null;
@@ -352,7 +360,7 @@ export class AuthService {
           u.contact_number as user_contact
         FROM jobseekers j
         INNER JOIN users u ON j.user_id = u.id
-        WHERE j.id = $1::uuid
+        WHERE j.user_id = $1::uuid
       `, [trimmedJobseekerId]);
 
       if (result.rows.length === 0) {
@@ -464,17 +472,9 @@ export class AuthService {
       let paramCount = 0;
 
       const updatableFields = [
-        'location',
-        'contact_number',
-        'skills',
-        'experience_level',
-        'preferred_salary_min',
-        'preferred_salary_max',
-        'availability',
-        'profile_picture',
-        'bio',
-        'resume_url',
-        'portfolio_url'
+        'location', 'contact_number', 'skills', 'experience_level',
+        'preferred_salary_min', 'preferred_salary_max', 'availability',
+        'profile_picture', 'bio', 'resume_url', 'portfolio_url'
       ];
 
       Object.entries(updateData).forEach(([key, value]) => {

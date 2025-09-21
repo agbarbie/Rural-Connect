@@ -12,7 +12,7 @@ export class AuthController {
     this.authService = new AuthService();
   }
 
-  // ADD THIS DEBUG METHOD
+  // DEBUG METHOD - Remove in production
   debugJWT = async (req: Request, res: Response): Promise<void> => {
     try {
       const token = req.headers.authorization?.replace('Bearer ', '');
@@ -23,15 +23,12 @@ export class AuthController {
       }
 
       try {
-        // Decode without verification to see the payload
         const decoded = jwt.decode(token);
         console.log('Token decoded (no verification):', decoded);
         
-        // Try to verify
         const verified = jwt.verify(token, process.env.JWT_SECRET!);
         console.log('Token verified:', verified);
         
-        // Check timestamps
         const now = Math.floor(Date.now() / 1000);
         console.log('Current timestamp:', now);
         
@@ -62,23 +59,53 @@ export class AuthController {
   register = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const userData: CreateUserRequest = req.body;
+      
+      // Validate required fields
+      if (!userData.email || !userData.password || !userData.name || !userData.user_type) {
+        res.status(400).json({
+          success: false,
+          message: 'Missing required fields: email, password, name, user_type'
+        });
+        return;
+      }
+
       const result = await this.authService.register(userData);
+      
       if (!result.success) {
         res.status(400).json(result);
         return;
       }
-      res.status(201).json(result);
+
+      // Ensure consistent response format
+      res.status(201).json({
+        success: true,
+        message: 'Registration successful',
+        data: {
+          user: result.user,
+          token: result.token
+        }
+      });
     } catch (error) {
+      console.error('Registration controller error:', error);
       next(error);
     }
   };
 
-  // FIXED LOGIN METHOD
   login = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       console.log('Login attempt for:', req.body.email);
       
       const loginData: LoginRequest = req.body;
+      
+      // Validate required fields
+      if (!loginData.email || !loginData.password) {
+        res.status(400).json({
+          success: false,
+          message: 'Email and password are required'
+        });
+        return;
+      }
+
       const result = await this.authService.login(loginData);
       
       if (!result.success) {
@@ -86,58 +113,21 @@ export class AuthController {
         return;
       }
 
-      // IF YOUR AUTH SERVICE RETURNS THE USER, REGENERATE TOKEN WITH CORRECT FORMAT
-      if ((result as any).data && (result as any).data.user) {
-        const user = (result as any).data.user;
-
-        // Generate CORRECT JWT token
-        const correctToken = jwt.sign(
-          {
-        id: user.id,
-        email: user.email,
-        user_type: user.user_type,
-        name: user.name,
-        first_name: user.first_name || '',
-        last_name: user.last_name || ''
-          },
-          process.env.JWT_SECRET!,
-          {
-        expiresIn: '24h', // 24 hours
-        issuer: 'job-portal-api'
-          }
-        );
-
-        // Log token generation details
-        console.log('Token generation debug:', {
-          currentTime: Math.floor(Date.now() / 1000),
-          tokenPayload: jwt.decode(correctToken),
-          userId: user.id,
-          userType: user.user_type
-        });
-
-        // Return response with corrected token
-        res.status(200).json({
-          success: true,
-          message: 'Login successful',
-          data: {
-        user: {
-          id: user.id,
-          email: user.email,
-          user_type: user.user_type,
-          name: user.name
-        },
-        token: correctToken, // Use the correctly generated token
-        expiresIn: '30d'  // Match the actual JWT expiry
-          }
-        });
-        return;
-      }
-
-      // If auth service doesn't return user details, use original result
-      res.status(200).json(result);
+      // Ensure consistent response format
+      res.status(200).json({
+        success: true,
+        message: 'Login successful',
+        data: {
+          user: result.user,
+          token: result.token
+        }
+      });
     } catch (error) {
-      console.error('Login error:', error);
-      next(error);
+      console.error('Login controller error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Internal server error during login'
+      });
     }
   };
 
@@ -174,12 +164,12 @@ export class AuthController {
 
       let profileData: any = user;
       if (user.user_type === 'jobseeker') {
-        const jobseeker = await this.authService.getJobseekerWithDetails(userId);
+        const jobseeker = await this.authService.getJobseekerByUserId(userId);
         if (jobseeker) {
           profileData = { ...user, jobseeker };
         }
       } else if (user.user_type === 'employer') {
-        const employer = await this.authService.getEmployerWithDetails(userId);
+        const employer = await this.authService.getEmployerByUserId(userId);
         if (employer) {
           profileData = { ...user, employer };
         }
@@ -190,6 +180,7 @@ export class AuthController {
         data: profileData
       });
     } catch (error) {
+      console.error('Get profile error:', error);
       next(error);
     }
   };
@@ -213,7 +204,19 @@ export class AuthController {
         return;
       }
 
-      const { name, location, contact_number, skills, bio, resume_url, portfolio_url, experience_level, preferred_salary_min, preferred_salary_max, availability } = req.body;
+      const { 
+        name, 
+        location, 
+        contact_number, 
+        skills, 
+        bio, 
+        resume_url, 
+        portfolio_url, 
+        experience_level, 
+        preferred_salary_min, 
+        preferred_salary_max, 
+        availability 
+      } = req.body;
 
       // Update user table (common fields)
       const userUpdateData: Partial<User> = {
@@ -258,6 +261,7 @@ export class AuthController {
         data: { ...updatedUser, jobseeker: updatedJobseeker }
       });
     } catch (error) {
+      console.error('Update profile error:', error);
       next(error);
     }
   };
