@@ -140,7 +140,7 @@ body {
   gap: 0.5rem;
   padding: 1rem;
 }
-.job-vacancies {
+/* .job-vacancies {
   background: url('https://media.licdn.com/dms/image/v2/D4E12AQFwjnlaeVS3YQ/article-cover_image-shrink_600_2000/article-cover_image-shrink_600_2000/0/1721310704848?e=2147483647&v=beta&t=b-qw8eTvMKKnG2X5PQJPDrGNjLCKT9nEeVVsRF1S018') no-repeat center center/cover;
   padding: 120px 0;
   position: relative;
@@ -150,6 +150,35 @@ body {
   display: flex;
   align-items: center;
 }
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+} */
+ .job-vacancies {
+  background: url('https://media.licdn.com/dms/image/v2/D4E12AQFwjnlaeVS3YQ/article-cover_image-shrink_600_2000/article-cover_image-shrink_600_2000/0/1721310704848?e=2147483647&v=beta&t=b-qw8eTvMKKnG2X5PQJPDrGNjLCKT9nEeVVsRF1S018') 
+    no-repeat center center/cover;
+  padding: 120px 0;
+  position: relative;
+  color: #fff;
+  text-align: center;
+  height: 100vh;
+  display: flex;
+  align-items: center;
+
+  /* Animate background size */
+  background-size: 100%;
+  animation: zoomBackground 6s ease-in-out infinite alternate;
+}
+
+@keyframes zoomBackground {
+  0% {
+    background-size: 100%;
+  }
+  100% {
+    background-size: 110%; /* zoom in */
+  }
+}
+
 
 .job-vacancies::before {
   content: '';

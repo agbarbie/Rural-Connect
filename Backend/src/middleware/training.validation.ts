@@ -1,8 +1,9 @@
 // middleware/validation.middleware.ts
 import { Request, Response, NextFunction } from 'express';
+import { AuthenticatedRequest } from './auth.middleware';
 
 // Simple validation helper
-export const validateTrainingData = (req: Request, res: Response, next: NextFunction): void => {
+export const validateTrainingData = (req: AuthenticatedRequest, res: Response, next: NextFunction): void => {
   const { title, description, category, level, duration_hours, cost_type, mode, provider_name } = req.body;
   
   const errors: string[] = [];
@@ -45,6 +46,15 @@ export const validateTrainingData = (req: Request, res: Response, next: NextFunc
 
   if (mode === 'Offline' && !req.body.location) {
     errors.push('Location is required for offline trainings');
+  }
+
+  // Validate user authentication
+  if (!req.user?.id) {
+    errors.push('User authentication required');
+  }
+
+  if (req.user?.user_type !== 'employer') {
+    errors.push('Only employers can create trainings');
   }
 
   if (errors.length > 0) {

@@ -3,8 +3,6 @@ import pool from '../db/db.config';
 import { Job, CreateJobRequest, UpdateJobRequest, JobQuery, JobWithCompany, JobStats, JobBookmark, JobView } from '../types/job.types';
 
 export class JobService {
-  // Add this method to your JobService class
-
   /**
    * Get applications for a specific job (for employers)
    */
@@ -69,77 +67,73 @@ export class JobService {
       throw error;
     }
   }
+  
   /**
-   * Helper method to ensure employer has a company association
-   * @param employerId The ID of the employer
-   * @returns The company ID associated with the employer
+   * Helper method to get employer ID from user ID and ensure company association
+   * @param userId The ID of the user
+   * @returns Object containing both employerId and companyId
    */
-  private async ensureEmployerHasCompany(employerId: string): Promise<string> {
+  private async getEmployerAndCompany(userId: string): Promise<{employerId: string, companyId: string}> {
     const client = await pool.connect();
     try {
-      // Check if employer exists and get their company_id
+      // Get employer record by user_id
       const employerResult = await client.query(
-        'SELECT company_id FROM employers WHERE id = $1',
-        [employerId]
+        'SELECT id, company_id FROM employers WHERE user_id = $1',
+        [userId]
       );
 
       if (employerResult.rows.length === 0) {
-        throw new Error('Employer not found');
+        throw new Error('Employer profile not found for this user. Please complete your employer registration.');
       }
 
-      let companyId = employerResult.rows[0].company_id;
+      const employer = employerResult.rows[0];
+      const employerId = employer.id;
+      let companyId = employer.company_id;
 
       if (!companyId) {
-        // Create a default company
+        // Create a default company for this employer
         const defaultCompanyResult = await client.query(`
-          INSERT INTO companies (name, description, industry)
-          VALUES ($1, $2, $3)
-          ON CONFLICT DO NOTHING
+          INSERT INTO companies (name, description, industry, created_at, updated_at)
+          VALUES ($1, $2, $3, $4, $5)
           RETURNING id
         `, [
-          `Employer ${employerId} Company`,
-          'Please complete your company profile',
-          'General'
+          `Company - ${userId.substring(0, 8)}`,
+          'Please update your company profile with proper details',
+          'Technology',
+          new Date(),
+          new Date()
         ]);
 
-        if (defaultCompanyResult.rows.length > 0) {
-          companyId = defaultCompanyResult.rows[0].id;
+        companyId = defaultCompanyResult.rows[0].id;
 
-          // Update the employer with the new company_id
-          await client.query(
-            'UPDATE employers SET company_id = $1 WHERE id = $2',
-            [companyId, employerId]
-          );
-        } else {
-          // Check if a company was created by another concurrent transaction
-          const existingCompany = await client.query(
-            'SELECT company_id FROM employers WHERE id = $1',
-            [employerId]
-          );
-          companyId = existingCompany.rows[0]?.company_id;
+        // Update the employer with the new company_id
+        await client.query(
+          'UPDATE employers SET company_id = $1, updated_at = $2 WHERE id = $3',
+          [companyId, new Date(), employerId]
+        );
 
-          if (!companyId) {
-            throw new Error('Failed to create or find a company profile');
-          }
-        }
+        console.log(`Created default company ${companyId} for employer ${employerId} (user: ${userId})`);
       }
 
-      return companyId;
+      return { employerId, companyId };
     } catch (error) {
-      console.error('Error ensuring employer has company:', error);
+      console.error('Error getting employer and company:', error);
       throw error;
     } finally {
       client.release();
     }
   }
 
-  async createJob(employerId: string, jobData: CreateJobRequest): Promise<Job> {
+  /**
+   * Create a new job - CORRECTED: takes userId, not employerId
+   */
+  async createJob(userId: string, jobData: CreateJobRequest): Promise<Job> {
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
 
-      // Ensure employer has a company association
-      const companyId = await this.ensureEmployerHasCompany(employerId);
+      // Get employer ID and company ID from user ID
+      const { employerId, companyId } = await this.getEmployerAndCompany(userId);
 
       // Process benefits to ensure it's a string[] or null
       let benefits: string[] | null = null;
@@ -154,19 +148,20 @@ export class JobService {
         }
       }
 
-      // Insert the job
+      // Insert the job using the correct employerId
       const insertQuery = `
         INSERT INTO jobs (
           employer_id, company_id, title, description, requirements, responsibilities,
           location, employment_type, work_arrangement, salary_min, salary_max,
           currency, skills_required, experience_level, education_level, benefits,
-          department, application_deadline, is_featured, status, applications_count, views_count
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)
+          department, application_deadline, is_featured, status, applications_count, views_count,
+          created_at, updated_at
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24)
         RETURNING *
       `;
 
       const values = [
-        employerId,
+        employerId, // Use the actual employer ID from database
         companyId,
         jobData.title,
         jobData.description,
@@ -187,12 +182,15 @@ export class JobService {
         jobData.is_featured || false,
         'Open',
         0,
-        0
+        0,
+        new Date(),
+        new Date()
       ];
 
       const result = await client.query(insertQuery, values);
       await client.query('COMMIT');
 
+      console.log(`Job created successfully - User: ${userId}, Employer: ${employerId}, Company: ${companyId}`);
       return result.rows[0] as Job;
     } catch (error) {
       await client.query('ROLLBACK');
@@ -203,8 +201,23 @@ export class JobService {
     }
   }
 
-  async getJobsByEmployer(employerId: string, query: JobQuery = {}): Promise<{ jobs: JobWithCompany[]; total: number }> {
+  /**
+   * Get jobs by employer - CORRECTED: takes userId, not employerId
+   */
+  async getJobsByEmployer(userId: string, query: JobQuery = {}): Promise<{ jobs: JobWithCompany[]; total: number }> {
     try {
+      // First get the employer ID from user ID
+      const employerResult = await pool.query(
+        'SELECT id FROM employers WHERE user_id = $1',
+        [userId]
+      );
+
+      if (employerResult.rows.length === 0) {
+        throw new Error('Employer profile not found for this user');
+      }
+
+      const employerId = employerResult.rows[0].id;
+
       const {
         page = 1,
         limit = 10,
@@ -219,7 +232,7 @@ export class JobService {
       const offset = (page - 1) * limit;
 
       let whereConditions = ['j.employer_id = $1'];
-      let queryParams: any[] = [employerId];
+      let queryParams: any[] = [employerId]; // Use employerId from database
       let paramCount = 1;
 
       if (status) {
@@ -440,9 +453,24 @@ export class JobService {
     }
   }
 
-  async updateJob(jobId: string, employerId: string, updateData: UpdateJobRequest): Promise<Job | null> {
+  /**
+   * Update job - CORRECTED: takes userId and gets employerId internally
+   */
+  async updateJob(jobId: string, userId: string, updateData: UpdateJobRequest): Promise<Job | null> {
     const client = await pool.connect();
     try {
+      // Get employer ID from user ID
+      const employerResult = await client.query(
+        'SELECT id FROM employers WHERE user_id = $1',
+        [userId]
+      );
+
+      if (employerResult.rows.length === 0) {
+        throw new Error('Employer profile not found for this user');
+      }
+
+      const employerId = employerResult.rows[0].id;
+
       const ownershipCheck = await client.query(
         'SELECT id FROM jobs WHERE id = $1 AND employer_id = $2',
         [jobId, employerId]
@@ -527,8 +555,23 @@ export class JobService {
     }
   }
 
-  async deleteJob(jobId: string, employerId: string): Promise<boolean> {
+  /**
+   * Delete job - CORRECTED: takes userId and gets employerId internally
+   */
+  async deleteJob(jobId: string, userId: string): Promise<boolean> {
     try {
+      // Get employer ID from user ID
+      const employerResult = await pool.query(
+        'SELECT id FROM employers WHERE user_id = $1',
+        [userId]
+      );
+
+      if (employerResult.rows.length === 0) {
+        throw new Error('Employer profile not found for this user');
+      }
+
+      const employerId = employerResult.rows[0].id;
+
       const result = await pool.query(
         'DELETE FROM jobs WHERE id = $1 AND employer_id = $2 RETURNING id',
         [jobId, employerId]
@@ -566,52 +609,109 @@ export class JobService {
     }
   }
 
-  async getJobStats(employerId?: string): Promise<JobStats> {
+  /**
+   * Get job stats - CORRECTED: takes userId and gets employerId internally
+   */
+  async getJobStats(userId: string): Promise<any> {
+    const client = await pool.connect();
+    
     try {
-      let whereCondition = '';
-      const queryParams: any[] = [];
+      // First, get the employer ID from user ID
+      const employerResult = await client.query(
+        'SELECT id FROM employers WHERE user_id = $1',
+        [userId]
+      );
 
-      if (employerId) {
-        whereCondition = 'WHERE employer_id = $1';
-        queryParams.push(employerId);
+      if (employerResult.rows.length === 0) {
+        throw new Error('Employer profile not found for this user');
       }
 
-      const result = await pool.query(`
+      const employerId = employerResult.rows[0].id;
+
+      // Get job statistics
+      const statsQuery = `
         SELECT 
           COUNT(*) as total_jobs,
-          SUM(CASE WHEN status = 'Open' THEN 1 ELSE 0 END) as active_jobs,
-          SUM(CASE WHEN status = 'Paused' THEN 1 ELSE 0 END) as paused_jobs,
-          SUM(CASE WHEN status = 'Closed' OR status = 'Filled' THEN 1 ELSE 0 END) as closed_jobs,
+          COUNT(CASE WHEN status = 'Open' THEN 1 END) as active_jobs,
+          COUNT(CASE WHEN status = 'Filled' THEN 1 END) as filled_jobs,
+          COUNT(CASE WHEN status = 'Paused' THEN 1 END) as paused_jobs,
+          COUNT(CASE WHEN status = 'Closed' THEN 1 END) as closed_jobs,
           COALESCE(SUM(applications_count), 0) as total_applications,
-          CASE 
-            WHEN COUNT(*) > 0 THEN ROUND(COALESCE(SUM(applications_count), 0)::numeric / COUNT(*), 2)
-            ELSE 0 
-          END as average_applications_per_job,
-          SUM(CASE WHEN is_featured = true THEN 1 ELSE 0 END) as featured_jobs_count,
-          SUM(CASE WHEN work_arrangement = 'Remote' THEN 1 ELSE 0 END) as remote_jobs_count,
-          SUM(CASE WHEN work_arrangement = 'Hybrid' THEN 1 ELSE 0 END) as hybrid_jobs_count
+          COALESCE(SUM(views_count), 0) as total_views,
+          CASE WHEN COUNT(*) > 0 THEN ROUND(AVG(applications_count), 2) ELSE 0 END as avg_applications_per_job,
+          CASE WHEN COUNT(*) > 0 THEN ROUND(AVG(views_count), 2) ELSE 0 END as avg_views_per_job,
+          COUNT(CASE WHEN is_featured = true THEN 1 END) as featured_jobs_count,
+          COUNT(CASE WHEN work_arrangement = 'Remote' THEN 1 END) as remote_jobs_count,
+          COUNT(CASE WHEN work_arrangement = 'Hybrid' THEN 1 END) as hybrid_jobs_count
         FROM jobs 
-        ${whereCondition}
-      `, queryParams);
+        WHERE employer_id = $1
+      `;
 
-      const row = result.rows[0];
+      const statsResult = await client.query(statsQuery, [employerId]);
+      const stats = statsResult.rows[0];
+
+      // Get recent activity (last 30 days)
+      const recentActivityQuery = `
+        SELECT 
+          COUNT(CASE WHEN created_at >= NOW() - INTERVAL '30 days' THEN 1 END) as jobs_posted_last_30_days,
+          COALESCE(SUM(CASE WHEN created_at >= NOW() - INTERVAL '30 days' THEN applications_count ELSE 0 END), 0) as applications_last_30_days
+        FROM jobs 
+        WHERE employer_id = $1
+      `;
+
+      const activityResult = await client.query(recentActivityQuery, [employerId]);
+      const activity = activityResult.rows[0];
+
+      // Get top performing jobs
+      const topJobsQuery = `
+        SELECT id, title, applications_count, views_count, status, created_at
+        FROM jobs 
+        WHERE employer_id = $1
+        ORDER BY (applications_count + views_count) DESC
+        LIMIT 5
+      `;
+
+      const topJobsResult = await client.query(topJobsQuery, [employerId]);
+
       return {
-        total_jobs: parseInt(row.total_jobs) || 0,
-        active_jobs: parseInt(row.active_jobs) || 0,
-        paused_jobs: parseInt(row.paused_jobs) || 0,
-        closed_jobs: parseInt(row.closed_jobs) || 0,
-        total_applications: parseInt(row.total_applications) || 0,
-        average_applications_per_job: parseFloat(row.average_applications_per_job) || 0,
-        featured_jobs_count: parseInt(row.featured_jobs_count) || 0,
-        remote_jobs_count: parseInt(row.remote_jobs_count) || 0,
-        hybrid_jobs_count: parseInt(row.hybrid_jobs_count) || 0
+        overview: {
+          total_jobs: parseInt(stats.total_jobs),
+          active_jobs: parseInt(stats.active_jobs),
+          filled_jobs: parseInt(stats.filled_jobs),
+          paused_jobs: parseInt(stats.paused_jobs),
+          closed_jobs: parseInt(stats.closed_jobs),
+          total_applications: parseInt(stats.total_applications),
+          total_views: parseInt(stats.total_views),
+          avg_applications_per_job: stats.avg_applications_per_job.toString(),
+          avg_views_per_job: stats.avg_views_per_job.toString(),
+          featured_jobs_count: parseInt(stats.featured_jobs_count),
+          remote_jobs_count: parseInt(stats.remote_jobs_count),
+          hybrid_jobs_count: parseInt(stats.hybrid_jobs_count)
+        },
+        recent_activity: {
+          jobs_posted_last_30_days: parseInt(activity.jobs_posted_last_30_days),
+          applications_last_30_days: parseInt(activity.applications_last_30_days)
+        },
+        top_performing_jobs: topJobsResult.rows,
+        application_status_breakdown: {
+          pending: 0,
+          reviewing: 0,
+          shortlisted: 0,
+          interviewed: 0,
+          offered: 0,
+          hired: 0,
+          rejected: 0
+        }
       };
     } catch (error) {
       console.error('Error fetching job stats:', error);
       throw error;
+    } finally {
+      client.release();
     }
   }
 
+  // Rest of the methods remain the same as they don't deal with employer/user ID confusion
   async bookmarkJob(jobId: string, jobseekerId: string): Promise<JobBookmark> {
     try {
       const existingBookmark = await pool.query(

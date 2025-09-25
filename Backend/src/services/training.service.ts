@@ -380,61 +380,307 @@ async getTrainingReviews(trainingId: string, params: any): Promise<any | null> {
     };
   }
 
-  async createTraining(data: CreateTrainingRequest, employerId: string): Promise<Training> {
-    const client = await this.db.connect();
+// Enhanced createTraining method with better debugging and validation
+// Replace the createTraining method in your TrainingService class with this fixed version:
+
+async createTraining(data: CreateTrainingRequest, employerId: string): Promise<Training> {
+  console.log('=== TRAINING CREATION DEBUG START ===');
+  console.log('1. Input Data:', {
+    title: data.title,
+    employerId: employerId,
+    provider_name: data.provider_name,
+    category: data.category,
+    level: data.level,
+    duration_hours: data.duration_hours,
+    cost_type: data.cost_type,
+    price: data.price,
+    mode: data.mode
+  });
+
+  const client = await this.db.connect();
+  
+  try {
+    await client.query('BEGIN');
+
+    // STEP 1: Verify the employer exists and has the correct user_type
+    console.log('2. Checking if employer exists...');
     
-    try {
-      await client.query('BEGIN');
+    const userCheck = await client.query(
+      'SELECT id, email, user_type FROM users WHERE id = $1',
+      [employerId]
+    );
 
-      const trainingQuery = `
-        INSERT INTO trainings (
-          title, description, category, level, duration_hours, cost_type, price,
-          mode, provider_id, provider_name, has_certificate, thumbnail_url,
-          location, start_date, end_date, max_participants
-        ) VALUES (
-          $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16
-        ) RETURNING *
-      `;
+    console.log('3. User check result:', {
+      found: userCheck.rows.length > 0,
+      count: userCheck.rows.length,
+      user: userCheck.rows[0] || 'No user found'
+    });
 
-      const trainingResult = await client.query(trainingQuery, [
-        data.title, data.description, data.category, data.level,
-        data.duration_hours, data.cost_type, data.price || 0,
-        data.mode, employerId, data.provider_name, data.has_certificate,
-        data.thumbnail_url, data.location, data.start_date, data.end_date,
-        data.max_participants
-      ]);
-
-      const trainingId = trainingResult.rows[0].id;
-
-      if (data.videos?.length > 0) {
-        for (const video of data.videos) {
-          await client.query(`
-            INSERT INTO training_videos (training_id, title, description, duration_minutes, order_index, is_preview)
-            VALUES ($1, $2, $3, $4, $5, $6)
-          `, [trainingId, video.title, video.description, video.duration_minutes, video.order_index, video.is_preview]);
-        }
-      }
-
-      if (data.outcomes?.length > 0) {
-        for (const outcome of data.outcomes) {
-          await client.query(`
-            INSERT INTO training_outcomes (training_id, outcome_text, order_index)
-            VALUES ($1, $2, $3)
-          `, [trainingId, outcome.outcome_text, outcome.order_index]);
-        }
-      }
-
-      await client.query('COMMIT');
-      return await this.getTrainingById(trainingId) as Training;
-    } catch (error) {
-      await client.query('ROLLBACK');
-      throw error;
-    } finally {
-      client.release();
+    if (userCheck.rows.length === 0) {
+      throw new Error(`User with ID ${employerId} does not exist in the database`);
     }
-  }
 
-  async updateTraining(id: string, data: UpdateTrainingRequest, employerId: string): Promise<Training | null> {
+    const user = userCheck.rows[0];
+    
+    if (user.user_type !== 'employer') {
+      throw new Error(`User ${user.email} is not an employer. Current type: ${user.user_type}`);
+    }
+
+    // STEP 2: Get the employer profile ID (this is what the foreign key references)
+    console.log('4. Getting employer profile ID...');
+    const employerProfileCheck = await client.query(
+      'SELECT id FROM employers WHERE user_id = $1',
+      [employerId]
+    );
+
+    console.log('5. Employer profile check result:', {
+      found: employerProfileCheck.rows.length > 0,
+      count: employerProfileCheck.rows.length,
+      employer: employerProfileCheck.rows[0] || 'No employer profile found'
+    });
+
+    if (employerProfileCheck.rows.length === 0) {
+      throw new Error(`Employer profile not found for user ${user.email}. Please complete your employer registration.`);
+    }
+
+    const employerProfileId = employerProfileCheck.rows[0].id;
+
+    console.log('6. Employer validation passed:', {
+      user_id: user.id,
+      employer_profile_id: employerProfileId,
+      email: user.email,
+      type: user.user_type
+    });
+
+    // STEP 2: Check if trainings table structure is correct
+    console.log('7. Checking trainings table structure...');
+    const tableCheck = await client.query(`
+      SELECT column_name, data_type, is_nullable 
+      FROM information_schema.columns 
+      WHERE table_name = 'trainings' 
+      ORDER BY ordinal_position
+    `);
+
+    console.log('8. Trainings table columns:', 
+      tableCheck.rows.map(row => `${row.column_name}:${row.data_type}`)
+    );
+
+    // STEP 3: Check for foreign key constraints
+    const constraintCheck = await client.query(`
+      SELECT conname, contype, pg_get_constraintdef(oid) as definition
+      FROM pg_constraint 
+      WHERE conrelid = 'trainings'::regclass
+      AND contype = 'f'
+    `);
+
+    console.log('9. Foreign key constraints:', 
+      constraintCheck.rows.map(row => `${row.conname}: ${row.definition}`)
+    );
+
+    // STEP 4: Prepare the insert query with explicit column mapping
+    console.log('10. Preparing training insertion...');
+    
+    const trainingQuery = `
+      INSERT INTO trainings (
+        title, 
+        description, 
+        category, 
+        level, 
+        duration_hours, 
+        cost_type, 
+        price,
+        mode, 
+        provider_id, 
+        provider_name, 
+        has_certificate, 
+        thumbnail_url,
+        location, 
+        start_date, 
+        end_date, 
+        max_participants,
+        status,
+        created_at,
+        updated_at
+      ) VALUES (
+        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19
+      ) RETURNING *
+    `;
+
+    const queryParams = [
+      data.title?.trim(),
+      data.description?.trim(),
+      data.category?.trim(),
+      data.level,
+      data.duration_hours,
+      data.cost_type,
+      data.price || 0,
+      data.mode,
+      employerProfileId, // Use the employer profile ID, not the user ID
+      data.provider_name?.trim(),
+      data.has_certificate || false,
+      data.thumbnail_url || null,
+      data.location || null,
+      data.start_date || null,
+      data.end_date || null,
+      data.max_participants || null,
+      'draft', // Default status
+      new Date(),
+      new Date()
+    ];
+
+    console.log('11. Query parameters:', {
+      title: queryParams[0],
+      provider_id: queryParams[8], // This is now the employer profile ID
+      provider_name: queryParams[9],
+      status: queryParams[16]
+    });
+
+    // STEP 5: Execute the training insertion
+    console.log('12. Executing training insertion...');
+    const trainingResult = await client.query(trainingQuery, queryParams);
+
+    if (trainingResult.rows.length === 0) {
+      throw new Error('Training insertion failed - no rows returned');
+    }
+
+    const trainingId = trainingResult.rows[0].id;
+    console.log('13. Training created successfully:', {
+      id: trainingId,
+      title: trainingResult.rows[0].title
+    });
+
+    // STEP 6: Insert videos if provided
+    if (data.videos && data.videos.length > 0) {
+      console.log('14. Inserting training videos...', data.videos.length, 'videos');
+      
+      for (let i = 0; i < data.videos.length; i++) {
+        const video = data.videos[i];
+        console.log(`15.${i + 1}. Inserting video:`, video.title);
+        
+        await client.query(`
+          INSERT INTO training_videos (training_id, title, description, duration_minutes, order_index, is_preview)
+          VALUES ($1, $2, $3, $4, $5, $6)
+        `, [
+          trainingId, 
+          video.title?.trim(), 
+          video.description?.trim(), 
+          video.duration_minutes, 
+          video.order_index, 
+          video.is_preview || false
+        ]);
+      }
+      console.log('16. All videos inserted successfully');
+    }
+
+    // STEP 7: Insert outcomes if provided
+    if (data.outcomes && data.outcomes.length > 0) {
+      console.log('17. Inserting training outcomes...', data.outcomes.length, 'outcomes');
+      
+      for (let i = 0; i < data.outcomes.length; i++) {
+        const outcome = data.outcomes[i];
+        console.log(`18.${i + 1}. Inserting outcome:`, outcome.outcome_text?.substring(0, 50));
+        
+        await client.query(`
+          INSERT INTO training_outcomes (training_id, outcome_text, order_index)
+          VALUES ($1, $2, $3)
+        `, [
+          trainingId, 
+          outcome.outcome_text?.trim(), 
+          outcome.order_index
+        ]);
+      }
+      console.log('19. All outcomes inserted successfully');
+    }
+
+    await client.query('COMMIT');
+    console.log('20. Transaction committed successfully');
+    console.log('=== TRAINING CREATION DEBUG END ===');
+    
+    // Return the created training
+    const finalTraining = await this.getTrainingById(trainingId) as Training;
+    return finalTraining;
+    
+  } catch (error: any) {
+    await client.query('ROLLBACK');
+    console.error('=== TRAINING CREATION ERROR ===');
+    console.error('Error occurred at step:', error.message);
+    console.error('Full error details:', {
+      name: error.name,
+      message: error.message,
+      code: error.code,
+      detail: error.detail,
+      hint: error.hint,
+      constraint: error.constraint,
+      table: error.table,
+      column: error.column,
+      severity: error.severity,
+      employerId: employerId,
+      timestamp: new Date().toISOString()
+    });
+
+    // Re-throw with enhanced error information
+    if (error.code === '23503') {
+      if (error.constraint?.includes('provider_id') || error.detail?.includes('provider_id')) {
+        throw new Error(`Employer reference error: User ID ${employerId} cannot be used as provider_id. Database constraint: ${error.constraint}`);
+      }
+    }
+    
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+// Replace the updateTraining method in your TrainingService class with this fixed version:
+
+async updateTraining(id: string, data: UpdateTrainingRequest, employerId: string): Promise<Training | null> {
+  console.log('=== TRAINING UPDATE DEBUG START ===');
+  console.log('1. Update request:', {
+    trainingId: id,
+    userId: employerId,
+    updateFields: Object.keys(data)
+  });
+
+  const client = await this.db.connect();
+  
+  try {
+    await client.query('BEGIN');
+
+    // STEP 1: Get the employer profile ID (same fix as createTraining)
+    console.log('2. Getting employer profile ID...');
+    const employerProfileCheck = await client.query(
+      'SELECT id FROM employers WHERE user_id = $1',
+      [employerId]
+    );
+
+    if (employerProfileCheck.rows.length === 0) {
+      console.log('3. Employer profile not found for user:', employerId);
+      await client.query('ROLLBACK');
+      return null;
+    }
+
+    const employerProfileId = employerProfileCheck.rows[0].id;
+    console.log('4. Employer profile ID found:', employerProfileId);
+
+    // STEP 2: Verify training ownership using employer profile ID
+    console.log('5. Checking training ownership...');
+    const ownershipCheck = await client.query(
+      'SELECT id FROM trainings WHERE id = $1 AND provider_id = $2',
+      [id, employerProfileId] // Use employer profile ID, not user ID
+    );
+
+    if (ownershipCheck.rows.length === 0) {
+      console.log('6. Training not found or not owned by employer:', {
+        trainingId: id,
+        employerProfileId: employerProfileId
+      });
+      await client.query('ROLLBACK');
+      return null;
+    }
+
+    console.log('7. Ownership verified, proceeding with update...');
+
+    // STEP 3: Build update query
     const updateFields: string[] = [];
     const updateValues: any[] = [];
     let paramIndex = 1;
@@ -446,21 +692,56 @@ async getTrainingReviews(trainingId: string, params: any): Promise<any | null> {
       }
     });
 
-    if (updateFields.length === 0) return null;
+    if (updateFields.length === 0) {
+      console.log('8. No fields to update');
+      await client.query('ROLLBACK');
+      return null;
+    }
 
     updateFields.push('updated_at = CURRENT_TIMESTAMP');
-    updateValues.push(id, employerId);
+    updateValues.push(id);
 
     const query = `
       UPDATE trainings 
       SET ${updateFields.join(', ')}
-      WHERE id = $${paramIndex++} AND provider_id = $${paramIndex++}
+      WHERE id = $${paramIndex++}
       RETURNING *
     `;
 
-    const result = await this.db.query(query, updateValues);
-    return result.rows.length > 0 ? this.mapTrainingFromDb(result.rows[0]) : null;
+    console.log('9. Executing update query with fields:', updateFields);
+    const result = await client.query(query, updateValues);
+
+    if (result.rows.length === 0) {
+      console.log('10. Update failed - no rows returned');
+      await client.query('ROLLBACK');
+      return null;
+    }
+
+    await client.query('COMMIT');
+    console.log('11. Training updated successfully:', {
+      id: result.rows[0].id,
+      title: result.rows[0].title
+    });
+    console.log('=== TRAINING UPDATE DEBUG END ===');
+
+    return this.mapTrainingFromDb(result.rows[0]);
+
+  } catch (error: any) {
+    await client.query('ROLLBACK');
+    console.error('=== TRAINING UPDATE ERROR ===');
+    console.error('Error details:', {
+      message: error.message,
+      code: error.code,
+      detail: error.detail,
+      trainingId: id,
+      userId: employerId,
+      timestamp: new Date().toISOString()
+    });
+    throw error;
+  } finally {
+    client.release();
   }
+}
 
   async deleteTraining(id: string, employerId: string): Promise<boolean> {
     const result = await this.db.query(

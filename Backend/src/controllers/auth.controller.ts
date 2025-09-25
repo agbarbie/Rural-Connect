@@ -5,6 +5,11 @@ import { validate as isValidUUID } from 'uuid';
 import { CreateUserRequest, LoginRequest, AuthResponse, User, Jobseeker } from '../types/user.type';
 import jwt from 'jsonwebtoken';
 
+// Update this interface for login request with user type validation
+interface LoginRequestWithUserType extends LoginRequest {
+  user_type?: string; // Optional user type for validation
+}
+
 export class AuthController {
   private authService: AuthService;
 
@@ -94,8 +99,9 @@ export class AuthController {
   login = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       console.log('Login attempt for:', req.body.email);
+      console.log('Requested user type:', req.body.user_type);
       
-      const loginData: LoginRequest = req.body;
+      const loginData: LoginRequestWithUserType = req.body;
       
       // Validate required fields
       if (!loginData.email || !loginData.password) {
@@ -106,13 +112,36 @@ export class AuthController {
         return;
       }
 
-      const result = await this.authService.login(loginData);
+      // CRITICAL FIX: Call login WITHOUT user_type first to get actual user
+      const basicLoginData: LoginRequest = {
+        email: loginData.email,
+        password: loginData.password
+      };
+
+      const result = await this.authService.login(basicLoginData);
       
       if (!result.success) {
         res.status(401).json(result);
         return;
       }
 
+      // CRITICAL FIX: NOW validate user type AFTER successful authentication
+      if (loginData.user_type && result.user && result.user.user_type !== loginData.user_type) {
+        console.log(`User type mismatch: requested ${loginData.user_type}, actual ${result.user.user_type}`);
+        res.status(400).json({
+          success: false,
+          message: `Account type mismatch. This account is registered as a ${result.user.user_type}, but you selected ${loginData.user_type}. Please select the correct user type to continue.`,
+          data: {
+            actualUserType: result.user.user_type,
+            requestedUserType: loginData.user_type
+          }
+        });
+        return;
+      }
+
+      // SUCCESS: User authenticated and type matches (or no type specified)
+      console.log(`Login successful - User type: ${result.user?.user_type}, Requested: ${loginData.user_type || 'none'}`);
+      
       // Ensure consistent response format
       res.status(200).json({
         success: true,
@@ -177,7 +206,10 @@ export class AuthController {
 
       res.status(200).json({
         success: true,
-        data: profileData
+        data: {
+          user: profileData,
+          token: null // Profile endpoint doesn't return a new token
+        }
       });
     } catch (error) {
       console.error('Get profile error:', error);
@@ -258,7 +290,10 @@ export class AuthController {
       res.status(200).json({
         success: true,
         message: 'Profile updated successfully',
-        data: { ...updatedUser, jobseeker: updatedJobseeker }
+        data: {
+          user: { ...updatedUser, jobseeker: updatedJobseeker },
+          token: null
+        }
       });
     } catch (error) {
       console.error('Update profile error:', error);

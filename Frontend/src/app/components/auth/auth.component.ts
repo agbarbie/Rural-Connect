@@ -6,6 +6,11 @@ import { HttpClientModule } from '@angular/common/http';
 import { AuthService } from '../../../../services/auth.service';
 import { RegisterRequest, LoginRequest } from '../../../Interfaces/users.types';
 
+// Add this interface for role-specific login
+interface RoleSpecificLoginRequest extends LoginRequest {
+  expected_role: string;
+}
+
 @Component({
   selector: 'app-auth',
   standalone: true,
@@ -106,36 +111,42 @@ export class AuthComponent {
       return;
     }
     
-    switch (userType.toLowerCase()) {
-      case 'jobseeker':
-        console.log('Navigating to jobseeker dashboard');
-        this.router.navigate(['/jobseeker/dashboard']).then(success => {
-          if (!success) {
-            console.error('Navigation to jobseeker dashboard failed');
-          }
-        });
-        break;
-      case 'employer':
-        console.log('Navigating to employer dashboard');
-        this.router.navigate(['/employer/employer-dashboard']).then(success => {
-          if (!success) {
-            console.error('Navigation to employer dashboard failed');
-          }
-        });
-        break;
-      case 'admin':
-        console.log('Navigating to admin dashboard');
-        this.router.navigate(['/admin/dashboard']).then(success => {
-          if (!success) {
-            console.error('Navigation to admin dashboard failed');
-          }
-        });
-        break;
-      default:
-        console.log('Unknown user type:', userType, 'redirecting to landing');
-        this.router.navigate(['/']);
-        break;
-    }
+    // Add a small delay to ensure the success message is visible
+    setTimeout(() => {
+      switch (userType.toLowerCase()) {
+        case 'jobseeker':
+          console.log('Navigating to jobseeker dashboard');
+          this.router.navigate(['/jobseeker/dashboard']).then(success => {
+            if (!success) {
+              console.error('Navigation to jobseeker dashboard failed');
+              this.router.navigate(['/jobseeker']);
+            }
+          });
+          break;
+        case 'employer':
+          console.log('Navigating to employer dashboard');
+          this.router.navigate(['/employer/employer-dashboard']).then(success => {
+            if (!success) {
+              console.error('Navigation to employer dashboard failed');
+              this.router.navigate(['/employer']);
+            }
+          });
+          break;
+        case 'admin':
+          console.log('Navigating to admin dashboard');
+          this.router.navigate(['/admin/dashboard']).then(success => {
+            if (!success) {
+              console.error('Navigation to admin dashboard failed');
+              this.router.navigate(['/admin']);
+            }
+          });
+          break;
+        default:
+          console.log('Unknown user type:', userType, 'redirecting to landing');
+          this.router.navigate(['/']);
+          break;
+      }
+    }, 500);
   }
 
   onLogin(): void {
@@ -148,40 +159,85 @@ export class AuthComponent {
     this.loading = true;
     this.clearMessages();
 
-    const loginData: LoginRequest = {
+    // FIXED: Include expected role in login request for validation
+    const loginData: RoleSpecificLoginRequest = {
       email: this.loginEmail.trim(),
-      password: this.loginPassword
+      password: this.loginPassword,
+      expected_role: this.activeUserType // This is the key addition
     };
 
-    console.log('Login attempt:', { email: loginData.email });
+    console.log('Login attempt:', { 
+      email: loginData.email, 
+      expected_role: loginData.expected_role 
+    });
 
     this.authService.login(loginData).subscribe({
       next: (response) => {
-        this.loading = false;
         console.log('Full login response:', response);
         
         if (response.success) {
-          this.success = 'Login successful!';
+          this.success = 'Login successful! Redirecting...';
+          alert(`The logged in user type is: ${(response.data as any)?.user?.user_type || 'unknown'} and the token is ${response.data?.token}`);
           
-          // Get user type from response (based on your backend structure)
-          let userType = response.user?.user_type || null;
           
-          console.log('User object from response:', response.user);
-          console.log('User type from response.user.user_type:', userType);
+          // Get user type from response
+          let userType = (response.data as any)?.user?.user_type || null;
           
-          console.log('Detected user type:', userType);
+          console.log('Full response:', response);
+          console.log('Response.data:', response.data);
+          console.log('User type from response.data.user.user_type:', userType);
           
-          // Navigate immediately with the correct user type
-          this.navigateToUserDashboard(userType ?? '');
+          if (!userType) {
+            // Try alternative access patterns
+            userType = (response.data as any)?.user_type || null;
+            console.log('Fallback 1 - response.data.user_type:', userType);
+          }
+          
+          if (!userType) {
+            // Another fallback
+            userType = (response as any).user?.user_type || null;
+            console.log('Fallback 2 - response.user.user_type:', userType);
+          }
+          
+          // IMPORTANT: Validate that the returned user type matches the expected role
+          if (userType && userType !== this.activeUserType) {
+            this.error = `Account type mismatch. This account is registered as ${userType}, but you're trying to login as ${this.activeUserType}. Please select the correct role or use the appropriate credentials.`;
+            this.loading = false;
+            return;
+          }
+          
+          if (userType) {
+            console.log('Successfully validated user type:', userType);
+            this.navigateToUserDashboard(userType);
+          } else {
+            console.error('No user type detected, staying on auth page');
+            this.error = 'Unable to determine user type. Please try again.';
+          }
           
         } else {
           this.error = response.message || 'Login failed';
         }
+        
+        this.loading = false;
       },
       error: (error) => {
         this.loading = false;
         console.error('Login error:', error);
-        this.error = error.message || 'Login failed. Please try again.';
+        
+        // Handle specific role mismatch error from backend
+        if (error.status === 403 && error.error?.message?.includes('role mismatch')) {
+          this.error = error.error.message;
+        } else if (error.error?.data?.user?.user_type) {
+          // If user info is in error response, still validate role
+          const userType = error.error.data.user.user_type;
+          if (userType !== this.activeUserType) {
+            this.error = `Account type mismatch. This account is registered as ${userType}, but you're trying to login as ${this.activeUserType}.`;
+          } else {
+            this.navigateToUserDashboard(userType);
+          }
+        } else {
+          this.error = error.error?.message || error.message || 'Login failed. Please try again.';
+        }
       }
     });
   }
@@ -242,31 +298,32 @@ export class AuthComponent {
 
     this.authService.register(registerData).subscribe({
       next: (response) => {
-        this.loading = false;
         console.log('Full registration response:', response);
         
         if (response.success) {
-          this.success = 'Registration successful!';
+          this.success = 'Registration successful! Redirecting...';
           
-          // Get user type from response (your backend returns it in response.user.user_type)
-          let userType = response.user?.user_type || this.activeUserType;
+          // For registration, use the selected role since we're creating the account
+          let userType = response.data?.user?.user_type || this.activeUserType;
           
-          console.log('User object from response:', response.user);
+          console.log('User object from response.data:', response.data);
+          console.log('User object from response.data.user:', response.data?.user);
           console.log('User type from response:', userType);
           
-          console.log('Registration user type:', userType);
-          
-          // Navigate immediately with the correct user type
+          // For registration, the user type should match what was selected
+          console.log('Final registration user type:', userType);
           this.navigateToUserDashboard(userType);
           
         } else {
           this.error = response.message || 'Registration failed';
         }
+        
+        this.loading = false;
       },
       error: (error) => {
         this.loading = false;
         console.error('Registration error:', error);
-        this.error = error.message || 'Registration failed. Please try again.';
+        this.error = error.error?.message || error.message || 'Registration failed. Please try again.';
       }
     });
   }

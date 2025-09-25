@@ -1,8 +1,19 @@
+
 // src/app/services/job.service.ts
 import { Injectable } from '@angular/core';
 import { HttpClient, HttpHeaders, HttpParams } from '@angular/common/http';
-import { Observable, BehaviorSubject } from 'rxjs';
-import { environment } from '../src/environments/environment.prod';
+import { Observable, BehaviorSubject, throwError } from 'rxjs';
+import { catchError, tap } from 'rxjs/operators';
+import { environment } from '../src/environments/environment.prod'
+import { AuthService } from './auth.service';
+
+// Extend User interface to include company_id
+interface User {
+  id: string;
+  company_id?: string;
+  user_type?: string; // Added to access user_type for debugging
+  // add other properties as needed
+}
 
 export interface Job {
   id: string;
@@ -39,15 +50,41 @@ export interface Job {
 }
 
 export interface JobStats {
-  total_jobs: number;
-  active_jobs: number;
-  paused_jobs: number;
-  closed_jobs: number;
-  total_applications: number;
-  average_applications_per_job: number;
-  featured_jobs_count: number;
-  remote_jobs_count: number;
-  hybrid_jobs_count: number;
+  overview: {
+    total_jobs: number;
+    active_jobs: number;
+    filled_jobs: number;
+    paused_jobs: number;
+    closed_jobs: number;
+    total_applications: number;
+    total_views: number;
+    avg_applications_per_job: string;
+    avg_views_per_job: string;
+    featured_jobs_count: number;
+    remote_jobs_count: number;
+    hybrid_jobs_count: number;
+  };
+  recent_activity: {
+    jobs_posted_last_30_days: number;
+    applications_last_30_days: number;
+  };
+  top_performing_jobs: Array<{
+    id: string;
+    title: string;
+    applications_count: number;
+    views_count: number;
+    status: string;
+    created_at: string;
+  }>;
+  application_status_breakdown: {
+    pending: number;
+    reviewing: number;
+    shortlisted: number;
+    interviewed: number;
+    offered: number;
+    hired: number;
+    rejected: number;
+  };
 }
 
 export interface CreateJobRequest {
@@ -68,6 +105,8 @@ export interface CreateJobRequest {
   department?: string;
   application_deadline?: string;
   is_featured?: boolean;
+  employer_id?: string;
+  company_id?: string;
 }
 
 export interface JobQuery {
@@ -79,10 +118,8 @@ export interface JobQuery {
   search?: string;
   sort_by?: 'created_at' | 'salary_max' | 'applications_count' | 'views_count';
   sort_order?: 'ASC' | 'DESC';
-  // Add these missing properties for salary filtering
   salary_min?: number;
   salary_max?: number;
-  // Add these for additional filtering
   location?: string;
   skills?: string[];
   company_id?: string;
@@ -113,24 +150,102 @@ export class JobService {
   private jobsSubject = new BehaviorSubject<Job[]>([]);
   public jobs$ = this.jobsSubject.asObservable();
 
-  constructor(private http: HttpClient) {}
+  constructor(
+    private http: HttpClient,
+    private authService: AuthService
+  ) {}
 
   private getAuthHeaders(): HttpHeaders {
-    const token = localStorage.getItem('authToken');
+    const token = this.authService.getToken();
+    
+    if (!token) {
+      console.error('No authentication token found in localStorage');
+      throw new Error('Authentication required: No token found');
+    }
+    
+    console.log('Using token for API call:', token.substring(0, 20) + '...');
+    
     return new HttpHeaders({
       'Authorization': `Bearer ${token}`,
       'Content-Type': 'application/json'
     });
   }
 
-  // Employer Job Management
+  private getUserInfoFromAuth(): { userId: string | null, companyId: string | null, userType: string | null } {
+    const user = this.authService.getCurrentUser();
+    
+    if (!user) {
+      console.warn('No authenticated user found in AuthService');
+      return { userId: null, companyId: null, userType: null };
+    }
+    
+    console.log('Current user from AuthService:', { id: user.id, user_type: user.user_type });
+    
+    const userId = user.id || null;
+    const companyId = user.company_id || null;
+    const userType = user.user_type || null;
+    
+    console.log('Extracted - User ID:', userId, 'Company ID:', companyId, 'User Type:', userType);
+    
+    return { userId, companyId, userType };
+  }
+
   createJob(jobData: CreateJobRequest): Observable<ApiResponse<Job>> {
-    return this.http.post<ApiResponse<Job>>(this.apiUrl, jobData, {
+    if (!this.authService.isAuthenticated()) {
+      console.error('User is not authenticated');
+      return throwError(() => ({
+        error: { message: 'Authentication required. Please log in again.' }
+      }));
+    }
+
+    const { userId, companyId, userType } = this.getUserInfoFromAuth();
+    
+    if (userType !== 'employer') {
+      console.error('User is not an employer:', userType);
+      return throwError(() => ({
+        error: { message: 'Only employers can create jobs' }
+      }));
+    }
+
+    const enhancedJobData: CreateJobRequest = {
+      ...jobData,
+      employer_id: jobData.employer_id ?? (userId ?? undefined),
+      company_id: jobData.company_id ?? (companyId ?? undefined)
+    };
+    
+    console.log('Creating job with data:', enhancedJobData);
+    
+    if (!enhancedJobData.employer_id) {
+      console.error('No employer ID available');
+      return throwError(() => ({
+        error: { message: 'Employer ID is required but not found in user data' }
+      }));
+    }
+    
+    return this.http.post<ApiResponse<Job>>(this.apiUrl, enhancedJobData, {
       headers: this.getAuthHeaders()
-    });
+    }).pipe(
+      tap(response => console.log('Create job response:', response)),
+      catchError(error => {
+        console.error('Job creation error:', error);
+        if (error.status === 403) {
+          console.error('403 Forbidden: User may not have employer permissions or job ownership mismatch');
+        } else if (error.status === 401) {
+          console.error('401 Unauthorized: Token may be expired or invalid');
+          this.authService.logout();
+        }
+        return throwError(() => error);
+      })
+    );
   }
 
   getMyJobs(query?: JobQuery): Observable<ApiResponse<PaginatedResponse<Job>>> {
+    if (!this.authService.isAuthenticated()) {
+      return throwError(() => ({
+        error: { message: 'Authentication required. Please log in again.' }
+      }));
+    }
+
     let params = new HttpParams();
     
     if (query) {
@@ -140,56 +255,245 @@ export class JobService {
         }
       });
     }
+
+    console.log('Fetching my jobs with params:', params.toString());
 
     return this.http.get<ApiResponse<PaginatedResponse<Job>>>(`${this.apiUrl}/my-jobs`, {
       headers: this.getAuthHeaders(),
       params
-    });
+    }).pipe(
+      tap(response => console.log('Get my jobs response:', response)),
+      catchError(error => {
+        console.error('Error fetching my jobs:', error);
+        if (error.status === 401) {
+          console.error('401 Unauthorized: Clearing auth data');
+          this.authService.logout();
+        }
+        return throwError(() => error);
+      })
+    );
+  }
+getJobById(jobId: string): Observable<ApiResponse<Job>> {
+  if (!this.authService.isAuthenticated()) {
+    return throwError(() => ({
+      error: { message: 'Authentication required. Please log in again.' }
+    }));
   }
 
-  getJobById(jobId: string): Observable<ApiResponse<Job>> {
-    return this.http.get<ApiResponse<Job>>(`${this.apiUrl}/${jobId}`, {
-      headers: this.getAuthHeaders()
-    });
+  console.log('Fetching job by ID:', jobId);
+
+  // FIXED: Use the correct route path
+  return this.http.get<ApiResponse<Job>>(`${this.apiUrl}/employer/${jobId}`, {
+    headers: this.getAuthHeaders()
+  }).pipe(
+    tap(response => console.log('Get job by ID response:', response)),
+    catchError(error => {
+      console.error('Error fetching job by ID:', error);
+      if (error.status === 401) {
+        console.error('401 Unauthorized: Clearing auth data');
+        this.authService.logout();
+      }
+      return throwError(() => error);
+    })
+  );
+}
+
+updateJob(jobId: string, updateData: Partial<CreateJobRequest>): Observable<ApiResponse<Job>> {
+  if (!this.authService.isAuthenticated()) {
+    return throwError(() => ({
+      error: { message: 'Authentication required. Please log in again.' }
+    }));
   }
 
-  updateJob(jobId: string, updateData: Partial<CreateJobRequest>): Observable<ApiResponse<Job>> {
-    return this.http.put<ApiResponse<Job>>(`${this.apiUrl}/employer/${jobId}`, updateData, {
-      headers: this.getAuthHeaders()
-    });
-  }
+  console.log('Updating job ID:', jobId, 'with data:', updateData);
+
+  // FIXED: Use the correct route path
+  return this.http.put<ApiResponse<Job>>(`${this.apiUrl}/employer/${jobId}`, updateData, {
+    headers: this.getAuthHeaders()
+  }).pipe(
+    tap(response => console.log('Update job response:', response)),
+    catchError(error => {
+      console.error('Error updating job:', error);
+      if (error.status === 401) {
+        console.error('401 Unauthorized: Clearing auth data');
+        this.authService.logout();
+      }
+      return throwError(() => error);
+    })
+  );
+}
 
   deleteJob(jobId: string): Observable<ApiResponse<void>> {
+    if (!this.authService.isAuthenticated()) {
+      return throwError(() => ({
+        error: { message: 'Authentication required. Please log in again.' }
+      }));
+    }
+
+    console.log('Deleting job ID:', jobId);
+
     return this.http.delete<ApiResponse<void>>(`${this.apiUrl}/employer/${jobId}`, {
       headers: this.getAuthHeaders()
-    });
+    }).pipe(
+      tap(response => console.log('Delete job response:', response)),
+      catchError(error => {
+        console.error('Error deleting job:', error);
+        if (error.status === 401) {
+          console.error('401 Unauthorized: Clearing auth data');
+          this.authService.logout();
+        }
+        return throwError(() => error);
+      })
+    );
   }
 
   toggleJobStatus(jobId: string): Observable<ApiResponse<Job>> {
+    if (!this.authService.isAuthenticated()) {
+      console.error('toggleJobStatus: User is not authenticated');
+      return throwError(() => ({
+        error: { message: 'Authentication required. Please log in again.' }
+      }));
+    }
+
+    const { userId, userType } = this.getUserInfoFromAuth();
+    
+    if (userType !== 'employer') {
+      console.error('toggleJobStatus: User is not an employer:', userType);
+      return throwError(() => ({
+        error: { message: 'Only employers can toggle job status' }
+      }));
+    }
+
+    console.log('Toggling status for job ID:', jobId, 'User ID:', userId);
+
     return this.http.patch<ApiResponse<Job>>(`${this.apiUrl}/employer/${jobId}/toggle-status`, {}, {
       headers: this.getAuthHeaders()
-    });
+    }).pipe(
+      tap(response => console.log('Toggle job status response:', response)),
+      catchError(error => {
+        console.error('Error toggling job status for job ID:', jobId, error);
+        if (error.status === 403) {
+          console.error('403 Forbidden: Check if user is employer and owns the job');
+          console.error('Error details:', error.error);
+        } else if (error.status === 401) {
+          console.error('401 Unauthorized: Token may be expired or invalid');
+          this.authService.logout();
+        }
+        return throwError(() => error);
+      })
+    );
   }
 
   markJobAsFilled(jobId: string): Observable<ApiResponse<Job>> {
+    if (!this.authService.isAuthenticated()) {
+      console.error('markJobAsFilled: User is not authenticated');
+      return throwError(() => ({
+        error: { message: 'Authentication required. Please log in again.' }
+      }));
+    }
+
+    console.log('Marking job as filled ID:', jobId);
+
     return this.http.patch<ApiResponse<Job>>(`${this.apiUrl}/employer/${jobId}/mark-filled`, {}, {
       headers: this.getAuthHeaders()
-    });
+    }).pipe(
+      tap(response => console.log('Mark job as filled response:', response)),
+      catchError(error => {
+        console.error('Error marking job as filled:', error);
+        if (error.status === 401) {
+          console.error('401 Unauthorized: Clearing auth data');
+          this.authService.logout();
+        }
+        return throwError(() => error);
+      })
+    );
   }
 
   duplicateJob(jobId: string): Observable<ApiResponse<Job>> {
+    if (!this.authService.isAuthenticated()) {
+      console.error('duplicateJob: User is not authenticated');
+      return throwError(() => ({
+        error: { message: 'Authentication required. Please log in again.' }
+      }));
+    }
+
+    const { userId, userType } = this.getUserInfoFromAuth();
+    
+    if (userType !== 'employer') {
+      console.error('duplicateJob: User is not an employer:', userType);
+      return throwError(() => ({
+        error: { message: 'Only employers can duplicate jobs' }
+      }));
+    }
+
+    console.log('Duplicating job ID:', jobId, 'User ID:', userId);
+
     return this.http.post<ApiResponse<Job>>(`${this.apiUrl}/employer/${jobId}/duplicate`, {}, {
       headers: this.getAuthHeaders()
-    });
+    }).pipe(
+      tap(response => console.log('Duplicate job response:', response)),
+      catchError(error => {
+        console.error('Error duplicating job for job ID:', jobId, error);
+        if (error.status === 403) {
+          console.error('403 Forbidden: Check if user is employer and owns the job');
+          console.error('Error details:', error.error);
+        } else if (error.status === 401) {
+          console.error('401 Unauthorized: Token may be expired or invalid');
+          this.authService.logout();
+        }
+        return throwError(() => error);
+      })
+    );
   }
 
   getJobStats(): Observable<ApiResponse<JobStats>> {
+    console.log('=== JOB STATS DEBUG ===');
+    console.log('Is authenticated:', this.authService.isAuthenticated());
+    console.log('Current user:', this.authService.getCurrentUser());
+    console.log('User type:', this.authService.getUserType());
+    console.log('Is employer:', this.authService.isEmployer());
+    console.log('=======================');
+
+    if (!this.authService.isAuthenticated()) {
+      console.error('getJobStats: User is not authenticated');
+      return throwError(() => ({
+        error: { message: 'Authentication required. Please log in again.' }
+      }));
+    }
+
+    if (!this.authService.isEmployer()) {
+      console.error('getJobStats: User is not an employer');
+      return throwError(() => ({
+        error: { message: 'Only employers can access job statistics' }
+      }));
+    }
+
     return this.http.get<ApiResponse<JobStats>>(`${this.apiUrl}/stats`, {
       headers: this.getAuthHeaders()
-    });
+    }).pipe(
+      tap(response => console.log('Get job stats response:', response)),
+      catchError(error => {
+        console.error('Error fetching job stats:', error);
+        if (error.status === 401) {
+          console.error('401 Unauthorized: Clearing auth data');
+          this.authService.logout();
+        } else if (error.status === 404) {
+          console.error('404 Not Found: Stats endpoint not found');
+          console.error('Full URL attempted:', `${this.apiUrl}/stats`);
+        }
+        return throwError(() => error);
+      })
+    );
   }
 
   getJobApplications(jobId: string, query?: { page?: number; limit?: number; status?: string }): Observable<ApiResponse<any>> {
+    if (!this.authService.isAuthenticated()) {
+      console.error('getJobApplications: User is not authenticated');
+      return throwError(() => ({
+        error: { message: 'Authentication required. Please log in again.' }
+      }));
+    }
+
     let params = new HttpParams();
     
     if (query) {
@@ -200,10 +504,22 @@ export class JobService {
       });
     }
 
+    console.log('Fetching applications for job ID:', jobId, 'with params:', params.toString());
+
     return this.http.get<ApiResponse<any>>(`${this.apiUrl}/employer/${jobId}/applications`, {
       headers: this.getAuthHeaders(),
       params
-    });
+    }).pipe(
+      tap(response => console.log('Get job applications response:', response)),
+      catchError(error => {
+        console.error('Error fetching job applications:', error);
+        if (error.status === 401) {
+          console.error('401 Unauthorized: Clearing auth data');
+          this.authService.logout();
+        }
+        return throwError(() => error);
+      })
+    );
   }
 
   // Public Job Browsing (for job seekers)
@@ -218,17 +534,40 @@ export class JobService {
       });
     }
 
-    const headers = this.getAuthHeaders();
+    console.log('Fetching all jobs with params:', params.toString());
+
     return this.http.get<ApiResponse<PaginatedResponse<Job>>>(this.apiUrl, {
-      headers,
+      headers: this.getAuthHeaders(),
       params
-    });
+    }).pipe(
+      tap(response => console.log('Get all jobs response:', response)),
+      catchError(error => {
+        console.error('Error fetching all jobs:', error);
+        if (error.status === 401) {
+          console.error('401 Unauthorized: Clearing auth data');
+          this.authService.logout();
+        }
+        return throwError(() => error);
+      })
+    );
   }
 
   getJobDetails(jobId: string): Observable<ApiResponse<Job>> {
+    console.log('Fetching job details for ID:', jobId);
+
     return this.http.get<ApiResponse<Job>>(`${this.apiUrl}/details/${jobId}`, {
       headers: this.getAuthHeaders()
-    });
+    }).pipe(
+      tap(response => console.log('Get job details response:', response)),
+      catchError(error => {
+        console.error('Error fetching job details:', error);
+        if (error.status === 401) {
+          console.error('401 Unauthorized: Clearing auth data');
+          this.authService.logout();
+        }
+        return throwError(() => error);
+      })
+    );
   }
 
   // Jobseeker-specific endpoints
@@ -243,22 +582,58 @@ export class JobService {
       });
     }
 
+    console.log('Fetching recommended jobs with params:', params.toString());
+
     return this.http.get<ApiResponse<PaginatedResponse<Job>>>(`${this.apiUrl}/jobseeker/recommended`, {
       headers: this.getAuthHeaders(),
       params
-    });
+    }).pipe(
+      tap(response => console.log('Get recommended jobs response:', response)),
+      catchError(error => {
+        console.error('Error fetching recommended jobs:', error);
+        if (error.status === 401) {
+          console.error('401 Unauthorized: Clearing auth data');
+          this.authService.logout();
+        }
+        return throwError(() => error);
+      })
+    );
   }
 
   saveJob(jobId: string): Observable<ApiResponse<any>> {
+    console.log('Saving job ID:', jobId);
+
     return this.http.post<ApiResponse<any>>(`${this.apiUrl}/jobseeker/bookmark/${jobId}`, {}, {
       headers: this.getAuthHeaders()
-    });
+    }).pipe(
+      tap(response => console.log('Save job response:', response)),
+      catchError(error => {
+        console.error('Error saving job:', error);
+        if (error.status === 401) {
+          console.error('401 Unauthorized: Clearing auth data');
+          this.authService.logout();
+        }
+        return throwError(() => error);
+      })
+    );
   }
 
   unsaveJob(jobId: string): Observable<ApiResponse<any>> {
+    console.log('Unsaving job ID:', jobId);
+
     return this.http.delete<ApiResponse<any>>(`${this.apiUrl}/jobseeker/bookmark/${jobId}`, {
       headers: this.getAuthHeaders()
-    });
+    }).pipe(
+      tap(response => console.log('Unsave job response:', response)),
+      catchError(error => {
+        console.error('Error unsaving job:', error);
+        if (error.status === 401) {
+          console.error('401 Unauthorized: Clearing auth data');
+          this.authService.logout();
+        }
+        return throwError(() => error);
+      })
+    );
   }
 
   getSavedJobs(query?: { page?: number; limit?: number }): Observable<ApiResponse<PaginatedResponse<any>>> {
@@ -272,10 +647,22 @@ export class JobService {
       });
     }
 
+    console.log('Fetching saved jobs with params:', params.toString());
+
     return this.http.get<ApiResponse<PaginatedResponse<any>>>(`${this.apiUrl}/jobseeker/bookmarked`, {
       headers: this.getAuthHeaders(),
       params
-    });
+    }).pipe(
+      tap(response => console.log('Get saved jobs response:', response)),
+      catchError(error => {
+        console.error('Error fetching saved jobs:', error);
+        if (error.status === 401) {
+          console.error('401 Unauthorized: Clearing auth data');
+          this.authService.logout();
+        }
+        return throwError(() => error);
+      })
+    );
   }
 
   applyToJob(jobId: string, applicationData: {
@@ -285,9 +672,21 @@ export class JobService {
     expectedSalary?: number;
     availabilityDate?: string;
   }): Observable<ApiResponse<any>> {
+    console.log('Applying to job ID:', jobId, 'with data:', applicationData);
+
     return this.http.post<ApiResponse<any>>(`${this.apiUrl}/jobseeker/apply/${jobId}`, applicationData, {
       headers: this.getAuthHeaders()
-    });
+    }).pipe(
+      tap(response => console.log('Apply to job response:', response)),
+      catchError(error => {
+        console.error('Error applying to job:', error);
+        if (error.status === 401) {
+          console.error('401 Unauthorized: Clearing auth data');
+          this.authService.logout();
+        }
+        return throwError(() => error);
+      })
+    );
   }
 
   getAppliedJobs(query?: { page?: number; limit?: number; status?: string }): Observable<ApiResponse<PaginatedResponse<any>>> {
@@ -301,16 +700,40 @@ export class JobService {
       });
     }
 
+    console.log('Fetching applied jobs with params:', params.toString());
+
     return this.http.get<ApiResponse<PaginatedResponse<any>>>(`${this.apiUrl}/jobseeker/applications`, {
       headers: this.getAuthHeaders(),
       params
-    });
+    }).pipe(
+      tap(response => console.log('Get applied jobs response:', response)),
+      catchError(error => {
+        console.error('Error fetching applied jobs:', error);
+        if (error.status === 401) {
+          console.error('401 Unauthorized: Clearing auth data');
+          this.authService.logout();
+        }
+        return throwError(() => error);
+      })
+    );
   }
 
   getJobseekerStats(): Observable<ApiResponse<any>> {
+    console.log('Fetching jobseeker stats');
+
     return this.http.get<ApiResponse<any>>(`${this.apiUrl}/jobseeker/stats`, {
       headers: this.getAuthHeaders()
-    });
+    }).pipe(
+      tap(response => console.log('Get jobseeker stats response:', response)),
+      catchError(error => {
+        console.error('Error fetching jobseeker stats:', error);
+        if (error.status === 401) {
+          console.error('401 Unauthorized: Clearing auth data');
+          this.authService.logout();
+        }
+        return throwError(() => error);
+      })
+    );
   }
 
   // Utility methods
@@ -338,11 +761,42 @@ export class JobService {
 
   // Update local jobs array
   updateJobsCache(jobs: Job[]): void {
+    console.log('Updating jobs cache with:', jobs);
     this.jobsSubject.next(jobs);
   }
 
   // Get local jobs array
   getJobsCache(): Job[] {
+    console.log('Retrieving jobs cache:', this.jobsSubject.value);
     return this.jobsSubject.value;
+  }
+
+  // Debug method to check auth state
+  debugAuthInfo(): void {
+    console.log('=== AUTH DEBUG INFO ===');
+    console.log('Is authenticated:', this.authService.isAuthenticated());
+    console.log('Current user:', this.authService.getCurrentUser());
+    console.log('Token exists:', !!this.authService.getToken());
+    console.log('User type:', this.authService.getUserType());
+    console.log('Is employer:', this.authService.isEmployer());
+    console.log('========================');
+  }
+
+  // Debug method to verify token with backend
+  verifyToken(): Observable<ApiResponse<any>> {
+    console.log('Verifying token with backend');
+    return this.http.get<ApiResponse<any>>(`${this.apiUrl}/verify-token`, {
+      headers: this.getAuthHeaders()
+    }).pipe(
+      tap(response => console.log('Token verification response:', response)),
+      catchError(error => {
+        console.error('Token verification failed:', error);
+        if (error.status === 401) {
+          console.error('401 Unauthorized: Clearing auth data');
+          this.authService.logout();
+        }
+        return throwError(() => error);
+      })
+    );
   }
 }

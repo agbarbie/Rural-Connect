@@ -11,16 +11,17 @@ import {
 export class TrainingController {
   constructor(private trainingService: TrainingService) {}
 
-  // EMPLOYER METHODS (existing)
+  // EMPLOYER METHODS
 
   // Training status management methods
   unpublishTraining = async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
       const { id } = req.params;
+      const userId = req.user!.id;
       const training = await this.trainingService.updateTraining(
         id, 
         { status: 'draft' }, 
-        req.user!.employer_id!
+        userId
       );
       
       if (!training) {
@@ -44,10 +45,11 @@ export class TrainingController {
   suspendTraining = async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
       const { id } = req.params;
+      const userId = req.user!.id;
       const training = await this.trainingService.updateTraining(
         id, 
         { status: 'suspended' }, 
-        req.user!.employer_id!
+        userId
       );
       
       if (!training) {
@@ -72,13 +74,14 @@ export class TrainingController {
   getTrainingEnrollments = async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
       const { id } = req.params;
+      const userId = req.user!.id;
       const params = {
         page: parseInt(req.query.page as string) || 1,
         limit: parseInt(req.query.limit as string) || 10,
         status: req.query.status as string
       };
 
-      const enrollments = await this.trainingService.getTrainingEnrollments(id, req.user!.employer_id!, params);
+      const enrollments = await this.trainingService.getTrainingEnrollments(id, userId, params);
       
       if (!enrollments) {
         res.status(404).json({
@@ -101,9 +104,10 @@ export class TrainingController {
   getTrainingAnalytics = async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
       const { id } = req.params;
+      const userId = req.user!.id;
       const timeRange = req.query.range as string || '30days';
 
-      const analytics = await this.trainingService.getTrainingAnalytics(id, req.user!.employer_id!, timeRange);
+      const analytics = await this.trainingService.getTrainingAnalytics(id, userId, timeRange);
       
       if (!analytics) {
         res.status(404).json({
@@ -166,7 +170,7 @@ export class TrainingController {
         }
       };
 
-      const employerId = req.user?.user_type === 'employer' ? req.user.employer_id : undefined;
+      const employerId = req.user?.user_type === 'employer' ? req.user.id : undefined;
       const result = await this.trainingService.getAllTrainings(params, employerId);
       
       res.status(200).json({
@@ -203,15 +207,129 @@ export class TrainingController {
 
   createTraining = async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const trainingData: CreateTrainingRequest = req.body;
-      const training = await this.trainingService.createTraining(trainingData, req.user!.employer_id!);
+      console.log('=== TRAINING CREATION START ===');
+      console.log('Request User Info:', {
+        id: req.user?.id,
+        email: req.user?.email,
+        user_type: req.user?.user_type
+      });
       
+      const trainingData: CreateTrainingRequest = req.body;
+      const userId = req.user!.id;
+      
+      console.log('Training Data Summary:', {
+        title: trainingData.title,
+        category: trainingData.category,
+        level: trainingData.level,
+        provider_name: trainingData.provider_name,
+        duration_hours: trainingData.duration_hours,
+        cost_type: trainingData.cost_type,
+        price: trainingData.price,
+        mode: trainingData.mode,
+        has_videos: trainingData.videos?.length || 0,
+        has_outcomes: trainingData.outcomes?.length || 0
+      });
+      
+      const training = await this.trainingService.createTraining(trainingData, userId);
+      
+      console.log('=== TRAINING CREATION SUCCESS ===');
       res.status(201).json({
         success: true,
         message: 'Training created successfully',
         data: training
       });
-    } catch (error) {
+    } catch (error: any) {
+      console.error('=== TRAINING CREATION ERROR ===');
+      console.error('Error details:', {
+        message: error.message,
+        code: error.code,
+        detail: error.detail,
+        constraint: error.constraint,
+        table: error.table,
+        userId: req.user?.id,
+        timestamp: new Date().toISOString()
+      });
+      
+      // Handle specific database constraint errors
+      if (error.code === '23503') {
+        // Foreign key constraint violation
+        if (error.constraint?.includes('provider_id') || error.message?.includes('provider_id')) {
+          res.status(400).json({
+            success: false,
+            message: 'Invalid user account',
+            details: 'The user account does not exist or is not properly configured as an employer'
+          });
+          return;
+        }
+        
+        res.status(400).json({
+          success: false,
+          message: 'Database reference error',
+          details: 'One or more referenced resources do not exist'
+        });
+        return;
+      }
+      
+      // Handle unique constraint violations
+      if (error.code === '23505') {
+        res.status(409).json({
+          success: false,
+          message: 'Training already exists',
+          details: 'A training with this information already exists'
+        });
+        return;
+      }
+      
+      // Handle check constraint violations
+      if (error.code === '23514') {
+        res.status(400).json({
+          success: false,
+          message: 'Invalid data format',
+          details: error.detail || 'The provided data does not meet the required format'
+        });
+        return;
+      }
+      
+      // Handle user validation errors from service layer
+      if (error.message?.includes('does not exist in the database')) {
+        res.status(404).json({
+          success: false,
+          message: 'User account not found',
+          details: 'Please ensure you are logged in with a valid employer account'
+        });
+        return;
+      }
+      
+      if (error.message?.includes('not an employer')) {
+        res.status(403).json({
+          success: false,
+          message: 'Access denied',
+          details: 'Only employer accounts can create trainings'
+        });
+        return;
+      }
+      
+      if (error.message?.includes('Employer reference error')) {
+        res.status(400).json({
+          success: false,
+          message: 'Account verification failed',
+          details: error.message
+        });
+        return;
+      }
+      
+      // Handle validation errors
+      if (error.name === 'ValidationError') {
+        res.status(400).json({
+          success: false,
+          message: 'Validation error',
+          details: error.message
+        });
+        return;
+      }
+      
+      // Default error handling
+      console.error('Unhandled training creation error:', error);
       next(error);
     }
   };
@@ -219,9 +337,10 @@ export class TrainingController {
   updateTraining = async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
       const { id } = req.params;
+      const userId = req.user!.id;
       const updateData: UpdateTrainingRequest = req.body;
       
-      const training = await this.trainingService.updateTraining(id, updateData, req.user!.employer_id!);
+      const training = await this.trainingService.updateTraining(id, updateData, userId);
       
       if (!training) {
         res.status(404).json({
@@ -244,7 +363,8 @@ export class TrainingController {
   deleteTraining = async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
       const { id } = req.params;
-      const deleted = await this.trainingService.deleteTraining(id, req.user!.employer_id!);
+      const userId = req.user!.id;
+      const deleted = await this.trainingService.deleteTraining(id, userId);
       
       if (!deleted) {
         res.status(404).json({
@@ -265,7 +385,8 @@ export class TrainingController {
 
   getTrainingStats = async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const stats = await this.trainingService.getTrainingStats(req.user!.employer_id!);
+      const userId = req.user!.id;
+      const stats = await this.trainingService.getTrainingStats(userId);
       
       res.status(200).json({
         success: true,
@@ -279,10 +400,11 @@ export class TrainingController {
   publishTraining = async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
       const { id } = req.params;
+      const userId = req.user!.id;
       const training = await this.trainingService.updateTraining(
         id, 
         { status: 'published' }, 
-        req.user!.employer_id!
+        userId
       );
       
       if (!training) {
@@ -303,7 +425,8 @@ export class TrainingController {
     }
   };
 
-  // JOBSEEKER METHODS (new)
+  // JOBSEEKER METHODS
+
   getJobseekerTrainings = async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
       const params: TrainingSearchParams = {
@@ -404,7 +527,6 @@ export class TrainingController {
     }
   };
 
-  // FIXED: Updated to use the new updateTrainingProgress method
   updateTrainingProgress = async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
       const { trainingId } = req.params;
@@ -412,7 +534,7 @@ export class TrainingController {
       const progressData = req.body;
 
       // Validate required fields
-      if (progressData.progress_percentage === undefined) {
+      if (progressData.progress_percentage === undefined || progressData.progress_percentage === null) {
         res.status(400).json({
           success: false,
           message: 'Progress percentage is required'
@@ -420,7 +542,20 @@ export class TrainingController {
         return;
       }
 
-      const updatedProgress = await this.trainingService.updateTrainingProgress(trainingId, userId, progressData);
+      // Validate progress percentage range
+      const progress = parseFloat(progressData.progress_percentage);
+      if (isNaN(progress) || progress < 0 || progress > 100) {
+        res.status(400).json({
+          success: false,
+          message: 'Progress percentage must be a number between 0 and 100'
+        });
+        return;
+      }
+
+      const updatedProgress = await this.trainingService.updateTrainingProgress(trainingId, userId, {
+        ...progressData,
+        progress_percentage: progress
+      });
       
       res.status(200).json({
         success: true,
@@ -428,7 +563,6 @@ export class TrainingController {
         data: updatedProgress
       });
     } catch (error) {
-      // Handle the specific error message
       if (error instanceof Error && error.message === 'Training enrollment not found') {
         res.status(404).json({
           success: false,
@@ -470,7 +604,7 @@ export class TrainingController {
       const userId = req.user!.id;
       const { rating, review_text } = req.body;
 
-      // Validate rating - ensure it's an integer between 1 and 5
+      // Validate rating
       const ratingInt = parseInt(rating);
       if (!ratingInt || ratingInt < 1 || ratingInt > 5 || !Number.isInteger(ratingInt)) {
         res.status(400).json({
@@ -480,9 +614,18 @@ export class TrainingController {
         return;
       }
 
+      // Validate review text length if provided
+      if (review_text && typeof review_text === 'string' && review_text.length > 1000) {
+        res.status(400).json({
+          success: false,
+          message: 'Review text cannot exceed 1000 characters'
+        });
+        return;
+      }
+
       const review = await this.trainingService.submitTrainingReview(trainingId, userId, {
         rating: ratingInt,
-        review_text
+        review_text: review_text?.trim() || null
       });
       
       if (!review) {
@@ -521,6 +664,15 @@ export class TrainingController {
     try {
       const userId = req.user!.id;
       const limit = parseInt(req.query.limit as string) || 10;
+      
+      // Validate limit parameter
+      if (limit < 1 || limit > 50) {
+        res.status(400).json({
+          success: false,
+          message: 'Limit must be between 1 and 50'
+        });
+        return;
+      }
       
       const recommendations = await this.trainingService.getRecommendedTrainings(userId, limit);
       

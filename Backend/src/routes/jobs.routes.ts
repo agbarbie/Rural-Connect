@@ -1,24 +1,13 @@
 // src/routes/job.routes.ts
 import { Router } from 'express';
 import { PostJobsController } from '../controllers/postjobs.controller';
-import { JobseekerJobController } from '../controllers/Jobseeker job.controller'; // Fixed import
+import { JobseekerJobController } from '../controllers/Jobseeker job.controller';
 import {
    authenticateToken,
    requireEmployer,
-   requireEmployerWithId,
    requireJobseeker,
-   optionalAuth,
    AuthenticatedRequest
 } from '../middleware/auth.middleware';
-
-// Extend Express Request type to include 'user'
-declare global {
-  namespace Express {
-    interface Request {
-      user?: any;
-    }
-  }
-}
 
 const router = Router();
 
@@ -26,72 +15,64 @@ const router = Router();
 const postJobsController = new PostJobsController();
 const jobseekerJobController = new JobseekerJobController();
 
-// Middleware logging
-router.use((req, res, next) => {
-  console.log(`Job routes - ${req.method} ${req.url}`);
-  console.log('User from auth:', req.user ? 'Authenticated' : 'Not authenticated');
-  next();
-});
+// Optional auth middleware
+const optionalAuth = (req: AuthenticatedRequest, res: any, next: any) => {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1];
 
-// ==============================================
-// PUBLIC & JOBSEEKER ROUTES
-// ==============================================
+  if (!token) {
+    next();
+    return;
+  }
 
-// Public route - get all jobs with optional filters (for job explorer)
-router.get('/', optionalAuth, jobseekerJobController.getAllJobs);
+  import('jsonwebtoken').then((jwt) => {
+    try {
+      const decoded = jwt.verify(token, process.env.JWT_SECRET!) as any;
+      req.user = {
+        id: decoded.id,
+        email: decoded.email,
+        user_type: decoded.user_type
+      };
+      next();
+    } catch (error) {
+      next();
+    }
+  });
+};
 
-// Public route - get specific job details
-router.get('/details/:jobId', optionalAuth, jobseekerJobController.getJobDetails);
+// IMPORTANT: /stats route MUST be first before any other routes
+router.get('/stats', authenticateToken, requireEmployer, postJobsController.getJobStats.bind(postJobsController));
 
-// Jobseeker-specific routes (require authentication)
-router.use('/jobseeker', authenticateToken, requireJobseeker);
+// Job creation
+router.post('/', authenticateToken, requireEmployer, postJobsController.createJob.bind(postJobsController));
 
-// Get recommended jobs for jobseeker
-router.get('/jobseeker/recommended', jobseekerJobController.getRecommendedJobs);
-
-// Job bookmarking (save/unsave)
-router.post('/jobseeker/bookmark/:jobId', jobseekerJobController.saveJob);
-router.delete('/jobseeker/bookmark/:jobId', jobseekerJobController.unsaveJob);
-
-// Get saved/bookmarked jobs
-router.get('/jobseeker/bookmarked', jobseekerJobController.getSavedJobs);
-
-// Job applications
-router.post('/jobseeker/apply/:jobId', jobseekerJobController.applyToJob);
-router.get('/jobseeker/applications', jobseekerJobController.getAppliedJobs);
-
-
-// Get application status for a specific job
-router.get('/jobseeker/application-status/:jobId', jobseekerJobController.getApplicationStatus);
-
-// Update/manage applications
-router.put('/jobseeker/application/:applicationId', jobseekerJobController.updateApplication);
-router.patch('/jobseeker/application/:applicationId/withdraw', jobseekerJobController.withdrawApplication);
-
-// Get jobseeker's statistics and dashboard data
-router.get('/jobseeker/stats', jobseekerJobController.getJobseekerStats);
-
-// ==============================================
-// EMPLOYER ROUTES
-// ==============================================
-
-// Job creation route - requires employer with ID populated
-router.post('/', requireEmployerWithId, postJobsController.createJob.bind(postJobsController));
-
-// Routes that need employer authentication but don't need employer_id populated
+// Employer routes
 router.get('/my-jobs', authenticateToken, requireEmployer, postJobsController.getMyJobs.bind(postJobsController));
-router.get('/employer/stats', authenticateToken, requireEmployer, postJobsController.getJobStats.bind(postJobsController));
 
-// Routes that need employer authentication and employer_id for ownership checks
-router.get('/employer/:jobId', requireEmployerWithId, postJobsController.getJobById.bind(postJobsController));
-router.put('/employer/:jobId', requireEmployerWithId, postJobsController.updateJob.bind(postJobsController));
-router.delete('/employer/:jobId', requireEmployerWithId, postJobsController.deleteJob.bind(postJobsController));
-router.get('/employer/:jobId/views', requireEmployerWithId, postJobsController.getJobViews.bind(postJobsController));
-router.patch('/employer/:jobId/toggle-status', requireEmployerWithId, postJobsController.toggleJobStatus.bind(postJobsController));
-router.patch('/employer/:jobId/mark-filled', requireEmployerWithId, postJobsController.markJobAsFilled.bind(postJobsController));
-router.post('/employer/:jobId/duplicate', requireEmployerWithId, postJobsController.duplicateJob.bind(postJobsController));
+// Jobseeker routes
+router.get('/jobseeker/recommended', authenticateToken, requireJobseeker, jobseekerJobController.getRecommendedJobs);
+router.post('/jobseeker/bookmark/:jobId', authenticateToken, requireJobseeker, jobseekerJobController.saveJob);
+router.delete('/jobseeker/bookmark/:jobId', authenticateToken, requireJobseeker, jobseekerJobController.unsaveJob);
+router.get('/jobseeker/bookmarked', authenticateToken, requireJobseeker, jobseekerJobController.getSavedJobs);
+router.post('/jobseeker/apply/:jobId', authenticateToken, requireJobseeker, jobseekerJobController.applyToJob);
+router.get('/jobseeker/applications', authenticateToken, requireJobseeker, jobseekerJobController.getAppliedJobs);
+router.get('/jobseeker/application-status/:jobId', authenticateToken, requireJobseeker, jobseekerJobController.getApplicationStatus);
+router.put('/jobseeker/application/:applicationId', authenticateToken, requireJobseeker, jobseekerJobController.updateApplication);
+router.patch('/jobseeker/application/:applicationId/withdraw', authenticateToken, requireJobseeker, jobseekerJobController.withdrawApplication);
+router.get('/jobseeker/stats', authenticateToken, requireJobseeker, jobseekerJobController.getJobseekerStats);
 
-// Get job applications (for employers)
-router.get('/employer/:jobId/applications', requireEmployerWithId, postJobsController.getJobApplications.bind(postJobsController));
+// Employer job management
+router.get('/employer/:jobId', authenticateToken, requireEmployer, postJobsController.getJobById.bind(postJobsController));
+router.put('/employer/:jobId', authenticateToken, requireEmployer, postJobsController.updateJob.bind(postJobsController));
+router.delete('/employer/:jobId', authenticateToken, requireEmployer, postJobsController.deleteJob.bind(postJobsController));
+router.get('/employer/:jobId/views', authenticateToken, requireEmployer, postJobsController.getJobViews.bind(postJobsController));
+router.get('/employer/:jobId/applications', authenticateToken, requireEmployer, postJobsController.getJobApplications.bind(postJobsController));
+router.patch('/employer/:jobId/toggle-status', authenticateToken, requireEmployer, postJobsController.toggleJobStatus.bind(postJobsController));
+router.patch('/employer/:jobId/mark-filled', authenticateToken, requireEmployer, postJobsController.markJobAsFilled.bind(postJobsController));
+router.post('/employer/:jobId/duplicate', authenticateToken, requireEmployer, postJobsController.duplicateJob.bind(postJobsController));
+
+// Public routes (MUST be last)
+router.get('/details/:jobId', optionalAuth, jobseekerJobController.getJobDetails);
+router.get('/', optionalAuth, jobseekerJobController.getAllJobs);
 
 export default router;

@@ -62,9 +62,30 @@ export class AuthService {
     return this.http.post<AuthResponse>(`${this.apiUrl}/auth/register`, userData)
       .pipe(
         tap(response => {
-          console.log('Registration response:', response);
-          if (response.success && response.token && response.user) {
-            this.setAuthData(response.token, response.user);
+          console.log('=== REGISTRATION DEBUG ===');
+          console.log('Full registration response:', response);
+          console.log('Response type:', typeof response);
+          console.log('Response.success:', response.success);
+          console.log('Response.data:', response.data);
+          
+          if (response.data) {
+            console.log('Response.data.token:', response.data.token);
+            console.log('Response.data.user:', response.data.user);
+            
+            if (response.data.user) {
+              console.log('User type from data.user:', response.data.user.user_type);
+              console.log('User email from data.user:', response.data.user.email);
+              console.log('User ID from data.user:', response.data.user.id);
+            }
+          } else {
+            console.log('No data found in response');
+            console.log('All response keys:', Object.keys(response));
+          }
+          console.log('=== END REGISTRATION DEBUG ===');
+          
+          // FIXED: Access token and user from the correct nested structure
+          if (response.success && response.data?.token && response.data?.user) {
+            this.setAuthData(response.data.token, response.data.user);
           }
         }),
         catchError((error: HttpErrorResponse) => {
@@ -81,9 +102,30 @@ export class AuthService {
     return this.http.post<AuthResponse>(`${this.apiUrl}/auth/login`, credentials)
       .pipe(
         tap(response => {
-          console.log('Login response:', response);
-          if (response.success && response.token && response.user) {
-            this.setAuthData(response.token, response.user);
+          console.log('=== LOGIN DEBUG ===');
+          console.log('Full login response:', response);
+          console.log('Response type:', typeof response);
+          console.log('Response.success:', response.success);
+          console.log('Response.data:', response.data);
+          
+          if (response.data) {
+            console.log('Response.data.token:', response.data.token);
+            console.log('Response.data.user:', response.data.user);
+            
+            if (response.data.user) {
+              console.log('User type from data.user:', response.data.user.user_type);
+              console.log('User email from data.user:', response.data.user.email);
+              console.log('User ID from data.user:', response.data.user.id);
+            }
+          } else {
+            console.log('No data found in response');
+            console.log('All response keys:', Object.keys(response));
+          }
+          console.log('=== END LOGIN DEBUG ===');
+          
+          // FIXED: Access token and user from the correct nested structure
+          if (response.success && response.data?.token && response.data?.user) {
+            this.setAuthData(response.data.token, response.data.user);
           }
         }),
         catchError((error: HttpErrorResponse) => {
@@ -117,11 +159,11 @@ export class AuthService {
     return this.http.get<AuthResponse>(`${this.apiUrl}/auth/profile`, { headers })
       .pipe(
         tap(response => {
-          if (response.success && response.user) {
+          if (response.success && response.data?.user) {
             // Update current user with fresh profile data
-            this.currentUserSubject.next(response.user);
+            this.currentUserSubject.next(response.data.user);
             // Also update localStorage
-            localStorage.setItem('user', JSON.stringify(response.user));
+            localStorage.setItem('user', JSON.stringify(response.data.user));
           }
         }),
         catchError((error: HttpErrorResponse) => {
@@ -145,10 +187,10 @@ export class AuthService {
       .pipe(
         tap(response => {
           console.log('Profile update response:', response);
-          if (response.success && response.user) {
+          if (response.success && response.data?.user) {
             // Update current user with updated profile data
-            this.currentUserSubject.next(response.user);
-            localStorage.setItem('user', JSON.stringify(response.user));
+            this.currentUserSubject.next(response.data.user);
+            localStorage.setItem('user', JSON.stringify(response.data.user));
           }
         }),
         catchError((error: HttpErrorResponse) => {

@@ -1,419 +1,299 @@
+// middleware/auth.middleware.ts
 import { Request, Response, NextFunction } from 'express';
-import { verifyToken } from '../utils/helpers';
-import { AuthService } from '../services/auth.service';
-import { validate as isValidUUID } from 'uuid';
-import jwt, { JwtPayload } from 'jsonwebtoken';
+import jwt from 'jsonwebtoken';
 
+// Export the interface so it can be imported by other files
 export interface AuthenticatedRequest extends Request {
   user?: {
     id: string;
     email: string;
-    user_type: 'jobseeker' | 'employer' | 'admin';
-    first_name?: string;
-    last_name?: string;
-    name?: string;
-    iat?: number;
-    exp?: number;
-    employer_id?: string;
-    company_id?: string;
+    user_type: string;
   };
 }
 
-const authService = new AuthService();
-
-export const authenticateToken = async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
-  const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1]?.trim();
-
-  if (!token) {
-    console.log('DEBUG - No token provided');
-    res.status(401).json({
-      success: false,
-      message: 'Access token required'
-    });
-    return;
-  }
-
-  console.log('DEBUG - Token received:', token.substring(0, 10) + '...');
-
+export const authenticateToken = (req: AuthenticatedRequest, res: Response, next: NextFunction): void => {
   try {
-    const decoded = verifyToken(token) as JwtPayload;
-    console.log('DEBUG - Decoded token:', decoded);
+    const authHeader = req.headers['authorization'] || req.headers['Authorization'];
+    let token: string | null = null;
 
-    const userId = String(decoded.id).trim();
-    if (!isValidUUID(userId)) {
-      console.log(`DEBUG - Invalid UUID format in token: ${userId}`);
+    // Extract token from Authorization header
+    if (authHeader && typeof authHeader === 'string') {
+      if (authHeader.startsWith('Bearer ')) {
+        token = authHeader.substring(7); // Remove 'Bearer ' prefix
+      } else {
+        token = authHeader; // In case token is sent without Bearer prefix
+      }
+    }
+
+    console.log('Auth Debug:', {
+      hasAuthHeader: !!authHeader,
+      authHeaderValue: typeof authHeader === 'string' ? `${authHeader.substring(0, 20)}...` : 'None',
+      hasToken: !!token,
+      tokenPreview: token ? `${token.substring(0, 20)}...` : 'No token',
+      url: req.url,
+      method: req.method
+    });
+
+    if (!token || token.trim() === '') {
+      console.log('Authentication failed: No token provided');
       res.status(401).json({
         success: false,
-        message: 'Invalid user ID format'
+        message: 'Access token required',
+        details: 'Please include Authorization header with Bearer token'
       });
       return;
     }
 
-    const user = await authService.getUserById(userId);
-
-    if (!user) {
-      console.log(`DEBUG - User not found for id: ${userId}`);
-      res.status(401).json({
+    if (!process.env.JWT_SECRET) {
+      console.error('JWT_SECRET environment variable is not set');
+      res.status(500).json({
         success: false,
-        message: 'User not found'
+        message: 'Server configuration error'
       });
       return;
     }
 
-    console.log('DEBUG - User from database:', user);
+    // Use synchronous verification
+    try {
+      const decoded = jwt.verify(token.trim(), process.env.JWT_SECRET) as any;
+      
+      console.log('Token decoded successfully:', {
+        userId: decoded.id,
+        userType: decoded.user_type,
+        email: decoded.email,
+        exp: decoded.exp ? new Date(decoded.exp * 1000).toISOString() : 'No expiration'
+      });
 
-    req.user = {
-      id: userId,
-      email: decoded.email,
-      user_type: decoded.user_type as 'employer' | 'admin' | 'jobseeker',
-      first_name: (user as any).first_name ?? (user as any).firstname ?? (user as any).given_name ?? '',
-      last_name: (user as any).last_name ?? (user as any).lastname ?? (user as any).surname ?? '',
-      name: user.name,
-      iat: decoded.iat,
-      exp: decoded.exp
-    };
+      // Validate that required fields exist
+      if (!decoded.id || !decoded.email || !decoded.user_type) {
+        console.log('Token missing required fields:', decoded);
+        res.status(403).json({
+          success: false,
+          message: 'Invalid token structure',
+          details: 'Token is missing required user information'
+        });
+        return;
+      }
 
-    console.log('DEBUG - req.user set to:', req.user);
-    next();
+      // Add user info to request object
+      req.user = {
+        id: decoded.id,
+        email: decoded.email,
+        user_type: decoded.user_type
+      };
+
+      console.log('Authentication successful for user:', req.user.id);
+      next();
+    } catch (jwtError: any) {
+      console.log('Token verification failed:', {
+        errorName: jwtError.name,
+        errorMessage: jwtError.message,
+        tokenLength: token.length
+      });
+
+      let message = 'Invalid or expired token';
+      let statusCode = 403;
+
+      if (jwtError.name === 'TokenExpiredError') {
+        message = 'Token has expired';
+        statusCode = 401;
+      } else if (jwtError.name === 'JsonWebTokenError') {
+        message = 'Invalid token format';
+        statusCode = 403;
+      } else if (jwtError.name === 'NotBeforeError') {
+        message = 'Token not active yet';
+        statusCode = 403;
+      }
+
+      res.status(statusCode).json({
+        success: false,
+        message: message,
+        details: 'Please login again to get a valid token'
+      });
+      return;
+    }
   } catch (error: any) {
-    console.error('Token verification error:', {
-      message: error.message,
-      name: error.name,
-      stack: error.stack,
-      tokenSnippet: token.substring(0, 10) + '...'
-    });
-
-    if (error instanceof jwt.TokenExpiredError) {
-      res.status(401).json({
-        success: false,
-        message: 'Token expired',
-        expiredAt: error.expiredAt
-      });
-      return;
-    } else if (error instanceof jwt.JsonWebTokenError) {
-      res.status(401).json({
-        success: false,
-        message: 'Invalid token'
-      });
-      return;
-    }
-
-    res.status(403).json({
+    console.error('Authentication middleware error:', error);
+    res.status(500).json({
       success: false,
-      message: 'Invalid or expired token',
-      error: error.message
+      message: 'Authentication failed',
+      details: 'Internal server error during authentication'
     });
     return;
   }
-};
-
-export const requireEmployer = (req: AuthenticatedRequest, res: Response, next: NextFunction): void => {
-  if (!req.user) {
-    console.log('DEBUG - No authenticated user');
-    res.status(401).json({
-      success: false,
-      message: 'Authentication required'
-    });
-    return;
-  }
-
-  if (req.user.user_type !== 'employer') {
-    console.log(`DEBUG - User type ${req.user.user_type} is not employer`);
-    res.status(403).json({
-      success: false,
-      message: 'Employer access required'
-    });
-    return;
-  }
-
-  next();
 };
 
 export const requireJobseeker = (req: AuthenticatedRequest, res: Response, next: NextFunction): void => {
+  console.log('Jobseeker role check:', {
+    userExists: !!req.user,
+    userType: req.user?.user_type,
+    userId: req.user?.id
+  });
+
   if (!req.user) {
-    console.log('DEBUG - No authenticated user');
     res.status(401).json({
       success: false,
-      message: 'Authentication required'
+      message: 'Authentication required',
+      details: 'Please login first'
     });
     return;
   }
 
   if (req.user.user_type !== 'jobseeker') {
-    console.log(`DEBUG - User type ${req.user.user_type} is not jobseeker`);
+    console.log('Access denied - not a jobseeker:', req.user.user_type);
     res.status(403).json({
       success: false,
-      message: 'This endpoint is only available to jobseekers'
+      message: 'Access denied. Jobseeker role required.',
+      currentRole: req.user.user_type,
+      requiredRole: 'jobseeker'
     });
     return;
   }
 
+  console.log('Jobseeker role check passed for user:', req.user.id);
+  next();
+};
+
+export const requireEmployer = (req: AuthenticatedRequest, res: Response, next: NextFunction): void => {
+  console.log('Employer role check:', {
+    userExists: !!req.user,
+    userType: req.user?.user_type,
+    userId: req.user?.id,
+    url: req.url
+  });
+
+  if (!req.user) {
+    console.log('Employer check failed: No user in request');
+    res.status(401).json({
+      success: false,
+      message: 'Authentication required',
+      details: 'Please login with an employer account'
+    });
+    return;
+  }
+
+  if (req.user.user_type !== 'employer') {
+    console.log('Access denied - not an employer:', {
+      actualRole: req.user.user_type,
+      requiredRole: 'employer',
+      userId: req.user.id
+    });
+    res.status(403).json({
+      success: false,
+      message: 'Access denied. Employer role required.',
+      currentRole: req.user.user_type,
+      requiredRole: 'employer'
+    });
+    return;
+  }
+
+  console.log('Employer role check passed for user:', req.user.id);
   next();
 };
 
 export const requireAdmin = (req: AuthenticatedRequest, res: Response, next: NextFunction): void => {
+  console.log('Admin role check:', {
+    userExists: !!req.user,
+    userType: req.user?.user_type,
+    userId: req.user?.id
+  });
+
   if (!req.user) {
-    console.log('DEBUG - No authenticated user');
     res.status(401).json({
       success: false,
-      message: 'Authentication required'
+      message: 'Authentication required',
+      details: 'Please login with an admin account'
     });
     return;
   }
 
   if (req.user.user_type !== 'admin') {
-    console.log(`DEBUG - User type ${req.user.user_type} is not admin`);
+    console.log('Access denied - not an admin:', req.user.user_type);
     res.status(403).json({
       success: false,
-      message: 'Admin access required'
+      message: 'Access denied. Admin role required.',
+      currentRole: req.user.user_type,
+      requiredRole: 'admin'
     });
     return;
   }
 
+  console.log('Admin role check passed for user:', req.user.id);
   next();
 };
 
-export const requireRoles = (allowedRoles: ('jobseeker' | 'employer' | 'admin')[]) => {
-  return (req: AuthenticatedRequest, res: Response, next: NextFunction): void => {
-    if (!req.user) {
-      console.log('DEBUG - No authenticated user');
-      res.status(401).json({
-        success: false,
-        message: 'Authentication required'
-      });
-      return;
-    }
+// Optional auth middleware - allows both authenticated and non-authenticated users
+export const optionalAuth = (req: AuthenticatedRequest, res: Response, next: NextFunction): void => {
+  const authHeader = req.headers['authorization'] || req.headers['Authorization'];
+  let token: string | null = null;
 
-    if (!allowedRoles.includes(req.user.user_type)) {
-      console.log(`DEBUG - User type ${req.user.user_type} not in allowed roles: ${allowedRoles.join(', ')}`);
-      res.status(403).json({
-        success: false,
-        message: `Access denied. Required roles: ${allowedRoles.join(', ')}`
-      });
-      return;
-    }
-
-    next();
-  };
-};
-
-export const optionalAuth = async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
-  const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1]?.trim();
-
-  if (!token) {
-    console.log('DEBUG - No token provided, continuing as guest');
-    req.user = undefined;
-    next();
-    return;
-  }
-
-  try {
-    const decoded = verifyToken(token) as JwtPayload;
-    const userId = String(decoded.id).trim();
-    if (!isValidUUID(userId)) {
-      console.log(`DEBUG - Invalid UUID format in token: ${userId}`);
-      req.user = undefined;
-      next();
-      return;
-    }
-
-    const user = await authService.getUserById(userId);
-
-    if (user) {
-      req.user = {
-        id: userId,
-        email: decoded.email,
-        user_type: decoded.user_type as 'employer' | 'admin' | 'jobseeker',
-        first_name: (user as any).first_name ?? (user as any).firstname ?? (user as any).given_name ?? '',
-        last_name: (user as any).last_name ?? (user as any).lastname ?? (user as any).surname ?? '',
-        name: user.name,
-        iat: decoded.iat,
-        exp: decoded.exp
-      };
+  if (authHeader && typeof authHeader === 'string') {
+    if (authHeader.startsWith('Bearer ')) {
+      token = authHeader.substring(7);
     } else {
-      console.log(`DEBUG - User not found for id: ${userId}, continuing as guest`);
-      req.user = undefined;
+      token = authHeader;
     }
-  } catch (error: any) {
-    console.warn('Invalid token in optional auth:', error.message);
-    req.user = undefined;
   }
 
-  next();
-};
-
-export const requireEmployerWithId = async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
-  // First ensure the user is authenticated
-  if (!req.user) {
-    console.log('DEBUG - No authenticated user in requireEmployerWithId');
-    res.status(401).json({
-      success: false,
-      message: 'Authentication required'
-    });
+  if (!token || token.trim() === '') {
+    // No token provided - continue without user info
+    console.log('Optional auth: No token provided');
+    next();
     return;
   }
 
-  if (req.user.user_type !== 'employer') {
-    console.log(`DEBUG - User type ${req.user.user_type} is not employer`);
-    res.status(403).json({
-      success: false,
-      message: 'This endpoint is only available to employers'
-    });
+  if (!process.env.JWT_SECRET) {
+    console.error('JWT_SECRET not configured');
+    next();
     return;
   }
 
   try {
-    const userId = req.user.id.trim();
-    if (!isValidUUID(userId)) {
-      console.log(`DEBUG - Invalid UUID format: ${userId}`);
-      res.status(401).json({
-        success: false,
-        message: 'Invalid user ID format'
-      });
-      return;
+    const decoded = jwt.verify(token.trim(), process.env.JWT_SECRET) as any;
+    
+    if (decoded.id && decoded.email && decoded.user_type) {
+      req.user = {
+        id: decoded.id,
+        email: decoded.email,
+        user_type: decoded.user_type
+      };
+      console.log('Optional auth: User authenticated:', req.user.id);
     }
-
-    const employer = await authService.getEmployerByUserId(userId);
-
-    if (!employer) {
-      console.log(`DEBUG - No employer profile found for user_id: ${userId}`);
-      res.status(403).json({
-        success: false,
-        message: 'Employer profile not found'
-      });
-      return;
-    }
-
-    req.user.employer_id = employer.id;
-    req.user.company_id = employer.company_id;
-    console.log(`DEBUG - Employer ID set: ${req.user.employer_id}`);
     next();
-  } catch (error: any) {
-    console.error('Error fetching employer data:', error.message);
-    res.status(500).json({
-      success: false,
-      message: 'Internal server error'
-    });
-    return;
+  } catch (error) {
+    // Invalid token - continue without user info
+    console.log('Optional auth: Invalid token, continuing without user');
+    next();
   }
 };
 
-// NEW: Middleware for jobseekers with additional user validation
-export const requireJobseekerWithId = async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
-  // First ensure the user is authenticated
-  if (!req.user) {
-    console.log('DEBUG - No authenticated user in requireJobseekerWithId');
-    res.status(401).json({
-      success: false,
-      message: 'Authentication required'
-    });
-    return;
-  }
-
-  if (req.user.user_type !== 'jobseeker') {
-    console.log(`DEBUG - User type ${req.user.user_type} is not jobseeker`);
-    res.status(403).json({
-      success: false,
-      message: 'This endpoint is only available to jobseekers'
-    });
-    return;
-  }
-
-  try {
-    const userId = req.user.id.trim();
-    if (!isValidUUID(userId)) {
-      console.log(`DEBUG - Invalid UUID format: ${userId}`);
-      res.status(401).json({
-        success: false,
-        message: 'Invalid user ID format'
-      });
-      return;
-    }
-
-    // Verify jobseeker profile exists (optional check)
-    const user = await authService.getUserById(userId);
-    if (!user) {
-      console.log(`DEBUG - No user profile found for user_id: ${userId}`);
-      res.status(403).json({
-        success: false,
-        message: 'User profile not found'
-      });
-      return;
-    }
-
-    console.log(`DEBUG - Jobseeker authenticated: ${userId}`);
-    next();
-  } catch (error: any) {
-    console.error('Error fetching jobseeker data:', error.message);
-    res.status(500).json({
-      success: false,
-      message: 'Internal server error'
-    });
-    return;
-  }
-};
-
-// NEW: Middleware for both employer and jobseeker access (for training operations)
+// Middleware to require either employer or jobseeker role
 export const requireEmployerOrJobseeker = (req: AuthenticatedRequest, res: Response, next: NextFunction): void => {
+  console.log('EmployerOrJobseeker role check:', {
+    userExists: !!req.user,
+    userType: req.user?.user_type,
+    userId: req.user?.id
+  });
+
   if (!req.user) {
-    console.log('DEBUG - No authenticated user');
     res.status(401).json({
       success: false,
-      message: 'Authentication required'
+      message: 'Authentication required',
+      details: 'Please login first'
     });
     return;
   }
 
-  if (!['employer', 'jobseeker'].includes(req.user.user_type)) {
-    console.log(`DEBUG - User type ${req.user.user_type} not allowed`);
+  if (req.user.user_type !== 'employer' && req.user.user_type !== 'jobseeker') {
     res.status(403).json({
       success: false,
-      message: 'This endpoint is only available to employers and jobseekers'
+      message: 'Access denied. Employer or jobseeker role required.',
+      currentRole: req.user.user_type,
+      allowedRoles: ['employer', 'jobseeker']
     });
     return;
   }
 
-  console.log(`DEBUG - ${req.user.user_type} access granted`);
+  console.log('EmployerOrJobseeker role check passed for user:', req.user.id);
   next();
 };
-
-// NEW: Flexible role-based access control
-export const requireAnyRole = (...roles: ('jobseeker' | 'employer' | 'admin')[]) => {
-  return (req: AuthenticatedRequest, res: Response, next: NextFunction): void => {
-    if (!req.user) {
-      console.log('DEBUG - No authenticated user');
-      res.status(401).json({
-        success: false,
-        message: 'Authentication required'
-      });
-      return;
-    }
-
-    if (!roles.includes(req.user.user_type)) {
-      console.log(`DEBUG - User type ${req.user.user_type} not in allowed roles: ${roles.join(', ')}`);
-      res.status(403).json({
-        success: false,
-        message: `Access denied. Required roles: ${roles.join(', ')}`
-      });
-      return;
-    }
-
-    console.log(`DEBUG - Role ${req.user.user_type} access granted`);
-    next();
-  };
-};
-
-export interface EmployerAuthenticatedRequest extends AuthenticatedRequest {
-  user?: AuthenticatedRequest['user'] & {
-    employer_id?: string;
-    company_id?: string;
-  };
-}
-
-export interface JobseekerAuthenticatedRequest extends AuthenticatedRequest {
-  user?: AuthenticatedRequest['user'] & {
-    jobseeker_id?: string;
-  };
-}

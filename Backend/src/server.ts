@@ -237,7 +237,8 @@ app.get('/api', (req: Request, res: Response) => {
         base: '/api/jobs',
         public_routes: [
           'GET /api/jobs - Get all jobs (with filters)',
-          'GET /api/jobs/details/:jobId - Get job details'
+          'GET /api/jobs/details/:jobId - Get job details',
+          'GET /stats'
         ],
         jobseeker_routes: [
           'GET /api/jobs/jobseeker/recommended - Get recommended jobs',
@@ -253,7 +254,8 @@ app.get('/api', (req: Request, res: Response) => {
           'GET /api/jobs/my-jobs - Get employer jobs',
           'PUT /api/jobs/employer/:jobId - Update job',
           'DELETE /api/jobs/employer/:jobId - Delete job',
-          'GET /api/jobs/employer/:jobId/applications - Get job applications'
+          'GET /api/jobs/employer/:jobId/applications - Get job applications',
+          
         ]
       },
       trainings: {
@@ -324,6 +326,7 @@ app.use('*', (req: Request, res: Response) => {
       '/api/auth/*',
       '/api/jobs/*',
       '/api/trainings/*',
+      '/api/jobs/stats ',
       '/health',
       '/health/db',
       '/api'

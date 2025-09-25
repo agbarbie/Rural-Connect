@@ -452,8 +452,8 @@
       </button>
     </div>
 
-    <!-- Analytics Section -->
-    <div class="analytics-section" *ngIf="jobStats.total_jobs > 0 && !isLoading">
+    <!-- Analytics Section - UPDATED FOR NEW JOBSTATS STRUCTURE -->
+    <div class="analytics-section" *ngIf="jobStats.overview.total_jobs > 0 && !isLoading">
       <h3 class="section-title">
         <i class="fas fa-chart-bar"></i>
         Job Posts Analytics
@@ -465,7 +465,7 @@
             <i class="fas fa-briefcase"></i>
           </div>
           <div class="card-data">
-            <h4>{{ jobStats.total_jobs }}</h4>
+            <h4>{{ jobStats.overview.total_jobs }}</h4>
             <p>Total Job Posts</p>
           </div>
         </div>
@@ -475,7 +475,7 @@
             <i class="fas fa-play"></i>
           </div>
           <div class="card-data">
-            <h4>{{ jobStats.active_jobs }}</h4>
+            <h4>{{ jobStats.overview.active_jobs }}</h4>
             <p>Active Posts</p>
           </div>
         </div>
@@ -485,7 +485,7 @@
             <i class="fas fa-users"></i>
           </div>
           <div class="card-data">
-            <h4>{{ jobStats.total_applications }}</h4>
+            <h4>{{ jobStats.overview.total_applications }}</h4>
             <p>Total Applications</p>
           </div>
         </div>
@@ -495,8 +495,37 @@
             <i class="fas fa-star"></i>
           </div>
           <div class="card-data">
-            <h4>{{ jobStats.featured_jobs_count }}</h4>
+            <h4>{{ jobStats.overview.featured_jobs_count }}</h4>
             <p>Featured Jobs</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Additional Analytics - Using new structure -->
+      <div class="additional-analytics" *ngIf="jobStats.recent_activity">
+        <h4 class="section-subtitle">Recent Activity</h4>
+        <div class="activity-grid">
+          <div class="activity-item">
+            <span class="activity-number">{{ jobStats.recent_activity.jobs_posted_last_30_days }}</span>
+            <span class="activity-label">Jobs Posted (30 days)</span>
+          </div>
+          <div class="activity-item">
+            <span class="activity-number">{{ jobStats.recent_activity.applications_last_30_days }}</span>
+            <span class="activity-label">Applications (30 days)</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Top Performing Jobs -->
+      <div class="top-jobs" *ngIf="jobStats.top_performing_jobs && jobStats.top_performing_jobs.length > 0">
+        <h4 class="section-subtitle">Top Performing Jobs</h4>
+        <div class="top-jobs-list">
+          <div class="top-job-item" *ngFor="let topJob of jobStats.top_performing_jobs | slice:0:3">
+            <div class="job-info">
+              <span class="job-name">{{ topJob.title }}</span>
+              <span class="job-stats">{{ topJob.applications_count }} applications • {{ topJob.views_count }} views</span>
+            </div>
+            <span class="job-status" [class]="topJob.status.toLowerCase()">{{ topJob.status }}</span>
           </div>
         </div>
       </div>

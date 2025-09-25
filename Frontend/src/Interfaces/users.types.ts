@@ -1,5 +1,5 @@
 export interface User {
-  id: number;
+  id: string;  // Changed from number to string to match your API
   name: string;
   email: string;
   user_type: 'jobseeker' | 'employer' | 'admin';
@@ -7,15 +7,19 @@ export interface User {
   contact_number?: string;
   company_name?: string;
   role_in_company?: string;
+  company_id?: string; // Added company_id as optional
   created_at: string;
   updated_at: string;
 }
 
+// Fixed AuthResponse to match your actual API structure
 export interface AuthResponse {
   success: boolean;
   message: string;
-  token?: string;
-  user?: User;
+  data?: {
+    user: User;
+    token: string;
+  };
 }
 
 export interface RegisterRequest {

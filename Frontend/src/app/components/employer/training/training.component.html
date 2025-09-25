@@ -12,7 +12,7 @@
     
     <div class="nav-section">
       <div class="nav-title">Main</div>
-      <a href="#" class="nav-item active" routerLink="/dashboard">
+      <a href="#" class="nav-item" routerLink="/dashboard">
         <i class="fas fa-th-large"></i>
         <span>Dashboard</span>
       </a>
@@ -29,7 +29,7 @@
         <i class="fas fa-robot"></i>
         <span>AI Recommendations</span>
       </a>
-      <a href="#" class="nav-item" routerLink="../training">
+      <a href="#" class="nav-item active" routerLink="../training">
         <i class="fas fa-chalkboard-teacher"></i>
         <span>Training Posts</span>
       </a>
@@ -37,7 +37,7 @@
         <i class="fas fa-users"></i>
         <span>Candidates Matches</span>
       </a>
-      <a href="#" class="nav-item" routerLink="../Interviews">
+      <a href="#" class="nav-item" routerLink="../interviews">
         <i class="fas fa-calendar-check"></i>
         <span>Interviews</span>
       </a>
@@ -61,7 +61,7 @@
           <i class="fas fa-building"></i>
         </div>
         <div class="profile-info">
-          <span class="company-name">{{employerName}}</span>
+          <span class="company-name">{{ employerName }}</span>
           <span class="role">Employer</span>
         </div>
       </div>
@@ -79,10 +79,60 @@
         </h1>
         <p class="page-description">Manage and track your training programs</p>
       </div>
-      <button class="btn-primary" (click)="toggleAddForm()">
+      <button class="btn-primary" (click)="toggleAddForm()" [disabled]="isLoading">
         <i class="fas fa-plus"></i>
         Add New Training
       </button>
+    </div>
+
+    <!-- Error Alert -->
+    <div class="alert alert-error" *ngIf="error">
+      <div class="alert-content">
+        <i class="fas fa-exclamation-triangle"></i>
+        <span>{{ error }}</span>
+      </div>
+      <button class="btn-close" (click)="clearError()">
+        <i class="fas fa-times"></i>
+      </button>
+    </div>
+
+    <!-- Loading Indicator -->
+    <div class="loading-overlay" *ngIf="isLoading">
+      <div class="loading-content">
+        <div class="spinner"></div>
+        <span>Loading...</span>
+      </div>
+    </div>
+
+    <!-- Search and Filters -->
+    <div class="search-filters" *ngIf="!showAddForm">
+      <div class="search-box">
+        <input 
+          type="text" 
+          placeholder="Search trainings..." 
+          (input)="onSearch($any($event.target).value)"
+          class="search-input">
+        <i class="fas fa-search"></i>
+      </div>
+      
+      <div class="filters">
+        <select (change)="onFilterChange('category', $any($event.target).value)" class="filter-select">
+          <option value="">All Categories</option>
+          <option *ngFor="let category of categories" [value]="category">{{ category }}</option>
+        </select>
+        
+        <select (change)="onFilterChange('level', $any($event.target).value)" class="filter-select">
+          <option value="">All Levels</option>
+          <option *ngFor="let level of levels" [value]="level">{{ level }}</option>
+        </select>
+        
+        <select (change)="onFilterChange('status', $any($event.target).value)" class="filter-select">
+          <option value="">All Status</option>
+          <option value="published">Published</option>
+          <option value="draft">Draft</option>
+          <option value="suspended">Suspended</option>
+        </select>
+      </div>
     </div>
 
     <!-- Add Training Form -->
@@ -96,97 +146,331 @@
         </div>
         
         <form class="training-form" (ngSubmit)="addTraining()">
-          <div class="form-row">
-            <div class="form-group">
-              <label for="title">Training Title *</label>
-              <input 
-                type="text" 
-                id="title" 
-                [(ngModel)]="newTraining.title" 
-                name="title"
-                placeholder="Enter training title"
-                required>
+          <!-- Basic Information -->
+          <div class="form-section">
+            <h4>Basic Information</h4>
+            
+            <div class="form-row">
+              <div class="form-group">
+                <label for="title">Training Title *</label>
+                <input 
+                  type="text" 
+                  id="title" 
+                  [(ngModel)]="newTraining.title" 
+                  name="title"
+                  placeholder="Enter training title"
+                  required>
+              </div>
+              <div class="form-group">
+                <label for="category">Category *</label>
+                <select 
+                  id="category"
+                  [(ngModel)]="newTraining.category" 
+                  name="category"
+                  required>
+                  <option *ngFor="let category of categories" [value]="category">{{ category }}</option>
+                </select>
+              </div>
             </div>
+
             <div class="form-group">
-              <label for="duration">Duration *</label>
-              <input 
-                type="text" 
-                id="duration" 
-                [(ngModel)]="newTraining.duration" 
-                name="duration"
-                placeholder="e.g., 2 hours"
-                required>
+              <label for="description">Description *</label>
+              <textarea 
+                id="description" 
+                [(ngModel)]="newTraining.description" 
+                name="description"
+                rows="3"
+                placeholder="Enter training description"
+                required></textarea>
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label for="level">Level *</label>
+                <select 
+                  id="level"
+                  [(ngModel)]="newTraining.level" 
+                  name="level"
+                  required>
+                  <option *ngFor="let level of levels" [value]="level">{{ level }}</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label for="duration">Duration (hours) *</label>
+                <input 
+                  type="number" 
+                  id="duration" 
+                  [(ngModel)]="newTraining.duration_hours" 
+                  name="duration"
+                  min="0.5"
+                  step="0.5"
+                  placeholder="e.g., 2"
+                  required>
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label for="mode">Mode *</label>
+                <select 
+                  id="mode"
+                  [(ngModel)]="newTraining.mode" 
+                  name="mode"
+                  (change)="onModeChange()"
+                  required>
+                  <option value="Online">Online</option>
+                  <option value="Offline">Offline</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label for="costType">Cost Type *</label>
+                <select 
+                  id="costType"
+                  [(ngModel)]="newTraining.cost_type" 
+                  name="costType"
+                  (change)="onCostTypeChange()"
+                  required>
+                  <option value="Free">Free</option>
+                  <option value="Paid">Paid</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="form-row" *ngIf="newTraining.cost_type === 'Paid' || newTraining.mode === 'Offline'">
+              <div class="form-group" *ngIf="newTraining.cost_type === 'Paid'">
+                <label for="price">Price ($) *</label>
+                <input 
+                  type="number" 
+                  id="price"
+                  [(ngModel)]="newTraining.price" 
+                  name="price"
+                  min="0"
+                  step="0.01"
+                  placeholder="0.00">
+              </div>
+              <div class="form-group" *ngIf="newTraining.mode === 'Offline'">
+                <label for="location">Location *</label>
+                <input 
+                  type="text" 
+                  id="location"
+                  [(ngModel)]="newTraining.location" 
+                  name="location"
+                  placeholder="Training venue">
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label for="startDate">Start Date</label>
+                <input 
+                  type="date" 
+                  id="startDate"
+                  [(ngModel)]="newTraining.start_date" 
+                  name="startDate">
+              </div>
+              <div class="form-group">
+                <label for="endDate">End Date</label>
+                <input 
+                  type="date" 
+                  id="endDate"
+                  [(ngModel)]="newTraining.end_date" 
+                  name="endDate">
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label for="maxParticipants">Max Participants</label>
+                <input 
+                  type="number" 
+                  id="maxParticipants"
+                  [(ngModel)]="newTraining.max_participants" 
+                  name="maxParticipants"
+                  min="0"
+                  placeholder="Unlimited if empty">
+              </div>
+              <div class="form-group">
+                <label for="thumbnail">Thumbnail Image</label>
+                <input 
+                  type="file" 
+                  id="thumbnail"
+                  accept="image/*"
+                  (change)="onThumbnailSelected($event)">
+              </div>
             </div>
           </div>
 
-          <div class="form-group">
-            <label for="description">Description *</label>
-            <textarea 
-              id="description" 
-              [(ngModel)]="newTraining.description" 
-              name="description"
-              rows="3"
-              placeholder="Enter training description"
-              required></textarea>
-          </div>
-
-          <div class="form-row">
-            <div class="form-group">
-              <label for="videoType">Video Type</label>
-              <select id="videoType" [(ngModel)]="newTraining.videoType" name="videoType">
-                <option value="youtube">YouTube</option>
-                <option value="vimeo">Vimeo</option>
-                <option value="local">Local File</option>
-              </select>
+          <!-- Training Videos -->
+          <div class="form-section">
+            <div class="section-header">
+              <h4>Training Videos</h4>
+              <button 
+                type="button" 
+                class="btn-secondary btn-small" 
+                (click)="toggleVideoForm()">
+                <i class="fas fa-plus"></i>
+                Add Video
+              </button>
             </div>
-            <div class="form-group">
-              <label for="criteria">Completion Criteria</label>
-              <input 
-                type="text" 
-                id="criteria" 
-                [(ngModel)]="newTraining.completionCriteria" 
-                name="criteria"
-                placeholder="e.g., Watch till end">
+            
+            <!-- Video List -->
+            <div class="video-list" *ngIf="newTraining.videos.length > 0">
+              <div class="video-item" *ngFor="let video of newTraining.videos; let i = index">
+                <div class="video-info">
+                  <h5>{{ video.title }}</h5>
+                  <p>{{ video.description }}</p>
+                  <div class="video-meta">
+                    <span class="video-duration">{{ video.duration_minutes }} min</span>
+                    <span class="video-preview" *ngIf="video.is_preview">Preview</span>
+                  </div>
+                </div>
+                <button 
+                  type="button" 
+                  class="btn-delete btn-small" 
+                  (click)="removeVideo(i)">
+                  <i class="fas fa-trash"></i>
+                </button>
+              </div>
+            </div>
+            
+            <!-- Video Form -->
+            <div class="video-form-card" *ngIf="showVideoForm">
+              <div class="form-row">
+                <div class="form-group">
+                  <label for="videoTitle">Video Title *</label>
+                  <input 
+                    type="text" 
+                    id="videoTitle"
+                    [(ngModel)]="newVideo.title" 
+                    name="videoTitle"
+                    placeholder="Enter video title">
+                </div>
+                <div class="form-group">
+                  <label for="videoDuration">Duration (minutes) *</label>
+                  <input 
+                    type="number" 
+                    id="videoDuration"
+                    [(ngModel)]="newVideo.duration_minutes" 
+                    name="videoDuration"
+                    min="1"
+                    placeholder="Duration in minutes">
+                </div>
+              </div>
+              
+              <div class="form-group">
+                <label for="videoDescription">Video Description</label>
+                <textarea 
+                  id="videoDescription"
+                  [(ngModel)]="newVideo.description" 
+                  name="videoDescription"
+                  rows="2"
+                  placeholder="Brief description of video content"></textarea>
+              </div>
+              
+              <div class="form-group">
+                <label for="videoUrl">Video URL</label>
+                <input 
+                  type="url" 
+                  id="videoUrl"
+                  [(ngModel)]="newVideo.video_url" 
+                  name="videoUrl"
+                  placeholder="https://youtube.com/watch?v=...">
+              </div>
+              
+              <div class="form-options">
+                <label class="checkbox-label">
+                  <input 
+                    type="checkbox" 
+                    [(ngModel)]="newVideo.is_preview" 
+                    name="isPreview">
+                  <span class="checkmark"></span>
+                  Allow as preview
+                </label>
+              </div>
+              
+              <div class="form-actions">
+                <button type="button" class="btn-primary btn-small" (click)="addVideo()">Add Video</button>
+                <button type="button" class="btn-secondary btn-small" (click)="toggleVideoForm()">Cancel</button>
+              </div>
             </div>
           </div>
 
-          <div class="form-group" *ngIf="newTraining.videoType !== 'local'">
-            <label for="videoUrl">Video URL *</label>
-            <input 
-              type="url" 
-              id="videoUrl" 
-              [(ngModel)]="newTraining.videoUrl" 
-              name="videoUrl"
-              placeholder="Enter video URL"
-              required>
+          <!-- Learning Outcomes -->
+          <div class="form-section">
+            <div class="section-header">
+              <h4>Learning Outcomes</h4>
+              <button 
+                type="button" 
+                class="btn-secondary btn-small" 
+                (click)="toggleOutcomeForm()">
+                <i class="fas fa-plus"></i>
+                Add Outcome
+              </button>
+            </div>
+            
+            <!-- Outcomes List -->
+            <div class="outcomes-list" *ngIf="newTraining.outcomes.length > 0">
+              <div class="outcome-item" *ngFor="let outcome of newTraining.outcomes; let i = index">
+                <span class="outcome-text">{{ outcome.outcome_text }}</span>
+                <button 
+                  type="button" 
+                  class="btn-delete btn-small" 
+                  (click)="removeOutcome(i)">
+                  <i class="fas fa-trash"></i>
+                </button>
+              </div>
+            </div>
+            
+            <!-- Outcome Form -->
+            <div class="outcome-form-card" *ngIf="showOutcomeForm">
+              <div class="form-group">
+                <label for="outcomeText">Learning Outcome *</label>
+                <textarea 
+                  id="outcomeText"
+                  [(ngModel)]="newOutcome.outcome_text" 
+                  name="outcomeText"
+                  rows="2"
+                  placeholder="Students will be able to..."></textarea>
+              </div>
+              
+              <div class="form-actions">
+                <button type="button" class="btn-primary btn-small" (click)="addOutcome()">Add Outcome</button>
+                <button type="button" class="btn-secondary btn-small" (click)="toggleOutcomeForm()">Cancel</button>
+              </div>
+            </div>
           </div>
 
-          <div class="form-group" *ngIf="newTraining.videoType === 'local'">
-            <label for="videoFile">Upload Video File *</label>
-            <input 
-              type="file" 
-              id="videoFile" 
-              (change)="onFileSelected($event)"
-              accept="video/*"
-              required>
+          <!-- Additional Options -->
+          <div class="form-section">
+            <h4>Additional Options</h4>
+            
+            <div class="form-options">
+              <label class="checkbox-label">
+                <input 
+                  type="checkbox" 
+                  [(ngModel)]="newTraining.has_certificate" 
+                  name="certificate">
+                <span class="checkmark"></span>
+                Issue Certificate upon completion
+              </label>
+            </div>
           </div>
 
-          <div class="form-options">
-            <label class="checkbox-label">
-              <input 
-                type="checkbox" 
-                [(ngModel)]="newTraining.issueCertificate" 
-                name="certificate">
-              <span class="checkmark"></span>
-              Issue Certificate upon completion
-            </label>
+          <!-- Validation Errors -->
+          <div class="validation-errors" *ngIf="getValidationErrors().length > 0">
+            <h4>Please fix the following errors:</h4>
+            <ul>
+              <li *ngFor="let error of getValidationErrors()">{{ error }}</li>
+            </ul>
           </div>
 
+          <!-- Form Actions -->
           <div class="form-actions">
             <button type="button" class="btn-secondary" (click)="toggleAddForm()">Cancel</button>
-            <button type="submit" class="btn-primary" [disabled]="!isFormValid()">
+            <button type="submit" class="btn-primary" [disabled]="!isFormValid() || isLoading">
               <i class="fas fa-save"></i>
-              Create Training
+              <span *ngIf="isLoading">Creating...</span>
+              <span *ngIf="!isLoading">Create Training</span>
             </button>
           </div>
         </form>
@@ -194,14 +478,14 @@
     </div>
 
     <!-- Training List -->
-    <div class="training-grid">
+    <div class="training-grid" *ngIf="!showAddForm">
       <div class="training-card" *ngFor="let training of trainings">
         <div class="card-header">
           <div class="video-icon">
             <i class="fas fa-play-circle"></i>
           </div>
-          <div class="training-status" [class]="training.status.toLowerCase()">
-            {{ training.status }}
+          <div class="training-status" [ngClass]="training.status">
+            {{ getStatusText(training.status) }}
           </div>
         </div>
 
@@ -212,15 +496,23 @@
           <div class="training-meta">
             <div class="meta-item">
               <i class="fas fa-clock"></i>
-              <span>{{ training.duration }}</span>
+              <span>{{ formatDuration(training.duration_hours) }}</span>
             </div>
             <div class="meta-item">
               <i class="fas fa-users"></i>
-              <span>{{ training.completedBy.length }} completed</span>
+              <span>{{ training.total_students }} enrolled</span>
             </div>
-            <div class="meta-item" *ngIf="training.issueCertificate">
+            <div class="meta-item">
+              <i class="fas fa-star"></i>
+              <span>{{ training.rating | number:'1.1-1' }}</span>
+            </div>
+            <div class="meta-item" *ngIf="training.cost_type === 'Paid'">
+              <i class="fas fa-dollar-sign"></i>
+              <span>{{ formatPrice(training.price, training.cost_type) }}</span>
+            </div>
+            <div class="meta-item" *ngIf="training.has_certificate">
               <i class="fas fa-certificate"></i>
-              <span>{{ training.certificatesIssued }} certificates</span>
+              <span>Certificate</span>
             </div>
           </div>
         </div>
@@ -231,11 +523,49 @@
             View Details
           </button>
           <div class="action-buttons">
-            <button class="btn-toggle" (click)="toggleTrainingStatus(training)" 
-                    [title]="training.status === 'Active' ? 'Close Training' : 'Activate Training'">
-              <i class="fas" [class]="training.status === 'Active' ? 'fa-pause' : 'fa-play'"></i>
+            <button 
+              class="btn-analytics" 
+              (click)="viewTrainingAnalytics(training)"
+              title="View Analytics">
+              <i class="fas fa-chart-bar"></i>
             </button>
-            <button class="btn-delete" (click)="deleteTraining(training.id)" title="Delete Training">
+            <button 
+              class="btn-enrollments" 
+              (click)="viewEnrollments(training)"
+              title="View Enrollments">
+              <i class="fas fa-users"></i>
+            </button>
+            <button 
+              *ngIf="training.status === 'draft'"
+              class="btn-publish" 
+              (click)="publishTraining(training)" 
+              title="Publish Training">
+              <i class="fas fa-upload"></i>
+            </button>
+            <button 
+              *ngIf="training.status === 'published'"
+              class="btn-unpublish" 
+              (click)="unpublishTraining(training)" 
+              title="Unpublish Training">
+              <i class="fas fa-download"></i>
+            </button>
+            <button 
+              *ngIf="training.status === 'published'"
+              class="btn-suspend" 
+              (click)="suspendTraining(training)" 
+              title="Suspend Training">
+              <i class="fas fa-pause"></i>
+            </button>
+            <button 
+              class="btn-duplicate" 
+              (click)="duplicateTraining(training)" 
+              title="Duplicate Training">
+              <i class="fas fa-copy"></i>
+            </button>
+            <button 
+              class="btn-delete" 
+              (click)="deleteTraining(training.id)" 
+              title="Delete Training">
               <i class="fas fa-trash"></i>
             </button>
           </div>
@@ -243,7 +573,7 @@
       </div>
 
       <!-- Empty State -->
-      <div class="empty-state" *ngIf="trainings.length === 0">
+      <div class="empty-state" *ngIf="trainings.length === 0 && !isLoading">
         <i class="fas fa-chalkboard-teacher"></i>
         <h3>No Training Programs Yet</h3>
         <p>Create your first training program to get started</p>
@@ -254,8 +584,31 @@
       </div>
     </div>
 
+    <!-- Pagination -->
+    <div class="pagination" *ngIf="totalPages > 1 && !showAddForm">
+      <button 
+        class="btn-secondary"
+        [disabled]="currentPage === 1"
+        (click)="onPageChange(currentPage - 1)">
+        <i class="fas fa-chevron-left"></i>
+        Previous
+      </button>
+      
+      <span class="page-info">
+        Page {{ currentPage }} of {{ totalPages }}
+      </span>
+      
+      <button 
+        class="btn-secondary"
+        [disabled]="currentPage === totalPages"
+        (click)="onPageChange(currentPage + 1)">
+        Next
+        <i class="fas fa-chevron-right"></i>
+      </button>
+    </div>
+
     <!-- Analytics Summary -->
-    <div class="analytics-section" *ngIf="trainings.length > 0">
+    <div class="analytics-section" *ngIf="trainings.length > 0 && stats && !showAddForm">
       <h3 class="section-title">
         <i class="fas fa-chart-bar"></i>
         Training Analytics
@@ -267,7 +620,7 @@
             <i class="fas fa-video"></i>
           </div>
           <div class="card-data">
-            <h4>{{ trainings.length }}</h4>
+            <h4>{{ stats.total_trainings }}</h4>
             <p>Total Trainings</p>
           </div>
         </div>
@@ -277,8 +630,18 @@
             <i class="fas fa-play"></i>
           </div>
           <div class="card-data">
-            <h4>{{ activeTrainingsCount }}</h4>
-            <p>Active Trainings</p>
+            <h4>{{ stats.published_trainings }}</h4>
+            <p>Published</p>
+          </div>
+        </div>
+
+        <div class="analytics-card">
+          <div class="card-icon draft">
+            <i class="fas fa-edit"></i>
+          </div>
+          <div class="card-data">
+            <h4>{{ stats.draft_trainings }}</h4>
+            <p>Drafts</p>
           </div>
         </div>
 
@@ -287,8 +650,8 @@
             <i class="fas fa-users"></i>
           </div>
           <div class="card-data">
-            <h4>{{ totalCompletions }}</h4>
-            <p>Total Completions</p>
+            <h4>{{ stats.total_enrollments }}</h4>
+            <p>Total Enrollments</p>
           </div>
         </div>
 
@@ -297,8 +660,18 @@
             <i class="fas fa-certificate"></i>
           </div>
           <div class="card-data">
-            <h4>{{ totalCertificates }}</h4>
-            <p>Certificates Issued</p>
+            <h4>{{ stats.avg_rating | number:'1.1-1' }}</h4>
+            <p>Average Rating</p>
+          </div>
+        </div>
+
+        <div class="analytics-card">
+          <div class="card-icon revenue">
+            <i class="fas fa-dollar-sign"></i>
+          </div>
+          <div class="card-data">
+            <h4>${{ stats.total_revenue | number:'1.0-0' }}</h4>
+            <p>Total Revenue</p>
           </div>
         </div>
       </div>
@@ -309,51 +682,54 @@
   <div class="video-modal" *ngIf="showVideoPlayer && selectedTraining">
     <div class="modal-backdrop" (click)="closeVideoPlayer()"></div>
     <div class="modal-content">
-      <div class="modal-header" *ngIf="selectedTraining">
+      <div class="modal-header">
         <h3>{{ selectedTraining.title }}</h3>
         <button class="btn-close" (click)="closeVideoPlayer()">
           <i class="fas fa-times"></i>
         </button>
       </div>
       
-      <div class="video-container" *ngIf="selectedTraining">
-        <iframe 
-          [src]="getTrustedUrl(getVideoEmbedUrl(selectedTraining.videoUrl, selectedTraining.videoType))"
-          frameborder="0"
-          allowfullscreen>
-        </iframe>
-      </div>
-      
-      <div class="video-controls">
-        <div class="progress-container">
-          <div class="progress-bar">
-            <div class="progress-fill" [style.width.%]="videoProgress"></div>
-          </div>
-          <span class="progress-text">{{ videoProgress.toFixed(0) }}% completed</span>
+      <div class="modal-body">
+        <div class="training-details">
+          <p><strong>Description:</strong> {{ selectedTraining.description }}</p>
+          <p><strong>Duration:</strong> {{ formatDuration(selectedTraining.duration_hours) }}</p>
+          <p><strong>Level:</strong> {{ selectedTraining.level }}</p>
+          <p><strong>Category:</strong> {{ selectedTraining.category }}</p>
+          <p><strong>Students:</strong> {{ selectedTraining.total_students }}</p>
+          <p *ngIf="selectedTraining.has_certificate">
+            <i class="fas fa-certificate text-success"></i>
+            <strong>Certificate will be issued upon completion</strong>
+          </p>
         </div>
-        
-        <div class="completion-actions" *ngIf="isVideoCompleted">
-          <div class="completion-message">
-            <i class="fas fa-check-circle"></i>
-            <span>Training completed! Well done!</span>
+
+        <!-- Training Videos -->
+        <div class="videos-section" *ngIf="selectedTraining.videos && selectedTraining.videos.length > 0">
+          <h4>Course Content</h4>
+          <div class="video-list-modal">
+            <div class="video-item-modal" *ngFor="let video of selectedTraining.videos">
+              <div class="video-thumbnail">
+                <i class="fas fa-play"></i>
+              </div>
+              <div class="video-details">
+                <h5>{{ video.title }}</h5>
+                <p>{{ video.description }}</p>
+                <span class="video-duration">{{ video.duration_minutes }} minutes</span>
+                <span class="video-preview-badge" *ngIf="video.is_preview">Preview</span>
+              </div>
+            </div>
           </div>
-          <button class="btn-primary" (click)="markTrainingCompleted()" *ngIf="selectedTraining">
-            <i class="fas fa-certificate"></i>
-            {{ selectedTraining.issueCertificate ? 'Get Certificate' : 'Mark as Completed' }}
-          </button>
         </div>
-      </div>
-      
-      <div class="training-info" *ngIf="selectedTraining">
-        <p><strong>Description:</strong> {{ selectedTraining.description }}</p>
-        <p><strong>Duration:</strong> {{ selectedTraining.duration }}</p>
-        <p><strong>Completion Criteria:</strong> {{ selectedTraining.completionCriteria }}</p>
-        <p *ngIf="selectedTraining.issueCertificate">
-          <i class="fas fa-certificate text-success"></i>
-          <strong>Certificate will be issued upon completion</strong>
-        </p>
+
+        <!-- Learning Outcomes -->
+        <div class="outcomes-section" *ngIf="selectedTraining.outcomes && selectedTraining.outcomes.length > 0">
+          <h4>Learning Outcomes</h4>
+          <ul class="outcomes-list-modal">
+            <li *ngFor="let outcome of selectedTraining.outcomes">
+              {{ outcome.outcome_text }}
+            </li>
+          </ul>
+        </div>
       </div>
     </div>
   </div>
 </div>
-
