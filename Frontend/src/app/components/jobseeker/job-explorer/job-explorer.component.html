@@ -22,7 +22,7 @@
     <a href="#" class="nav-item" routerLink="/job-explorer">
       <i class="fas fa-briefcase"></i>
       <span>Jobs Explorer</span>
-      <span class="nav-badge">5</span>
+      <span class="nav-badge" *ngIf="recommendedCount > 0">{{ recommendedCount }}</span>
     </a>
     <a href="#" class="nav-item" routerLink="/ai-recommendations">
       <i class="fas fa-robot"></i>
@@ -59,16 +59,21 @@
   <!-- Header -->
   <div class="header">
     <div class="header-left">
-      <button class="back-btn">
+      <button class="back-btn" routerLink="/dashboard">
         <i class="fas fa-arrow-left"></i>
       </button>
       <h1 class="page-title">Jobs Explorer</h1>
-      <span class="match-count">{{ filteredJobs.length }} Matches</span>
+      <span class="match-count">{{ totalJobs }} {{ totalJobs === 1 ? 'Match' : 'Matches' }}</span>
     </div>
     <div class="header-right">
       <div class="search-container">
         <i class="fas fa-search search-icon"></i>
-        <input type="text" placeholder="Search jobs, companies..." class="search-input">
+        <input 
+          type="text" 
+          placeholder="Search jobs, companies..." 
+          class="search-input"
+          [(ngModel)]="searchQuery"
+          (keyup.enter)="onSearchSubmit()">
       </div>
       <button class="notification-btn">
         <i class="fas fa-bell"></i>
@@ -155,20 +160,28 @@
     </button>
   </div>
 
+  <!-- Loading Spinner -->
+  <div *ngIf="isLoading" class="loading-overlay">
+    <div class="spinner"></div>
+    <p>Loading jobs...</p>
+  </div>
+
   <!-- Jobs List -->
-  <div class="jobs-container">
+  <div class="jobs-container" *ngIf="!isLoading">
     <div *ngFor="let job of filteredJobs" class="job-card">
       <div class="job-header">
         <div class="company-info">
-          <img [src]="job.companyLogo" [alt]="job.company" class="company-logo" 
-               onerror="this.src='https://via.placeholder.com/50x50/4285f4/ffffff?text=' + job.company.charAt(0)">
+          <img 
+            [src]="getCompanyLogo(job)" 
+            [alt]="job.company_name || 'Company'" 
+            class="company-logo">
           <div class="job-title-company">
             <h3 class="job-title">{{ job.title }}</h3>
-            <p class="company-name">{{ job.company }}</p>
+            <p class="company-name">{{ job.company_name || 'Company' }}</p>
           </div>
         </div>
         <div class="match-score">
-          <span class="match-percentage">{{ job.matchScore }}% Match</span>
+          <span class="match-percentage">{{ getMatchScore(job) }}% Match</span>
         </div>
       </div>
 
@@ -176,7 +189,7 @@
         <div class="job-meta">
           <div class="meta-item">
             <i class="fas fa-briefcase"></i>
-            <span>{{ job.type }}</span>
+            <span>{{ getJobType(job) }}</span>
           </div>
           <div class="meta-item">
             <i class="fas fa-map-marker-alt"></i>
@@ -184,24 +197,24 @@
           </div>
           <div class="meta-item">
             <i class="fas fa-clock"></i>
-            <span>Posted {{ job.postedDays }} days ago</span>
+            <span>Posted {{ getPostedDays(job.created_at) }} days ago</span>
           </div>
         </div>
 
         <div class="salary-rating">
           <div class="salary">
             <i class="fas fa-dollar-sign"></i>
-            <span>{{ job.salary }}</span>
+            <span>{{ formatSalary(job) }}</span>
           </div>
           <div class="rating">
             <div class="stars">
-              <span *ngFor="let star of getStarArray(job.rating)" class="star">
+              <span *ngFor="let star of getStarArray(getRating(job))" class="star">
                 <i class="fas fa-star" *ngIf="star === 1"></i>
                 <i class="fas fa-star-half-alt" *ngIf="star === 0.5"></i>
                 <i class="far fa-star" *ngIf="star === 0"></i>
               </span>
             </div>
-            <span class="rating-number">{{ job.rating }}</span>
+            <span class="rating-number">{{ getRating(job) }}</span>
           </div>
         </div>
       </div>
@@ -210,32 +223,40 @@
         <p>{{ job.description }}</p>
       </div>
 
-      <div class="job-skills">
+      <div class="job-skills" *ngIf="getSkillsArray(job).length > 0">
         <div class="skills-container">
-          <span *ngFor="let skill of job.skills" class="skill-tag">{{ skill }}</span>
+          <span *ngFor="let skill of getSkillsArray(job)" class="skill-tag">{{ skill }}</span>
         </div>
       </div>
 
-      <div class="job-benefits">
+      <div class="job-benefits" *ngIf="getBenefitsArray(job).length > 0">
         <div class="benefits-container">
           <i class="fas fa-gift benefits-icon"></i>
-          <span *ngFor="let benefit of job.benefits; let last = last" class="benefit">
+          <span *ngFor="let benefit of getBenefitsArray(job); let last = last" class="benefit">
             {{ benefit }}<span *ngIf="!last">, </span>
           </span>
         </div>
       </div>
 
       <div class="job-actions">
-        <button class="save-btn" (click)="saveJob(job.id)">
-          <i class="far fa-bookmark"></i>
+        <button 
+          class="save-btn" 
+          (click)="saveJob(getJobId(job))"
+          [disabled]="isSaving === getJobId(job)"
+          [class.saved]="isJobSaved(getJobId(job))">
+          <i 
+            [class.fas]="isJobSaved(getJobId(job))" 
+            [class.far]="!isJobSaved(getJobId(job))" 
+            class="fa-bookmark"></i>
         </button>
         <button 
           class="apply-btn" 
-          [class.applied]="isJobApplied(job.id)"
-          (click)="applyToJob(job.id)"
-          [disabled]="isJobApplied(job.id)">
-          <span *ngIf="!isJobApplied(job.id)">Apply</span>
-          <span *ngIf="isJobApplied(job.id)">Applied</span>
+          [class.applied]="isJobApplied(getJobId(job))"
+          (click)="applyToJob(getJobId(job))"
+          [disabled]="isJobApplied(getJobId(job)) || isApplying === getJobId(job)">
+          <span *ngIf="isApplying === getJobId(job)">Applying...</span>
+          <span *ngIf="isApplying !== getJobId(job) && !isJobApplied(getJobId(job))">Apply</span>
+          <span *ngIf="isApplying !== getJobId(job) && isJobApplied(getJobId(job))">Applied</span>
         </button>
       </div>
     </div>
@@ -245,6 +266,26 @@
       <i class="fas fa-search empty-icon"></i>
       <h3>No jobs found</h3>
       <p>Try adjusting your filters to see more results</p>
+    </div>
+
+    <!-- Pagination -->
+    <div class="pagination" *ngIf="totalPages > 1 && filteredJobs.length > 0">
+      <button 
+        class="pagination-btn" 
+        (click)="previousPage()" 
+        [disabled]="currentPage === 1">
+        <i class="fas fa-chevron-left"></i> Previous
+      </button>
+      <div class="pagination-info">
+        <span>Page {{ currentPage }} of {{ totalPages }}</span>
+        <span class="total-items">({{ totalJobs }} total jobs)</span>
+      </div>
+      <button 
+        class="pagination-btn" 
+        (click)="nextPage()" 
+        [disabled]="currentPage === totalPages">
+        Next <i class="fas fa-chevron-right"></i>
+      </button>
     </div>
   </div>
 </div>
@@ -262,5 +303,22 @@
     <button class="notification-close" (click)="hideNotification()">
       <i class="fas fa-times"></i>
     </button>
+  </div>
+</div>
+
+<!-- Error/Info Notifications -->
+<div class="notifications-container">
+  <div 
+    *ngFor="let notification of notifications" 
+    class="notification-toast" 
+    [class.success]="notification.type === 'success'"
+    [class.error]="notification.type === 'error'"
+    [class.info]="notification.type === 'info'">
+    <i class="fas" 
+       [class.fa-check-circle]="notification.type === 'success'"
+       [class.fa-exclamation-circle]="notification.type === 'error'"
+       [class.fa-info-circle]="notification.type === 'info'"></i>
+    <span>{{ notification.message }}</span>
+    <button class="close-toast" (click)="dismissNotification(notification.id)">×</button>
   </div>
 </div>

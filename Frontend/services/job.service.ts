@@ -16,6 +16,13 @@ interface User {
 }
 
 export interface Job {
+skills: any;
+rating: any;
+salary: any;
+postedDays: any;
+type: any;
+matchScore: any;
+company: any;
   id: string;
   title: string;
   description: string;
@@ -133,6 +140,7 @@ export interface ApiResponse<T> {
 }
 
 export interface PaginatedResponse<T> {
+  data: any[];
   jobs: T[];
   pagination: {
     current_page: number;
@@ -600,70 +608,109 @@ updateJob(jobId: string, updateData: Partial<CreateJobRequest>): Observable<ApiR
     );
   }
 
-  saveJob(jobId: string): Observable<ApiResponse<any>> {
-    console.log('Saving job ID:', jobId);
-
-    return this.http.post<ApiResponse<any>>(`${this.apiUrl}/jobseeker/bookmark/${jobId}`, {}, {
-      headers: this.getAuthHeaders()
-    }).pipe(
-      tap(response => console.log('Save job response:', response)),
-      catchError(error => {
-        console.error('Error saving job:', error);
-        if (error.status === 401) {
-          console.error('401 Unauthorized: Clearing auth data');
-          this.authService.logout();
-        }
-        return throwError(() => error);
-      })
-    );
+saveJob(jobId: string): Observable<ApiResponse<any>> {
+  if (!this.authService.isAuthenticated()) {
+    console.error('saveJob: User is not authenticated');
+    return throwError(() => ({
+      error: { message: 'Authentication required. Please log in again.' }
+    }));
   }
 
-  unsaveJob(jobId: string): Observable<ApiResponse<any>> {
-    console.log('Unsaving job ID:', jobId);
+  console.log('JobService.saveJob - Saving job ID:', jobId);
 
-    return this.http.delete<ApiResponse<any>>(`${this.apiUrl}/jobseeker/bookmark/${jobId}`, {
-      headers: this.getAuthHeaders()
-    }).pipe(
-      tap(response => console.log('Unsave job response:', response)),
-      catchError(error => {
-        console.error('Error unsaving job:', error);
-        if (error.status === 401) {
-          console.error('401 Unauthorized: Clearing auth data');
-          this.authService.logout();
-        }
-        return throwError(() => error);
-      })
-    );
+  // FIXED: Your backend route is: POST /jobs/jobseeker/bookmark/:jobId
+  return this.http.post<ApiResponse<any>>(`${this.apiUrl}/jobseeker/bookmark/${jobId}`, {}, {
+    headers: this.getAuthHeaders()
+  }).pipe(
+    tap(response => {
+      console.log('JobService.saveJob - Response:', response);
+    }),
+    catchError(error => {
+      console.error('JobService.saveJob - Error:', error);
+      console.error('JobService.saveJob - Error status:', error.status);
+      console.error('JobService.saveJob - Error body:', error.error);
+      
+      if (error.status === 401) {
+        console.error('401 Unauthorized: Clearing auth data');
+        this.authService.logout();
+      }
+      return throwError(() => error);
+    })
+  );
+}
+
+// Replace the existing unsaveJob method:
+unsaveJob(jobId: string): Observable<ApiResponse<any>> {
+  if (!this.authService.isAuthenticated()) {
+    console.error('unsaveJob: User is not authenticated');
+    return throwError(() => ({
+      error: { message: 'Authentication required. Please log in again.' }
+    }));
   }
 
-  getSavedJobs(query?: { page?: number; limit?: number }): Observable<ApiResponse<PaginatedResponse<any>>> {
-    let params = new HttpParams();
-    
-    if (query) {
-      Object.entries(query).forEach(([key, value]) => {
-        if (value !== undefined && value !== null) {
-          params = params.set(key, value.toString());
-        }
-      });
-    }
+  console.log('JobService.unsaveJob - Unsaving job ID:', jobId);
 
-    console.log('Fetching saved jobs with params:', params.toString());
+  // FIXED: Your backend route is: DELETE /jobs/jobseeker/bookmark/:jobId
+  return this.http.delete<ApiResponse<any>>(`${this.apiUrl}/jobseeker/bookmark/${jobId}`, {
+    headers: this.getAuthHeaders()
+  }).pipe(
+    tap(response => {
+      console.log('JobService.unsaveJob - Response:', response);
+    }),
+    catchError(error => {
+      console.error('JobService.unsaveJob - Error:', error);
+      console.error('JobService.unsaveJob - Error status:', error.status);
+      console.error('JobService.unsaveJob - Error body:', error.error);
+      
+      if (error.status === 401) {
+        console.error('401 Unauthorized: Clearing auth data');
+        this.authService.logout();
+      }
+      return throwError(() => error);
+    })
+  );
+}
 
-    return this.http.get<ApiResponse<PaginatedResponse<any>>>(`${this.apiUrl}/jobseeker/bookmarked`, {
-      headers: this.getAuthHeaders(),
-      params
-    }).pipe(
-      tap(response => console.log('Get saved jobs response:', response)),
-      catchError(error => {
-        console.error('Error fetching saved jobs:', error);
-        if (error.status === 401) {
-          console.error('401 Unauthorized: Clearing auth data');
-          this.authService.logout();
-        }
-        return throwError(() => error);
-      })
-    );
+// Replace the existing getSavedJobs method:
+getSavedJobs(query?: { page?: number; limit?: number }): Observable<ApiResponse<PaginatedResponse<any>>> {
+  if (!this.authService.isAuthenticated()) {
+    console.error('getSavedJobs: User is not authenticated');
+    return throwError(() => ({
+      error: { message: 'Authentication required. Please log in again.' }
+    }));
   }
+
+  let params = new HttpParams();
+  
+  if (query) {
+    Object.entries(query).forEach(([key, value]) => {
+      if (value !== undefined && value !== null) {
+        params = params.set(key, value.toString());
+      }
+    });
+  }
+
+  console.log('JobService.getSavedJobs - Fetching with params:', params.toString());
+
+  // FIXED: Your backend route is: GET /jobs/jobseeker/bookmarked
+  return this.http.get<ApiResponse<PaginatedResponse<any>>>(`${this.apiUrl}/jobseeker/bookmarked`, {
+    headers: this.getAuthHeaders(),
+    params
+  }).pipe(
+    tap(response => {
+      console.log('JobService.getSavedJobs - Response:', response);
+    }),
+    catchError(error => {
+      console.error('JobService.getSavedJobs - Error:', error);
+      
+      if (error.status === 401) {
+        console.error('401 Unauthorized: Clearing auth data');
+        this.authService.logout();
+      }
+      return throwError(() => error);
+    })
+  );
+}
 
   applyToJob(jobId: string, applicationData: {
     coverLetter?: string;

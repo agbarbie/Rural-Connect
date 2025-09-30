@@ -3,7 +3,7 @@ import { HttpClient, HttpHeaders, HttpParams } from '@angular/common/http';
 import { Observable, BehaviorSubject, throwError } from 'rxjs';
 import { catchError, tap } from 'rxjs/operators';
 
-// Types matching your backend
+// Unified Training interface that works with both employer and jobseeker components
 export interface Training {
   id: string;
   title: string;
@@ -11,6 +11,7 @@ export interface Training {
   category: string;
   level: 'Beginner' | 'Intermediate' | 'Advanced';
   duration_hours: number;
+  duration?: string;
   cost_type: 'Free' | 'Paid';
   price: number;
   mode: 'Online' | 'Offline';
@@ -29,12 +30,20 @@ export interface Training {
   created_at: Date;
   updated_at: Date;
   
-  // Computed properties for frontend
+  // Frontend properties
   enrolled?: boolean;
   progress?: number;
   enrollment_status?: 'enrolled' | 'in_progress' | 'completed' | 'dropped';
   videos?: TrainingVideo[];
   outcomes?: TrainingOutcome[];
+
+  // Legacy compatibility
+  videoType?: 'youtube' | 'vimeo' | 'local';
+  videoUrl?: string;
+  completionCriteria?: string;
+  issueCertificate?: boolean;
+  completedBy?: string[];
+  certificatesIssued?: number;
 }
 
 export interface TrainingVideo {
@@ -44,8 +53,10 @@ export interface TrainingVideo {
   description?: string;
   video_url?: string;
   duration_minutes: number;
+  duration?: number;
   order_index: number;
   is_preview?: boolean;
+  completed?: boolean;
   created_at?: Date;
 }
 
@@ -92,62 +103,6 @@ export interface TrainingStats {
   completion_rate: number;
 }
 
-export interface TrainingEnrollment {
-  id: string;
-  training_id: string;
-  user_id: string;
-  status: 'enrolled' | 'in_progress' | 'completed' | 'dropped';
-  progress_percentage: number;
-  enrolled_at: Date;
-  completed_at?: Date;
-  certificate_issued: boolean;
-  user?: {
-    id: string;
-    first_name: string;
-    last_name: string;
-    email: string;
-    profile_image?: string;
-  };
-}
-
-export interface TrainingAnalytics {
-  training_info: {
-    id: string;
-    title: string;
-    status: string;
-    created_at: Date;
-  };
-  enrollment_metrics: {
-    total_enrollments: number;
-    completed_enrollments: number;
-    in_progress_enrollments: number;
-    dropped_enrollments: number;
-    completion_rate: number;
-    drop_rate: number;
-    avg_progress: number;
-    certificates_issued: number;
-  };
-  review_metrics: {
-    avg_rating: number;
-    total_reviews: number;
-    rating_distribution: {
-      five_star: number;
-      four_star: number;
-      three_star: number;
-      two_star: number;
-      one_star: number;
-    };
-  };
-  trends: {
-    daily_enrollments: Array<{
-      date: string;
-      enrollments: number;
-      completions: number;
-    }>;
-  };
-  time_range: string;
-}
-
 export interface ApiResponse<T> {
   success: boolean;
   data?: T;
@@ -187,7 +142,6 @@ export class TrainingService {
   private readonly API_BASE = 'http://localhost:5000/api';
   private readonly TRAINING_ENDPOINT = `${this.API_BASE}/trainings`;
   
-  // State management
   private trainingsSubject = new BehaviorSubject<Training[]>([]);
   private loadingSubject = new BehaviorSubject<boolean>(false);
   private errorSubject = new BehaviorSubject<string | null>(null);
@@ -198,16 +152,9 @@ export class TrainingService {
 
   constructor(private http: HttpClient) {}
 
-  // FIXED: Helper method to get auth headers
   private getAuthHeaders(): HttpHeaders {
     const token = localStorage.getItem('token');
     
-    // Debug token
-    console.log('Getting auth headers:', {
-      hasToken: !!token,
-      tokenPreview: token ? token.substring(0, 20) + '...' : 'No token'
-    });
-
     if (!token) {
       console.warn('No token found in localStorage');
       return new HttpHeaders({
@@ -221,7 +168,6 @@ export class TrainingService {
     });
   }
 
-  // Helper method to handle errors
   private handleError(error: any): Observable<never> {
     console.error('Training service error:', error);
     let errorMessage = 'An unexpected error occurred';
@@ -236,7 +182,6 @@ export class TrainingService {
     return throwError(() => new Error(errorMessage));
   }
 
-  // Helper method to build query params
   private buildParams(params: TrainingSearchParams): HttpParams {
     let httpParams = new HttpParams();
     
@@ -249,9 +194,7 @@ export class TrainingService {
     return httpParams;
   }
 
-  // ================ EMPLOYER METHODS ================
-
-  // Get all trainings for employer (my trainings)
+  // EMPLOYER METHODS
   getMyTrainings(params: TrainingSearchParams = {}): Observable<PaginatedResponse<{ trainings: Training[] }>> {
     this.loadingSubject.next(true);
     
@@ -278,54 +221,24 @@ export class TrainingService {
     );
   }
 
-  // FIXED: Create new training - the main method causing the error
   createTraining(trainingData: CreateTrainingRequest): Observable<ApiResponse<Training>> {
-    console.log('=== CREATING TRAINING ===');
-    console.log('Training data:', trainingData);
+    console.log('Creating training:', trainingData);
     
-    // Check if user is authenticated
     const token = localStorage.getItem('token');
     if (!token) {
-      console.error('No authentication token found');
       return throwError(() => new Error('Authentication required'));
-    }
-
-    // Debug token payload
-    try {
-      const payload = JSON.parse(atob(token.split('.')[1]));
-      console.log('Token payload:', {
-        id: payload.id,
-        email: payload.email,
-        user_type: payload.user_type,
-        exp: new Date(payload.exp * 1000)
-      });
-      
-      if (payload.user_type !== 'employer') {
-        console.error('User is not an employer:', payload.user_type);
-        return throwError(() => new Error('Only employers can create trainings'));
-      }
-    } catch (error) {
-      console.error('Error parsing token:', error);
-      return throwError(() => new Error('Invalid authentication token'));
     }
 
     this.loadingSubject.next(true);
     
-    const headers = this.getAuthHeaders();
-    console.log('Request headers:', {
-      'Content-Type': headers.get('Content-Type'),
-      'Authorization': headers.get('Authorization') ? 'Present' : 'Missing'
-    });
-    
     return this.http.post<ApiResponse<Training>>(
       this.TRAINING_ENDPOINT,
       trainingData,
-      { headers }
+      { headers: this.getAuthHeaders() }
     ).pipe(
       tap(response => {
         console.log('Training creation response:', response);
         if (response.success && response.data) {
-          // Add new training to the beginning of the list
           const currentTrainings = this.trainingsSubject.value;
           this.trainingsSubject.next([response.data, ...currentTrainings]);
         }
@@ -340,7 +253,6 @@ export class TrainingService {
     );
   }
 
-  // Update training
   updateTraining(id: string, trainingData: UpdateTrainingRequest): Observable<ApiResponse<Training>> {
     this.loadingSubject.next(true);
     
@@ -351,7 +263,6 @@ export class TrainingService {
     ).pipe(
       tap(response => {
         if (response.success && response.data) {
-          // Update training in the list
           const currentTrainings = this.trainingsSubject.value;
           const updatedTrainings = currentTrainings.map(training => 
             training.id === id ? response.data! : training
@@ -368,7 +279,6 @@ export class TrainingService {
     );
   }
 
-  // Delete training
   deleteTraining(id: string): Observable<ApiResponse<void>> {
     this.loadingSubject.next(true);
     
@@ -378,7 +288,6 @@ export class TrainingService {
     ).pipe(
       tap(response => {
         if (response.success) {
-          // Remove training from the list
           const currentTrainings = this.trainingsSubject.value;
           const filteredTrainings = currentTrainings.filter(training => training.id !== id);
           this.trainingsSubject.next(filteredTrainings);
@@ -393,7 +302,6 @@ export class TrainingService {
     );
   }
 
-  // Publish training
   publishTraining(id: string): Observable<ApiResponse<Training>> {
     return this.http.post<ApiResponse<Training>>(
       `${this.TRAINING_ENDPOINT}/${id}/publish`,
@@ -402,7 +310,6 @@ export class TrainingService {
     ).pipe(
       tap(response => {
         if (response.success && response.data) {
-          // Update training status in the list
           const currentTrainings = this.trainingsSubject.value;
           const updatedTrainings = currentTrainings.map(training => 
             training.id === id ? { ...training, status: 'published' as const } : training
@@ -415,7 +322,6 @@ export class TrainingService {
     );
   }
 
-  // Unpublish training
   unpublishTraining(id: string): Observable<ApiResponse<Training>> {
     return this.http.post<ApiResponse<Training>>(
       `${this.TRAINING_ENDPOINT}/${id}/unpublish`,
@@ -424,7 +330,6 @@ export class TrainingService {
     ).pipe(
       tap(response => {
         if (response.success && response.data) {
-          // Update training status in the list
           const currentTrainings = this.trainingsSubject.value;
           const updatedTrainings = currentTrainings.map(training => 
             training.id === id ? { ...training, status: 'draft' as const } : training
@@ -437,7 +342,6 @@ export class TrainingService {
     );
   }
 
-  // Suspend training
   suspendTraining(id: string): Observable<ApiResponse<Training>> {
     return this.http.post<ApiResponse<Training>>(
       `${this.TRAINING_ENDPOINT}/${id}/suspend`,
@@ -446,7 +350,6 @@ export class TrainingService {
     ).pipe(
       tap(response => {
         if (response.success && response.data) {
-          // Update training status in the list
           const currentTrainings = this.trainingsSubject.value;
           const updatedTrainings = currentTrainings.map(training => 
             training.id === id ? { ...training, status: 'suspended' as const } : training
@@ -459,17 +362,234 @@ export class TrainingService {
     );
   }
 
-  // Get training statistics
+  // JOBSEEKER METHODS
+  getJobseekerTrainings(params: TrainingSearchParams = {}): Observable<PaginatedResponse<{ trainings: Training[] }>> {
+    this.loadingSubject.next(true);
+    
+    console.log('Fetching jobseeker trainings with params:', params);
+    
+    const httpParams = this.buildParams(params);
+    
+    return this.http.get<PaginatedResponse<{ trainings: Training[] }>>(
+      `${this.TRAINING_ENDPOINT}/jobseeker/available`,
+      { 
+        headers: this.getAuthHeaders(),
+        params: httpParams
+      }
+    ).pipe(
+      tap(response => {
+        console.log('Jobseeker trainings response:', response);
+        if (response.success && response.data?.trainings) {
+          console.log('Found trainings:', response.data.trainings.length);
+          this.trainingsSubject.next(response.data.trainings);
+        }
+        this.loadingSubject.next(false);
+        this.errorSubject.next(null);
+      }),
+      catchError(error => {
+        console.error('Error fetching jobseeker trainings:', error);
+        this.loadingSubject.next(false);
+        return this.handleError(error);
+      })
+    );
+  }
+
+enrollInTraining(trainingId: string): Observable<ApiResponse<any>> {
+  console.log('Enrolling in training:', trainingId);
+  
+  return this.http.post<ApiResponse<any>>(
+    `${this.TRAINING_ENDPOINT}/${trainingId}/enroll`,
+    {},
+    { headers: this.getAuthHeaders() }
+  ).pipe(
+    tap(response => {
+      console.log('Enrollment response:', response);
+      if (response.success) {
+        // Update the training in the current list to reflect enrollment
+        const currentTrainings = this.trainingsSubject.value;
+        const updatedTrainings = currentTrainings.map(training => 
+          training.id === trainingId 
+            ? { ...training, enrolled: true, progress: 0, enrollment_status: 'enrolled' as 'enrolled' }
+            : training
+        );
+        this.trainingsSubject.next(updatedTrainings);
+      }
+      this.errorSubject.next(null);
+    }),
+    catchError(this.handleError.bind(this))
+  );
+}
+
+  getTrainingWithVideos(trainingId: string): Observable<ApiResponse<Training>> {
+  return this.http.get<ApiResponse<Training>>(
+    `${this.TRAINING_ENDPOINT}/${trainingId}`,
+    { headers: this.getAuthHeaders() }
+  ).pipe(
+    tap(response => {
+      console.log('Training details with videos loaded:', response);
+      this.errorSubject.next(null);
+    }),
+    catchError(this.handleError.bind(this))
+  );
+}
+
+getEnrolledTrainings(params: TrainingSearchParams = {}): Observable<PaginatedResponse<{ trainings: Training[] }>> {
+  this.loadingSubject.next(true);
+  
+  const httpParams = this.buildParams(params);
+  
+  return this.http.get<PaginatedResponse<{ trainings: Training[] }>>(
+    `${this.TRAINING_ENDPOINT}/jobseeker/enrolled`,
+    { 
+      headers: this.getAuthHeaders(),
+      params: httpParams
+    }
+  ).pipe(
+    tap(response => {
+      console.log('Enrolled trainings response:', response);
+      if (response.success && response.data?.trainings) {
+        // Don't update main trainings list, this is for enrolled trainings only
+      }
+      this.loadingSubject.next(false);
+      this.errorSubject.next(null);
+    }),
+    catchError(error => {
+      this.loadingSubject.next(false);
+      return this.handleError(error);
+    })
+  );
+}
+
+getEnrolledTrainingDetails(trainingId: string): Observable<ApiResponse<Training>> {
+  return this.http.get<ApiResponse<Training>>(
+    `${this.TRAINING_ENDPOINT}/${trainingId}/enrolled-details`,
+    { headers: this.getAuthHeaders() }
+  ).pipe(
+    tap(response => {
+      console.log('Enrolled training details loaded:', response);
+      this.errorSubject.next(null);
+    }),
+    catchError(this.handleError.bind(this))
+  );
+}
+
+  // NEW METHOD: Get full training details with videos and outcomes
+  getTrainingDetails(trainingId: string): Observable<ApiResponse<Training>> {
+    return this.http.get<ApiResponse<Training>>(
+      `${this.TRAINING_ENDPOINT}/${trainingId}/details`,
+      { headers: this.getAuthHeaders() }
+    ).pipe(
+      tap(response => {
+        console.log('Training details loaded:', response);
+        this.errorSubject.next(null);
+      }),
+      catchError(this.handleError.bind(this))
+    );
+  }
+
+  getVideoProgress(trainingId: string): Observable<ApiResponse<any>> {
+  return this.http.get<ApiResponse<any>>(
+    `${this.TRAINING_ENDPOINT}/${trainingId}/progress`,
+    { headers: this.getAuthHeaders() }
+  ).pipe(
+    tap(response => {
+      console.log('Video progress loaded:', response);
+      this.errorSubject.next(null);
+    }),
+    catchError(this.handleError.bind(this))
+  );
+}
+
+extractVideoId(url: string, videoType?: string): string | null {
+  if (!url) return null;
+  
+  // YouTube URL patterns
+  if (url.includes('youtube.com') || url.includes('youtu.be')) {
+    const youtubeRegex = /(?:youtube\.com\/watch\?v=|youtu\.be\/)([^&\n?#]+)/;
+    const match = url.match(youtubeRegex);
+    return match ? match[1] : null;
+  }
+  
+  // Vimeo URL patterns
+  if (url.includes('vimeo.com')) {
+    const vimeoRegex = /vimeo\.com\/(\d+)/;
+    const match = url.match(vimeoRegex);
+    return match ? match[1] : null;
+  }
+  
+  return url; // For direct file URLs
+}
+
+getVideoEmbedUrl(videoUrl: string): string {
+  if (!videoUrl) return '';
+  
+  // YouTube
+  const youtubeId = this.extractVideoId(videoUrl);
+  if (videoUrl.includes('youtube.com') || videoUrl.includes('youtu.be')) {
+    return `https://www.youtube.com/embed/${youtubeId}?enablejsapi=1&rel=0`;
+  }
+  
+  // Vimeo
+  if (videoUrl.includes('vimeo.com')) {
+    const vimeoId = this.extractVideoId(videoUrl);
+    return `https://player.vimeo.com/video/${vimeoId}?enablejsapi=1`;
+  }
+  
+  return videoUrl; // For direct file URLs
+}
+
+// 10. UTILITY: Check if video is accessible
+isVideoAccessible(video: any, training: Training): boolean {
+  if (training.enrolled) return true;
+  return video.is_preview || false;
+}
+
+
+  updateVideoProgress(trainingId: string, videoId: string, progressData: any): Observable<ApiResponse<any>> {
+  return this.http.put<ApiResponse<any>>(
+    `${this.TRAINING_ENDPOINT}/${trainingId}/video/${videoId}/progress`,
+    progressData,
+    { headers: this.getAuthHeaders() }
+  ).pipe(
+    tap(response => {
+      console.log('Video progress updated:', response);
+      this.errorSubject.next(null);
+    }),
+    catchError(this.handleError.bind(this))
+  );
+}
+completeVideo(trainingId: string, videoId: string, watchTime: number): Observable<ApiResponse<any>> {
+  return this.updateVideoProgress(trainingId, videoId, {
+    is_completed: true,
+    watch_time_minutes: watchTime
+  });
+}
+
+  // NEW METHOD: Update training progress (including video completion)
+  updateTrainingProgress(trainingId: string, progressData: any): Observable<ApiResponse<any>> {
+    return this.http.put<ApiResponse<any>>(
+      `${this.TRAINING_ENDPOINT}/${trainingId}/progress`,
+      progressData,
+      { headers: this.getAuthHeaders() }
+    ).pipe(
+      tap(response => {
+        console.log('Progress updated:', response);
+        this.errorSubject.next(null);
+      }),
+      catchError(this.handleError.bind(this))
+    );
+  }
+  
+  // UTILITY METHODS
   getTrainingStats(): Observable<ApiResponse<TrainingStats>> {
     return this.http.get<ApiResponse<TrainingStats>>(
-      `${this.TRAINING_ENDPOINT}/employer/stats`,
+      `${this.TRAINING_ENDPOINT}/stats/overview`,
       { headers: this.getAuthHeaders() }
     ).pipe(
       catchError(this.handleError.bind(this))
     );
   }
 
-  // Get training by ID
   getTrainingById(id: string): Observable<ApiResponse<Training>> {
     return this.http.get<ApiResponse<Training>>(
       `${this.TRAINING_ENDPOINT}/${id}`,
@@ -479,17 +599,10 @@ export class TrainingService {
     );
   }
 
-  // Get training enrollments
-  getTrainingEnrollments(id: string, params: any = {}): Observable<ApiResponse<{
-    enrollments: TrainingEnrollment[];
-    pagination: any;
-  }>> {
+  getTrainingEnrollments(id: string, params: any = {}): Observable<ApiResponse<any>> {
     const httpParams = this.buildParams(params);
     
-    return this.http.get<ApiResponse<{
-      enrollments: TrainingEnrollment[];
-      pagination: any;
-    }>>(
+    return this.http.get<ApiResponse<any>>(
       `${this.TRAINING_ENDPOINT}/${id}/enrollments`,
       { 
         headers: this.getAuthHeaders(),
@@ -500,11 +613,10 @@ export class TrainingService {
     );
   }
 
-  // Get training analytics
-  getTrainingAnalytics(id: string, timeRange: string = '30days'): Observable<ApiResponse<TrainingAnalytics>> {
+  getTrainingAnalytics(id: string, timeRange: string = '30days'): Observable<ApiResponse<any>> {
     const params = new HttpParams().set('range', timeRange);
     
-    return this.http.get<ApiResponse<TrainingAnalytics>>(
+    return this.http.get<ApiResponse<any>>(
       `${this.TRAINING_ENDPOINT}/${id}/analytics`,
       { 
         headers: this.getAuthHeaders(),
@@ -515,7 +627,6 @@ export class TrainingService {
     );
   }
 
-  // Get training reviews
   getTrainingReviews(id: string, params: any = {}): Observable<ApiResponse<any>> {
     const httpParams = this.buildParams(params);
     
@@ -530,7 +641,6 @@ export class TrainingService {
     );
   }
 
-  // Get training categories
   getTrainingCategories(): Observable<ApiResponse<any[]>> {
     return this.http.get<ApiResponse<any[]>>(
       `${this.TRAINING_ENDPOINT}/categories`
@@ -539,31 +649,24 @@ export class TrainingService {
     );
   }
 
-  // ================ UTILITY METHODS ================
-
-  // Clear errors
   clearError(): void {
     this.errorSubject.next(null);
   }
 
-  // Reset state
   resetState(): void {
     this.trainingsSubject.next([]);
     this.loadingSubject.next(false);
     this.errorSubject.next(null);
   }
 
-  // Get current trainings snapshot
   getCurrentTrainings(): Training[] {
     return this.trainingsSubject.value;
   }
 
-  // Check if user is logged in
   isAuthenticated(): boolean {
     return !!localStorage.getItem('token');
   }
 
-  // Get user type from token
   getUserType(): string | null {
     const token = localStorage.getItem('token');
     if (!token) return null;
@@ -577,7 +680,6 @@ export class TrainingService {
     }
   }
 
-  // Format duration for display
   formatDuration(hours: number): string {
     if (hours < 1) {
       return `${Math.round(hours * 60)} minutes`;
@@ -588,15 +690,13 @@ export class TrainingService {
     return `${hours} hours`;
   }
 
-  // Format price for display
   formatPrice(price: number, costType: string): string {
     if (costType === 'Free') {
       return 'Free';
     }
-    return `$${price.toFixed(2)}`;
+    return `${price.toFixed(2)}`;
   }
 
-  // Get status color for UI
   getStatusColor(status: string): string {
     switch (status) {
       case 'published': return 'green';

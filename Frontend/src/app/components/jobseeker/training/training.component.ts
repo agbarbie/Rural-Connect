@@ -1,32 +1,13 @@
-import { Component, OnInit } from '@angular/core';
-import {CommonModule} from '@angular/common';
+import { Component, OnInit, OnDestroy } from '@angular/core';
+import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-interface Video {
-  id: string;
-  title: string;
-  duration: string;
-  completed: boolean;
-}
-
-interface Training {
-  id: string;
-  title: string;
-  description: string;
-  category: string;
-  level: 'Beginner' | 'Intermediate' | 'Advanced';
-  duration: string;
-  cost: 'Free' | 'Paid';
-  mode: 'Online' | 'Offline';
-  provider: string;
-  certificate: boolean;
-  rating: number;
-  students: number;
-  thumbnail: string;
-  videos: Video[];
-  outcomes: string[];
-  progress: number;
-  enrolled: boolean;
-}
+import { Subject, takeUntil } from 'rxjs';
+import { 
+  TrainingService, 
+  Training, 
+  TrainingSearchParams, 
+  PaginatedResponse 
+} from '../../../../../services/training.service';
 
 interface FilterOptions {
   duration: string[];
@@ -42,158 +23,12 @@ interface FilterOptions {
   imports: [CommonModule, FormsModule],
   styleUrls: ['./training.component.css']
 })
-export class TrainingComponent implements OnInit {
+export class TrainingComponent implements OnInit, OnDestroy {
+  Math = Math; // Add this line
   
-  trainings: Training[] = [
-    {
-      id: '1',
-      title: 'Complete Data Science Bootcamp',
-      description: 'Master data science from basics to advanced machine learning with hands-on projects.',
-      category: 'Data Science',
-      level: 'Intermediate',
-      duration: '45 hours',
-      cost: 'Paid',
-      mode: 'Online',
-      provider: 'TechAcademy',
-      certificate: true,
-      rating: 4.8,
-      students: 15420,
-      thumbnail: 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=300&h=200&fit=crop',
-      progress: 0,
-      enrolled: false,
-      videos: [
-        { id: '1-1', title: 'Introduction to Data Science', duration: '12:30', completed: false },
-        { id: '1-2', title: 'Python Fundamentals', duration: '45:20', completed: false },
-        { id: '1-3', title: 'Data Manipulation with Pandas', duration: '38:15', completed: false },
-        { id: '1-4', title: 'Data Visualization', duration: '52:10', completed: false },
-        { id: '1-5', title: 'Machine Learning Basics', duration: '1:15:30', completed: false }
-      ],
-      outcomes: [
-        'Master Python for data analysis',
-        'Build machine learning models',
-        'Create data visualizations',
-        'Work with real datasets'
-      ]
-    },
-    {
-      id: '2',
-      title: 'Modern Frontend Development',
-      description: 'Learn React, Angular, and Vue.js to build modern web applications.',
-      category: 'Frontend Development',
-      level: 'Beginner',
-      duration: '32 hours',
-      cost: 'Free',
-      mode: 'Online',
-      provider: 'CodeCamp',
-      certificate: true,
-      rating: 4.6,
-      students: 8750,
-      thumbnail: 'https://images.unsplash.com/photo-1627398242454-45a1465c2479?w=300&h=200&fit=crop',
-      progress: 25,
-      enrolled: true,
-      videos: [
-        { id: '2-1', title: 'HTML5 & CSS3 Fundamentals', duration: '28:45', completed: true },
-        { id: '2-2', title: 'JavaScript ES6+', duration: '42:30', completed: true },
-        { id: '2-3', title: 'React Components', duration: '35:20', completed: false },
-        { id: '2-4', title: 'State Management', duration: '48:15', completed: false }
-      ],
-      outcomes: [
-        'Build responsive web applications',
-        'Master modern JavaScript',
-        'Create React components',
-        'Deploy web applications'
-      ]
-    },
-    {
-      id: '3',
-      title: 'Digital Marketing Mastery',
-      description: 'Comprehensive digital marketing course covering SEO, social media, and analytics.',
-      category: 'Marketing',
-      level: 'Beginner',
-      duration: '28 hours',
-      cost: 'Paid',
-      mode: 'Online',
-      provider: 'MarketPro',
-      certificate: true,
-      rating: 4.7,
-      students: 12300,
-      thumbnail: 'https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=300&h=200&fit=crop',
-      progress: 0,
-      enrolled: false,
-      videos: [
-        { id: '3-1', title: 'Digital Marketing Overview', duration: '15:20', completed: false },
-        { id: '3-2', title: 'SEO Fundamentals', duration: '38:45', completed: false },
-        { id: '3-3', title: 'Social Media Marketing', duration: '32:15', completed: false },
-        { id: '3-4', title: 'Google Analytics', duration: '25:30', completed: false }
-      ],
-      outcomes: [
-        'Create effective marketing campaigns',
-        'Optimize websites for search engines',
-        'Analyze marketing performance',
-        'Build brand presence online'
-      ]
-    },
-    {
-      id: '4',
-      title: 'Cloud Computing with AWS',
-      description: 'Learn Amazon Web Services and cloud architecture fundamentals.',
-      category: 'Cloud Computing',
-      level: 'Advanced',
-      duration: '55 hours',
-      cost: 'Paid',
-      mode: 'Online',
-      provider: 'CloudAcademy',
-      certificate: true,
-      rating: 4.9,
-      students: 6820,
-      thumbnail: 'https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=300&h=200&fit=crop',
-      progress: 60,
-      enrolled: true,
-      videos: [
-        { id: '4-1', title: 'AWS Overview', duration: '22:15', completed: true },
-        { id: '4-2', title: 'EC2 Instances', duration: '45:30', completed: true },
-        { id: '4-3', title: 'S3 Storage', duration: '38:20', completed: true },
-        { id: '4-4', title: 'Database Services', duration: '52:45', completed: false },
-        { id: '4-5', title: 'Security Best Practices', duration: '41:30', completed: false }
-      ],
-      outcomes: [
-        'Deploy applications on AWS',
-        'Design scalable architectures',
-        'Implement cloud security',
-        'Manage cloud costs effectively'
-      ]
-    },
-    {
-      id: '5',
-      title: 'UX/UI Design Fundamentals',
-      description: 'Learn user experience and interface design principles with practical projects.',
-      category: 'Design',
-      level: 'Beginner',
-      duration: '25 hours',
-      cost: 'Free',
-      mode: 'Online',
-      provider: 'DesignHub',
-      certificate: false,
-      rating: 4.5,
-      students: 9450,
-      thumbnail: 'https://images.unsplash.com/photo-1561070791-2526d30994b5?w=300&h=200&fit=crop',
-      progress: 0,
-      enrolled: false,
-      videos: [
-        { id: '5-1', title: 'Design Thinking Process', duration: '18:30', completed: false },
-        { id: '5-2', title: 'User Research Methods', duration: '32:45', completed: false },
-        { id: '5-3', title: 'Wireframing & Prototyping', duration: '28:20', completed: false },
-        { id: '5-4', title: 'Visual Design Principles', duration: '35:15', completed: false }
-      ],
-      outcomes: [
-        'Understand user-centered design',
-        'Create wireframes and prototypes',
-        'Apply design principles',
-        'Conduct user research'
-      ]
-    }
-  ];
-
+  private destroy$ = new Subject<void>();
+  
+  trainings: Training[] = [];
   filteredTrainings: Training[] = [];
   selectedCategory: string = 'all';
   searchQuery: string = '';
@@ -206,25 +41,104 @@ export class TrainingComponent implements OnInit {
     category: []
   };
 
-  categories: string[] = ['Data Science', 'Frontend Development', 'Marketing', 'Cloud Computing', 'Design'];
+  categories: string[] = [];
   
   showFilters: boolean = false;
   selectedTraining: Training | null = null;
   showTrainingDetail: boolean = false;
+  
+  // Loading and error states
+  loading: boolean = false;
+  error: string | null = null;
+  
+  // Pagination
+  currentPage: number = 1;
+  totalPages: number = 1;
+  pageSize: number = 12;
+  totalCount: number = 0;
 
-  constructor() { }
+  constructor(private trainingService: TrainingService) {}
 
   ngOnInit(): void {
-    this.filteredTrainings = [...this.trainings];
+    this.loadTrainings();
+    this.loadCategories();
+  }
+
+  ngOnDestroy(): void {
+    this.destroy$.next();
+    this.destroy$.complete();
+  }
+
+  loadTrainings(page: number = 1): void {
+    this.loading = true;
+    this.error = null;
+    
+    const searchParams: TrainingSearchParams = {
+      page: page,
+      limit: this.pageSize,
+      sort_by: 'created_at',
+      sort_order: 'desc',
+      category: this.selectedCategory !== 'all' ? this.selectedCategory : undefined,
+      search: this.searchQuery.trim() || undefined,
+      level: this.filters.level.length > 0 ? this.filters.level[0] : undefined,
+      cost_type: this.filters.cost.length > 0 ? this.filters.cost[0] : undefined,
+      mode: this.filters.mode.length > 0 ? this.filters.mode[0] : undefined
+    };
+
+    console.log('Loading trainings with params:', searchParams);
+
+    this.trainingService.getJobseekerTrainings(searchParams)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (response) => {
+          console.log('Trainings loaded:', response);
+          if (response.success && response.data) {
+            this.trainings = response.data.trainings;
+            this.filteredTrainings = [...this.trainings];
+            
+            if (response.pagination) {
+              this.currentPage = response.pagination.current_page;
+              this.totalPages = response.pagination.total_pages;
+              this.totalCount = response.pagination.total_count;
+            }
+          }
+          this.loading = false;
+        },
+        error: (error) => {
+          console.error('Error loading trainings:', error);
+          this.error = 'Failed to load training programs. Please try again.';
+          this.loading = false;
+        }
+      });
+  }
+
+  loadCategories(): void {
+    this.trainingService.getTrainingCategories()
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (response) => {
+          if (response.success && response.data) {
+            this.categories = response.data.map((cat: any) => cat.name || cat);
+          }
+        },
+        error: (error) => {
+          console.error('Error loading categories:', error);
+          this.categories = ['Data Science', 'Frontend Development', 'Marketing', 'Cloud Computing', 'Design'];
+        }
+      });
   }
 
   filterByCategory(category: string): void {
     this.selectedCategory = category;
-    this.applyFilters();
+    this.currentPage = 1;
+    this.loadTrainings(1);
   }
 
   onSearchChange(): void {
-    this.applyFilters();
+    setTimeout(() => {
+      this.currentPage = 1;
+      this.loadTrainings(1);
+    }, 500);
   }
 
   toggleFilters(): void {
@@ -232,56 +146,12 @@ export class TrainingComponent implements OnInit {
   }
 
   onFilterChange(): void {
-    this.applyFilters();
+    this.currentPage = 1;
+    this.loadTrainings(1);
   }
 
   applyFilters(): void {
-    let filtered = [...this.trainings];
-
-    // Category filter
-    if (this.selectedCategory !== 'all') {
-      filtered = filtered.filter(training => training.category === this.selectedCategory);
-    }
-
-    // Search filter
-    if (this.searchQuery.trim()) {
-      const query = this.searchQuery.toLowerCase();
-      filtered = filtered.filter(training => 
-        training.title.toLowerCase().includes(query) ||
-        training.description.toLowerCase().includes(query) ||
-        training.category.toLowerCase().includes(query)
-      );
-    }
-
-    // Duration filter
-    if (this.filters.duration.length > 0) {
-      filtered = filtered.filter(training => {
-        const hours = parseInt(training.duration);
-        return this.filters.duration.some(filter => {
-          if (filter === 'short' && hours < 10) return true;
-          if (filter === 'medium' && hours >= 10 && hours <= 40) return true;
-          if (filter === 'long' && hours > 40) return true;
-          return false;
-        });
-      });
-    }
-
-    // Level filter
-    if (this.filters.level.length > 0) {
-      filtered = filtered.filter(training => this.filters.level.includes(training.level));
-    }
-
-    // Cost filter
-    if (this.filters.cost.length > 0) {
-      filtered = filtered.filter(training => this.filters.cost.includes(training.cost));
-    }
-
-    // Mode filter
-    if (this.filters.mode.length > 0) {
-      filtered = filtered.filter(training => this.filters.mode.includes(training.mode));
-    }
-
-    this.filteredTrainings = filtered;
+    this.loadTrainings(this.currentPage);
   }
 
   viewTrainingDetail(training: Training): void {
@@ -295,13 +165,25 @@ export class TrainingComponent implements OnInit {
   }
 
   enrollInTraining(training: Training): void {
-    training.enrolled = true;
-    // Here you would typically make an API call to enroll the user
-    console.log('Enrolled in:', training.title);
+    console.log('Enrolling in training:', training.id);
+    
+    this.trainingService.enrollInTraining(training.id)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (response: any) => {
+          if (response.success) {
+            training.enrolled = true;
+            console.log('Successfully enrolled in:', training.title);
+          }
+        },
+        error: (error: any) => {
+          console.error('Error enrolling in training:', error);
+          this.error = 'Failed to enroll in training. Please try again.';
+        }
+      });
   }
 
   startTraining(training: Training): void {
-    // Navigate to video player or training viewer
     console.log('Starting training:', training.title);
   }
 
@@ -327,17 +209,66 @@ export class TrainingComponent implements OnInit {
     };
     this.selectedCategory = 'all';
     this.searchQuery = '';
-    this.applyFilters();
+    this.currentPage = 1;
+    this.loadTrainings(1);
   }
 
-  getDurationText(duration: string): string {
-    const hours = parseInt(duration);
-    if (hours < 10) return 'Short Course';
-    if (hours <= 40) return 'Medium Course';
+  getDurationText(duration_hours: number): string {
+    if (duration_hours < 10) return 'Short Course';
+    if (duration_hours <= 40) return 'Medium Course';
     return 'Comprehensive Course';
   }
 
   getProgressWidth(progress: number): string {
     return `${progress}%`;
+  }
+
+  formatDuration(duration_hours: number): string {
+    return this.trainingService.formatDuration(duration_hours);
+  }
+
+  formatPrice(training: Training): string {
+    return this.trainingService.formatPrice(training.price, training.cost_type);
+  }
+
+  goToPage(page: number): void {
+    if (page >= 1 && page <= this.totalPages && page !== this.currentPage) {
+      this.loadTrainings(page);
+    }
+  }
+
+  nextPage(): void {
+    if (this.currentPage < this.totalPages) {
+      this.goToPage(this.currentPage + 1);
+    }
+  }
+
+  previousPage(): void {
+    if (this.currentPage > 1) {
+      this.goToPage(this.currentPage - 1);
+    }
+  }
+
+  refreshTrainings(): void {
+    this.loadTrainings(this.currentPage);
+  }
+
+  isEnrolled(training: Training): boolean {
+    return training.enrolled || false;
+  }
+
+  getTrainingProgress(training: Training): number {
+    return training.progress || 0;
+  }
+
+  getPaginationPages(): (number | string)[] {
+    const pages: (number | string)[] = [];
+    const startPage = Math.max(1, this.currentPage - 2);
+    const endPage = Math.min(this.totalPages, this.currentPage + 2);
+    
+    for (let i = startPage; i <= endPage; i++) {
+      pages.push(i);
+    }
+    return pages;
   }
 }

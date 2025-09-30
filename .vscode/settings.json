@@ -11,5 +11,6 @@
         "titlecase",
         "watchlist",
         "youtu"
-    ]
+    ],
+    "claudeCodeChat.permissions.yoloMode": false
 }

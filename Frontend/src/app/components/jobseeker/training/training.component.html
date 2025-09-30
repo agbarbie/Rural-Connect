@@ -55,6 +55,7 @@
       </a>
     </div>
   </nav>
+
   <!-- Header Section -->
   <div class="page-header">
     <div class="header-content">
@@ -146,17 +147,39 @@
     </button>
   </div>
 
+  <!-- Loading State -->
+  <div class="loading-state" *ngIf="loading">
+    <div class="loading-spinner">
+      <i class="fas fa-spinner fa-spin"></i>
+      <p>Loading training programs...</p>
+    </div>
+  </div>
+
+  <!-- Error State -->
+  <div class="error-state" *ngIf="error && !loading">
+    <div class="error-content">
+      <i class="fas fa-exclamation-triangle"></i>
+      <h3>Error Loading Trainings</h3>
+      <p>{{error}}</p>
+      <button class="btn btn-primary" (click)="refreshTrainings()">
+        <i class="fas fa-refresh"></i>
+        Try Again
+      </button>
+    </div>
+  </div>
+
   <!-- Training Grid -->
-  <div class="training-grid">
+  <div class="training-grid" *ngIf="!loading && !error">
     <div class="training-card" *ngFor="let training of filteredTrainings">
       <div class="card-header">
         <div class="card-image">
-          <img [src]="training.thumbnail" [alt]="training.title">
+          <img [src]="training.thumbnail_url || 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=300&h=200&fit=crop'" 
+               [alt]="training.title">
           <div class="video-overlay">
             <i class="fas fa-play"></i>
-            <span>{{training.videos.length}} Videos</span>
+            <span>{{training.videos?.length || 0}} Videos</span>
           </div>
-          <div class="duration-badge">{{training.duration}}</div>
+          <div class="duration-badge">{{formatDuration(training.duration_hours)}}</div>
         </div>
         <div class="card-actions">
           <button class="action-btn" title="Add to Wishlist">
@@ -180,11 +203,11 @@
         <div class="card-details">
           <div class="detail-item">
             <i class="fas fa-building"></i>
-            <span>{{training.provider}}</span>
+            <span>{{training.provider_name}}</span>
           </div>
           <div class="detail-item">
             <i class="fas fa-users"></i>
-            <span>{{training.students | number}} students</span>
+            <span>{{training.total_students | number}} students</span>
           </div>
           <div class="detail-item">
             <i class="fas fa-star"></i>
@@ -193,7 +216,7 @@
         </div>
 
         <div class="card-features">
-          <div class="feature" *ngIf="training.certificate">
+          <div class="feature" *ngIf="training.has_certificate">
             <i class="fas fa-certificate"></i>
             <span>Certificate</span>
           </div>
@@ -202,9 +225,9 @@
             <ng-template #offlineIcon><i class="fas fa-map-marker-alt"></i></ng-template>
             <span>{{training.mode}}</span>
           </div>
-          <div class="feature" [class.free]="training.cost === 'Free'">
+          <div class="feature" [class.free]="training.cost_type === 'Free'">
             <i class="fas fa-tag"></i>
-            <span>{{training.cost}}</span>
+            <span>{{formatPrice(training)}}</span>
           </div>
         </div>
 
@@ -212,10 +235,10 @@
         <div class="progress-section" *ngIf="training.enrolled">
           <div class="progress-info">
             <span>Progress</span>
-            <span>{{training.progress}}%</span>
+            <span>{{getTrainingProgress(training)}}%</span>
           </div>
           <div class="progress-bar">
-            <div class="progress-fill" [style.width]="getProgressWidth(training.progress)"></div>
+            <div class="progress-fill" [style.width]="getProgressWidth(getTrainingProgress(training))"></div>
           </div>
         </div>
       </div>
@@ -230,7 +253,8 @@
         <button 
           *ngIf="!training.enrolled; else continueBtn"
           class="btn btn-primary" 
-          (click)="enrollInTraining(training)">
+          (click)="enrollInTraining(training)"
+          [disabled]="loading">
           <i class="fas fa-plus-circle"></i>
           Enroll Now
         </button>
@@ -246,16 +270,58 @@
     </div>
   </div>
 
+  <!-- Add Pagination -->
+  <div class="pagination-container" *ngIf="!loading && !error && totalPages > 1">
+    <div class="pagination-info">
+      <span>Showing {{((currentPage - 1) * pageSize) + 1}} to {{Math.min(currentPage * pageSize, totalCount)}} of {{totalCount}} trainings</span>
+    </div>
+    
+    <div class="pagination-controls">
+      <button 
+        class="pagination-btn" 
+        [disabled]="currentPage === 1"
+        (click)="previousPage()">
+        <i class="fas fa-chevron-left"></i>
+        Previous
+      </button>
+      
+<div class="pagination-numbers">
+  <button 
+    *ngFor="let page of getPaginationPages()"
+    class="pagination-number"
+    [class.active]="page === currentPage"
+    [disabled]="page === '...'"
+    (click)="page !== '...' ? goToPage(+page) : null">
+    {{page}}
+  </button>
+</div>
+      
+      <button 
+        class="pagination-btn" 
+        [disabled]="currentPage === totalPages"
+        (click)="nextPage()">
+        Next
+        <i class="fas fa-chevron-right"></i>
+      </button>
+    </div>
+  </div>
+
   <!-- No Results -->
-  <div class="no-results" *ngIf="filteredTrainings.length === 0">
+  <div class="no-results" *ngIf="!loading && !error && filteredTrainings.length === 0">
     <div class="no-results-content">
       <i class="fas fa-search"></i>
       <h3>No Training Programs Found</h3>
-      <p>Try adjusting your search criteria or filters</p>
-      <button class="btn btn-primary" (click)="clearAllFilters()">
-        <i class="fas fa-refresh"></i>
-        Clear Filters
-      </button>
+      <p>No trainings match your current search criteria.</p>
+      <div class="no-results-actions">
+        <button class="btn btn-primary" (click)="clearAllFilters()">
+          <i class="fas fa-refresh"></i>
+          Clear Filters
+        </button>
+        <button class="btn btn-outline" (click)="refreshTrainings()">
+          <i class="fas fa-sync"></i>
+          Refresh
+        </button>
+      </div>
     </div>
   </div>
 </div>
@@ -272,14 +338,15 @@
     
     <div class="modal-body">
       <div class="training-overview">
-        <img [src]="selectedTraining.thumbnail" [alt]="selectedTraining.title" class="training-image">
+        <img [src]="selectedTraining.thumbnail_url || 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=300&h=200&fit=crop'" 
+             [alt]="selectedTraining.title" class="training-image">
         <div class="training-info">
           <p class="training-description">{{selectedTraining.description}}</p>
           
           <div class="training-stats">
             <div class="stat">
               <i class="fas fa-clock"></i>
-              <span>{{selectedTraining.duration}}</span>
+              <span>{{formatDuration(selectedTraining.duration_hours)}}</span>
             </div>
             <div class="stat">
               <i class="fas fa-signal"></i>
@@ -291,7 +358,7 @@
             </div>
             <div class="stat">
               <i class="fas fa-users"></i>
-              <span>{{selectedTraining.students | number}} students</span>
+              <span>{{selectedTraining.total_students | number}} students</span>
             </div>
           </div>
         </div>
@@ -304,14 +371,14 @@
           <ul class="outcomes-list">
             <li *ngFor="let outcome of selectedTraining.outcomes">
               <i class="fas fa-check-circle"></i>
-              {{outcome}}
+              {{outcome.outcome_text || outcome}}
             </li>
           </ul>
         </div>
 
         <!-- Video Syllabus -->
         <div class="section">
-          <h3><i class="fas fa-play-circle"></i> Course Videos ({{selectedTraining.videos.length}})</h3>
+          <h3><i class="fas fa-play-circle"></i> Course Videos ({{selectedTraining.videos?.length || 0}})</h3>
           <div class="video-list">
             <div class="video-item" *ngFor="let video of selectedTraining.videos; let i = index">
               <div class="video-number">{{i + 1}}</div>
@@ -319,7 +386,7 @@
                 <h4>{{video.title}}</h4>
                 <span class="video-duration">
                   <i class="fas fa-clock"></i>
-                  {{video.duration}}
+                  {{video.duration_minutes || video.duration}}m
                 </span>
               </div>
               <div class="video-status">
@@ -334,19 +401,19 @@
         <div class="section">
           <h3><i class="fas fa-building"></i> Provider Information</h3>
           <div class="provider-info">
-            <p><strong>Organization:</strong> {{selectedTraining.provider}}</p>
+            <p><strong>Organization:</strong> {{selectedTraining.provider_name}}</p>
             <p><strong>Certificate:</strong> 
-              <span *ngIf="selectedTraining.certificate" style="color: #10b981;">
+              <span *ngIf="selectedTraining.has_certificate" style="color: #10b981;">
                 <i class="fas fa-check"></i> Available upon completion
               </span>
-              <span *ngIf="!selectedTraining.certificate" style="color: #6b7280;">
+              <span *ngIf="!selectedTraining.has_certificate" style="color: #6b7280;">
                 <i class="fas fa-times"></i> Not available
               </span>
             </p>
             <p><strong>Mode:</strong> {{selectedTraining.mode}}</p>
             <p><strong>Cost:</strong> 
-              <span [style.color]="selectedTraining.cost === 'Free' ? '#10b981' : '#f59e0b'">
-                {{selectedTraining.cost}}
+              <span [style.color]="selectedTraining.cost_type === 'Free' ? '#10b981' : '#f59e0b'">
+                {{formatPrice(selectedTraining)}}
               </span>
             </p>
           </div>

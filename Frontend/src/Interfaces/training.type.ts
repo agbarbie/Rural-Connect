@@ -39,6 +39,25 @@ export interface UpdateTrainingRequest {
   provider_name?: string;
   status?: 'Active' | 'Closed' | 'Draft';
 }
+export interface TrainingSearchParams {
+  search?: string;
+  mode?: string;
+  cost_type?: string;
+  level?: string;
+  category?: string;
+  page?: number;
+  limit?: number;
+  sort_by?: 'created_at' | 'title' | 'rating' | 'total_students' | 'start_date';
+  sort_order?: 'asc' | 'desc';
+  filters?: {
+    category?: string;
+    level?: string[];        // Array for multiple levels
+    search?: string;
+    cost_type?: string[];    // Array for multiple cost types
+    mode?: string[];         // Array for multiple modes
+    has_certificate?: boolean;
+  };
+}
 
 export interface TrainingListResponse {
   trainings: Training[];

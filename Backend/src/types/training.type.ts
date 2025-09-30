@@ -302,6 +302,11 @@ export interface JobseekerTrainingFilters extends TrainingFilters {
 }
 
 export interface TrainingSearchParams {
+  search: string;
+  mode?: string;
+  cost_type: string;
+  level: string;
+  category: string;
   page?: number;
   limit?: number;
   sort_by?: 'created_at' | 'title' | 'rating' | 'total_students' | 'start_date';

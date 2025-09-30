@@ -1,6 +1,7 @@
 import { Component, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { HttpClient } from '@angular/common/http';
 import { Subject } from 'rxjs';
 import { takeUntil } from 'rxjs/operators';
 import { 
@@ -52,6 +53,10 @@ export class TrainingComponent implements OnInit, OnDestroy {
   isLoading: boolean = false;
   error: string | null = null;
   
+  // Thumbnail handling
+  thumbnailPreview: string | null = null;
+  thumbnailFile: File | null = null;
+  
   // Training stats
   stats: TrainingStats | null = null;
   
@@ -97,14 +102,17 @@ export class TrainingComponent implements OnInit, OnDestroy {
   
   // Video form
   showVideoForm: boolean = false;
-  newVideo: TrainingVideo = {
-    title: '',
-    description: '',
-    video_url: '',
-    duration_minutes: 0,
-    order_index: 0,
-    is_preview: false
-  };
+newVideo: TrainingVideo = {
+  title: '',
+  description: '',
+  video_url: '',
+  duration_minutes: 0,
+  duration: 0, // ADD THIS LINE
+  order_index: 0,
+  is_preview: false,
+  completed: false // ADD THIS LINE
+};
+
   
   // Outcome form
   showOutcomeForm: boolean = false;
@@ -113,7 +121,10 @@ export class TrainingComponent implements OnInit, OnDestroy {
     order_index: 0
   };
 
-  constructor(private trainingService: TrainingService) {}
+  constructor(
+    private trainingService: TrainingService,
+    private http: HttpClient
+  ) {}
 
   ngOnInit(): void {
     this.loadTrainings();
@@ -267,7 +278,82 @@ export class TrainingComponent implements OnInit, OnDestroy {
       videos: [],
       outcomes: []
     };
+    
+    // Reset thumbnail-related properties
+    this.thumbnailPreview = null;
+    this.thumbnailFile = null;
+    
     this.error = null;
+  }
+
+  // ================ THUMBNAIL HANDLING ================
+
+  onThumbnailSelected(event: any): void {
+    const file = event.target.files[0];
+    if (file) {
+      // Validate file type
+      if (!file.type.startsWith('image/')) {
+        this.error = 'Please select a valid image file.';
+        return;
+      }
+
+      // Validate file size (max 5MB)
+      if (file.size > 5 * 1024 * 1024) {
+        this.error = 'Image file must be less than 5MB.';
+        return;
+      }
+
+      this.thumbnailFile = file;
+      
+      // Create preview URL
+      const reader = new FileReader();
+      reader.onload = (e: any) => {
+        this.thumbnailPreview = e.target.result;
+      };
+      reader.readAsDataURL(file);
+      
+      // Clear any previous errors
+      this.error = null;
+    }
+  }
+
+  removeThumbnail(): void {
+    this.thumbnailPreview = null;
+    this.thumbnailFile = null;
+    this.newTraining.thumbnail_url = '';
+    
+    // Reset file input
+    const fileInput = document.getElementById('thumbnail') as HTMLInputElement;
+    if (fileInput) {
+      fileInput.value = '';
+    }
+  }
+
+  private uploadThumbnail(): Promise<string> {
+    return new Promise((resolve, reject) => {
+      if (!this.thumbnailFile) {
+        resolve('');
+        return;
+      }
+
+      const formData = new FormData();
+      formData.append('thumbnail', this.thumbnailFile);
+
+      // For demo purposes, we'll use the preview URL
+      // In production, replace this with your actual upload endpoint
+      setTimeout(() => {
+        resolve(this.thumbnailPreview || '');
+      }, 1000);
+
+      /* 
+      // Uncomment and modify when you have an actual upload endpoint
+      this.http.post<{url: string}>('/api/upload/thumbnail', formData)
+        .subscribe({
+          next: (response) => resolve(response.url),
+          error: (error) => reject(error)
+        });
+      */
+    });
   }
 
   // ================ VIDEO MANAGEMENT ================
@@ -279,16 +365,18 @@ export class TrainingComponent implements OnInit, OnDestroy {
     }
   }
 
-  resetVideoForm(): void {
-    this.newVideo = {
-      title: '',
-      description: '',
-      video_url: '',
-      duration_minutes: 0,
-      order_index: this.newTraining.videos.length,
-      is_preview: false
-    };
-  }
+resetVideoForm(): void {
+  this.newVideo = {
+    title: '',
+    description: '',
+    video_url: '',
+    duration_minutes: 0,
+    duration: 0, // ADD THIS LINE
+    order_index: this.newTraining.videos.length,
+    is_preview: false,
+    completed: false // ADD THIS LINE
+  };
+}
 
   addVideo(): void {
     if (this.newVideo.title && this.newVideo.duration_minutes > 0) {
@@ -340,43 +428,56 @@ export class TrainingComponent implements OnInit, OnDestroy {
 
   addTraining(): void {
     if (this.isFormValid()) {
-      const trainingData: CreateTrainingRequest = {
-        title: this.newTraining.title,
-        description: this.newTraining.description,
-        category: this.newTraining.category,
-        level: this.newTraining.level,
-        duration_hours: this.newTraining.duration_hours,
-        cost_type: this.newTraining.cost_type,
-        price: this.newTraining.cost_type === 'Paid' ? this.newTraining.price : 0,
-        mode: this.newTraining.mode,
-        provider_name: this.newTraining.provider_name,
-        has_certificate: this.newTraining.has_certificate,
-        thumbnail_url: this.newTraining.thumbnail_url || undefined,
-        location: this.newTraining.location || undefined,
-        start_date: this.newTraining.start_date || undefined,
-        end_date: this.newTraining.end_date || undefined,
-        max_participants: this.newTraining.max_participants || undefined,
-        videos: this.newTraining.videos,
-        outcomes: this.newTraining.outcomes
-      };
-
-      this.trainingService.createTraining(trainingData)
-        .pipe(takeUntil(this.destroy$))
-        .subscribe({
-          next: (response) => {
-            if (response.success) {
-              this.toggleAddForm();
-              this.loadStats(); // Refresh stats
-              // Show success message
-              alert('Training created successfully!');
-            }
-          },
-          error: (error) => {
-            console.error('Error creating training:', error);
-            this.error = 'Failed to create training. Please check your inputs and try again.';
-          }
+      // If there's a thumbnail file, upload it first
+      if (this.thumbnailFile) {
+        this.uploadThumbnail().then(thumbnailUrl => {
+          this.createTrainingWithThumbnail(thumbnailUrl);
+        }).catch(error => {
+          console.error('Error uploading thumbnail:', error);
+          this.error = 'Failed to upload thumbnail. Please try again.';
         });
+      } else {
+        this.createTrainingWithThumbnail('');
+      }
     }
+  }
+
+  private createTrainingWithThumbnail(thumbnailUrl: string): void {
+    const trainingData: CreateTrainingRequest = {
+      title: this.newTraining.title,
+      description: this.newTraining.description,
+      category: this.newTraining.category,
+      level: this.newTraining.level,
+      duration_hours: this.newTraining.duration_hours,
+      cost_type: this.newTraining.cost_type,
+      price: this.newTraining.cost_type === 'Paid' ? this.newTraining.price : 0,
+      mode: this.newTraining.mode,
+      provider_name: this.newTraining.provider_name,
+      has_certificate: this.newTraining.has_certificate,
+      thumbnail_url: thumbnailUrl || this.newTraining.thumbnail_url,
+      location: this.newTraining.location || undefined,
+      start_date: this.newTraining.start_date || undefined,
+      end_date: this.newTraining.end_date || undefined,
+      max_participants: this.newTraining.max_participants || undefined,
+      videos: this.newTraining.videos,
+      outcomes: this.newTraining.outcomes
+    };
+
+    this.trainingService.createTraining(trainingData)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (response) => {
+          if (response.success) {
+            this.toggleAddForm();
+            this.loadStats();
+            alert('Training created successfully!');
+          }
+        },
+        error: (error) => {
+          console.error('Error creating training:', error);
+          this.error = 'Failed to create training. Please check your inputs and try again.';
+        }
+      });
   }
 
   updateTraining(training: Training, updateData: UpdateTrainingRequest): void {
@@ -662,21 +763,6 @@ export class TrainingComponent implements OnInit, OnDestroy {
   onModeChange(): void {
     if (this.newTraining.mode === 'Online') {
       this.newTraining.location = '';
-    }
-  }
-
-  // ================ FILE HANDLING ================
-
-  onThumbnailSelected(event: any): void {
-    const file = event.target.files[0];
-    if (file) {
-      // In a real application, you would upload this file to a server
-      // For now, we'll create a local URL for preview
-      const reader = new FileReader();
-      reader.onload = (e: any) => {
-        this.newTraining.thumbnail_url = e.target.result;
-      };
-      reader.readAsDataURL(file);
     }
   }
 
