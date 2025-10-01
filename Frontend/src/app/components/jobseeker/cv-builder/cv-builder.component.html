@@ -696,4 +696,29 @@
                   {{ project.startDate | date:'MMM yyyy' }} - {{ project.endDate | date:'MMM yyyy' }}
                 </span>
               </div>
-              
+              <p class="cv-item-subtitle">{{ project.description }}</p>
+              <p class="cv-item-technologies" *ngIf="project.technologies">Technologies: {{ project.technologies }}</p>
+              <div class="cv-project-links">
+                <a *ngIf="project.githubLink" [href]="project.githubLink" target="_blank" class="project-link">
+                  <i class="fab fa-github"></i> GitHub
+                </a>
+                <a *ngIf="project.demoLink" [href]="project.demoLink" target="_blank" class="project-link">
+                  <i class="fas fa-external-link-alt"></i> Demo
+                </a>
+              </div>
+              <p class="cv-item-outcomes" *ngIf="project.outcomes">Outcomes: {{ project.outcomes }}</p>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+    <!-- Notification -->
+    <div class="notification" *ngIf="showNotification" [ngClass]="notificationType">
+      <i [ngClass]="getNotificationIcon()"></i>
+      <span>{{ notificationMessage }}</span>
+      <button class="close-btn" (click)="showNotification = false">&times;</button>
+    </div>
+  </div>
+</div>

@@ -1,74 +1,7 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-
-interface PersonalInfo {
-  fullName: string;
-  email: string;
-  phone: string;
-  address: string;
-  linkedIn: string;
-  website: string;
-  professionalSummary: string;
-}
-
-interface Education {
-  id: string;
-  institution: string;
-  degree: string;
-  fieldOfStudy: string;
-  startYear: string;
-  endYear: string;
-  gpa?: string;
-  achievements: string;
-}
-
-interface WorkExperience {
-  id: string;
-  company: string;
-  position: string;
-  startDate: string;
-  endDate: string;
-  current: boolean;
-  responsibilities: string;
-  achievements: string;
-}
-
-interface Skill {
-  name: string;
-  level: string;
-  category: string;
-}
-
-interface Certification {
-  id: string;
-  name: string;
-  issuer: string;
-  dateIssued: string;
-  expiryDate?: string;
-  credentialId?: string;
-}
-
-interface Project {
-  id: string;
-  name: string;
-  description: string;
-  technologies: string;
-  startDate: string;
-  endDate: string;
-  githubLink?: string;
-  demoLink?: string;
-  outcomes: string;
-}
-
-interface CVData {
-  personalInfo: PersonalInfo;
-  education: Education[];
-  workExperience: WorkExperience[];
-  skills: Skill[];
-  certifications: Certification[];
-  projects: Project[];
-}
+import { CvService, CVData } from '../../../../../services/cv.service';  // ✅ import service + CVData
 
 @Component({
   selector: 'app-cv-builder',
@@ -116,10 +49,10 @@ export class CvBuilderComponent implements OnInit {
     'Agile', 'Scrum', 'Leadership', 'Team Management', 'Communication', 'Problem Solving'
   ];
 
-  constructor() { }
-
+  constructor(private cvService: CvService) {}  // ✅ inject service
+  
   ngOnInit(): void {
-    this.loadSavedCV();
+    this.loadSavedCV();  // load user’s CVs from backend
   }
 
   // File upload and drag-drop handlers
@@ -327,7 +260,7 @@ export class CvBuilderComponent implements OnInit {
 
   // Education methods
   addEducation(): void {
-    const newEducation: Education = {
+    const newEducation: any = {
       id: this.generateId(),
       institution: '',
       degree: '',
@@ -346,7 +279,7 @@ export class CvBuilderComponent implements OnInit {
 
   // Work Experience methods
   addWorkExperience(): void {
-    const newWork: WorkExperience = {
+    const newWork: any = {
       id: this.generateId(),
       company: '',
       position: '',
@@ -363,7 +296,7 @@ export class CvBuilderComponent implements OnInit {
     this.cvData.workExperience = this.cvData.workExperience.filter(work => work.id !== id);
   }
 
-  onCurrentJobChange(work: WorkExperience): void {
+  onCurrentJobChange(work: any): void {
     if (work.current) {
       work.endDate = '';
     }
@@ -371,7 +304,7 @@ export class CvBuilderComponent implements OnInit {
 
   // Skills methods
   addSkill(): void {
-    const newSkill: Skill = {
+    const newSkill: any = {
       name: '',
       level: 'Intermediate',
       category: 'Technical'
@@ -385,7 +318,7 @@ export class CvBuilderComponent implements OnInit {
 
   // Certifications methods
   addCertification(): void {
-    const newCertification: Certification = {
+    const newCertification: any = {
       id: this.generateId(),
       name: '',
       issuer: '',
@@ -402,7 +335,7 @@ export class CvBuilderComponent implements OnInit {
 
   // Projects methods
   addProject(): void {
-    const newProject: Project = {
+    const newProject: any = {
       id: this.generateId(),
       name: '',
       description: '',
@@ -420,27 +353,60 @@ export class CvBuilderComponent implements OnInit {
     this.cvData.projects = this.cvData.projects.filter(project => project.id !== id);
   }
 
-  // Save and Load methods
+  // ---------------------------
+  // Save methods with backend
+  // ---------------------------
   saveAsDraft(): void {
     this.isDraft = true;
-    // Save to localStorage or send to backend
-    this.displayNotification('CV saved as draft successfully!', 'success');
+    this.cvService.createCV(this.cvData).subscribe({
+      next: (res) => {
+        this.displayNotification('CV saved as draft successfully!', 'success');
+        console.log('Draft CV response:', res);
+      },
+      error: (err) => {
+        this.displayNotification('Error saving draft CV', 'error');
+        console.error(err);
+      }
+    });
   }
 
   saveAsFinal(): void {
     if (this.validateCV()) {
       this.isDraft = false;
-      // Save to localStorage or send to backend
-      this.displayNotification('CV saved as final successfully!', 'success');
+      this.cvService.createCV(this.cvData).subscribe({
+        next: (res) => {
+          this.displayNotification('CV saved as final successfully!', 'success');
+          console.log('Final CV response:', res);
+        },
+        error: (err) => {
+          this.displayNotification('Error saving final CV', 'error');
+          console.error(err);
+        }
+      });
     } else {
       this.displayNotification('Please complete all required fields before saving as final.', 'error');
     }
   }
 
   loadSavedCV(): void {
-    // Load from localStorage or backend
-    // Implementation would go here
+    this.cvService.getMyCVs().subscribe({
+      next: (res) => {
+        if (res?.data && res.data.length > 0) {
+          this.cvData = res.data[0];  // load the first saved CV
+          this.displayNotification('Loaded saved CV successfully!', 'success');
+        }
+      },
+      error: (err) => {
+        console.error(err);
+        this.displayNotification('Error loading saved CVs', 'error');
+      }
+    });
   }
+
+  // ---------------------------
+  // (The rest of your code: file upload, parsing, navigation, add/remove methods, validation, utils)
+  // No changes needed except keeping displayNotification as is
+  // ---------------------------
 
   // Preview and Export methods
   togglePreview(): void {
@@ -535,11 +501,12 @@ export class CvBuilderComponent implements OnInit {
 
   // Helper methods for skills in preview
   getSkillCategories(): string[] {
-    const categories = [...new Set(this.cvData.skills.map(skill => skill.category))];
+    const categories = [...new Set(this.cvData.skills.map((skill: any) => skill.category))];
     return categories.filter(category => category);
   }
 
-  getSkillsByCategory(category: string): Skill[] {
-    return this.cvData.skills.filter(skill => skill.category === category);
+  getSkillsByCategory(category: string): any[] {
+    return this.cvData.skills.filter((skill: any) => skill.category === category);
   }
+  
 }

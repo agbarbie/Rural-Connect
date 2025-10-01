@@ -1,262 +1,414 @@
-import { Component } from '@angular/core';
+import { Component, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { RouterModule } from '@angular/router';
+import { Router, RouterModule } from '@angular/router';
+import { Subscription } from 'rxjs';
+import { AuthService } from '../../../../../services/auth.service'; // Adjust path as needed
 
 @Component({
   selector: 'app-dashboard',
-  standalone: true,
+  templateUrl: 'dashboard.component.html',
   imports: [CommonModule, FormsModule, RouterModule],
-  templateUrl: './dashboard.component.html',
-  styleUrls: ['./dashboard.component.css']
+  standalone: true,
+  styleUrls: ['dashboard.component.css']
 })
-export class DashboardComponent {
-  userName = 'Sarah';
+export class DashboardComponent implements OnInit, OnDestroy {
+  userName: string = 'Job Seeker'; // Fallback
+  
+  // Dashboard stats
   stats = {
-    profileViews: 1240,
-    applications: 45,
-    interviews: 12,
-    savedJobs: 28,
-    trainingCompleted: 8
+    profileViews: 127,
+    applications: 8,
+    interviews: 2,
+    savedJobs: 15,
+    trainingCompleted: 3
   };
 
+  // Recent Activity
   recentActivity = [
-    { company: 'Google', action: 'view', icon: 'google', initial: 'G', timestamp: new Date(Date.now() - 2 * 60 * 60 * 1000) },
-    { company: 'Microsoft', action: 'application', icon: 'microsoft', initial: 'M', timestamp: new Date(Date.now() - 24 * 60 * 60 * 1000) },
-    { company: 'Apple', action: 'interview', icon: 'apple', initial: 'A', timestamp: new Date(Date.now() - 48 * 60 * 60 * 1000) }
-  ];
-
-  aiRecommendations = [
-    { title: 'UI Animation Fundamentals', provider: 'Coursera', icon: 'coursera', initial: 'C', relevance: 'High', duration: '4 weeks' },
-    { title: 'Figma Prototyping', provider: 'Advanced interactive prototyping techniques', icon: 'figma', initial: 'F', relevance: 'Very High', duration: '6 weeks' },
-    { title: 'UX Design Professional Certificate', provider: 'Google', icon: 'google-cert', initial: 'G', relevance: 'Medium', duration: '6 months' }
-  ];
-
-  recentApplications = [
-    { jobTitle: 'Senior Product Designer', company: 'Dropbox', tags: ['Full-time', 'Remote'], status: 'In Review', appliedDate: new Date(Date.now() - 48 * 60 * 60 * 1000), initial: 'D' },
-    { jobTitle: 'UX Researcher', company: 'Custom', tags: ['Full-time'], status: 'Applied', appliedDate: new Date(Date.now() - 48 * 60 * 60 * 1000), initial: 'C' }
-  ];
-
-  bestJobMatches = [
-    { title: 'Senior UX Designer', company: 'Figma', matchPercentage: 95 },
-    { title: 'Product Designer', company: 'Spotify', matchPercentage: 88 },
-    { title: 'UI/UX Designer', company: 'Adobe', matchPercentage: 82 }
-  ];
-
-  skillsProgress = [
-    { name: 'UI Design', percentage: 85 },
-    { name: 'UX Research', percentage: 70 },
-    { name: 'Prototyping', percentage: 90 },
-    { name: 'User Testing', percentage: 65 },
-    { name: 'JavaScript', percentage: 55 }
-  ];
-
-  recommendedTraining = [
-    { title: 'Advanced React Development', provider: 'Modern React patterns and hooks', relevance: 'Recommended for you', iconColor: '#ff6b6b', iconTextColor: 'white', buttonColor: '#10b981', buttonBorder: 'none' },
-    { title: 'Data Science Fundamentals', provider: 'Python, Statistics, and Machine Learning', relevance: 'High Demand', iconColor: '#4ecdc4', iconTextColor: 'white', buttonColor: '#10b981', buttonBorder: 'none' },
-    { title: 'Digital Marketing Mastery', provider: 'SEO, Social Media, and Analytics', relevance: 'Growing Field', iconColor: '#45b7d1', iconTextColor: 'white', buttonColor: '#10b981', buttonBorder: 'none' }
-  ];
-
-  upcomingInterviews = [
     {
-      id: 1, position: 'Product Designer', company: 'Adobe', date: 'Tomorrow', time: '10:00 AM', type: 'Video Call', typeIcon: 'video', icon: 'video',
-      iconColor: '#10b981', iconTextColor: 'white', iconBorderRadius: '12px', padding: '20px', border: '1px solid #e2e8f0', borderRadius: '12px', marginBottom: '16px',
-      statusColor: '#6366f1', statusTextColor: 'white', statusPadding: '4px 8px', statusBorderRadius: '12px', statusFontSize: '11px',
-      marginTop1: '8px', marginTop2: '12px', marginTop3: '12px', interviewerColor: '#64748b', interviewerFontSize: '14px',
-      actionsDisplay: 'flex', actionsGap: '12px', prepareButtonColor: '#6366f1', prepareButtonTextColor: 'white', prepareButtonBorder: 'none',
-      prepareButtonPadding: '8px 16px', prepareButtonBorderRadius: '8px', prepareButtonFontSize: '12px', prepareButtonText: 'Prepare',
-      rescheduleButtonColor: 'transparent', rescheduleButtonTextColor: '#64748b', rescheduleButtonBorder: '1px solid #e2e8f0',
-      rescheduleButtonPadding: '8px 16px', rescheduleButtonBorderRadius: '8px', rescheduleButtonFontSize: '12px', rescheduleButtonText: 'Reschedule',
-      timeAlign: 'right', timeFontWeight: '600', timeColor: '#1e293b', timeSubColor: '#64748b', timeFontSize: '14px'
+      company: 'TechCorp Inc.',
+      action: 'applied to Frontend Developer',
+      timestamp: '2 hours ago',
+      icon: 'fa-briefcase',
+      initial: 'TC'
     },
     {
-      id: 2, position: 'UI Designer', company: 'Spotify', date: 'April 12, 2025', time: '2:30 PM', type: 'On-site', typeIcon: 'map-marker-alt', icon: 'building',
-      iconColor: '#8b5cf6', iconTextColor: 'white', iconBorderRadius: '12px', padding: '20px', border: '1px solid #e2e8f0', borderRadius: '12px', marginBottom: '0',
-      statusColor: '#10b981', statusTextColor: 'white', statusPadding: '4px 8px', statusBorderRadius: '12px', statusFontSize: '11px',
-      marginTop1: '8px', marginTop2: '12px', marginTop3: '12px', interviewerColor: '#64748b', interviewerFontSize: '14px',
-      actionsDisplay: 'flex', actionsGap: '12px', prepareButtonColor: '#6366f1', prepareButtonTextColor: 'white', prepareButtonBorder: 'none',
-      prepareButtonPadding: '8px 16px', prepareButtonBorderRadius: '8px', prepareButtonFontSize: '12px', prepareButtonText: 'Get Directions',
-      rescheduleButtonColor: 'transparent', rescheduleButtonTextColor: '#64748b', rescheduleButtonBorder: '1px solid #e2e8f0',
-      rescheduleButtonPadding: '8px 16px', rescheduleButtonBorderRadius: '8px', rescheduleButtonFontSize: '12px', rescheduleButtonText: 'Reschedule',
-      timeAlign: 'right', timeFontWeight: '600', timeColor: '#1e293b', timeSubColor: '#64748b', timeFontSize: '14px',
-      interviewers: ['Jessica White (Head of Design)', 'Robert Davis (Senior Designer)']
+      company: 'DesignHub',
+      action: 'interview scheduled',
+      timestamp: '1 day ago',
+      icon: 'fa-calendar-alt',
+      initial: 'DH'
+    },
+    {
+      company: 'CodeAcademy',
+      action: 'completed training module',
+      timestamp: '3 days ago',
+      icon: 'fa-graduation-cap',
+      initial: 'CA'
     }
   ];
 
+  // AI Recommendations
+  aiRecommendations = [
+    {
+      title: 'Advanced React Hooks',
+      provider: 'Udemy',
+      relevance: 'High',
+      duration: '4h 30m',
+      icon: 'fa-code',
+      initial: 'RH'
+    },
+    {
+      title: 'UI/UX Design Principles',
+      provider: 'Coursera',
+      relevance: 'Medium',
+      duration: '6h 15m',
+      icon: 'fa-paint-brush',
+      initial: 'UD'
+    }
+  ];
+
+  // Recent Applications
+  recentApplications = [
+    {
+      jobTitle: 'Senior Frontend Developer',
+      company: 'InnovateTech',
+      appliedDate: '1 day ago',
+      status: 'Under Review',
+      tags: ['React', 'TypeScript', 'Remote'],
+      initial: 'IT'
+    },
+    {
+      jobTitle: 'Product Designer',
+      company: 'Creative Studios',
+      appliedDate: '3 days ago',
+      status: 'Interview Scheduled',
+      tags: ['Figma', 'UX/UI', 'Full-time'],
+      initial: 'CS'
+    }
+  ];
+
+  // Best Job Matches
+  bestJobMatches = [
+    {
+      title: 'Full Stack Engineer',
+      company: 'Global Solutions',
+      matchPercentage: 92
+    },
+    {
+      title: 'DevOps Specialist',
+      company: 'CloudNine Tech',
+      matchPercentage: 88
+    }
+  ];
+
+  // Skills Progress
+  skillsProgress = [
+    {
+      name: 'React.js',
+      percentage: 85
+    },
+    {
+      name: 'Node.js',
+      percentage: 72
+    },
+    {
+      name: 'CSS3',
+      percentage: 95
+    }
+  ];
+
+  // Recommended Training
+  recommendedTraining = [
+    {
+      title: 'Machine Learning Basics',
+      provider: 'edX',
+      relevance: 'High',
+      iconColor: '#4F46E5',
+      iconTextColor: '#FFFFFF',
+      buttonColor: '#4F46E5',
+      buttonBorder: 'none',
+      initial: 'ML'
+    },
+    {
+      title: 'Data Visualization with D3',
+      provider: 'Pluralsight',
+      relevance: 'Medium',
+      iconColor: '#10B981',
+      iconTextColor: '#FFFFFF',
+      buttonColor: '#10B981',
+      buttonBorder: 'none',
+      initial: 'DV'
+    }
+  ];
+
+  // Upcoming Interviews
+  upcomingInterviews = [
+    {
+      id: '1',
+      position: 'Frontend Developer',
+      company: 'TechCorp',
+      date: 'Wed, Oct 8',
+      time: '2:00 PM',
+      type: 'online',
+      interviewers: ['Sarah Johnson', 'Mike Chen'],
+      padding: '16px',
+      border: '1px solid #e5e7eb',
+      borderRadius: '8px',
+      marginBottom: '12px',
+      iconColor: '#3B82F6',
+      iconTextColor: '#FFFFFF',
+      iconBorderRadius: '50%',
+      marginTop1: '8px',
+      statusColor: '#10B981',
+      statusTextColor: '#FFFFFF',
+      statusPadding: '4px 8px',
+      statusBorderRadius: '4px',
+      statusFontSize: '12px',
+      marginTop2: '12px',
+      interviewerColor: '#374151',
+      interviewerFontSize: '14px',
+      marginTop3: '16px',
+      actionsDisplay: 'flex',
+      actionsGap: '8px',
+      prepareButtonColor: '#3B82F6',
+      prepareButtonTextColor: '#FFFFFF',
+      prepareButtonBorder: 'none',
+      prepareButtonPadding: '8px 16px',
+      prepareButtonBorderRadius: '6px',
+      prepareButtonFontSize: '14px',
+      prepareButtonText: 'Prepare',
+      rescheduleButtonColor: '#6B7280',
+      rescheduleButtonTextColor: '#FFFFFF',
+      rescheduleButtonBorder: 'none',
+      rescheduleButtonPadding: '8px 16px',
+      rescheduleButtonBorderRadius: '6px',
+      rescheduleButtonFontSize: '14px',
+      rescheduleButtonText: 'Reschedule',
+      timeAlign: 'right',
+      timeFontWeight: 'bold',
+      timeColor: '#111827',
+      timeSubColor: '#6B7280',
+      timeFontSize: '14px',
+      typeIcon: 'video'
+    }
+  ];
+
+  // AI Assistant
   aiAssistant = {
-    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+    background: '#F9FAFB',
     borderRadius: '12px',
     padding: '24px',
-    color: 'white',
-    marginBottom: '16px',
+    color: '#111827',
+    marginBottom: '24px',
     headerDisplay: 'flex',
     headerAlignItems: 'center',
     headerGap: '12px',
     headerMarginBottom: '16px',
-    iconWidth: '40px',
-    iconHeight: '40px',
-    iconBackground: 'rgba(255,255,255,0.2)',
+    iconWidth: '48px',
+    iconHeight: '48px',
+    iconBackground: '#3B82F6',
     iconBorderRadius: '50%',
     iconDisplay: 'flex',
     iconAlignItems: 'center',
     iconJustifyContent: 'center',
-    titleFontWeight: '600',
-    subtitleOpacity: '0.9',
+    titleFontWeight: 'bold',
+    subtitleOpacity: '0.7',
     subtitleFontSize: '14px',
-    contentBackground: 'rgba(255,255,255,0.1)',
+    contentBackground: '#FFFFFF',
     contentBorderRadius: '8px',
-    contentPadding: '12px',
-    contentMarginBottom: '12px',
+    contentPadding: '16px',
+    contentMarginBottom: '16px',
     contentFontSize: '14px',
-    buttonBackground: 'rgba(255,255,255,0.2)',
-    buttonBorder: '1px solid rgba(255,255,255,0.3)',
-    buttonColor: 'white',
-    buttonPadding: '8px 16px',
+    buttonBackground: '#3B82F6',
+    buttonBorder: 'none',
+    buttonColor: '#FFFFFF',
+    buttonPadding: '12px 24px',
     buttonBorderRadius: '8px',
-    buttonFontSize: '12px'
+    buttonFontSize: '14px'
   };
 
+  // Quick Actions
   quickActions = {
     display: 'grid',
-    gridTemplateColumns: '1fr 1fr',
-    gap: '12px',
+    gridTemplateColumns: 'repeat(2, 1fr)',
+    gap: '16px',
     action1: {
-      background: '#f8fafc',
-      border: '1px solid #e2e8f0',
-      padding: '16px',
+      background: '#F3F4F6',
+      border: '1px solid #D1D5DB',
+      padding: '20px',
       borderRadius: '12px',
-      textAlign: 'left',
+      textAlign: 'center',
       cursor: 'pointer',
-      onMouseOver: () => this.quickActions.action1.background = '#f1f5f9',
-      onMouseOut: () => this.quickActions.action1.background = '#f8fafc',
-      iconColor: '#10b981',
+      iconColor: '#3B82F6',
       iconMarginBottom: '8px',
-      titleFontWeight: '600',
-      titleColor: '#1e293b',
-      titleFontSize: '14px',
-      subtitleColor: '#64748b',
-      subtitleFontSize: '12px'
+      titleFontWeight: 'bold',
+      titleColor: '#111827',
+      titleFontSize: '16px',
+      subtitleColor: '#6B7280',
+      subtitleFontSize: '12px',
+      onMouseOver: () => console.log('Hover on Resume Review'),
+      onMouseOut: () => console.log('Out from Resume Review')
     },
     action2: {
-      background: '#f8fafc',
-      border: '1px solid #e2e8f0',
-      padding: '16px',
+      background: '#F3F4F6',
+      border: '1px solid #D1D5DB',
+      padding: '20px',
       borderRadius: '12px',
-      textAlign: 'left',
+      textAlign: 'center',
       cursor: 'pointer',
-      onMouseOver: () => this.quickActions.action2.background = '#f1f5f9',
-      onMouseOut: () => this.quickActions.action2.background = '#f8fafc',
-      iconColor: '#6366f1',
+      iconColor: '#F59E0B',
       iconMarginBottom: '8px',
-      titleFontWeight: '600',
-      titleColor: '#1e293b',
-      titleFontSize: '14px',
-      subtitleColor: '#64748b',
-      subtitleFontSize: '12px'
+      titleFontWeight: 'bold',
+      titleColor: '#111827',
+      titleFontSize: '16px',
+      subtitleColor: '#6B7280',
+      subtitleFontSize: '12px',
+      onMouseOver: () => console.log('Hover on Interview Prep'),
+      onMouseOut: () => console.log('Out from Interview Prep')
     }
   };
 
+  // Modal
   modal = {
     display: 'none',
-    title: 'Training Course',
+    title: '',
     videoTextAlign: 'center',
     playIconFontSize: '48px',
     playIconMarginBottom: '16px',
-    videoPlaceholder: 'Video content would be displayed here',
+    videoPlaceholder: 'Training Video Player',
     videoSubTextMarginTop: '8px',
     videoSubTextFontSize: '14px',
     videoSubTextOpacity: '0.7',
-    overviewMarginTop: '16px',
+    overviewMarginTop: '24px',
     buttonsMarginTop: '16px',
     buttonsDisplay: 'flex',
     buttonsGap: '12px',
-    startButtonBackground: '#10b981',
-    startButtonColor: 'white',
+    startButtonBackground: '#3B82F6',
+    startButtonColor: '#FFFFFF',
     startButtonBorder: 'none',
     startButtonPadding: '12px 24px',
     startButtonBorderRadius: '8px',
     startButtonCursor: 'pointer',
-    watchlistButtonBackground: 'transparent',
-    watchlistButtonColor: '#64748b',
-    watchlistButtonBorder: '1px solid #e2e8f0',
+    watchlistButtonBackground: '#6B7280',
+    watchlistButtonColor: '#FFFFFF',
+    watchlistButtonBorder: 'none',
     watchlistButtonPadding: '12px 24px',
     watchlistButtonBorderRadius: '8px',
     watchlistButtonCursor: 'pointer',
-    description: 'This comprehensive course will help you advance your skills and career prospects.'
+    description: ''
   };
 
-  getTimeAgo(date: Date): string {
-    const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
-    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
-    return diffDays > 0 ? `${diffDays} day${diffDays > 1 ? 's' : ''} ago` : `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`;
+  private authSubscription: Subscription | null = null;
+
+  constructor(
+    private router: Router,
+    private authService: AuthService
+  ) { }
+
+  ngOnInit(): void {
+    // Subscribe to current user changes to update userName dynamically
+    this.authSubscription = this.authService.currentUser$.subscribe(user => {
+      if (user && user.user_type === 'jobseeker') {
+        // Assuming User has a 'name' field; adjust as per your User interface
+        this.userName = user.name || 'Job Seeker'; // Fallback
+      }
+    });
   }
 
-  getRelevanceClass(relevance: string): string {
-    return relevance.toLowerCase().replace(' ', '-');
+  ngOnDestroy(): void {
+    if (this.authSubscription) {
+      this.authSubscription.unsubscribe();
+    }
   }
 
-  onSearch(event: Event): void {
-    console.log('Search input:', (event.target as HTMLInputElement).value);
+  onSearch(event: any): void {
+    console.log('Search:', event.target.value);
   }
 
   toggleNotifications(): void {
-    console.log('Notifications toggled');
+    console.log('Toggle notifications');
   }
 
   toggleMessages(): void {
-    console.log('Messages toggled');
+    console.log('Toggle messages');
   }
 
   openProfile(): void {
-    console.log('Profile opened');
+    this.router.navigate(['/profile']);
   }
 
   findJobsNow(event: Event): void {
     event.preventDefault();
-    console.log('Finding jobs...');
+    this.router.navigate(['/job-explorer']);
   }
+
   findTrainingNow(event: Event): void {
     event.preventDefault();
-    console.log('Finding training...');
+    this.router.navigate(['/training']);
+  }
+
+  getTimeAgo(timestamp: string): string {
+    return timestamp; // Placeholder; implement actual logic
+  }
+
+  getRelevanceClass(relevance: string): string {
+    return `relevance-${relevance.toLowerCase()}`;
   }
 
   viewMoreRecommendations(event: Event): void {
     event.preventDefault();
-    console.log('Viewing more recommendations...');
+    this.router.navigate(['/ai-assistant']);
   }
 
   viewAllApplications(event: Event): void {
     event.preventDefault();
-    console.log('Viewing all applications...');
+    this.router.navigate(['/applications']);
   }
 
   viewAllMatches(event: Event): void {
     event.preventDefault();
-    console.log('Viewing all matches...');
+    this.router.navigate(['/job-matches']);
   }
 
   manageSkills(event: Event): void {
     event.preventDefault();
-    console.log('Managing skills...');
+    this.router.navigate(['/skills']);
   }
 
   browseTraining(event: Event): void {
     event.preventDefault();
-    console.log('Browsing training...');
+    this.router.navigate(['/training']);
   }
 
-  openTrainingModal(courseTitle: string, event: Event): void {
+  viewCalendar(event: Event): void {
     event.preventDefault();
+    this.router.navigate(['/calendar']);
+  }
+
+  prepareForInterview(id: string): void {
+    console.log('Prepare for interview:', id);
+  }
+
+  rescheduleInterview(id: string): void {
+    console.log('Reschedule interview:', id);
+  }
+
+  openChat(event: Event): void {
+    event.preventDefault();
+    this.router.navigate(['/ai-assistant']);
+  }
+
+  getCareerAdvice(event: Event): void {
+    console.log('Get career advice');
+  }
+
+  openTrainingModal(title: string, event: Event): void {
+    event.stopPropagation();
+    this.modal.title = title;
+    this.modal.description = `Description for ${title}. This is a comprehensive course covering key concepts.`;
     this.modal.display = 'block';
-    this.modal.title = courseTitle;
-    const descriptions = {
-      'Advanced React Development': 'Master modern React development with hooks, context, and advanced patterns. Build scalable applications and learn best practices used in top tech companies.',
-      'Data Science Fundamentals': 'Learn the essentials of data science including Python programming, statistical analysis, and machine learning algorithms. Perfect for career transition into tech.',
-      'Digital Marketing Mastery': 'Comprehensive digital marketing course covering SEO, social media marketing, content strategy, and analytics. Ideal for marketing professionals and entrepreneurs.'
-    };
-    this.modal.description = descriptions[courseTitle as keyof typeof descriptions] || 'This comprehensive course will help you advance your skills and career prospects.';
   }
 
   closeTrainingModal(): void {
@@ -264,33 +416,11 @@ export class DashboardComponent {
   }
 
   startCourse(): void {
-    console.log('Starting course...');
+    console.log('Start course');
+    this.closeTrainingModal();
   }
 
   addToWatchlist(): void {
-    console.log('Added to watchlist...');
-  }
-
-  viewCalendar(event: Event): void {
-    event.preventDefault();
-    console.log('Viewing calendar...');
-  }
-
-  openChat(event: Event): void {
-    event.preventDefault();
-    console.log('Opening chat...');
-  }
-
-  getCareerAdvice(event: Event): void {
-    event.preventDefault();
-    console.log('Getting career advice...');
-  }
-
-  prepareForInterview(id: number): void {
-    console.log(`Preparing for interview with ID: ${id}`);
-  }
-
-  rescheduleInterview(id: number): void {
-    console.log(`Rescheduling interview with ID: ${id}`);
+    console.log('Add to watchlist');
   }
 }

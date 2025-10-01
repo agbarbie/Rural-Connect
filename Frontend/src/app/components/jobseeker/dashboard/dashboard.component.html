@@ -45,11 +45,11 @@
 
     <div class="nav-section">
       <div class="nav-title">Support</div>
-      <a href="#" class="nav-item" routerLink="/settings">
+      <a href="#" class="nav-item" routerLink="../settings">
         <i class="fas fa-cog"></i>
         <span>Settings</span>
       </a>
-      <a href="#" class="nav-item" routerLink="/help">
+      <a href="#" class="nav-item" routerLink="../help">
         <i class="fas fa-question-circle"></i>
         <span>Help & Support</span>
       </a>
@@ -267,7 +267,7 @@
           <div class="interview-list">
             <div class="activity-item" *ngFor="let interview of upcomingInterviews" [style.padding]="interview.padding" [style.border]="interview.border" [style.borderRadius]="interview.borderRadius" [style.marginBottom]="interview.marginBottom">
               <div class="activity-icon" [style.background]="interview.iconColor" [style.color]="interview.iconTextColor" [style.borderRadius]="interview.iconBorderRadius">
-                <i [class]="'fa-' + interview.icon"></i>
+                <i [class]="'fa-' + interview.typeIcon"></i>
               </div>
               <div class="activity-content">
                 <div class="activity-title">{{ interview.position }}</div>

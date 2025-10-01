@@ -1,8 +1,10 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { RouterModule } from '@angular/router';
+import { Subscription } from 'rxjs';
+import { AuthService } from '../../../../../services/auth.service'; // Adjust path as needed
 
 interface JobApplicant {
   id: string;
@@ -46,8 +48,8 @@ interface AnalyticsData {
   standalone: true,
   styleUrls: ['./employer-dashboard.component.css']
 })
-export class EmployerDashboardComponent implements OnInit {
-  employerName = 'Tech Innovators Ltd';
+export class EmployerDashboardComponent implements OnInit, OnDestroy {
+  employerName: string = 'Tech Innovators Ltd'; // Fallback
   profileCompletion = 85;
   
   // Dashboard stats
@@ -93,7 +95,7 @@ export class EmployerDashboardComponent implements OnInit {
       id: '1',
       candidateName: 'Emma Wilson',
       position: 'Project Manager',
-      date: 'Mon, Apr 14',
+      date: 'Mon, Oct 6',
       time: '10:00 AM',
       type: 'online',
       status: 'scheduled'
@@ -102,7 +104,7 @@ export class EmployerDashboardComponent implements OnInit {
       id: '2',
       candidateName: 'David Chen',
       position: 'Data Analyst',
-      date: 'Mon, Apr 14',
+      date: 'Mon, Oct 6',
       time: '02:30 PM',
       type: 'in-person',
       status: 'scheduled'
@@ -111,7 +113,7 @@ export class EmployerDashboardComponent implements OnInit {
       id: '3',
       candidateName: 'Lisa Taylor',
       position: 'DevOps Engineer',
-      date: 'Tue, Apr 15',
+      date: 'Tue, Oct 7',
       time: '11:00 AM',
       type: 'online',
       status: 'scheduled'
@@ -155,12 +157,31 @@ export class EmployerDashboardComponent implements OnInit {
     timeToHire: { value: '14d', change: 7 }
   };
 
-  constructor(private router: Router) { }
+  private authSubscription: Subscription | null = null;
+
+  constructor(
+    private router: Router,
+    private authService: AuthService
+  ) { }
 
   ngOnInit(): void {
     // Ensure all data is initialized
     if (!this.recentActivity || this.recentActivity.length === 0) {
       console.warn('Recent activity data is empty or undefined');
+    }
+
+    // Subscribe to current user changes to update employerName dynamically
+    this.authSubscription = this.authService.currentUser$.subscribe(user => {
+      if (user && user.user_type === 'employer') {
+        // Assuming User has a 'name' or 'company_name' field; adjust as per your User interface
+        this.employerName = user.name || user.company_name || 'Tech Innovators Ltd'; // Fallback
+      }
+    });
+  }
+
+  ngOnDestroy(): void {
+    if (this.authSubscription) {
+      this.authSubscription.unsubscribe();
     }
   }
 

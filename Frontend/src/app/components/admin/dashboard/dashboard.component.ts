@@ -1,6 +1,8 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router, RouterModule } from '@angular/router';
+import { Subscription } from 'rxjs';
+import { AuthService } from '../../../../../services/auth.service'; // Adjust path as needed
 
 interface StatCard {
   title: string;
@@ -40,10 +42,10 @@ interface MaintenanceItem {
   templateUrl: './dashboard.component.html',
   styleUrls: ['./dashboard.component.css']
 })
-export class DashboardComponent implements OnInit {
+export class DashboardComponent implements OnInit, OnDestroy {
   
-  constructor(private router: Router) {}
-
+  adminName: string = 'Admin User'; // Fallback
+  
   statsCards: StatCard[] = [
     {
       title: 'Total Users',
@@ -118,24 +120,45 @@ export class DashboardComponent implements OnInit {
     {
       title: 'Database Optimization',
       description: 'Scheduled query optimization and index rebuilding.',
-      date: 'April 15, 2025',
+      date: 'October 15, 2025',
       downtime: 'No Downtime',
       type: 'database'
     },
     {
       title: 'Security Updates',
       description: 'Critical security patches and dependency updates.',
-      date: 'April 17, 2025',
+      date: 'October 17, 2025',
       downtime: '10 min Downtime',
       type: 'security'
     }
   ];
+
+  private authSubscription: Subscription | null = null;
+
+  constructor(
+    private router: Router,
+    private authService: AuthService
+  ) {}
 
   ngOnInit() {
     // Initialize charts after view init
     setTimeout(() => {
       this.initializeCharts();
     }, 100);
+
+    // Subscribe to current user changes to update adminName dynamically
+    this.authSubscription = this.authService.currentUser$.subscribe(user => {
+      if (user && user.user_type === 'admin') {
+        // Assuming User has a 'name' field; adjust as per your User interface
+        this.adminName = user.name || 'Admin User'; // Fallback
+      }
+    });
+  }
+
+  ngOnDestroy(): void {
+    if (this.authSubscription) {
+      this.authSubscription.unsubscribe();
+    }
   }
 
   getAlertIcon(type: string): string {
