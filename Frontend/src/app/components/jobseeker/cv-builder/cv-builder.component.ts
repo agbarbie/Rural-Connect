@@ -1,15 +1,20 @@
-import { Component, OnInit } from '@angular/core';
+// src/app/components/cv-builder/cv-builder.component.ts
+import { Component, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { CvService, CVData } from '../../../../../services/cv.service';  // ✅ import service + CVData
+import { Router } from '@angular/router';
+import { Subscription } from 'rxjs';
+import { CvService, CVData, CV } from '../../../../../services/cv.service';
+import { AuthService } from '../../../../../services/auth.service';
 
 @Component({
   selector: 'app-cv-builder',
   templateUrl: './cv-builder.component.html',
+  standalone: true,
   imports: [CommonModule, FormsModule],
   styleUrls: ['./cv-builder.component.css']
 })
-export class CvBuilderComponent implements OnInit {
+export class CvBuilderComponent implements OnInit, OnDestroy {
   
   currentStep = 1;
   totalSteps = 6;
@@ -21,6 +26,14 @@ export class CvBuilderComponent implements OnInit {
   showNotification = false;
   notificationMessage = '';
   notificationType: 'success' | 'error' | 'warning' = 'success';
+  currentCVId: string | null = null;
+  savedCVs: CV[] = [];
+  
+  // Auth related properties
+  isAuthenticated = false;
+  currentUserId: string | null = null;
+  userName: string = 'User';
+  private authSubscription: Subscription | null = null;
 
   cvData: CVData = {
     personalInfo: {
@@ -49,13 +62,71 @@ export class CvBuilderComponent implements OnInit {
     'Agile', 'Scrum', 'Leadership', 'Team Management', 'Communication', 'Problem Solving'
   ];
 
-  constructor(private cvService: CvService) {}  // ✅ inject service
+  constructor(
+    private cvService: CvService,
+    private authService: AuthService,
+    private router: Router
+  ) {}
   
   ngOnInit(): void {
-    this.loadSavedCV();  // load user’s CVs from backend
+    // Subscribe to authentication state
+    this.authSubscription = this.authService.currentUser$.subscribe(user => {
+      if (user && user.user_type === 'jobseeker') {
+        this.isAuthenticated = true;
+        this.currentUserId = user.id?.toString() || null;
+        this.userName = user.name || 'Job Seeker';
+        
+        // Pre-fill personal info with user data if CV is empty
+        if (!this.cvData.personalInfo.fullName && !this.cvData.personalInfo.email) {
+          this.cvData.personalInfo.fullName = user.name || '';
+          this.cvData.personalInfo.email = user.email || '';
+        }
+        
+        // Load saved CVs once authenticated
+        this.loadSavedCVs();
+      } else {
+        this.isAuthenticated = false;
+        this.currentUserId = null;
+        this.displayNotification('Please login as a jobseeker to use CV Builder', 'error');
+        // Redirect to login after 2 seconds
+        setTimeout(() => {
+          this.router.navigate(['/login']);
+        }, 2000);
+      }
+    });
+
+    // Check authentication immediately
+    if (!this.authService.isAuthenticated() || !this.authService.isJobseeker()) {
+      this.displayNotification('Authentication required. Redirecting to login...', 'error');
+      setTimeout(() => {
+        this.router.navigate(['/login']);
+      }, 2000);
+    }
   }
 
-  // File upload and drag-drop handlers
+  ngOnDestroy(): void {
+    if (this.authSubscription) {
+      this.authSubscription.unsubscribe();
+    }
+  }
+
+  // ============================================
+  // AUTH GUARD METHODS
+  // ============================================
+
+  private checkAuthentication(): boolean {
+    if (!this.isAuthenticated || !this.currentUserId) {
+      this.displayNotification('You must be logged in to perform this action', 'error');
+      this.router.navigate(['/login']);
+      return false;
+    }
+    return true;
+  }
+
+  // ============================================
+  // FILE UPLOAD AND DRAG-DROP HANDLERS
+  // ============================================
+
   onDragOver(event: DragEvent): void {
     event.preventDefault();
     event.stopPropagation();
@@ -78,6 +149,8 @@ export class CvBuilderComponent implements OnInit {
     event.stopPropagation();
     this.isDragOver = false;
     
+    if (!this.checkAuthentication()) return;
+    
     const files = event.dataTransfer?.files;
     if (files && files.length > 0) {
       this.processFile(files[0]);
@@ -85,6 +158,8 @@ export class CvBuilderComponent implements OnInit {
   }
 
   onFileSelected(event: any): void {
+    if (!this.checkAuthentication()) return;
+    
     const file = event.target.files[0];
     if (file) {
       this.processFile(file);
@@ -113,111 +188,44 @@ export class CvBuilderComponent implements OnInit {
 
     this.isProcessingFile = true;
     
-    // Simulate file processing (replace with actual parsing logic)
-    setTimeout(() => {
-      this.parseCV(file);
-    }, 2000);
-  }
-
-  private parseCV(file: File): void {
-    const reader = new FileReader();
-
-    reader.onload = (e) => {
-      this.isProcessingFile = false;
-      
-      // Simulate extracted data (replace with actual parsing results)
-      this.simulateExtractedData();
-      
-      this.displayNotification('CV uploaded and parsed successfully!', 'success');
-      this.startCVBuilder();
-    };
-
-    reader.onerror = () => {
-      this.isProcessingFile = false;
-      this.displayNotification('Error reading file. Please try again.', 'error');
-    };
-
-    if (file.type === 'text/plain') {
-      reader.readAsText(file);
-    } else {
-      reader.readAsArrayBuffer(file);
-    }
-  }
-
-  private simulateExtractedData(): void {
-    // Simulate parsed CV data - replace with actual parsing logic
-    this.cvData = {
-      personalInfo: {
-        fullName: 'John Doe',
-        email: 'john.doe@email.com',
-        phone: '+254 700 123 456',
-        address: 'Nairobi, Kenya',
-        linkedIn: 'https://linkedin.com/in/johndoe',
-        website: 'https://johndoe.dev',
-        professionalSummary: 'Experienced software developer with 5+ years of experience in web development and mobile applications.'
+    // Upload file to backend
+    this.cvService.uploadCV(file).subscribe({
+      next: (response) => {
+        this.isProcessingFile = false;
+        if (response.success && response.data) {
+          this.cvData = response.data.cvData;
+          this.currentCVId = response.data.id;
+          this.isDraft = response.data.status === 'draft';
+          this.displayNotification('CV uploaded and parsed successfully!', 'success');
+          this.startCVBuilder();
+        } else {
+          this.displayNotification('Failed to parse CV. Please try again.', 'error');
+        }
       },
-      education: [
-        {
-          id: this.generateId(),
-          institution: 'University of Nairobi',
-          degree: 'Bachelor of Science',
-          fieldOfStudy: 'Computer Science',
-          startYear: '2016',
-          endYear: '2020',
-          gpa: '3.8/4.0',
-          achievements: 'Dean\'s List, President of Computer Science Society'
+      error: (error) => {
+        this.isProcessingFile = false;
+        if (error.message.includes('401') || error.message.includes('Unauthorized')) {
+          this.displayNotification('Session expired. Please login again.', 'error');
+          this.router.navigate(['/login']);
+        } else {
+          this.displayNotification('Error uploading CV: ' + error.message, 'error');
         }
-      ],
-      workExperience: [
-        {
-          id: this.generateId(),
-          company: 'Tech Solutions Ltd',
-          position: 'Senior Software Developer',
-          startDate: '2021-01',
-          endDate: '',
-          current: true,
-          responsibilities: 'Lead development of web applications using React and Node.js. Mentor junior developers and conduct code reviews.',
-          achievements: 'Improved application performance by 40%, led team of 3 developers'
-        }
-      ],
-      skills: [
-        { name: 'JavaScript', level: 'Expert', category: 'Programming' },
-        { name: 'React', level: 'Advanced', category: 'Programming' },
-        { name: 'Node.js', level: 'Advanced', category: 'Programming' },
-        { name: 'Project Management', level: 'Intermediate', category: 'Management' }
-      ],
-      certifications: [
-        {
-          id: this.generateId(),
-          name: 'AWS Certified Solutions Architect',
-          issuer: 'Amazon Web Services',
-          dateIssued: '2022-06',
-          expiryDate: '2025-06',
-          credentialId: 'AWS-SAA-123456'
-        }
-      ],
-      projects: [
-        {
-          id: this.generateId(),
-          name: 'E-commerce Platform',
-          description: 'Full-stack e-commerce solution built with React, Node.js, and MongoDB',
-          technologies: 'React, Node.js, MongoDB, Stripe API',
-          startDate: '2022-01',
-          endDate: '2022-06',
-          githubLink: 'https://github.com/johndoe/ecommerce',
-          demoLink: 'https://ecommerce-demo.com',
-          outcomes: 'Successfully launched platform with 1000+ active users'
-        }
-      ]
-    };
+      }
+    });
   }
+
+  // ============================================
+  // CV OPERATIONS
+  // ============================================
 
   startNewCV(): void {
-    // Reset CV data
+    if (!this.checkAuthentication()) return;
+    
+    // Reset CV data but keep user info
     this.cvData = {
       personalInfo: {
-        fullName: '',
-        email: '',
+        fullName: this.userName,
+        email: this.authService.getCurrentUser()?.email || '',
         phone: '',
         address: '',
         linkedIn: '',
@@ -231,6 +239,8 @@ export class CvBuilderComponent implements OnInit {
       projects: []
     };
 
+    this.currentCVId = null;
+    this.isDraft = true;
     this.startCVBuilder();
   }
 
@@ -239,7 +249,203 @@ export class CvBuilderComponent implements OnInit {
     this.currentStep = 1;
   }
 
-  // Navigation methods
+  saveAsDraft(): void {
+    if (!this.checkAuthentication()) return;
+    
+    this.isDraft = true;
+    
+    if (this.currentCVId) {
+      // Update existing CV
+      this.cvService.updateCV(this.currentCVId, this.cvData).subscribe({
+        next: (response) => {
+          if (response.success) {
+            this.displayNotification('CV draft updated successfully!', 'success');
+            // Update status to draft if needed
+            if (response.data?.status !== 'draft') {
+              this.cvService.updateCVStatus(this.currentCVId!, 'draft').subscribe();
+            }
+            this.loadSavedCVs();
+          }
+        },
+        error: (error) => {
+          this.handleServiceError(error, 'saving draft');
+        }
+      });
+    } else {
+      // Create new CV
+      this.cvService.createCV(this.cvData).subscribe({
+        next: (response) => {
+          if (response.success && response.data) {
+            this.currentCVId = response.data.id;
+            this.displayNotification('CV draft saved successfully!', 'success');
+            this.loadSavedCVs();
+          }
+        },
+        error: (error) => {
+          this.handleServiceError(error, 'creating draft');
+        }
+      });
+    }
+  }
+
+  saveAsFinal(): void {
+    if (!this.checkAuthentication()) return;
+    
+    if (!this.validateCV()) {
+      this.displayNotification('Please complete all required fields before saving as final.', 'error');
+      return;
+    }
+
+    this.isDraft = false;
+
+    if (this.currentCVId) {
+      // Update existing CV and set status to final
+      this.cvService.updateCV(this.currentCVId, this.cvData).subscribe({
+        next: (response) => {
+          if (response.success) {
+            // Update status to final
+            this.cvService.updateCVStatus(this.currentCVId!, 'final').subscribe({
+              next: (statusResponse) => {
+                if (statusResponse.success) {
+                  this.displayNotification('CV finalized successfully!', 'success');
+                  this.loadSavedCVs();
+                }
+              },
+              error: (error) => {
+                this.handleServiceError(error, 'finalizing CV');
+              }
+            });
+          }
+        },
+        error: (error) => {
+          this.handleServiceError(error, 'saving CV');
+        }
+      });
+    } else {
+      // Create new CV as final
+      this.cvService.createCV(this.cvData).subscribe({
+        next: (response) => {
+          if (response.success && response.data) {
+            this.currentCVId = response.data.id;
+            // Update status to final
+            this.cvService.updateCVStatus(this.currentCVId, 'final').subscribe({
+              next: () => {
+                this.displayNotification('CV created and finalized successfully!', 'success');
+                this.loadSavedCVs();
+              }
+            });
+          }
+        },
+        error: (error) => {
+          this.handleServiceError(error, 'creating CV');
+        }
+      });
+    }
+  }
+
+  loadSavedCVs(): void {
+    if (!this.checkAuthentication()) return;
+    
+    this.cvService.getMyCVs().subscribe({
+      next: (response) => {
+        if (response.success && response.data) {
+          this.savedCVs = response.data;
+          
+          // Load the most recent CV if available and no current CV is loaded
+          if (this.savedCVs.length > 0 && !this.currentCVId) {
+            const latestCV = this.savedCVs[0];
+            this.cvData = latestCV.cvData;
+            this.currentCVId = latestCV.id;
+            this.isDraft = latestCV.status === 'draft';
+            this.displayNotification(`Loaded CV: ${latestCV.cvData.personalInfo.fullName || 'Untitled'}`, 'success');
+          }
+        }
+      },
+      error: (error) => {
+        this.handleServiceError(error, 'loading CVs');
+      }
+    });
+  }
+
+  loadCV(cvId: string): void {
+    if (!this.checkAuthentication()) return;
+    
+    this.cvService.getCVById(cvId).subscribe({
+      next: (response) => {
+        if (response.success && response.data) {
+          this.cvData = response.data.cvData;
+          this.currentCVId = response.data.id;
+          this.isDraft = response.data.status === 'draft';
+          this.displayNotification('CV loaded successfully!', 'success');
+          this.showWelcome = false;
+        }
+      },
+      error: (error) => {
+        this.handleServiceError(error, 'loading CV');
+      }
+    });
+  }
+
+  deleteCV(cvId: string): void {
+    if (!this.checkAuthentication()) return;
+    
+    if (!confirm('Are you sure you want to delete this CV?')) {
+      return;
+    }
+
+    this.cvService.deleteCV(cvId).subscribe({
+      next: (response) => {
+        if (response.success) {
+          this.displayNotification('CV deleted successfully!', 'success');
+          this.loadSavedCVs();
+          
+          // If we deleted the current CV, reset
+          if (cvId === this.currentCVId) {
+            this.startNewCV();
+            this.showWelcome = true;
+          }
+        }
+      },
+      error: (error) => {
+        this.handleServiceError(error, 'deleting CV');
+      }
+    });
+  }
+
+  // ============================================
+  // EXPORT FUNCTIONS
+  // ============================================
+
+  downloadPDF(): void {
+    if (!this.checkAuthentication()) return;
+    
+    if (!this.currentCVId) {
+      this.displayNotification('Please save your CV first before downloading.', 'warning');
+      return;
+    }
+
+    const filename = `${this.cvData.personalInfo.fullName || 'CV'}_${Date.now()}.pdf`;
+    this.cvService.downloadCV(this.currentCVId, 'pdf', filename);
+    this.displayNotification('Downloading PDF...', 'success');
+  }
+
+  downloadWord(): void {
+    if (!this.checkAuthentication()) return;
+    
+    if (!this.currentCVId) {
+      this.displayNotification('Please save your CV first before downloading.', 'warning');
+      return;
+    }
+
+    const filename = `${this.cvData.personalInfo.fullName || 'CV'}_${Date.now()}.docx`;
+    this.cvService.downloadCV(this.currentCVId, 'docx', filename);
+    this.displayNotification('Downloading Word document...', 'success');
+  }
+
+  // ============================================
+  // NAVIGATION METHODS
+  // ============================================
+
   nextStep(): void {
     if (this.validateCurrentStep() && this.currentStep < this.totalSteps) {
       this.currentStep++;
@@ -258,7 +464,14 @@ export class CvBuilderComponent implements OnInit {
     }
   }
 
-  // Education methods
+  togglePreview(): void {
+    this.previewMode = !this.previewMode;
+  }
+
+  // ============================================
+  // EDUCATION METHODS
+  // ============================================
+
   addEducation(): void {
     const newEducation: any = {
       id: this.generateId(),
@@ -277,7 +490,10 @@ export class CvBuilderComponent implements OnInit {
     this.cvData.education = this.cvData.education.filter(edu => edu.id !== id);
   }
 
-  // Work Experience methods
+  // ============================================
+  // WORK EXPERIENCE METHODS
+  // ============================================
+
   addWorkExperience(): void {
     const newWork: any = {
       id: this.generateId(),
@@ -302,7 +518,10 @@ export class CvBuilderComponent implements OnInit {
     }
   }
 
-  // Skills methods
+  // ============================================
+  // SKILLS METHODS
+  // ============================================
+
   addSkill(): void {
     const newSkill: any = {
       name: '',
@@ -316,7 +535,19 @@ export class CvBuilderComponent implements OnInit {
     this.cvData.skills.splice(index, 1);
   }
 
-  // Certifications methods
+  getSkillCategories(): string[] {
+    const categories = [...new Set(this.cvData.skills.map((skill: any) => skill.category))];
+    return categories.filter(category => category);
+  }
+
+  getSkillsByCategory(category: string): any[] {
+    return this.cvData.skills.filter((skill: any) => skill.category === category);
+  }
+
+  // ============================================
+  // CERTIFICATIONS METHODS
+  // ============================================
+
   addCertification(): void {
     const newCertification: any = {
       id: this.generateId(),
@@ -333,7 +564,10 @@ export class CvBuilderComponent implements OnInit {
     this.cvData.certifications = this.cvData.certifications.filter(cert => cert.id !== id);
   }
 
-  // Projects methods
+  // ============================================
+  // PROJECTS METHODS
+  // ============================================
+
   addProject(): void {
     const newProject: any = {
       id: this.generateId(),
@@ -353,79 +587,10 @@ export class CvBuilderComponent implements OnInit {
     this.cvData.projects = this.cvData.projects.filter(project => project.id !== id);
   }
 
-  // ---------------------------
-  // Save methods with backend
-  // ---------------------------
-  saveAsDraft(): void {
-    this.isDraft = true;
-    this.cvService.createCV(this.cvData).subscribe({
-      next: (res) => {
-        this.displayNotification('CV saved as draft successfully!', 'success');
-        console.log('Draft CV response:', res);
-      },
-      error: (err) => {
-        this.displayNotification('Error saving draft CV', 'error');
-        console.error(err);
-      }
-    });
-  }
+  // ============================================
+  // VALIDATION METHODS
+  // ============================================
 
-  saveAsFinal(): void {
-    if (this.validateCV()) {
-      this.isDraft = false;
-      this.cvService.createCV(this.cvData).subscribe({
-        next: (res) => {
-          this.displayNotification('CV saved as final successfully!', 'success');
-          console.log('Final CV response:', res);
-        },
-        error: (err) => {
-          this.displayNotification('Error saving final CV', 'error');
-          console.error(err);
-        }
-      });
-    } else {
-      this.displayNotification('Please complete all required fields before saving as final.', 'error');
-    }
-  }
-
-  loadSavedCV(): void {
-    this.cvService.getMyCVs().subscribe({
-      next: (res) => {
-        if (res?.data && res.data.length > 0) {
-          this.cvData = res.data[0];  // load the first saved CV
-          this.displayNotification('Loaded saved CV successfully!', 'success');
-        }
-      },
-      error: (err) => {
-        console.error(err);
-        this.displayNotification('Error loading saved CVs', 'error');
-      }
-    });
-  }
-
-  // ---------------------------
-  // (The rest of your code: file upload, parsing, navigation, add/remove methods, validation, utils)
-  // No changes needed except keeping displayNotification as is
-  // ---------------------------
-
-  // Preview and Export methods
-  togglePreview(): void {
-    this.previewMode = !this.previewMode;
-  }
-
-  downloadPDF(): void {
-    // Implement PDF download logic here
-    // You would typically use libraries like jsPDF or send data to backend
-    this.displayNotification('PDF download feature will be implemented with jsPDF library.', 'warning');
-  }
-
-  downloadWord(): void {
-    // Implement Word document download logic here
-    // You would typically use libraries like docx or send data to backend
-    this.displayNotification('Word download feature will be implemented with docx library.', 'warning');
-  }
-
-  // Validation methods
   private validateCurrentStep(): boolean {
     switch(this.currentStep) {
       case 1:
@@ -434,30 +599,55 @@ export class CvBuilderComponent implements OnInit {
           this.displayNotification('Please fill in all required fields', 'error');
           return false;
         }
+        // Basic email validation
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(personalInfo.email)) {
+          this.displayNotification('Please enter a valid email address', 'error');
+          return false;
+        }
         break;
-      // Add validation for other steps as needed
+      case 2:
+        if (this.cvData.education.length === 0) {
+          this.displayNotification('Please add at least one education entry', 'warning');
+          return true; // Allow to proceed but warn
+        }
+        break;
+      case 3:
+        if (this.cvData.workExperience.length === 0) {
+          this.displayNotification('Consider adding work experience', 'warning');
+          return true; // Allow to proceed but warn
+        }
+        break;
     }
     return true;
   }
 
   private validateCV(): boolean {
-    const { personalInfo, education, workExperience } = this.cvData;
+    const { personalInfo, education } = this.cvData;
     
     // Check required personal info
     if (!personalInfo.fullName || !personalInfo.email || !personalInfo.phone || !personalInfo.professionalSummary) {
       return false;
     }
 
-    // Check if at least one education entry exists and is complete
+    // Email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(personalInfo.email)) {
+      return false;
+    }
+
+    // Check if at least one education entry exists
     if (education.length === 0) {
       return false;
     }
 
-    // Additional validations can be added here
     return true;
   }
 
-  // Utility methods
+  // ============================================
+  // UTILITY METHODS
+  // ============================================
+
   private generateId(): string {
     return Math.random().toString(36).substr(2, 9);
   }
@@ -473,6 +663,20 @@ export class CvBuilderComponent implements OnInit {
     }, 5000);
   }
 
+  private handleServiceError(error: any, action: string): void {
+    console.error(`Error ${action}:`, error);
+    
+    if (error.message.includes('401') || error.message.includes('Unauthorized') || 
+        error.message.includes('token') || error.message.includes('authentication')) {
+      this.displayNotification('Session expired. Please login again.', 'error');
+      setTimeout(() => {
+        this.router.navigate(['/login']);
+      }, 2000);
+    } else {
+      this.displayNotification(`Error ${action}: ${error.message}`, 'error');
+    }
+  }
+
   getNotificationIcon(): string {
     switch(this.notificationType) {
       case 'success':
@@ -486,7 +690,6 @@ export class CvBuilderComponent implements OnInit {
     }
   }
 
-  // Getter for step names
   getStepName(step: number): string {
     const stepNames = [
       'Personal Info',
@@ -499,14 +702,11 @@ export class CvBuilderComponent implements OnInit {
     return stepNames[step - 1];
   }
 
-  // Helper methods for skills in preview
-  getSkillCategories(): string[] {
-    const categories = [...new Set(this.cvData.skills.map((skill: any) => skill.category))];
-    return categories.filter(category => category);
+  // Helper method for downloading PDF from saved CVs list
+  downloadPDFForCV(cvId: string): void {
+    if (!this.checkAuthentication()) return;
+    
+    this.cvService.downloadCV(cvId, 'pdf', `CV_${Date.now()}.pdf`);
+    this.displayNotification('Downloading PDF...', 'success');
   }
-
-  getSkillsByCategory(category: string): any[] {
-    return this.cvData.skills.filter((skill: any) => skill.category === category);
-  }
-  
 }
