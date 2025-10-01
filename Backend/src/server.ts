@@ -5,6 +5,7 @@ import authRoutes from './routes/auth.routes';
 import jobRoutes from './routes/jobs.routes';
 import trainingRoutes from './routes/Training.routes';
 import pool from './db/db.config';
+import cvBuilderRoutes from './routes/cv-builder.routes';
 
 // Load environment variables
 dotenv.config();
@@ -160,6 +161,7 @@ console.log('- Training routes: /api/trainings/*');
 app.use('/api/auth', authRoutes);
 app.use('/api/jobs', jobRoutes);
 app.use('/api/trainings', trainingRoutes);
+app.use('/api/cv', cvBuilderRoutes);
 
 // Root route
 app.get('/', (req: Request, res: Response) => {
@@ -283,7 +285,23 @@ app.get('/api', (req: Request, res: Response) => {
           'DELETE /api/trainings/:id - Delete training',
           'POST /api/trainings/:id/publish - Publish training'
         ]
-      }
+      },
+      cv_builder: {
+  base: '/api/cv',
+  routes: [
+    'POST /api/cv/create - Create new CV',
+    'GET /api/cv/my-cvs - Get all user CVs',
+    'GET /api/cv/:id - Get specific CV',
+    'PUT /api/cv/:id - Update CV',
+    'DELETE /api/cv/:id - Delete CV',
+    'POST /api/cv/upload - Upload CV file',
+    'POST /api/cv/:id/draft - Save as draft',
+    'POST /api/cv/:id/final - Save as final',
+    'GET /api/cv/:id/export/pdf - Export to PDF',
+    'GET /api/cv/:id/export/docx - Export to Word'
+  ],
+  authentication: 'Required - Jobseeker role only'
+}
     },
     authentication: {
       type: 'Bearer Token',
