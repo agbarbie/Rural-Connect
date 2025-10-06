@@ -1,4 +1,5 @@
-import { Pool } from 'pg';
+// src/db/db.config.ts
+import { Pool, PoolClient } from 'pg';
 import dotenv from 'dotenv';
 
 // Load environment variables
@@ -25,5 +26,16 @@ pool.on('error', (err) => {
   console.error('Unexpected error on idle client', err);
   process.exit(-1);
 });
+
+// Query function for convenience
+export const query = async (text: string, params?: any[]): Promise<any> => {
+  const client: PoolClient = await pool.connect();
+  try {
+    const result = await client.query(text, params);
+    return result;
+  } finally {
+    client.release();
+  }
+};
 
 export default pool;

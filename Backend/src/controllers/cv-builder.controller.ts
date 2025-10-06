@@ -12,53 +12,52 @@ export class CVBuilderController {
     this.cvBuilderService = new CVBuilderService();
   }
 
-// Create a new CV
-createCV = async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
-  try {
-    const userId = req.user?.id;
+  // Create a new CV
+  createCV = async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const userId = req.user?.id;
 
-    // Validate user ID
-    if (!userId || !isValidUUID(userId)) {
-      res.status(401).json({
-        success: false,
-        message: 'Invalid or missing user ID'
+      // Validate user ID
+      if (!userId || !isValidUUID(userId)) {
+        res.status(401).json({
+          success: false,
+          message: 'Invalid or missing user ID'
+        });
+        return;
+      }
+
+      // Validate body
+      const cvData: CVData = req.body;
+      if (!cvData || Object.keys(cvData).length === 0) {
+        res.status(400).json({
+          success: false,
+          message: 'CV data is required'
+        });
+        return;
+      }
+
+      // Call service
+      const createdCV = await this.cvBuilderService.createCV(userId, cvData);
+
+      if (!createdCV) {
+        res.status(500).json({
+          success: false,
+          message: 'CV could not be created'
+        });
+        return;
+      }
+
+      // Respond with created CV
+      res.status(201).json({
+        success: true,
+        message: 'CV created successfully',
+        data: createdCV
       });
-      return;
+    } catch (error) {
+      console.error('Create CV error:', error);
+      next(error);
     }
-
-    // Validate body
-    const cvData: CVData = req.body;
-    if (!cvData || Object.keys(cvData).length === 0) {
-      res.status(400).json({
-        success: false,
-        message: 'CV data is required'
-      });
-      return;
-    }
-
-    // Call service
-    const createdCV = await this.cvBuilderService.createCV(userId, cvData);
-
-    if (!createdCV) {
-      res.status(500).json({
-        success: false,
-        message: 'CV could not be created'
-      });
-      return;
-    }
-
-    // Respond with created CV
-    res.status(201).json({
-      success: true,
-      message: 'CV created successfully',
-      data: createdCV
-    });
-  } catch (error) {
-    console.error('Create CV error:', error);
-    next(error);
-  }
-};
-
+  };
 
   // Get all CVs for current user
   getMyCVs = async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
@@ -349,44 +348,32 @@ createCV = async (req: AuthenticatedRequest, res: Response, next: NextFunction):
       const cvId = req.params.id;
 
       if (!userId || !isValidUUID(userId)) {
-        res.status(401).json({
-          success: false,
-          message: 'Invalid or missing user ID'
-        });
+        res.status(401).json({ success: false, message: 'Invalid or missing user ID' });
         return;
       }
 
       if (!cvId || !isValidUUID(cvId)) {
-        res.status(400).json({
-          success: false,
-          message: 'Invalid CV ID'
-        });
+        res.status(400).json({ success: false, message: 'Invalid CV ID' });
         return;
       }
 
-      const options: CVExportOptions = {
-        format: 'pdf',
-        template: req.query.template as string || 'default',
-        include_photo: req.query.includePhoto === 'true'
-      };
+      const pdfBuffer = await this.cvBuilderService.exportToPDF(cvId, userId);
 
-      const result = await this.cvBuilderService.exportCV(cvId, userId, options);
-
-      if (!result || !result.success) {
-        res.status(404).json({
-          success: false,
-          message: result?.message || 'CV not found'
-        });
+      if (!pdfBuffer) {
+        res.status(404).json({ success: false, message: 'CV not found or export failed' });
         return;
       }
 
-      res.status(200).json({
-        success: true,
-        message: 'CV exported to PDF successfully',
-        data: {
-          downloadUrl: result.downloadUrl
-        }
-      });
+      // Get CV to generate filename
+      const cv = await this.cvBuilderService.getCVById(cvId, userId);
+      const fullName = cv?.cv_data?.personal_info?.full_name || 'CV';
+      const filename = `${fullName}_${Date.now()}.pdf`
+        .replace(/\s+/g, '_');
+
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      res.setHeader('Content-Length', pdfBuffer.length.toString());
+      res.send(pdfBuffer);
     } catch (error) {
       console.error('Export to PDF error:', error);
       next(error);
@@ -400,44 +387,30 @@ createCV = async (req: AuthenticatedRequest, res: Response, next: NextFunction):
       const cvId = req.params.id;
 
       if (!userId || !isValidUUID(userId)) {
-        res.status(401).json({
-          success: false,
-          message: 'Invalid or missing user ID'
-        });
+        res.status(401).json({ success: false, message: 'Invalid or missing user ID' });
         return;
       }
 
       if (!cvId || !isValidUUID(cvId)) {
-        res.status(400).json({
-          success: false,
-          message: 'Invalid CV ID'
-        });
+        res.status(400).json({ success: false, message: 'Invalid CV ID' });
         return;
       }
 
-      const options: CVExportOptions = {
-        format: 'docx',
-        template: req.query.template as string || 'default',
-        include_photo: req.query.includePhoto === 'true'
-      };
+      const docBuffer = await this.cvBuilderService.exportToWord(cvId, userId);
 
-      const result = await this.cvBuilderService.exportCV(cvId, userId, options);
-
-      if (!result || !result.success) {
-        res.status(404).json({
-          success: false,
-          message: result?.message || 'CV not found'
-        });
+      if (!docBuffer) {
+        res.status(404).json({ success: false, message: 'CV not found or export failed' });
         return;
       }
 
-      res.status(200).json({
-        success: true,
-        message: 'CV exported to Word successfully',
-        data: {
-          downloadUrl: result.downloadUrl
-        }
-      });
+      const cv = await this.cvBuilderService.getCVById(cvId, userId);
+      const filename = `${cv?.cv_data?.personal_info?.full_name || 'CV'}_${Date.now()}.docx`
+        .replace(/\s+/g, '_');
+
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      res.setHeader('Content-Length', docBuffer.length.toString());
+      res.send(docBuffer);
     } catch (error) {
       console.error('Export to Word error:', error);
       next(error);

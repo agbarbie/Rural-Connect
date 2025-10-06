@@ -1,6 +1,8 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
+import { CvService, CV } from '../../../../../services/cv.service';
+import { AuthService } from '../../../../../services/auth.service';
 
 interface Skill {
   name: string;
@@ -74,181 +76,205 @@ interface WorkSample {
 })
 export class ProfileComponent implements OnInit {
 
+  isLoading = true;
+  currentCV: CV | null = null;
+
   // Profile Data
   profile = {
-    fullName: 'Alex Johnson',
-    title: 'Full Stack Developer & UI/UX Designer',
-    location: 'Nairobi, Kenya',
-    email: 'alex.johnson@email.com',
-    phone: '+254 712 345 678',
-    profileCompletion: 95,
+    fullName: '',
+    title: '',
+    location: '',
+    email: '',
+    phone: '',
+    profileCompletion: 0,
     profileImage: 'assets/images/profile-placeholder.jpg',
-    about: 'Experienced Software Engineer with 8+ years in full-stack development. Skilled in React, Python, and cloud solutions. Passionate about scalable applications and team leadership. Currently seeking opportunities to leverage my expertise in modern web technologies and contribute to innovative projects.'
+    about: ''
   };
 
-  // Skills
-  technicalSkills: Skill[] = [
-    { name: 'JavaScript', type: 'technical', level: 'Expert' },
-    { name: 'Angular', type: 'technical', level: 'Advanced' },
-    { name: 'React', type: 'technical', level: 'Advanced' },
-    { name: 'Python', type: 'technical', level: 'Advanced' },
-    { name: 'Node.js', type: 'technical', level: 'Advanced' },
-    { name: 'SQL', type: 'technical', level: 'Intermediate' },
-    { name: 'AWS', type: 'technical', level: 'Intermediate' },
-    { name: 'Docker', type: 'technical', level: 'Intermediate' }
-  ];
+  technicalSkills: Skill[] = [];
+  softSkills: Skill[] = [];
+  certifications: Certification[] = [];
+  experiences: Experience[] = [];
+  education: Education[] = [];
+  projects: Project[] = [];
+  recommendations: Recommendation[] = [];
+  socialLinks: SocialLink[] = [];
+  workSamples: WorkSample[] = [];
+https: any;
 
-  softSkills: Skill[] = [
-    { name: 'Leadership', type: 'soft' },
-    { name: 'Team Collaboration', type: 'soft' },
-    { name: 'Problem Solving', type: 'soft' },
-    { name: 'Communication', type: 'soft' },
-    { name: 'Project Management', type: 'soft' },
-    { name: 'Mentoring', type: 'soft' }
-  ];
-
-  // Certifications
-  certifications: Certification[] = [
-    {
-      title: 'AWS Certified Solutions Architect',
-      organization: 'Amazon Web Services',
-      completionDate: '2024-03-15',
-      badgeUrl: 'assets/badges/aws-badge.png',
-      certificateUrl: 'assets/certificates/aws-cert.pdf'
-    },
-    {
-      title: 'Google UX Design Professional Certificate',
-      organization: 'Google',
-      completionDate: '2023-11-20',
-      badgeUrl: 'assets/badges/google-ux-badge.png',
-      certificateUrl: 'assets/certificates/google-ux-cert.pdf'
-    },
-    {
-      title: 'Certified Scrum Master',
-      organization: 'Scrum Alliance',
-      completionDate: '2023-08-10',
-      badgeUrl: 'assets/badges/scrum-badge.png',
-      certificateUrl: 'assets/certificates/scrum-cert.pdf'
-    }
-  ];
-
-  // Experience
-  experiences: Experience[] = [
-    {
-      title: 'Senior Full Stack Developer',
-      company: 'TechCorp Solutions',
-      duration: '3 years 2 months',
-      startDate: '2022-01',
-      endDate: 'Present',
-      companyLogo: 'assets/logos/techcorp-logo.png',
-      responsibilities: [
-        'Lead development of scalable web applications using React and Node.js',
-        'Mentor junior developers and conduct code reviews',
-        'Collaborate with UX/UI team to implement responsive designs'
-      ],
-      achievements: [
-        'Improved application performance by 40%',
-        'Led team of 5 developers on major product launch',
-        'Implemented CI/CD pipeline reducing deployment time by 60%'
-      ]
-    },
-    {
-      title: 'Frontend Developer',
-      company: 'Digital Innovations Ltd',
-      duration: '2 years 6 months',
-      startDate: '2019-07',
-      endDate: '2021-12',
-      companyLogo: 'assets/logos/digital-innovations-logo.png',
-      responsibilities: [
-        'Developed responsive web applications using Angular and Vue.js',
-        'Collaborated with backend team to integrate APIs',
-        'Optimized applications for maximum speed and scalability'
-      ],
-      achievements: [
-        'Delivered 15+ successful projects on time',
-        'Reduced page load times by 50%',
-        'Implemented modern UI/UX best practices'
-      ]
-    }
-  ];
-
-  // Education
-  education: Education[] = [
-    {
-      degree: 'Bachelor of Science in Computer Science',
-      institution: 'University of Nairobi',
-      graduationDate: '2019-06-15',
-      coursework: ['Data Structures', 'Software Engineering', 'Database Systems', 'Web Development'],
-      gpa: '3.8/4.0'
-    }
-  ];
-
-  // Projects
-  projects: Project[] = [
-    {
-      title: 'E-Commerce Platform',
-      description: 'Full-stack e-commerce solution with React frontend and Node.js backend, featuring payment integration and admin dashboard.',
-      technologies: ['React', 'Node.js', 'MongoDB', 'Stripe API', 'AWS'],
-      githubUrl: 'https://github.com/alexjohnson/ecommerce-platform',
-      liveUrl: 'https://ecommerce-demo.com',
-      imageUrl: 'assets/projects/ecommerce-project.jpg'
-    },
-    {
-      title: 'Task Management App',
-      description: 'Collaborative task management application with real-time updates, built using Angular and Firebase.',
-      technologies: ['Angular', 'Firebase', 'TypeScript', 'Material Design'],
-      githubUrl: 'https://github.com/alexjohnson/task-manager',
-      liveUrl: 'https://taskmaster-app.com',
-      imageUrl: 'assets/projects/taskmanager-project.jpg'
-    },
-    {
-      title: 'Weather Dashboard',
-      description: 'Interactive weather dashboard with data visualization and location-based forecasts.',
-      technologies: ['Vue.js', 'Chart.js', 'OpenWeather API', 'CSS3'],
-      githubUrl: 'https://github.com/alexjohnson/weather-dashboard',
-      liveUrl: 'https://weather-insights.com',
-      imageUrl: 'assets/projects/weather-project.jpg'
-    }
-  ];
-
-  // Recommendations
-  recommendations: Recommendation[] = [
-    {
-      name: 'Sarah Mitchell',
-      position: 'Senior Project Manager',
-      company: 'TechCorp Solutions',
-      text: 'Alex is an exceptional developer with strong leadership qualities. His technical expertise and ability to mentor others make him a valuable team member.',
-      date: '2024-02-15'
-    },
-    {
-      name: 'Michael Chen',
-      position: 'CTO',
-      company: 'Digital Innovations Ltd',
-      text: 'Working with Alex was a pleasure. His dedication to quality code and innovative solutions consistently exceeded our expectations.',
-      date: '2021-12-10'
-    }
-  ];
-
-  // Social Links
-  socialLinks: SocialLink[] = [
-    { platform: 'LinkedIn', url: 'https://linkedin.com/in/alexjohnson', icon: 'fab fa-linkedin' },
-    { platform: 'GitHub', url: 'https://github.com/alexjohnson', icon: 'fab fa-github' },
-    { platform: 'Portfolio', url: 'https://alexjohnson.dev', icon: 'fas fa-globe' },
-    { platform: 'Twitter', url: 'https://twitter.com/alexjohnsondev', icon: 'fab fa-twitter' }
-  ];
-
-  // Work Samples
-  workSamples: WorkSample[] = [
-    { name: 'Portfolio_Design.pdf', type: 'PDF', size: '2.4 MB', url: 'assets/samples/portfolio-design.pdf' },
-    { name: 'Code_Sample.zip', type: 'ZIP', size: '5.1 MB', url: 'assets/samples/code-sample.zip' },
-    { name: 'UI_Mockups.fig', type: 'Figma', size: '8.2 MB', url: 'assets/samples/ui-mockups.fig' }
-  ];
-
-  constructor() { }
+  constructor(
+    private cvService: CvService,
+    private authService: AuthService
+  ) {}
 
   ngOnInit(): void {
-    // Initialize component
-    console.log('Profile component initialized');
+    this.loadUserProfile();
+    this.loadCVData();
+  }
+
+  private loadUserProfile(): void {
+    const user = this.authService.getCurrentUser();
+    if (user) {
+      this.profile.fullName = user.name || '';
+      this.profile.email = user.email || '';
+      this.profile.title = user.user_type === 'jobseeker' ? 'Job Seeker' : 'Professional';
+    }
+  }
+
+  private loadCVData(): void {
+    this.cvService.getMyCVs().subscribe({
+      next: (response) => {
+        if (response.success && response.data && response.data.length > 0) {
+          // Get the most recent final CV, or draft if no final exists
+          const finalCV = response.data.find(cv => cv.status === 'final');
+          this.currentCV = finalCV || response.data[0];
+          
+          this.populateProfileFromCV(this.currentCV);
+        } else {
+          console.log('No CV found for user');
+        }
+        this.isLoading = false;
+      },
+      error: (error) => {
+        console.error('Error loading CV data:', error);
+        this.isLoading = false;
+      }
+    });
+  }
+
+  private populateProfileFromCV(cv: CV): void {
+    const cvData = cv.cvData;
+
+    // Personal Information
+    if (cvData.personalInfo) {
+      this.profile.fullName = cvData.personalInfo.fullName || this.profile.fullName;
+      this.profile.email = cvData.personalInfo.email || this.profile.email;
+      this.profile.phone = cvData.personalInfo.phone || '';
+      this.profile.location = cvData.personalInfo.address || '';
+      this.profile.about = cvData.personalInfo.professionalSummary || '';
+      
+      // Build social links from personal info
+      this.socialLinks = [];
+      if (cvData.personalInfo.linkedIn) {
+        this.socialLinks.push({
+          platform: 'LinkedIn',
+          url: cvData.personalInfo.linkedIn,
+          icon: 'fab fa-linkedin'
+        });
+      }
+      if (cvData.personalInfo.website) {
+        this.socialLinks.push({
+          platform: 'Portfolio',
+          url: cvData.personalInfo.website,
+          icon: 'fas fa-globe'
+        });
+      }
+    }
+
+    // Skills - separate technical and soft skills
+    if (cvData.skills && cvData.skills.length > 0) {
+      this.technicalSkills = cvData.skills
+        .filter(skill => skill.category === 'Technical' || skill.category === 'Programming')
+        .map(skill => ({
+          name: skill.name,
+          type: 'technical' as const,
+          level: skill.level as any
+        }));
+
+      this.softSkills = cvData.skills
+        .filter(skill => skill.category === 'Communication' || skill.category === 'Management' || skill.category === 'Other')
+        .map(skill => ({
+          name: skill.name,
+          type: 'soft' as const
+        }));
+    }
+
+    // Education
+    if (cvData.education && cvData.education.length > 0) {
+      this.education = cvData.education.map(edu => ({
+        degree: `${edu.degree}${edu.fieldOfStudy ? ' in ' + edu.fieldOfStudy : ''}`,
+        institution: edu.institution,
+        graduationDate: edu.endYear ? `${edu.endYear}-06-01` : new Date().toISOString(),
+        gpa: edu.gpa,
+        coursework: edu.achievements ? edu.achievements.split(',').map(a => a.trim()) : undefined
+      }));
+    }
+
+    // Work Experience
+    if (cvData.workExperience && cvData.workExperience.length > 0) {
+      this.experiences = cvData.workExperience.map(work => {
+        const start = new Date(work.startDate || '');
+        const end = work.current ? new Date() : new Date(work.endDate || '');
+        const duration = this.calculateDuration(start, end);
+
+        return {
+          title: work.position,
+          company: work.company,
+          duration: duration,
+          startDate: work.startDate || '',
+          endDate: work.current ? 'Present' : (work.endDate || ''),
+          responsibilities: work.responsibilities ? work.responsibilities.split('\n').filter(r => r.trim()) : [],
+          achievements: work.achievements ? work.achievements.split('\n').filter(a => a.trim()) : [],
+          companyLogo: undefined
+        };
+      });
+    }
+
+    // Certifications
+    if (cvData.certifications && cvData.certifications.length > 0) {
+      this.certifications = cvData.certifications.map(cert => ({
+        title: cert.name,
+        organization: cert.issuer,
+        completionDate: cert.dateIssued || new Date().toISOString(),
+        badgeUrl: undefined,
+        certificateUrl: cert.credentialId || undefined
+      }));
+    }
+
+    // Projects
+    if (cvData.projects && cvData.projects.length > 0) {
+      this.projects = cvData.projects.map(proj => ({
+        title: proj.name,
+        description: proj.description || '',
+        technologies: proj.technologies ? proj.technologies.split(',').map(t => t.trim()) : [],
+        githubUrl: proj.githubLink || undefined,
+        liveUrl: proj.demoLink || undefined,
+        imageUrl: undefined
+      }));
+    }
+
+    // Calculate profile completion
+    this.calculateProfileCompletion();
+  }
+
+  private calculateDuration(start: Date, end: Date): string {
+    const months = (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth());
+    const years = Math.floor(months / 12);
+    const remainingMonths = months % 12;
+
+    if (years > 0 && remainingMonths > 0) {
+      return `${years} year${years > 1 ? 's' : ''} ${remainingMonths} month${remainingMonths > 1 ? 's' : ''}`;
+    } else if (years > 0) {
+      return `${years} year${years > 1 ? 's' : ''}`;
+    } else {
+      return `${remainingMonths} month${remainingMonths > 1 ? 's' : ''}`;
+    }
+  }
+
+  private calculateProfileCompletion(): void {
+    let completedSections = 0;
+    const totalSections = 8;
+
+    if (this.profile.fullName && this.profile.email) completedSections++;
+    if (this.profile.about) completedSections++;
+    if (this.technicalSkills.length > 0 || this.softSkills.length > 0) completedSections++;
+    if (this.education.length > 0) completedSections++;
+    if (this.experiences.length > 0) completedSections++;
+    if (this.certifications.length > 0) completedSections++;
+    if (this.projects.length > 0) completedSections++;
+    if (this.socialLinks.length > 0) completedSections++;
+
+    this.profile.profileCompletion = Math.round((completedSections / totalSections) * 100);
   }
 
   // Methods
@@ -274,14 +300,12 @@ export class ProfileComponent implements OnInit {
   }
 
   editProfile(): void {
-    // Implement profile editing logic
-    console.log('Editing profile...');
-    // You can navigate to edit profile component here
-    // this.router.navigate(['/profile/edit']);
+    console.log('Navigating to CV Builder for profile editing...');
+    // Navigate to CV builder
+    window.location.href = '/cv-builder';
   }
 
   shareProfile(): void {
-    // Implement profile sharing logic
     if (navigator.share) {
       navigator.share({
         title: `${this.profile.fullName} - Profile`,
@@ -289,7 +313,6 @@ export class ProfileComponent implements OnInit {
         url: window.location.href,
       }).catch(err => console.log('Error sharing:', err));
     } else {
-      // Fallback for browsers that don't support Web Share API
       const url = window.location.href;
       navigator.clipboard.writeText(url).then(() => {
         alert('Profile URL copied to clipboard!');

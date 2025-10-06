@@ -1,5 +1,10 @@
 // src/types/cv.type.ts
 export interface PersonalInfo {
+  x_handle: any;
+  twitter: any;
+  github: any;
+  website: undefined;
+  linkedIn: any;
   full_name: string;
   email: string;
   phone: string;
@@ -22,6 +27,7 @@ export interface Education {
 }
 
 export interface WorkExperience {
+  title: string;
   id?: string;
   company: string;
   position: string;
@@ -34,6 +40,7 @@ export interface WorkExperience {
 }
 
 export interface Skill {
+  name: string;
   id?: string;
   skill_name: string;
   skill_level: 'Beginner' | 'Intermediate' | 'Advanced' | 'Expert';
@@ -42,6 +49,7 @@ export interface Skill {
 }
 
 export interface Certification {
+  name: string;
   id?: string;
   certification_name: string;
   issuer: string;
@@ -52,6 +60,7 @@ export interface Certification {
 }
 
 export interface Project {
+  name: string;
   id?: string;
   project_name: string;
   description: string;

@@ -1,4 +1,4 @@
-// middleware/auth.middleware.ts
+// src/middleware/auth.middleware.ts
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 
@@ -122,6 +122,9 @@ export const authenticateToken = (req: AuthenticatedRequest, res: Response, next
     return;
   }
 };
+
+// Export as 'authenticate' to match routes import
+export const authenticate = authenticateToken;
 
 export const requireJobseeker = (req: AuthenticatedRequest, res: Response, next: NextFunction): void => {
   console.log('Jobseeker role check:', {

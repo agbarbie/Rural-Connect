@@ -207,17 +207,12 @@
     <!-- Skills -->
     <section class="section skills-section">
       <div class="container">
-        <h2 class="section-title">Skills & Endorsements</h2>
+        <h2 class="section-title">Skills</h2>
         <div class="skills-grid">
           <div class="skill-item" *ngFor="let skill of skills">
             <div class="skill-content">
               <h3 class="skill-name">{{ skill.name }}</h3>
-              <p class="skill-endorsements">{{ skill.endorsements }} Endorsements</p>
             </div>
-            <button class="btn btn-endorse" (click)="endorseSkill(skill)">
-              <i class="fas fa-plus"></i>
-              Endorse
-            </button>
           </div>
         </div>
       </div>

@@ -4,8 +4,10 @@ import cors from 'cors';
 import authRoutes from './routes/auth.routes';
 import jobRoutes from './routes/jobs.routes';
 import trainingRoutes from './routes/Training.routes';
-import pool from './db/db.config';
 import cvBuilderRoutes from './routes/cv-builder.routes';
+import portfolioRoutes from './routes/portfolio.routes';
+import profileRoutes from './routes/profile.routes';
+import pool from './db/db.config';
 
 // Load environment variables
 dotenv.config();
@@ -56,17 +58,29 @@ pool.connect()
       
       await client.query('SELECT 1 FROM training_enrollments LIMIT 1');
       console.log('✓ Training enrollments table accessible');
+
+      // Test portfolio-related tables
+      await client.query('SELECT 1 FROM portfolio_settings LIMIT 1');
+      console.log('✓ Portfolio settings table accessible');
+      
+      await client.query('SELECT 1 FROM portfolio_views LIMIT 1');
+      console.log('✓ Portfolio views table accessible');
+      
+      await client.query('SELECT 1 FROM portfolio_testimonials LIMIT 1');
+      console.log('✓ Portfolio testimonials table accessible');
       
     } catch (tableError: any) {
       console.warn('Database tables might need migration:', tableError.message);
       console.warn('Please run the database migration script to ensure all tables exist');
       
-      // List expected training tables
+      // List expected tables
       const expectedTables = [
+        'users', 'jobs', 'job_applications',
         'trainings', 'training_videos', 'training_outcomes', 
-        'training_enrollments', 'training_video_progress', 'training_reviews'
+        'training_enrollments', 'training_video_progress', 'training_reviews',
+        'cvs', 'portfolio_settings', 'portfolio_views', 'portfolio_testimonials'
       ];
-      console.warn('Expected training tables:', expectedTables.join(', '));
+      console.warn('Expected tables:', expectedTables.join(', '));
     }
     
     client.release();
@@ -156,12 +170,17 @@ console.log('Registering routes:');
 console.log('- Auth routes: /api/auth/*');
 console.log('- Job routes: /api/jobs/*');
 console.log('- Training routes: /api/trainings/*');
+console.log('- CV Builder routes: /api/cv/*');
+console.log('- Portfolio routes: /api/portfolio/*');
+console.log('- Profile routes: /api/profile/*');
 
 // API Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/jobs', jobRoutes);
 app.use('/api/trainings', trainingRoutes);
 app.use('/api/cv', cvBuilderRoutes);
+app.use('/api/portfolio', portfolioRoutes);
+app.use('/api/profile', profileRoutes);
 
 // Root route
 app.get('/', (req: Request, res: Response) => {
@@ -173,6 +192,9 @@ app.get('/', (req: Request, res: Response) => {
       auth: '/api/auth',
       jobs: '/api/jobs',
       trainings: '/api/trainings',
+      cv: '/api/cv',
+      portfolio: '/api/portfolio',
+      profile: '/api/profile',
       health: '/health',
       database_health: '/health/db'
     },
@@ -240,7 +262,7 @@ app.get('/api', (req: Request, res: Response) => {
         public_routes: [
           'GET /api/jobs - Get all jobs (with filters)',
           'GET /api/jobs/details/:jobId - Get job details',
-          'GET /stats'
+          'GET /api/jobs/stats'
         ],
         jobseeker_routes: [
           'GET /api/jobs/jobseeker/recommended - Get recommended jobs',
@@ -256,8 +278,7 @@ app.get('/api', (req: Request, res: Response) => {
           'GET /api/jobs/my-jobs - Get employer jobs',
           'PUT /api/jobs/employer/:jobId - Update job',
           'DELETE /api/jobs/employer/:jobId - Delete job',
-          'GET /api/jobs/employer/:jobId/applications - Get job applications',
-          
+          'GET /api/jobs/employer/:jobId/applications - Get job applications'
         ]
       },
       trainings: {
@@ -287,49 +308,67 @@ app.get('/api', (req: Request, res: Response) => {
         ]
       },
       cv_builder: {
-  base: '/api/cv',
-  routes: [
-    'POST /api/cv/create - Create new CV',
-    'GET /api/cv/my-cvs - Get all user CVs',
-    'GET /api/cv/:id - Get specific CV',
-    'PUT /api/cv/:id - Update CV',
-    'DELETE /api/cv/:id - Delete CV',
-    'POST /api/cv/upload - Upload CV file',
-    'POST /api/cv/:id/draft - Save as draft',
-    'POST /api/cv/:id/final - Save as final',
-    'GET /api/cv/:id/export/pdf - Export to PDF',
-    'GET /api/cv/:id/export/docx - Export to Word'
-  ],
-  authentication: 'Required - Jobseeker role only'
-}
+        base: '/api/cv',
+        routes: [
+          'POST /api/cv/create - Create new CV',
+          'GET /api/cv/my-cvs - Get all user CVs',
+          'GET /api/cv/:id - Get specific CV',
+          'PUT /api/cv/:id - Update CV',
+          'DELETE /api/cv/:id - Delete CV',
+          'POST /api/cv/upload - Upload CV file',
+          'POST /api/cv/:id/draft - Save as draft',
+          'POST /api/cv/:id/final - Save as final',
+          'GET /api/cv/:id/export/pdf - Export to PDF',
+          'GET /api/cv/:id/export/docx - Export to Word'
+        ],
+        authentication: 'Required - Jobseeker role only'
+      },
+      portfolio: {
+        base: '/api/portfolio',
+        jobseeker_routes: [
+          'GET /api/portfolio/my-portfolio - Get user portfolio data',
+          'GET /api/portfolio/settings - Get portfolio settings',
+          'PUT /api/portfolio/settings - Update portfolio settings',
+          'GET /api/portfolio/analytics - Get portfolio analytics',
+          'GET /api/portfolio/export-pdf - Export portfolio as PDF',
+          'POST /api/portfolio/testimonials - Add testimonial',
+          'DELETE /api/portfolio/testimonials/:testimonialId - Delete testimonial'
+        ],
+        public_routes: [
+          'GET /api/portfolio/public/:identifier - Get public portfolio by user ID or email'
+        ],
+        authentication: 'Required for protected routes - Jobseeker role only',
+        features: [
+          'Public portfolio viewing with privacy controls',
+          'View tracking and analytics',
+          'Customizable themes and settings',
+          'Testimonials management',
+          'SEO optimization',
+          'PDF export functionality'
+        ]
+      },
+      profile: {
+        base: '/api/profile',
+        routes: [
+          'GET /api/profile - Get current user profile',
+          'GET /api/profile/cv/:cvId - Get profile by specific CV ID',
+          'GET /api/profile/completion - Get profile completion status',
+          'PUT /api/profile/picture - Update profile picture',
+          'POST /api/profile/share - Generate shareable profile link',
+          'GET /api/profile/shared/:token - Get shared profile (public access)'
+        ],
+        authentication: 'Required for most routes - Jobseeker role only'
+      }
     },
     authentication: {
       type: 'Bearer Token',
       header: 'Authorization: Bearer <token>',
       note: 'Include JWT token for protected routes',
       user_types: {
-        jobseeker: 'Can enroll in trainings, track progress, submit reviews',
-        employer: 'Can create, manage, and publish trainings',
+        jobseeker: 'Can manage CV, portfolio, enroll in trainings, apply for jobs',
+        employer: 'Can create jobs and trainings, manage applications',
         admin: 'Full system access'
       }
-    },
-    training_features: {
-      jobseeker_capabilities: [
-        'Browse and search available trainings',
-        'Enroll in and unenroll from trainings',
-        'Track learning progress and completion',
-        'Submit reviews and ratings',
-        'Get personalized recommendations',
-        'View training statistics and achievements'
-      ],
-      employer_capabilities: [
-        'Create and manage training content',
-        'Add videos, outcomes, and materials',
-        'Set pricing and access controls',
-        'Monitor enrollment and completion rates',
-        'Publish/unpublish trainings',
-        'View detailed analytics'
-      ]
     }
   });
 });
@@ -344,12 +383,13 @@ app.use('*', (req: Request, res: Response) => {
       '/api/auth/*',
       '/api/jobs/*',
       '/api/trainings/*',
-      '/api/jobs/stats ',
+      '/api/cv/*',
+      '/api/portfolio/*',
+      '/api/profile/*',
       '/health',
       '/health/db',
       '/api'
     ],
-    training_routes_hint: 'Use /api/trainings for training-related operations',
     timestamp: new Date().toISOString()
   });
 });
@@ -405,7 +445,7 @@ app.use((error: any, req: Request, res: Response, next: NextFunction): void => {
     return;
   }
 
-  // Training specific errors
+  // Database constraint errors
   if (error.code === '23505') { // Unique constraint violation
     res.status(409).json({
       success: false,
@@ -484,9 +524,13 @@ app.listen(PORT, () => {
   console.log(`   • Authentication: http://localhost:${PORT}/api/auth`);
   console.log(`   • Jobs: http://localhost:${PORT}/api/jobs`);
   console.log(`   • Training: http://localhost:${PORT}/api/trainings`);
-  console.log(`\n🎓 Training Features:`);
-  console.log(`   • Jobseekers: Enroll, track progress, submit reviews`);
-  console.log(`   • Employers: Create, manage, publish trainings`);
+  console.log(`   • CV Builder: http://localhost:${PORT}/api/cv`);
+  console.log(`   • Portfolio: http://localhost:${PORT}/api/portfolio`);
+  console.log(`   • Profile: http://localhost:${PORT}/api/profile`);
+  console.log(`\n🎓 Features:`);
+  console.log(`   • Jobseekers: CV building, portfolio management, job applications, training enrollment`);
+  console.log(`   • Employers: Job postings, training creation, applicant management`);
+  console.log(`   • Portfolio: Public/private portfolios with analytics and PDF export`);
   console.log(`\n🔐 Remember to include 'Authorization: Bearer <token>' header for protected routes`);
 });
 
