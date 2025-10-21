@@ -1,5 +1,5 @@
 <div class="training-container">
-    <!-- Sidebar -->
+  <!-- Sidebar -->
   <nav class="sidebar">
     <div class="sidebar-header">
       <div class="logo">
@@ -177,15 +177,18 @@
                [alt]="training.title">
           <div class="video-overlay">
             <i class="fas fa-play"></i>
-            <span>{{training.videos?.length || 0}} Videos</span>
+            <span>{{ training.video_count || training.videos?.length || 0 }} Videos</span>
           </div>
           <div class="duration-badge">{{formatDuration(training.duration_hours)}}</div>
         </div>
         <div class="card-actions">
-          <button class="action-btn" title="Add to Wishlist">
-            <i class="far fa-heart"></i>
+          <!-- FIXED: Wishlist toggle with icon change -->
+          <button class="action-btn" title="Add to Wishlist" (click)="toggleWishlist(training.id)">
+            <i class="far fa-heart" *ngIf="!isInWishlist(training.id)"></i>
+            <i class="fas fa-heart" *ngIf="isInWishlist(training.id)" style="color: red;"></i>
           </button>
-          <button class="action-btn" title="Share">
+          <!-- FIXED: Share button -->
+          <button class="action-btn" title="Share" (click)="shareTraining(training)">
             <i class="fas fa-share"></i>
           </button>
         </div>
@@ -285,16 +288,16 @@
         Previous
       </button>
       
-<div class="pagination-numbers">
-  <button 
-    *ngFor="let page of getPaginationPages()"
-    class="pagination-number"
-    [class.active]="page === currentPage"
-    [disabled]="page === '...'"
-    (click)="page !== '...' ? goToPage(+page) : null">
-    {{page}}
-  </button>
-</div>
+      <div class="pagination-numbers">
+        <button 
+          *ngFor="let page of getPaginationPages()"
+          class="pagination-number"
+          [class.active]="page === currentPage"
+          [disabled]="page === '...'"
+          (click)="page !== '...' ? goToPage(+page) : null">
+          {{page}}
+        </button>
+      </div>
       
       <button 
         class="pagination-btn" 
@@ -371,28 +374,48 @@
           <ul class="outcomes-list">
             <li *ngFor="let outcome of selectedTraining.outcomes">
               <i class="fas fa-check-circle"></i>
-              {{outcome.outcome_text || outcome}}
+              {{outcome.outcome_text}}
             </li>
           </ul>
         </div>
 
-        <!-- Video Syllabus -->
+        <!-- Video Syllabus (UPDATED: Fallback to video_count; add loading) -->
         <div class="section">
-          <h3><i class="fas fa-play-circle"></i> Course Videos ({{selectedTraining.videos?.length || 0}})</h3>
-          <div class="video-list">
+          <h3><i class="fas fa-play-circle"></i> Course Videos ({{selectedTraining.videos?.length || selectedTraining.video_count || 0}})</h3>
+          
+          <!-- NEW: Video loading state -->
+          <div *ngIf="showVideoLoading" class="video-loading">
+            <i class="fas fa-spinner fa-spin"></i>
+            <p>Loading videos...</p>
+          </div>
+          
+          <div class="video-list" *ngIf="!showVideoLoading">
             <div class="video-item" *ngFor="let video of selectedTraining.videos; let i = index">
               <div class="video-number">{{i + 1}}</div>
               <div class="video-info">
                 <h4>{{video.title}}</h4>
                 <span class="video-duration">
                   <i class="fas fa-clock"></i>
-                  {{video.duration_minutes || video.duration}}m
+                  {{video.duration_minutes || 0}} mins
                 </span>
               </div>
               <div class="video-status">
                 <i class="fas fa-check-circle" *ngIf="video.completed" style="color: #10b981;"></i>
                 <i class="fas fa-play-circle" *ngIf="!video.completed" style="color: #6b7280;"></i>
+                <!-- FIXED: Accessibility indicator -->
+                <span *ngIf="!isVideoAccessible(video)" class="preview-badge" title="Preview only">Preview</span>
               </div>
+            </div>
+            <!-- UPDATED: Fallback message if no videos -->
+            <div *ngIf="!(selectedTraining.videos && selectedTraining.videos.length > 0)" class="no-videos" 
+                 [ngClass]="{'count-only': (selectedTraining.video_count ?? 0) > 0}">
+              <p *ngIf="(selectedTraining?.video_count ?? 0) > 0">
+                {{selectedTraining.video_count ?? 0}} videos available. 
+                <a href="#" (click)="refreshTrainingVideos(selectedTraining.id); $event.preventDefault()">
+                  Refresh to load
+                </a>.
+              </p>
+              <p *ngIf="selectedTraining.video_count === 0">No videos available yet. Contact the provider for more details.</p>
             </div>
           </div>
         </div>

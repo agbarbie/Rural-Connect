@@ -2,16 +2,18 @@ import { Injectable } from '@angular/core';
 import { HttpClient, HttpHeaders, HttpParams } from '@angular/common/http';
 import { Observable, BehaviorSubject, throwError } from 'rxjs';
 import { catchError, tap, map } from 'rxjs/operators';
+import { environment } from '../src/environments/environment.prod';
 
 // Training Video Interface - Normalized structure
 export interface TrainingVideo {
-duration: number;
+url: string;
   id?: string;
   training_id?: string;
   title: string;
   description?: string;
   video_url?: string;
-  duration_minutes: number;
+  duration_minutes: number; // Primary field
+  duration?: number; // Fallback field
   order_index: number;
   is_preview?: boolean;
   completed?: boolean;
@@ -27,7 +29,7 @@ export interface TrainingOutcome {
   created_at?: Date;
 }
 
-// Main Training Interface
+// Main Training Interface (FIXED: Added video_count, video_urls, and videos for legacy backend compatibility)
 export interface Training {
   id: string;
   title: string;
@@ -59,6 +61,11 @@ export interface Training {
   enrollment_status?: 'enrolled' | 'in_progress' | 'completed' | 'dropped';
   videos?: TrainingVideo[];
   outcomes?: TrainingOutcome[];
+  video_count?: number;  // For list view counts
+
+  // FIXED: Legacy backend fields (aggregated URLs from SQL json_agg)
+  video_urls?: string[];  // e.g., from older queries like COALESCE(json_agg(v.video_url) AS video_urls)
+  // videos?: string[];      // e.g., from updated SQL like AS videos (string array fallback)
 }
 
 export interface CreateTrainingRequest {
@@ -126,15 +133,15 @@ export interface TrainingSearchParams {
   cost_type?: string;
   mode?: string;
   has_certificate?: boolean;
-  include_videos?: boolean; // Add this flag
-  include_outcomes?: boolean; // Add this flag
+  include_videos?: boolean;
+  include_outcomes?: boolean;
 }
 
 @Injectable({
   providedIn: 'root'
 })
 export class TrainingService {
-  private readonly API_BASE = 'http://localhost:5000/api';
+  private readonly API_BASE = environment.apiUrl;
   private readonly TRAINING_ENDPOINT = `${this.API_BASE}/trainings`;
   
   private trainingsSubject = new BehaviorSubject<Training[]>([]);
@@ -189,54 +196,144 @@ export class TrainingService {
     return httpParams;
   }
 
-  // FIXED: Normalize video data structure
+  /**
+   * CRITICAL FIX: Normalize video data to handle both duration and duration_minutes fields
+   */
   private normalizeVideoData(video: any): TrainingVideo {
-    return {
-  id: video.id,
-  training_id: video.training_id,
-  title: video.title || '',
-  description: video.description || '',
-  video_url: video.video_url || '',
-  duration_minutes: video.duration_minutes || video.duration || 0,
-  order_index: video.order_index || 0,
-  is_preview: video.is_preview || false,
-  completed: video.completed || false,
-  created_at: video.created_at,
-  duration: video.duration || 0
-};
+    // Handle both possible field names and ensure duration_minutes is set
+    const durationMinutes = video.duration_minutes || video.duration || 0;
+    
+    const normalizedVideo: TrainingVideo = {
+      id: video.id,
+      training_id: video.training_id,
+      title: video.title || '',
+      description: video.description || '',
+      video_url: video.video_url || '',
+      duration_minutes: durationMinutes,
+      duration: durationMinutes, // Keep both for backward compatibility
+      order_index: video.order_index !== undefined ? video.order_index : 0,
+      is_preview: video.is_preview || false,
+      completed: video.completed || false,
+      created_at: video.created_at,
+      url: ''
+    };
+    
+    console.log('Normalized video:', {
+      title: normalizedVideo.title,
+      duration_minutes: normalizedVideo.duration_minutes,
+      original_duration: video.duration,
+      original_duration_minutes: video.duration_minutes
+    });
+    
+    return normalizedVideo;
   }
 
-  // FIXED: Process training data to ensure videos and outcomes are properly formatted
+  /**
+   * CRITICAL FIX: Process training data to ensure videos array is always properly initialized
+   * ENHANCED: Preserve video_count and handle legacy video_urls OR videos (string arrays)
+   */
   private processTrainingData(training: any): Training {
-    console.log('Processing training data:', training.title, 'Raw videos:', training.videos);
+    console.log('=== Processing Training Data ===');
+    console.log('Training ID:', training.id);
+    console.log('Training Title:', training.title);
+    console.log('Raw videos data:', training.videos);
+    console.log('Raw video_count:', training.video_count);
+    console.log('Legacy video_urls:', training.video_urls);
+
+    // ENHANCED: Compute video_count from multiple sources (prioritize explicit, then length)
+    let videoCount = training.video_count || training.total_videos || 0;
+    if (Array.isArray(training.videos)) {
+      videoCount = Math.max(videoCount, training.videos.length);
+    } else if (Array.isArray(training.video_urls)) {
+      videoCount = Math.max(videoCount, training.video_urls.length);
+    }
+    console.log('Computed video_count:', videoCount);
+
+    // Initialize videos array
+    let processedVideos: TrainingVideo[] = [];
+    
+    if (training.videos) {
+      if (Array.isArray(training.videos) && typeof training.videos[0] === 'object') {
+        // Full video objects (new format)
+        processedVideos = training.videos
+          .filter((v: any) => v !== null && v !== undefined)
+          .map((v: any) => this.normalizeVideoData(v));
+        console.log('Processed object videos:', processedVideos.length);
+      } else if (Array.isArray(training.videos)) {
+        // FIXED: Legacy string array (e.g., from updated SQL AS videos)
+        processedVideos = (training.videos || []).map((url: string, i: number) => ({
+          id: `legacy-${i}`,
+          title: `Video ${i + 1}`,
+          video_url: url,
+          duration_minutes: 0,
+          order_index: i
+        } as TrainingVideo));
+        console.log('Processed string videos:', processedVideos.length);
+      }
+    } else if (training.video_urls && Array.isArray(training.video_urls)) {
+      // FIXED: Legacy from older queries (e.g., AS video_urls)
+      processedVideos = (training.video_urls || []).map((url: string, i: number) => ({
+        id: `legacy-${i}`,
+        title: `Video ${i + 1}`,
+        video_url: url,
+        duration_minutes: 0,
+        order_index: i
+      } as TrainingVideo));
+      console.log('Processed legacy video_urls:', processedVideos.length);
+    }
+    
+    // NEW: If no videos but count >0, log warning (possible backend issue)
+    if (processedVideos.length === 0 && videoCount > 0) {
+      console.warn(`Mismatch: ${videoCount} videos expected but 0 processed for ${training.title}`);
+    }
+
+    // Don't set empty videos in list view; let template use video_count
+    const videosToSet = processedVideos.length > 0 ? processedVideos : undefined;
+
+    // Initialize outcomes array
+    let processedOutcomes: TrainingOutcome[] = [];
+    
+    if (training.outcomes) {
+      if (Array.isArray(training.outcomes)) {
+        processedOutcomes = training.outcomes.filter((o: any) => o !== null && o !== undefined);
+      } else if (typeof training.outcomes === 'object') {
+        processedOutcomes = [training.outcomes];
+      }
+    }
+    const outcomesToSet = processedOutcomes.length > 0 ? processedOutcomes : undefined;
     
     const processedTraining: Training = {
       ...training,
-      videos: Array.isArray(training.videos) 
-        ? training.videos.map((v: any) => this.normalizeVideoData(v))
-        : [],
-      outcomes: Array.isArray(training.outcomes) 
-        ? training.outcomes 
-        : [],
+      videos: videosToSet,
+      outcomes: outcomesToSet,
+      video_count: videoCount,  // ENHANCED: Always set computed count
       enrolled: training.enrolled || false,
       progress: training.progress || 0
     };
 
-    // Ensure videos is always an array
-    if (!processedTraining.videos) {
-      processedTraining.videos = [];
+    // FIXED: Clean up legacy fields to avoid type pollution
+    delete (processedTraining as any).video_urls;
+    if (Array.isArray(processedTraining.videos) && processedVideos.length === 0) {
+      delete (processedTraining as any).videos;  // Avoid empty array pollution
     }
-    
-    console.log('Processed training:', processedTraining.title, 'Videos count:', processedTraining.videos.length);
+
+    console.log('=== Processed Training Result ===');
+    console.log('Videos count:', processedVideos.length);
+    console.log('Video titles:', processedVideos.map(v => v.title));
+    console.log('Outcomes count:', processedOutcomes.length);
+    console.log('Final video_count:', processedTraining.video_count);
+    console.log('=====================================');
     
     return processedTraining;
   }
 
-  // EMPLOYER METHODS
+  /**
+   * EMPLOYER: Get trainings created by the employer
+   */
   getMyTrainings(params: TrainingSearchParams = {}): Observable<PaginatedResponse<{ trainings: Training[] }>> {
     this.loadingSubject.next(true);
     
-    // FIXED: Always include videos and outcomes for employer view
+    // ALWAYS include videos and outcomes for employer view
     const enhancedParams = {
       ...params,
       include_videos: true,
@@ -244,6 +341,8 @@ export class TrainingService {
     };
     
     const httpParams = this.buildParams(enhancedParams);
+    
+    console.log('Fetching employer trainings with params:', enhancedParams);
     
     return this.http.get<PaginatedResponse<{ trainings: Training[] }>>(
       this.TRAINING_ENDPOINT, 
@@ -253,14 +352,19 @@ export class TrainingService {
       }
     ).pipe(
       map(response => {
-        console.log('Raw API response for employer trainings:', response);
+        console.log('=== Employer Trainings API Response ===');
+        console.log('Success:', response.success);
+        console.log('Training count:', response.data?.trainings?.length || 0);
+        
         if (response.success && response.data?.trainings) {
           response.data.trainings = response.data.trainings.map(t => this.processTrainingData(t));
-          console.log('Processed employer trainings:', response.data.trainings.map(t => ({
-            title: t.title,
-            videoCount: t.videos?.length || 0
-          })));
+          
+          console.log('Processed trainings summary:');
+          response.data.trainings.forEach(t => {
+            console.log(`- ${t.title}: ${t.videos?.length || t.video_count || 0} videos`);
+          });
         }
+        
         return response;
       }),
       tap(response => {
@@ -277,9 +381,14 @@ export class TrainingService {
     );
   }
 
+  /**
+   * EMPLOYER: Create new training
+   */
   createTraining(trainingData: CreateTrainingRequest): Observable<ApiResponse<Training>> {
-    console.log('Creating training with data:', trainingData);
+    console.log('=== Creating Training ===');
+    console.log('Title:', trainingData.title);
     console.log('Videos being sent:', trainingData.videos);
+    console.log('Videos count:', trainingData.videos.length);
     
     const token = localStorage.getItem('token');
     if (!token) {
@@ -288,13 +397,13 @@ export class TrainingService {
 
     this.loadingSubject.next(true);
     
-    // FIXED: Normalize video data before sending
+    // Normalize video data before sending
     const normalizedData = {
       ...trainingData,
       videos: trainingData.videos.map(v => this.normalizeVideoData(v))
     };
     
-    console.log('Normalized training data:', normalizedData);
+    console.log('Normalized videos:', normalizedData.videos);
     
     return this.http.post<ApiResponse<Training>>(
       this.TRAINING_ENDPOINT,
@@ -302,14 +411,13 @@ export class TrainingService {
       { headers: this.getAuthHeaders() }
     ).pipe(
       map(response => {
-        console.log('Raw training creation response:', response);
+        console.log('=== Training Creation Response ===');
+        console.log('Success:', response.success);
+        console.log('Response data:', response.data);
+        
         if (response.success && response.data) {
           response.data = this.processTrainingData(response.data);
-          console.log('Processed created training:', {
-            title: response.data.title,
-            videoCount: response.data.videos?.length || 0,
-            videos: response.data.videos
-          });
+          console.log('Created training has', response.data.videos?.length || response.data.video_count || 0, 'videos');
         }
         return response;
       }),
@@ -329,10 +437,13 @@ export class TrainingService {
     );
   }
 
+  /**
+   * EMPLOYER: Update existing training
+   */
   updateTraining(id: string, trainingData: UpdateTrainingRequest): Observable<ApiResponse<Training>> {
     this.loadingSubject.next(true);
     
-    // FIXED: Normalize video data if present
+    // Normalize video data if present
     const normalizedData = trainingData.videos 
       ? {
           ...trainingData,
@@ -369,6 +480,9 @@ export class TrainingService {
     );
   }
 
+  /**
+   * EMPLOYER: Delete training
+   */
   deleteTraining(id: string): Observable<ApiResponse<void>> {
     this.loadingSubject.next(true);
     
@@ -392,6 +506,9 @@ export class TrainingService {
     );
   }
 
+  /**
+   * EMPLOYER: Publish training
+   */
   publishTraining(id: string): Observable<ApiResponse<Training>> {
     return this.http.post<ApiResponse<Training>>(
       `${this.TRAINING_ENDPOINT}/${id}/publish`,
@@ -418,6 +535,9 @@ export class TrainingService {
     );
   }
 
+  /**
+   * EMPLOYER: Unpublish training
+   */
   unpublishTraining(id: string): Observable<ApiResponse<Training>> {
     return this.http.post<ApiResponse<Training>>(
       `${this.TRAINING_ENDPOINT}/${id}/unpublish`,
@@ -444,6 +564,9 @@ export class TrainingService {
     );
   }
 
+  /**
+   * EMPLOYER: Suspend training
+   */
   suspendTraining(id: string): Observable<ApiResponse<Training>> {
     return this.http.post<ApiResponse<Training>>(
       `${this.TRAINING_ENDPOINT}/${id}/suspend`,
@@ -470,18 +593,23 @@ export class TrainingService {
     );
   }
 
-  // JOBSEEKER METHODS - FIXED TO ALWAYS FETCH VIDEOS
+  /**
+   * JOBSEEKER: Get available trainings - CRITICAL FIX
+   */
   getJobseekerTrainings(params: TrainingSearchParams = {}): Observable<PaginatedResponse<{ trainings: Training[] }>> {
     this.loadingSubject.next(true);
     
-    console.log('Fetching jobseeker trainings with params:', params);
+    console.log('=== Fetching Jobseeker Trainings ===');
+    console.log('Initial params:', params);
     
-    // FIXED: Always include videos and outcomes
+    // CRITICAL: Always include videos and outcomes
     const enhancedParams = {
       ...params,
       include_videos: true,
       include_outcomes: true
     };
+    
+    console.log('Enhanced params with video flag:', enhancedParams);
     
     const httpParams = this.buildParams(enhancedParams);
     
@@ -493,15 +621,23 @@ export class TrainingService {
       }
     ).pipe(
       map(response => {
-        console.log('Raw API response for jobseeker trainings:', response);
+        console.log('=== Jobseeker Trainings API Response ===');
+        console.log('Success:', response.success);
+        console.log('Training count:', response.data?.trainings?.length || 0);
+        console.log('Raw response data:', response.data);
+        
         if (response.success && response.data?.trainings) {
+          // Process each training
           response.data.trainings = response.data.trainings.map(t => this.processTrainingData(t));
-          console.log('Processed jobseeker trainings:', response.data.trainings.map(t => ({
-            title: t.title,
-            videoCount: t.videos?.length || 0,
-            videos: t.videos
-          })));
+          
+          console.log('Processed trainings summary:');
+          response.data.trainings.forEach(t => {
+            console.log(`- ${t.title}: ${t.videos?.length || t.video_count || 0} videos`);
+          });
+        } else {
+          console.warn('No training data in response');
         }
+        
         return response;
       }),
       tap(response => {
@@ -519,13 +655,31 @@ export class TrainingService {
     );
   }
 
-  // FIXED: Get full training details with proper video processing
+  /**
+   * NEW: Fetch video count only (lightweight, for fallback)
+   */
+  getVideoCount(trainingId: string): Observable<ApiResponse<{ count: number }>> {
+    console.log('Fetching video count for:', trainingId);
+    return this.http.get<ApiResponse<{ count: number }>>(
+      `${this.TRAINING_ENDPOINT}/${trainingId}/video-count`,
+      { headers: this.getAuthHeaders() }
+    ).pipe(
+      tap(response => console.log('Video count response:', response)),
+      catchError(this.handleError.bind(this))
+    );
+  }
+
+  /**
+   * Get full training details with videos and outcomes - CRITICAL FIX
+   */
   getTrainingDetails(trainingId: string): Observable<ApiResponse<Training>> {
-    console.log('Fetching training details for:', trainingId);
+    console.log('=== Fetching Training Details ===');
+    console.log('Training ID:', trainingId);
     
     const params = new HttpParams()
       .set('include_videos', 'true')
-      .set('include_outcomes', 'true');
+      .set('include_outcomes', 'true')
+      .set('include_video_count', 'true');  // NEW: Explicit count flag
     
     return this.http.get<ApiResponse<Training>>(
       `${this.TRAINING_ENDPOINT}/${trainingId}`,
@@ -535,24 +689,33 @@ export class TrainingService {
       }
     ).pipe(
       map(response => {
-        console.log('Raw training details response:', response);
+        console.log('=== Training Details API Response ===');
+        console.log('Success:', response.success);
+        console.log('Raw data:', response.data);
+        console.log('Raw video_count:', response.data?.video_count);
+        
         if (response.success && response.data) {
           response.data = this.processTrainingData(response.data);
-          console.log('Processed training details:', {
-            title: response.data.title,
-            videoCount: response.data.videos?.length || 0,
-            videos: response.data.videos
-          });
+          console.log('Processed training details:');
+          console.log('- Title:', response.data.title);
+          console.log('- Videos:', response.data.videos?.length || response.data.video_count || 0);
+          console.log('- Outcomes:', response.data.outcomes?.length || 0);
         }
         return response;
       }),
       tap(response => {
         this.errorSubject.next(null);
       }),
-      catchError(this.handleError.bind(this))
+      catchError(error => {
+        console.error('Error fetching training details:', error);
+        return this.handleError(error);
+      })
     );
   }
 
+  /**
+   * JOBSEEKER: Enroll in training
+   */
   enrollInTraining(trainingId: string): Observable<ApiResponse<any>> {
     console.log('Enrolling in training:', trainingId);
     
@@ -578,6 +741,9 @@ export class TrainingService {
     );
   }
 
+  /**
+   * JOBSEEKER: Get enrolled trainings
+   */
   getEnrolledTrainings(params: TrainingSearchParams = {}): Observable<PaginatedResponse<{ trainings: Training[] }>> {
     this.loadingSubject.next(true);
     
@@ -613,7 +779,9 @@ export class TrainingService {
     );
   }
 
-  // VIDEO UTILITY METHODS
+  /**
+   * VIDEO UTILITY METHODS
+   */
   extractVideoId(url: string): string | null {
     if (!url) return null;
     
@@ -653,6 +821,9 @@ export class TrainingService {
     return video.is_preview || false;
   }
 
+  /**
+   * ANALYTICS AND STATS
+   */
   getTrainingStats(): Observable<ApiResponse<TrainingStats>> {
     return this.http.get<ApiResponse<TrainingStats>>(
       `${this.TRAINING_ENDPOINT}/stats/overview`,
@@ -712,6 +883,9 @@ export class TrainingService {
     );
   }
 
+  /**
+   * UTILITY METHODS
+   */
   clearError(): void {
     this.errorSubject.next(null);
   }

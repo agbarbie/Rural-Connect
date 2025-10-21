@@ -24,63 +24,50 @@ export class TrainingController {
   /**
    * Get all trainings (public endpoint with optional auth)
    */
-async getAllTrainings(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+  async getAllTrainings(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
   try {
-    const userType = req.user?.user_type;
-    const userId = req.user?.id;
-    
-    console.log('Getting all trainings for user type:', userType);
+    const query = `
+      SELECT 
+        t.id AS training_id,
+        t.title AS training_title,
+        t.description,
+        COUNT(v.id) AS total_videos,
+        COALESCE(json_agg(v.video_url) FILTER (WHERE v.video_url IS NOT NULL), '[]') AS video_urls,
+        t.category,
+        t.level,
+        t.duration,
+        t.mode,
+        t.cost_type,
+        t.start_date,
+        t.end_date,
+        t.max_participants,
+        t.thumbnail_url,
+        t.organization,
+        t.issue_certificate,
+        t.created_at
+      FROM trainings t
+      LEFT JOIN training_videos v ON v.training_id = t.id
+      GROUP BY 
+        t.id, t.title, t.description, t.category, t.level, t.duration, t.mode, 
+        t.cost_type, t.start_date, t.end_date, t.max_participants, 
+        t.thumbnail_url, t.organization, t.issue_certificate, t.created_at
+      ORDER BY t.created_at DESC;
+    `;
 
-    const params: TrainingSearchParams = {
-      page: parseInt(req.query.page as string) || 1,
-      limit: parseInt(req.query.limit as string) || 12,
-      sort_by: ['created_at', 'title', 'rating', 'total_students', 'start_date'].includes(req.query.sort_by as string)
-        ? (req.query.sort_by as 'created_at' | 'title' | 'rating' | 'total_students' | 'start_date')
-        : 'created_at',
-      sort_order: (req.query.sort_order as 'asc' | 'desc') || 'desc',
-      filters: {
-        category: req.query.category as string,
-        level: req.query.level ? [req.query.level as string] : undefined,
-        search: req.query.search as string,
-        cost_type: req.query.cost_type ? [req.query.cost_type as string] : undefined,
-        mode: req.query.mode ? [req.query.mode as string] : undefined,  
-        status: req.query.status ? [req.query.status as string] : undefined
-      },
-      search: '',
-      cost_type: '',
-      level: '',
-      category: ''
-    };
-
-    let result;
-
-    if (userType === 'employer') {
-      // Employers see their own trainings (all statuses)
-      result = await this.trainingService.getAllTrainings(params, userId);
-    } else if (userType === 'jobseeker') {
-      // Jobseekers see published trainings with enrollment status
-      params.filters!.status = ['published'];
-      result = await this.trainingService.getPublishedTrainingsForJobseeker(userId!, params);
-    } else {
-      // Public access - only published trainings, no enrollment info
-      params.filters!.status = ['published'];
-      result = await this.trainingService.getAllTrainings(params);
-    }
+    const result = await pool.query(query);
 
     res.status(200).json({
       success: true,
-      data: {
-        trainings: result.trainings
-      },
-      pagination: result.pagination,
-      message: 'Trainings retrieved successfully'
+      message: "Trainings retrieved successfully",
+      count: result.rowCount,
+      data: result.rows
     });
 
-  } catch (error: any) {
-    console.error('Error in getAllTrainings:', error);
+  } catch (error) {
     next(error);
   }
 }
+
 
   /**
    * Get training categories (public endpoint)
@@ -587,31 +574,35 @@ async getAllTrainings(req: AuthenticatedRequest, res: Response, next: NextFuncti
   }
 
   /**
-   * Get training by ID
+   * Get training by ID (uses service for full details including videos)
    */
   async getTrainingById(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
       const { id } = req.params;
-      
-      const training = await this.trainingService.getTrainingById(id);
+      const userId = req.user?.id || null;  // Null for unauth/public
+
+      // Use service method for full videos/enrollment details
+      const training = await this.trainingService.getTrainingWithDetailsForJobseeker(id, userId || '');
 
       if (!training) {
         res.status(404).json({
           success: false,
-          message: 'Training not found'
+          message: "Training not found or not published"
         });
         return;
       }
 
       res.status(200).json({
         success: true,
-        message: 'Training retrieved successfully',
-        data: training
+        message: "Training retrieved successfully",
+        data: training  // Now includes full `videos` array
       });
+
     } catch (error) {
       next(error);
     }
   }
+
 
   // ================ JOBSEEKER METHODS ================
 async getJobseekerTrainings(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {

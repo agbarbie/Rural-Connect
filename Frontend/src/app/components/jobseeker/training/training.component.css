@@ -307,6 +307,35 @@
   .pagination-controls {
     flex-wrap: wrap;
   }
+}/* FIXED: Styles for wishlist heart and share */
+.action-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 8px;
+  transition: color 0.2s;
+}
+
+.action-btn:hover i {
+  color: #007bff;
+}
+
+/* FIXED: Preview badge in modal */
+.preview-badge {
+  background: #ffc107;
+  color: #000;
+  font-size: 0.8em;
+  padding: 2px 6px;
+  border-radius: 4px;
+  margin-left: 8px;
+}
+
+/* FIXED: No videos message */
+.no-videos {
+  text-align: center;
+  padding: 20px;
+  color: #6b7280;
+  font-style: italic;
 }
 /* Search and Filter Section */
 .search-filter-section {
@@ -633,6 +662,7 @@
   margin: 0 0 1rem 0;
   display: -webkit-box;
   -webkit-line-clamp: 2;
+  line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
   font-size: 0.75rem;

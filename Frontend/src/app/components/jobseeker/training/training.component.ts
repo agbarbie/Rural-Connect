@@ -24,7 +24,7 @@ interface FilterOptions {
   styleUrls: ['./training.component.css']
 })
 export class TrainingComponent implements OnInit, OnDestroy {
-  Math = Math; // Add this line
+  Math = Math;
   
   private destroy$ = new Subject<void>();
   
@@ -50,12 +50,35 @@ export class TrainingComponent implements OnInit, OnDestroy {
   // Loading and error states
   loading: boolean = false;
   error: string | null = null;
+  showVideoLoading: boolean = false;  // NEW: For modal video section
   
   // Pagination
   currentPage: number = 1;
   totalPages: number = 1;
   pageSize: number = 12;
   totalCount: number = 0;
+
+  // FIXED: Wishlist management (localStorage-based)
+  private wishlistKey = 'training-wishlist';
+  get wishlist(): string[] {
+    return JSON.parse(localStorage.getItem(this.wishlistKey) || '[]');
+  }
+  addToWishlist(trainingId: string): void {
+    let wishlist = this.wishlist;
+    if (!wishlist.includes(trainingId)) {
+      wishlist.push(trainingId);
+      localStorage.setItem(this.wishlistKey, JSON.stringify(wishlist));
+      console.log('Added to wishlist:', trainingId);
+    }
+  }
+  removeFromWishlist(trainingId: string): void {
+    let wishlist = this.wishlist.filter(id => id !== trainingId);
+    localStorage.setItem(this.wishlistKey, JSON.stringify(wishlist));
+    console.log('Removed from wishlist:', trainingId);
+  }
+  isInWishlist(trainingId: string): boolean {
+    return this.wishlist.includes(trainingId);
+  }
 
   constructor(private trainingService: TrainingService) {}
 
@@ -98,7 +121,7 @@ export class TrainingComponent implements OnInit, OnDestroy {
             
             // Log video counts for debugging
             this.trainings.forEach(training => {
-              console.log(`Training "${training.title}" has ${training.videos?.length || 0} videos`);
+              console.log(`Training "${training.title}" has ${training.videos?.length || training.video_count || 0} videos`);
             });
             
             if (response.pagination) {
@@ -159,9 +182,10 @@ export class TrainingComponent implements OnInit, OnDestroy {
     this.loadTrainings(this.currentPage);
   }
 
-  // Modified to fetch full training details with videos
+  // UPDATED: viewTrainingDetail with extra logging and video fallback
   viewTrainingDetail(training: Training): void {
     this.loading = true;
+    this.showVideoLoading = true;  // NEW
     this.error = null;
     
     console.log('Fetching full details for training:', training.id);
@@ -174,10 +198,27 @@ export class TrainingComponent implements OnInit, OnDestroy {
           console.log('Training details response:', response);
           if (response.success && response.data) {
             this.selectedTraining = response.data;
-            console.log('Selected training videos:', this.selectedTraining.videos);
+            console.log('Selected training videos in modal:', this.selectedTraining.videos?.length || 0, 
+                        'Count:', this.selectedTraining.video_count);
+            
+            // NEW: If video_count is 0 and videos empty, fetch count separately
+            if ((!this.selectedTraining.videos || this.selectedTraining.videos.length === 0) && 
+                (this.selectedTraining.video_count || 0) === 0) {
+              this.trainingService.getVideoCount(training.id).subscribe(countResponse => {
+                if (countResponse.success && countResponse.data) {
+                  this.selectedTraining!.video_count = countResponse.data.count;
+                  console.log('Fetched video count:', this.selectedTraining!.video_count);
+                }
+                this.showVideoLoading = false;
+              });
+            } else {
+              this.showVideoLoading = false;
+            }
+            
             this.showTrainingDetail = true;
           } else {
             this.error = 'Failed to load training details.';
+            this.showVideoLoading = false;
           }
           this.loading = false;
         },
@@ -185,13 +226,22 @@ export class TrainingComponent implements OnInit, OnDestroy {
           console.error('Error loading training details:', error);
           this.error = 'Failed to load training details. Please try again.';
           this.loading = false;
+          this.showVideoLoading = false;
         }
       });
+  }
+
+  // NEW: Refresh videos for current training
+  refreshTrainingVideos(trainingId: string): void {
+    if (this.selectedTraining?.id === trainingId) {
+      this.viewTrainingDetail(this.selectedTraining);
+    }
   }
 
   closeTrainingDetail(): void {
     this.showTrainingDetail = false;
     this.selectedTraining = null;
+    this.showVideoLoading = false;  // NEW
   }
 
   enrollInTraining(training: Training): void {
@@ -222,6 +272,29 @@ export class TrainingComponent implements OnInit, OnDestroy {
     // Navigate to training player/viewer
     // You can implement navigation to a detailed training viewer here
     alert('Starting training: ' + training.title);
+  }
+
+  // FIXED: Add handlers for wishlist and share
+  toggleWishlist(trainingId: string): void {
+    if (this.isInWishlist(trainingId)) {
+      this.removeFromWishlist(trainingId);
+    } else {
+      this.addToWishlist(trainingId);
+    }
+  }
+
+  shareTraining(training: Training): void {
+    if (navigator.share) {
+      navigator.share({
+        title: training.title,
+        text: `Check out this training: ${training.description?.substring(0, 100)}...`,
+        url: window.location.origin + `/trainings/${training.id}`
+      }).catch(err => console.error('Share failed:', err));
+    } else {
+      // Fallback: Copy link to clipboard or alert
+      navigator.clipboard.writeText(window.location.origin + `/trainings/${training.id}`);
+      alert(`Link copied to clipboard: ${training.title}`);
+    }
   }
 
   onFilterCheckboxChange(filterType: keyof FilterOptions, value: string, event: any): void {
