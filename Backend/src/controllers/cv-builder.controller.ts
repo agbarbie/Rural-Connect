@@ -1,9 +1,11 @@
 // src/controllers/cv-builder.controller.ts
-import { Response, NextFunction } from 'express';
+import { Response, NextFunction, RequestHandler } from 'express';
 import { AuthenticatedRequest } from '../middleware/auth.middleware';
 import { CVBuilderService } from '../services/cv-builder.service';
 import { CVData, CVExportOptions } from '../types/cv.type';
 import { validate as isValidUUID } from 'uuid';
+import { ParamsDictionary } from 'express-serve-static-core';
+import { ParsedQs } from 'qs';
 
 export class CVBuilderController {
   private cvBuilderService: CVBuilderService;
@@ -11,6 +13,39 @@ export class CVBuilderController {
   constructor() {
     this.cvBuilderService = new CVBuilderService();
   }
+
+  // Upload profile image
+  uploadProfileImage = async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const userId = req.user?.id;
+      if (!userId) {
+        res.status(401).json({ success: false, message: 'User not authenticated' });
+        return;
+      }
+
+      if (!req.file) {
+        res.status(400).json({ success: false, message: 'No image file uploaded' });
+        return;
+      }
+
+      const imageUrl = `/uploads/profile-images/${req.file.filename}`;
+
+      res.status(200).json({
+        success: true,
+        message: 'Profile image uploaded successfully',
+        data: {
+          imageUrl,
+          filename: req.file.filename,
+          originalName: req.file.originalname,
+          size: req.file.size,
+          mimetype: req.file.mimetype
+        }
+      });
+    } catch (error: any) {
+      console.error('Upload profile image controller error:', error);
+      next(error);
+    }
+  };
 
   // Create a new CV
   createCV = async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {

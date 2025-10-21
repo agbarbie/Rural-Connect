@@ -1,9 +1,11 @@
+// portfolio.component.ts
 import { Component, OnInit } from '@angular/core';
 import { DatePipe } from '@angular/common'; 
 import { CommonModule } from '@angular/common';
 import { CvService, CV } from '../../../../../services/cv.service';
 import { AuthService } from '../../../../../services/auth.service';
 import { PortfolioService, PortfolioData } from '../../../../../services/portfolio.service';
+import { environment } from '../../../../environments/environments';
 
 interface Project {
   id: number;
@@ -52,9 +54,6 @@ interface Testimonial {
   styleUrls: ['./portfolio.component.css']
 })
 export class PortfolioComponent implements OnInit {
-  onImageError($event: ErrorEvent, arg1: string) {
-    throw new Error('Method not implemented.');
-  }
   
   isLoading = true;
   currentCV: CV | null = null;
@@ -64,7 +63,7 @@ export class PortfolioComponent implements OnInit {
     fullName: '',
     title: '',
     location: '',
-    profilePicture: '/assets/images/profile-picture.jpg',
+    profilePicture: 'assets/images/default-avatar.png',
     coverBanner: '/assets/images/cover-banner.jpg',
     bio: '',
     email: '',
@@ -113,6 +112,7 @@ export class PortfolioComponent implements OnInit {
         const data = response.data || response;
         
         console.log('Portfolio Data:', data);
+        console.log('CV Data structure:', data.cvData);
         
         // Validate that we have a CV ID
         if (!data.cvId) {
@@ -156,88 +156,71 @@ export class PortfolioComponent implements OnInit {
     const cvData = data.cvData;
 
     console.log('Full cvData structure:', cvData);
+    console.log('Personal Info:', cvData.personalInfo || cvData.personal_info);
 
-    // Personal Information
-    if (cvData.personalInfo) {
-      this.profileData.fullName = cvData.personalInfo.fullName || this.profileData.fullName;
-      this.profileData.email = cvData.personalInfo.email || this.profileData.email;
-      this.profileData.phone = cvData.personalInfo.phone || '';
-      this.profileData.location = cvData.personalInfo.address || 'Kenya';
-      this.profileData.bio = cvData.personalInfo.professionalSummary || '';
+    // Personal Information - Handle both personalInfo and personal_info formats
+    if (cvData.personalInfo || cvData.personal_info) {
+      const pi = cvData.personalInfo || cvData.personal_info;
+      
+      console.log('Profile Image from CV:', pi.profileImage || pi.profile_image);
+      
+      // PROFILE IMAGE - Get from CV data with proper URL handling
+      const profileImage = pi.profileImage || pi.profile_image;
+      if (profileImage) {
+        this.profileData.profilePicture = this.getFullImageUrl(profileImage);
+        console.log('Final profile picture URL:', this.profileData.profilePicture);
+      } else {
+        this.profileData.profilePicture = 'assets/images/default-avatar.png';
+        console.log('Using default avatar');
+      }
+      
+      this.profileData.fullName = pi.fullName || pi.full_name || this.profileData.fullName;
+      this.profileData.email = pi.email || this.profileData.email;
+      this.profileData.phone = pi.phone || '';
+      this.profileData.location = pi.address || 'Kenya';
+      this.profileData.bio = pi.professionalSummary || pi.professional_summary || '';
       this.profileData.title = this.generateTitle(cvData);
     }
 
     // Work Experience - Handle both formats
-    if (cvData.work_experience && cvData.work_experience.length > 0) {
-      this.trainingExperiences = cvData.work_experience.map((work: any, index: number) => ({
+    const workExp = cvData.work_experience || cvData.workExperience || [];
+    if (workExp.length > 0) {
+      this.trainingExperiences = workExp.map((work: any, index: number) => ({
         id: index + 1,
         title: work.position,
-        status: work.is_current ? 'in-progress' : 'completed',
+        status: (work.is_current || work.current) ? 'in-progress' : 'completed',
         trainer: work.company,
-        completionDate: work.is_current ? undefined : work.end_date,
-        description: work.responsibilities || ''
-      }));
-    } else if (cvData.workExperience && cvData.workExperience.length > 0) {
-      this.trainingExperiences = cvData.workExperience.map((work: any, index: number) => ({
-        id: index + 1,
-        title: work.position,
-        status: work.current ? 'in-progress' : 'completed',
-        trainer: work.company,
-        completionDate: work.current ? undefined : work.endDate,
+        completionDate: (work.is_current || work.current) ? undefined : (work.end_date || work.endDate),
         description: work.responsibilities || ''
       }));
     }
 
-    // Skills - FIXED VERSION with comprehensive format handling
-    console.log('Checking skills data...');
-    console.log('cvData.skills:', cvData.skills);
+    // Skills
+    console.log('Processing skills...');
+    this.skills = [];
     
-    if (cvData.skills && Array.isArray(cvData.skills) && cvData.skills.length > 0) {
-      console.log('Skills array found with', cvData.skills.length, 'items');
-      console.log('First skill structure:', cvData.skills[0]);
-      
-      this.skills = cvData.skills.map((skill: any): Skill => {
-        // Handle different possible field names
-        const skillName = skill.name || skill.skill_name || skill.skillName || '';
+    let skillsData = cvData.skills || cvData.skill || cvData.Skills || [];
+    
+    console.log('Found skills data:', skillsData);
+    
+    if (Array.isArray(skillsData) && skillsData.length > 0) {
+      this.skills = skillsData.map((skill: any) => {
+        const skillName = skill.skill_name || skill.skillName || skill.name || '';
         const skillCategory = skill.category || skill.skill_category || skill.skillCategory || 'General';
-        
-        console.log('Mapping skill:', { original: skill, mapped: { name: skillName, category: skillCategory } });
         
         return {
           name: skillName,
           category: skillCategory
         };
-      }).filter((skill: Skill) => skill.name); // Remove empty skills
-      
-      console.log('Final mapped skills:', this.skills);
-      console.log('Total skills after mapping:', this.skills.length);
-    } else {
-      console.warn('No skills found in cvData or skills is not an array');
-      console.log('Available cvData keys:', Object.keys(cvData));
-      
-      // Fallback: Check if skills might be under a different key
-      const possibleSkillsKeys = ['skill', 'Skills', 'SKILLS', 'user_skills'];
-      for (const key of possibleSkillsKeys) {
-        if (cvData[key] && Array.isArray(cvData[key]) && cvData[key].length > 0) {
-          console.log(`Found skills under key: ${key}`);
-          this.skills = cvData[key].map((skill: any): Skill => ({
-            name: skill.name || skill.skill_name || '',
-            category: skill.category || skill.skill_category || 'General'
-          })).filter((skill: Skill) => skill.name);
-          break;
-        }
-      }
-      
-      if (this.skills.length === 0) {
-        console.error('Could not find skills in any expected location');
-      }
+      }).filter((skill: Skill) => skill.name && skill.name.trim() !== '');
     }
 
     // Certifications
-    if (cvData.certifications && cvData.certifications.length > 0) {
-      this.certificates = cvData.certifications.map((cert: any, index: number): Certificate => ({
+    const certs = cvData.certifications || [];
+    if (certs.length > 0) {
+      this.certificates = certs.map((cert: any, index: number): Certificate => ({
         id: index + 1,
-        name: cert.name,
+        name: cert.name || cert.certification_name,
         issuer: cert.issuer,
         completionDate: cert.dateIssued || cert.date_issued || new Date().toISOString(),
         downloadUrl: cert.credentialId || cert.credential_id || undefined
@@ -245,8 +228,9 @@ export class PortfolioComponent implements OnInit {
     }
 
     // Projects
-    if (cvData.projects && cvData.projects.length > 0) {
-      this.projects = cvData.projects.map((proj: any, index: number): Project => {
+    const projects = cvData.projects || [];
+    if (projects.length > 0) {
+      this.projects = projects.map((proj: any, index: number): Project => {
         const techString = proj.technologies || proj.tech_stack || '';
         const category: string = this.categorizeProject(techString);
         
@@ -266,7 +250,7 @@ export class PortfolioComponent implements OnInit {
       this.filteredProjects = this.projects;
     }
 
-    // Testimonials from portfolio data
+    // Testimonials
     if (data.testimonials && data.testimonials.length > 0) {
       this.testimonials = data.testimonials.map((t, index) => ({
         id: t.id || index + 1,
@@ -276,10 +260,34 @@ export class PortfolioComponent implements OnInit {
       }));
     }
 
-    // If no testimonials, generate from work experience
+    // Generate testimonials if none exist
     if (this.testimonials.length === 0) {
       this.generateTestimonials(cvData);
     }
+  }
+
+  // Add helper method to get full image URL
+  private getFullImageUrl(imagePath: string): string {
+    if (!imagePath) return 'assets/images/default-avatar.png';
+    
+    // If it's already a full URL, return as is
+    if (imagePath.startsWith('http')) {
+      return imagePath;
+    }
+    
+    // If it's a relative path, construct full URL
+    if (imagePath.startsWith('/uploads') || imagePath.startsWith('uploads')) {
+      const baseUrl = environment.apiUrl.replace('/api', '');
+      return `${baseUrl}${imagePath.startsWith('/') ? '' : '/'}${imagePath}`;
+    }
+    
+    return imagePath;
+  }
+
+  // Add image error handler
+  onImageError(event: any): void {
+    console.log('Profile image load error, using fallback');
+    event.target.src = 'assets/images/default-avatar.png';
   }
 
   private generateTitle(cvData: any): string {

@@ -1,13 +1,15 @@
 import { Component, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { Subject, takeUntil, finalize } from 'rxjs';
+import { Router } from '@angular/router';
+import { Subject, takeUntil, finalize, forkJoin, catchError, of } from 'rxjs';
 import { JobService, Job } from '../../../../../services/job.service';
+import { ProfileService } from '../../../../../services/profile.service';
 
 interface Notification {
   id: string;
   message: string;
-  type: 'success' | 'error' | 'info';
+  type: 'success' | 'error' | 'info' | 'warning';
 }
 
 @Component({
@@ -48,6 +50,11 @@ export class JobExplorerComponent implements OnInit, OnDestroy {
   isApplying: string | null = null;
   isSaving: string | null = null;
   
+  // Profile completion tracking
+  profileCompletion: number = 0;
+  isProfileComplete: boolean = false;
+  isCheckingProfile: boolean = false;
+  
   // Cache for match scores and ratings to avoid ExpressionChangedAfterItHasBeenCheckedError
   private matchScoreCache: Map<string, number> = new Map();
   private ratingCache: Map<string, number> = new Map();
@@ -58,10 +65,22 @@ export class JobExplorerComponent implements OnInit, OnDestroy {
   totalPages: number = 1;
   totalJobs: number = 0;
 
-  constructor(private jobService: JobService) {}
+  constructor(
+    private jobService: JobService,
+    private profileService: ProfileService,
+    private router: Router
+  ) {}
 
   ngOnInit(): void {
-    this.loadJobs();
+    console.log('🚀 JobExplorerComponent initialized');
+    
+    // Check profile completion first
+    this.checkProfileCompletion();
+    
+    // Load saved/applied jobs FIRST, then load jobs list
+    this.loadSavedAndAppliedJobs();
+    
+    // Load stats with error handling
     this.loadJobseekerStats();
   }
 
@@ -70,149 +89,389 @@ export class JobExplorerComponent implements OnInit, OnDestroy {
     this.destroy$.complete();
   }
 
-  loadJobs(page: number = 1): void {
-    this.isLoading = true;
-    this.currentPage = page;
+  /**
+   * Check if jobseeker's profile is complete
+   * Profile must be 100% complete to apply for jobs
+   */
+  checkProfileCompletion(): void {
+    this.isCheckingProfile = true;
     
-    // Clear caches when loading new jobs
-    this.matchScoreCache.clear();
-    this.ratingCache.clear();
-    
-    const query: any = {
-      page: this.currentPage,
-      limit: this.itemsPerPage,
-      sort_by: this.getSortByField(),
-      sort_order: 'DESC' as const
-    };
-    
-    // Add filters if selected
-    if (this.searchQuery) {
-      query.search = this.searchQuery;
-    }
-    if (this.selectedJobType) {
-      query.employment_type = this.selectedJobType;
-    }
-    if (this.selectedLocation) {
-      query.work_arrangement = this.selectedLocation;
-    }
-    if (this.selectedSalaryRange) {
-      const salaryRange = this.parseSalaryRange(this.selectedSalaryRange);
-      if (salaryRange.min) query.salary_min = salaryRange.min;
-      if (salaryRange.max) query.salary_max = salaryRange.max;
-    }
-
-    // Load different data based on active tab
-    let observable;
-    switch(this.activeTab) {
-      case 'recommended':
-        observable = this.jobService.getRecommendedJobs(query);
-        break;
-      case 'saved':
-        observable = this.jobService.getSavedJobs(query);
-        break;
-      case 'applied':
-        observable = this.jobService.getAppliedJobs(query);
-        break;
-      default:
-        observable = this.jobService.getAllJobs(query);
-    }
-
-    observable
+    this.profileService.getMyPortfolio()
       .pipe(
         takeUntil(this.destroy$),
-        finalize(() => this.isLoading = false)
+        finalize(() => {
+          this.isCheckingProfile = false;
+          console.log('✅ Profile check completed:', {
+            completion: this.profileCompletion,
+            isComplete: this.isProfileComplete
+          });
+        }),
+        catchError((error) => {
+          console.error('❌ Error checking profile:', error);
+          // If error, assume profile is incomplete for safety
+          this.profileCompletion = 0;
+          this.isProfileComplete = false;
+          
+          if (error.status === 404) {
+            console.log('ℹ️ No CV found - profile is incomplete');
+          }
+          
+          return of(null);
+        })
       )
       .subscribe({
         next: (response) => {
-          console.log('Raw API response:', response);
+          if (response && response.success && response.data) {
+            // Calculate profile completion percentage
+            this.profileCompletion = this.calculateProfileCompletion(response.data);
+            this.isProfileComplete = this.profileCompletion === 100;
+          } else {
+            // No portfolio found
+            this.profileCompletion = 0;
+            this.isProfileComplete = false;
+          }
+        }
+      });
+  }
+
+  /**
+   * Calculate profile completion percentage based on portfolio data
+   */
+  private calculateProfileCompletion(portfolioData: any): number {
+    let totalFields = 0;
+    let completedFields = 0;
+    
+    const cvData = portfolioData.cvData;
+    const personalInfo = cvData?.personal_info || cvData?.personalInfo;
+
+    // Basic Information (5 fields)
+    if (personalInfo) {
+      totalFields += 5;
+      if (personalInfo.full_name || personalInfo.fullName) completedFields++;
+      if (personalInfo.email) completedFields++;
+      if (personalInfo.phone) completedFields++;
+      if (personalInfo.profile_image || personalInfo.profileImage) completedFields++;
+      if (personalInfo.address) completedFields++;
+    }
+
+    // Professional Summary (1 field)
+    totalFields++;
+    if (personalInfo?.professional_summary || personalInfo?.professionalSummary) {
+      const summary = personalInfo.professional_summary || personalInfo.professionalSummary;
+      if (summary.trim().length > 0) completedFields++;
+    }
+
+    // Skills (1 field)
+    totalFields++;
+    if (cvData?.skills && cvData.skills.length > 0) completedFields++;
+
+    // Work Experience (1 field)
+    totalFields++;
+    if (cvData?.work_experience && cvData.work_experience.length > 0) completedFields++;
+
+    // Education (1 field)
+    totalFields++;
+    if (cvData?.education && cvData.education.length > 0) completedFields++;
+
+    // Certifications (1 field)
+    totalFields++;
+    if (cvData?.certifications && cvData.certifications.length > 0) completedFields++;
+
+    // Projects (1 field)
+    totalFields++;
+    if (cvData?.projects && cvData.projects.length > 0) completedFields++;
+
+    // Social Links (1 field)
+    totalFields++;
+    if (personalInfo?.linkedin_url || personalInfo?.github_url || personalInfo?.website_url) {
+      completedFields++;
+    }
+
+    const percentage = totalFields > 0 ? Math.round((completedFields / totalFields) * 100) : 0;
+    
+    console.log('📊 Profile completion calculation:', {
+      totalFields,
+      completedFields,
+      percentage
+    });
+    
+    return percentage;
+  }
+
+  /**
+   * Load jobs based on active tab and filters
+   */
+loadJobs(page: number = 1): void {
+  console.log(`🔄 Loading jobs for tab: ${this.activeTab}, page: ${page}`);
+  
+  this.isLoading = true;
+  this.currentPage = page;
+  
+  // Clear caches when loading new jobs
+  this.matchScoreCache.clear();
+  this.ratingCache.clear();
+  
+  const query: any = {
+    page: this.currentPage,
+    limit: this.itemsPerPage,
+    sort_by: this.getSortByField(),
+    sort_order: 'DESC' as const
+  };
+  
+  // Add filters if selected
+  if (this.searchQuery) query.search = this.searchQuery;
+  if (this.selectedJobType) query.employment_type = this.selectedJobType;
+  if (this.selectedLocation) query.work_arrangement = this.selectedLocation;
+  if (this.selectedSalaryRange) {
+    const salaryRange = this.parseSalaryRange(this.selectedSalaryRange);
+    if (salaryRange.min) query.salary_min = salaryRange.min;
+    if (salaryRange.max) query.salary_max = salaryRange.max;
+  }
+
+  // Load different data based on active tab
+  let observable;
+  switch(this.activeTab) {
+    case 'recommended':
+      observable = this.jobService.getRecommendedJobs(query);
+      break;
+    case 'saved':
+      observable = this.jobService.getSavedJobs(query);
+      break;
+    case 'applied':
+      observable = this.jobService.getAppliedJobs(query);
+      break;
+    default:
+      observable = this.jobService.getAllJobs(query);
+  }
+
+  observable
+    .pipe(
+      takeUntil(this.destroy$),
+      finalize(() => {
+        this.isLoading = false;
+        console.log('✅ Jobs loading completed');
+      }),
+      catchError((error) => {
+        console.error('❌ Error loading jobs:', error);
+        this.addNotification('Failed to load jobs. Please try again.', 'error');
+        return of({ success: false, data: null });
+      })
+    )
+    .subscribe({
+      next: (response) => {
+        if (!response || !response.success || !response.data) {
+          this.jobs = [];
+          this.filteredJobs = [];
+          return;
+        }
+        
+        console.log('📦 Raw API response:', response);
+        
+        // 🔥 FIXED: Handle different response structures
+        if (this.activeTab === 'saved' || this.activeTab === 'applied') {
+          // For saved/applied, extract nested job data
+          const dataArray = response.data.data || response.data;
           
-          if (response.success && response.data) {
-            // Handle different response structures based on tab
-            if (this.activeTab === 'saved' || this.activeTab === 'applied') {
-              // For saved/applied, the data structure is different
-              // It returns an array directly or in a 'data' property
-              const dataArray = response.data.data || response.data;
-              
-              if (Array.isArray(dataArray)) {
-                this.jobs = dataArray;
-                
-                // Mark all these jobs as saved/applied
-                dataArray.forEach((item: any) => {
-                  if (this.activeTab === 'saved') {
-                    const jobId = item.job_id || item.id;
-                    if (jobId && !this.savedJobIds.includes(jobId)) {
-                      this.savedJobIds.push(jobId);
-                    }
-                  } else if (this.activeTab === 'applied') {
-                    const jobId = item.job_id || item.id;
-                    if (jobId && !this.appliedJobIds.includes(jobId)) {
-                      this.appliedJobIds.push(jobId);
-                    }
-                  }
-                });
+          if (Array.isArray(dataArray)) {
+            // 🔥 Map nested job objects to flat structure
+            this.jobs = dataArray.map((item: any) => {
+              // Check if item has nested job object (from bookmarks/applications)
+              if (item.job) {
+                // Extract the nested job and merge with bookmark/application metadata
+                return {
+                  ...item.job,
+                  // Preserve bookmark/application specific fields
+                  saved_at: item.saved_at,
+                  applied_at: item.applied_at,
+                  application_status: item.status,
+                  bookmark_id: item.id,
+                  application_id: item.id,
+                  // Ensure correct job_id
+                  id: item.job.id || item.job_id
+                };
               } else {
-                this.jobs = [];
-              }
-            } else {
-              // For recommended and all jobs
-              this.jobs = response.data.jobs || response.data.data || [];
-            }
-            
-            this.filteredJobs = [...this.jobs];
-            
-            if (response.data.pagination) {
-              this.totalJobs = response.data.pagination.total;
-              this.totalPages = response.data.pagination.total_pages;
-            } else {
-              this.totalJobs = this.jobs.length;
-              this.totalPages = 1;
-            }
-            
-            this.recommendedCount = this.activeTab === 'recommended' ? this.totalJobs : this.recommendedCount;
-            
-            // Track which jobs are saved/applied based on backend response flags
-            this.jobs.forEach(job => {
-              if ((job as any).is_saved) {
-                if (!this.savedJobIds.includes(job.id)) {
-                  this.savedJobIds.push(job.id);
-                }
-              }
-              if ((job as any).has_applied) {
-                if (!this.appliedJobIds.includes(job.id)) {
-                  this.appliedJobIds.push(job.id);
-                }
+                // Fallback: item might already be a flat job object
+                return {
+                  ...item,
+                  id: item.id || item.job_id
+                };
               }
             });
             
-            console.log('Jobs loaded:', this.jobs.length);
-            console.log('Saved job IDs:', this.savedJobIds);
-            console.log('Applied job IDs:', this.appliedJobIds);
+            // Mark all these jobs as saved/applied
+            this.jobs.forEach((job: any) => {
+              const jobId = job.id;
+              if (!jobId) return;
+              
+              if (this.activeTab === 'saved' && !this.savedJobIds.includes(jobId)) {
+                this.savedJobIds.push(jobId);
+              } else if (this.activeTab === 'applied' && !this.appliedJobIds.includes(jobId)) {
+                this.appliedJobIds.push(jobId);
+              }
+            });
+          } else {
+            this.jobs = [];
           }
-        },
-        error: (error) => {
-          console.error('Error loading jobs:', error);
-          this.addNotification('Failed to load jobs. Please try again.', 'error');
+        } else {
+          // For recommended and all jobs - data is already flat
+          this.jobs = response.data.jobs || response.data.data || [];
         }
-      });
-  }
+        
+        this.filteredJobs = [...this.jobs];
+        
+        // Update pagination
+        if (response.data.pagination) {
+          this.totalJobs = response.data.pagination.total;
+          this.totalPages = response.data.pagination.total_pages;
+        } else {
+          this.totalJobs = this.jobs.length;
+          this.totalPages = 1;
+        }
+        
+        // Update recommended count
+        if (this.activeTab === 'recommended') {
+          this.recommendedCount = this.totalJobs;
+        }
+        
+        // Track which jobs are saved/applied based on backend response flags OR our loaded arrays
+        this.jobs.forEach(job => {
+          const jobId = this.getJobId(job);
+          if (!jobId) return;
+          
+          // Check if job is saved
+          if ((job as any).is_saved || this.savedJobIds.includes(jobId)) {
+            if (!this.savedJobIds.includes(jobId)) {
+              this.savedJobIds.push(jobId);
+            }
+          }
+          
+          // Check if job is applied
+          if ((job as any).has_applied || this.appliedJobIds.includes(jobId)) {
+            if (!this.appliedJobIds.includes(jobId)) {
+              this.appliedJobIds.push(jobId);
+            }
+          }
+        });
+        
+        console.log('✅ Jobs processed:', {
+          jobsCount: this.jobs.length,
+          savedCount: this.savedJobIds.length,
+          appliedCount: this.appliedJobIds.length,
+          sampleJob: this.jobs[0] // Log first job for debugging
+        });
+      }
+    });
+}
 
+  /**
+   * Load jobseeker stats with robust error handling
+   */
   loadJobseekerStats(): void {
+    console.log('📊 Loading jobseeker stats...');
+    
     this.jobService.getJobseekerStats()
-      .pipe(takeUntil(this.destroy$))
+      .pipe(
+        takeUntil(this.destroy$),
+        catchError((error) => {
+          console.error('❌ Error loading stats (non-blocking):', error);
+          // Return empty stats on error - don't disrupt UX
+          return of({ 
+            success: false, 
+            data: { 
+              total_saved_jobs: this.savedJobIds.length, 
+              total_applications: this.appliedJobIds.length 
+            } 
+          });
+        })
+      )
       .subscribe({
         next: (response) => {
-          if (response.success && response.data) {
-            this.savedJobsCount = response.data.total_saved_jobs || 0;
-            this.appliedJobsCount = response.data.total_applications || 0;
+          if (response && response.data) {
+            this.savedJobsCount = response.data.total_saved_jobs || this.savedJobIds.length;
+            this.appliedJobsCount = response.data.total_applications || this.appliedJobIds.length;
+            
+            console.log('✅ Stats loaded:', {
+              saved: this.savedJobsCount,
+              applied: this.appliedJobsCount
+            });
           }
-        },
-        error: (error) => {
-          console.error('Error loading stats:', error);
-          // Don't show error notification for stats
         }
       });
   }
 
+  /**
+   * Load saved and applied jobs from backend to sync state on page refresh
+   */
+  loadSavedAndAppliedJobs(): void {
+    console.log('🔄 Loading saved and applied jobs from backend...');
+    
+    const savedJobs$ = this.jobService.getSavedJobs({ page: 1, limit: 1000 }).pipe(
+      catchError(error => {
+        console.error('❌ Error loading saved jobs:', error);
+        return of({ success: false, data: null });
+      })
+    );
+    
+    const appliedJobs$ = this.jobService.getAppliedJobs({ page: 1, limit: 1000 }).pipe(
+      catchError(error => {
+        console.error('❌ Error loading applied jobs:', error);
+        return of({ success: false, data: null });
+      })
+    );
+    
+    // Use forkJoin to load both simultaneously
+    forkJoin({
+      saved: savedJobs$,
+      applied: appliedJobs$
+    }).pipe(
+      takeUntil(this.destroy$),
+      finalize(() => {
+        console.log('✅ Saved/Applied jobs load completed');
+        // NOW load the jobs list after we have saved/applied state
+        this.loadJobs();
+      })
+    )
+    .subscribe({
+      next: (results) => {
+        console.log('📦 Raw responses:', { saved: results.saved, applied: results.applied });
+        
+        // Process saved jobs
+        if (results.saved && results.saved.success && results.saved.data) {
+          const savedData = results.saved.data.data || results.saved.data.jobs || results.saved.data;
+          
+          if (Array.isArray(savedData)) {
+            this.savedJobIds = savedData
+              .map((item: any) => item.job_id || item.id || item.job?.id)
+              .filter(id => id);
+            
+            console.log('✅ Loaded saved job IDs:', this.savedJobIds.length);
+          }
+        }
+        
+        // Process applied jobs
+        if (results.applied && results.applied.success && results.applied.data) {
+          const appliedData = results.applied.data.data || results.applied.data.jobs || results.applied.data;
+          
+          if (Array.isArray(appliedData)) {
+            this.appliedJobIds = appliedData
+              .map((item: any) => item.job_id || item.id || item.job?.id)
+              .filter(id => id);
+            
+            console.log('✅ Loaded applied job IDs:', this.appliedJobIds.length);
+          }
+        }
+        
+        console.log('📋 Final state:', {
+          savedJobIds: this.savedJobIds,
+          appliedJobIds: this.appliedJobIds
+        });
+      }
+    });
+  }
+
+  /**
+   * Get sort field for API query
+   */
   getSortByField(): string {
     switch(this.sortBy) {
       case 'newest':
@@ -226,6 +485,9 @@ export class JobExplorerComponent implements OnInit, OnDestroy {
     }
   }
 
+  /**
+   * Parse salary range string into min/max values
+   */
   parseSalaryRange(range: string): { min?: number; max?: number } {
     switch(range) {
       case '50k-80k':
@@ -239,6 +501,9 @@ export class JobExplorerComponent implements OnInit, OnDestroy {
     }
   }
 
+  /**
+   * Filter change handlers
+   */
   onJobTypeChange(): void {
     this.loadJobs(1);
   }
@@ -259,22 +524,77 @@ export class JobExplorerComponent implements OnInit, OnDestroy {
     this.loadJobs(1);
   }
 
+  /**
+   * Set active tab and reload jobs
+   */
   setActiveTab(tab: string): void {
+    console.log(`🔄 Switching to tab: ${tab}`);
     this.activeTab = tab;
     this.currentPage = 1;
     this.loadJobs(1);
   }
 
+  /**
+   * Apply to a job - WITH PROFILE COMPLETION CHECK
+   */
   applyToJob(jobId: string): void {
+    console.log('=== APPLY BUTTON CLICKED ===');
+    console.log('Job ID:', jobId);
+    console.log('Profile completion:', this.profileCompletion);
+    console.log('Is profile complete?', this.isProfileComplete);
+    
+    // Prevent if already applied
     if (this.isJobApplied(jobId)) {
+      console.log('❌ Job already applied to');
+      this.addNotification('You have already applied to this job', 'info');
       return;
     }
 
+    // Prevent double-click
+    if (this.isApplying === jobId) {
+      console.log('⏳ Already processing application');
+      return;
+    }
+
+    // 🔥 CHECK PROFILE COMPLETION BEFORE ALLOWING APPLICATION
+    if (!this.isProfileComplete) {
+      console.log('❌ Profile is incomplete - blocking application');
+      
+      const missingPercentage = 100 - this.profileCompletion;
+      this.addNotification(
+        `⚠️ Profile ${this.profileCompletion}% complete. Need ${missingPercentage}% more to apply!`,
+        'warning'
+      );
+
+      // Show confirmation dialog
+      const confirmComplete = confirm(
+        `⚠️ Your profile is only ${this.profileCompletion}% complete.\n\n` +
+        `You need 100% completion to apply for jobs.\n\n` +
+        `Would you like to complete your profile now?\n\n` +
+        `✅ Add missing information:\n` +
+        `• Professional Summary\n` +
+        `• Work Experience\n` +
+        `• Skills & Certifications\n` +
+        `• Education Background\n` +
+        `• Projects & Portfolio\n` +
+        `• Social Links`
+      );
+
+      if (confirmComplete) {
+        console.log('Redirecting to CV Manager...');
+        this.router.navigate(['/jobseeker/cv-manager']);
+      }
+      
+      return; // BLOCK THE APPLICATION
+    }
+
+    // Profile is complete - proceed with application
+    console.log('✅ Profile is complete - proceeding with application');
     this.isApplying = jobId;
     
-    // You can customize this application data
+    // Application data (can be enhanced with a modal later)
     const applicationData = {
-      coverLetter: '', // Can be filled from a modal/form
+      coverLetter: '',
       resumeId: undefined,
       portfolioUrl: undefined,
       expectedSalary: undefined,
@@ -284,139 +604,248 @@ export class JobExplorerComponent implements OnInit, OnDestroy {
     this.jobService.applyToJob(jobId, applicationData)
       .pipe(
         takeUntil(this.destroy$),
-        finalize(() => this.isApplying = null)
+        finalize(() => {
+          console.log('🏁 Apply API call completed');
+          this.isApplying = null;
+        }),
+        catchError((error) => {
+          console.error('❌ Error applying to job:', error);
+          
+          let errorMsg = 'Failed to submit application. Please try again.';
+          
+          // Handle specific error cases
+          if (error.status === 401) {
+            errorMsg = '🔐 Please log in to apply to jobs';
+          } else if (error.status === 409) {
+            errorMsg = 'You have already applied to this job';
+            // Sync local state with backend
+            if (!this.appliedJobIds.includes(jobId)) {
+              this.appliedJobIds.push(jobId);
+            }
+          } else if (error.status === 404) {
+            errorMsg = 'Job not found or no longer available';
+          } else if (error.status === 400) {
+            errorMsg = error.error?.message || 'Invalid application data';
+          } else if (error.error?.message) {
+            errorMsg = error.error.message;
+          }
+          
+          this.addNotification(errorMsg, 'error');
+          
+          return of({ success: false, message: errorMsg });
+        })
       )
       .subscribe({
         next: (response) => {
-          if (response.success) {
+          if (!response || !response.success) return;
+          
+          console.log('✅ Apply job response:', response);
+          
+          // Update local state
+          if (!this.appliedJobIds.includes(jobId)) {
             this.appliedJobIds.push(jobId);
-            this.appliedJobsCount++;
-            
-            const job = this.jobs.find(j => j.id === jobId);
-            this.notificationMessage = `Application submitted successfully for ${job?.title || 'this job'}!`;
-            this.showNotification = true;
-            
-            setTimeout(() => this.hideNotification(), 4000);
-            
-            this.loadJobseekerStats();
-          } else {
-            this.addNotification(response.message || 'Failed to apply', 'error');
+            console.log('✅ Added to appliedJobIds:', jobId);
           }
-        },
-        error: (error) => {
-          console.error('Error applying to job:', error);
-          const errorMsg = error.error?.message || 'Failed to apply. Please try again.';
-          this.addNotification(errorMsg, 'error');
+          
+          // Increment counter
+          this.appliedJobsCount++;
+          
+          // Get job details for notification
+          const job = this.jobs.find(j => this.getJobId(j) === jobId);
+          const jobTitle = job?.title || 'this position';
+          
+          // Show success notification
+          this.addNotification(
+            `🎉 Application submitted successfully for ${jobTitle}!`, 
+            'success'
+          );
+          
+          console.log('📊 Updated state:', {
+            appliedJobIds: this.appliedJobIds,
+            appliedJobsCount: this.appliedJobsCount
+          });
+          
+          // 🔥 Reload jobs and stats after delay
+          setTimeout(() => {
+            this.loadJobs(this.currentPage);
+            this.loadJobseekerStats();
+          }, 500);
         }
       });
   }
 
+  /**
+   * Save/Bookmark a job with toggle functionality
+   */
   saveJob(jobId: string): void {
-    console.log('=== SAVE JOB CLICKED ===');
+    console.log('=== SAVE BUTTON CLICKED ===');
     console.log('Job ID:', jobId);
-    console.log('Is authenticated?', this.jobService['authService'].isAuthenticated());
-    console.log('Current user:', this.jobService['authService'].getCurrentUser());
-    console.log('Is already saved?', this.isJobSaved(jobId));
-    console.log('SavedJobIds array:', this.savedJobIds);
-    console.log('========================');
     
+    // Toggle functionality - if already saved, unsave it
     if (this.isJobSaved(jobId)) {
-      console.log('Job is already saved, unsaving...');
+      console.log('🔄 Job already saved, toggling to unsave...');
       this.unsaveJob(jobId);
       return;
     }
 
+    // Prevent double-click
+    if (this.isSaving === jobId) {
+      console.log('⏳ Already processing save request');
+      return;
+    }
+
     this.isSaving = jobId;
-    console.log('Calling save API...');
+    console.log('✅ Starting save process...');
     
     this.jobService.saveJob(jobId)
       .pipe(
         takeUntil(this.destroy$),
         finalize(() => {
-          console.log('Save API call completed');
+          console.log('🏁 Save API call completed');
           this.isSaving = null;
+        }),
+        catchError((error) => {
+          console.error('❌ Error saving job:', error);
+          
+          let errorMsg = 'Failed to save job. Please try again.';
+          
+          if (error.status === 401) {
+            errorMsg = '🔐 Please log in to save jobs';
+          } else if (error.status === 409) {
+            errorMsg = 'Job is already saved';
+            if (!this.savedJobIds.includes(jobId)) {
+              this.savedJobIds.push(jobId);
+            }
+          } else if (error.status === 404) {
+            errorMsg = 'Job not found';
+          } else if (error.error?.message) {
+            errorMsg = error.error.message;
+          }
+          
+          this.addNotification(errorMsg, 'error');
+          
+          return of({ success: false, message: errorMsg });
         })
       )
       .subscribe({
         next: (response) => {
-          console.log('Save job response:', response);
-          if (response.success) {
-            if (!this.savedJobIds.includes(jobId)) {
-              this.savedJobIds.push(jobId);
-            }
-            this.savedJobsCount++;
-            this.addNotification('Job saved successfully!', 'success');
-            this.loadJobseekerStats();
-            console.log('Updated savedJobIds:', this.savedJobIds);
-          } else {
-            console.error('Save failed:', response.message);
-            this.addNotification(response.message || 'Failed to save job', 'error');
+          if (!response || !response.success) return;
+          
+          console.log('✅ Save job response:', response);
+          
+          // Update local state
+          if (!this.savedJobIds.includes(jobId)) {
+            this.savedJobIds.push(jobId);
+            console.log('✅ Added to savedJobIds:', jobId);
           }
-        },
-        error: (error) => {
-          console.error('Error saving job:', error);
-          console.error('Error details:', error.error);
-          const errorMsg = error.error?.message || 'Failed to save job. Please try again.';
-          this.addNotification(errorMsg, 'error');
+          
+          // Increment counter
+          this.savedJobsCount++;
+          
+          // Show success notification
+          this.addNotification('💾 Job saved successfully!', 'success');
+          
+          // 🔥 Reload jobs and stats after delay
+          setTimeout(() => {
+            this.loadJobs(this.currentPage);
+            this.loadJobseekerStats();
+          }, 500);
         }
       });
   }
 
+  /**
+   * Unsave/Remove bookmark from a job
+   */
   unsaveJob(jobId: string): void {
-    console.log('Unsave job clicked for ID:', jobId);
+    console.log('=== UNSAVE BUTTON CLICKED ===');
+    console.log('Job ID:', jobId);
+    
+    if (this.isSaving === jobId) {
+      console.log('⏳ Already processing unsave request');
+      return;
+    }
+
     this.isSaving = jobId;
     
     this.jobService.unsaveJob(jobId)
       .pipe(
         takeUntil(this.destroy$),
         finalize(() => {
-          console.log('Unsave API call completed');
           this.isSaving = null;
+        }),
+        catchError((error) => {
+          console.error('❌ Error unsaving job:', error);
+          
+          let errorMsg = 'Failed to unsave job. Please try again.';
+          
+          if (error.status === 404) {
+            errorMsg = 'Job not found or not saved';
+            this.savedJobIds = this.savedJobIds.filter(id => id !== jobId);
+          } else if (error.error?.message) {
+            errorMsg = error.error.message;
+          }
+          
+          this.addNotification(errorMsg, 'error');
+          
+          return of({ success: false, message: errorMsg });
         })
       )
       .subscribe({
         next: (response) => {
-          console.log('Unsave job response:', response);
-          if (response.success) {
-            this.savedJobIds = this.savedJobIds.filter(id => id !== jobId);
-            this.savedJobsCount = Math.max(0, this.savedJobsCount - 1);
-            this.addNotification('Job removed from saved list', 'info');
-            
-            if (this.activeTab === 'saved') {
-              this.loadJobs(this.currentPage);
-            }
-            this.loadJobseekerStats();
-            console.log('Updated savedJobIds:', this.savedJobIds);
-          } else {
-            console.error('Unsave failed:', response.message);
-            this.addNotification(response.message || 'Failed to unsave job', 'error');
+          if (!response || !response.success) return;
+          
+          console.log('✅ Unsave job response:', response);
+          
+          this.savedJobIds = this.savedJobIds.filter(id => id !== jobId);
+          this.savedJobsCount = Math.max(0, this.savedJobsCount - 1);
+          
+          this.addNotification('📝 Job removed from saved list', 'info');
+          
+          // Reload current view
+          if (this.activeTab === 'saved') {
+            this.loadJobs(this.currentPage);
           }
-        },
-        error: (error) => {
-          console.error('Error unsaving job:', error);
-          console.error('Error details:', error.error);
-          const errorMsg = error.error?.message || 'Failed to unsave job. Please try again.';
-          this.addNotification(errorMsg, 'error');
+          
+          this.loadJobseekerStats();
         }
       });
   }
 
+  /**
+   * Check if job is applied
+   */
   isJobApplied(jobId: string): boolean {
     return this.appliedJobIds.includes(jobId);
   }
 
+  /**
+   * Check if job is saved
+   */
   isJobSaved(jobId: string): boolean {
     return this.savedJobIds.includes(jobId);
   }
 
+  /**
+   * Get job ID from job object
+   */
+  getJobId(job: any): string {
+    return job.job_id || job.id;
+  }
+
+  /**
+   * Notification management
+   */
   hideNotification(): void {
     this.showNotification = false;
     this.notificationMessage = '';
   }
 
-  addNotification(message: string, type: 'success' | 'error' | 'info'): void {
+  addNotification(message: string, type: 'success' | 'error' | 'info' | 'warning'): void {
     const id = Date.now().toString();
     this.notifications.push({ id, message, type });
+    
+    // Auto-dismiss after 5 seconds
     setTimeout(() => this.dismissNotification(id), 5000);
   }
 
@@ -424,7 +853,9 @@ export class JobExplorerComponent implements OnInit, OnDestroy {
     this.notifications = this.notifications.filter(n => n.id !== id);
   }
 
-  // Pagination
+  /**
+   * Pagination methods
+   */
   goToPage(page: number): void {
     if (page >= 1 && page <= this.totalPages) {
       this.loadJobs(page);
@@ -443,12 +874,9 @@ export class JobExplorerComponent implements OnInit, OnDestroy {
     }
   }
 
-  // Helper method to get job ID from different structures
-  getJobId(job: any): string {
-    return job.job_id || job.id;
-  }
-
-  // Helper methods for template
+  /**
+   * Helper methods for template
+   */
   getStarArray(rating: number): number[] {
     const stars = [];
     const fullStars = Math.floor(rating);
@@ -502,22 +930,18 @@ export class JobExplorerComponent implements OnInit, OnDestroy {
     if (job.company_logo) {
       return job.company_logo;
     }
-    // Use a data URL for placeholder instead of external service
     const letter = (job.company_name || 'C').charAt(0).toUpperCase();
     return `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='50' height='50'%3E%3Crect width='50' height='50' fill='%234285f4'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-family='Arial' font-size='24' fill='white'%3E${letter}%3C/text%3E%3C/svg%3E`;
   }
 
-  // Calculate match score (you can customize this logic)
   getMatchScore(job: Job): number {
     const jobId = this.getJobId(job);
     
-    // Return cached value if exists
     if (this.matchScoreCache.has(jobId)) {
       return this.matchScoreCache.get(jobId)!;
     }
     
-    // Calculate and cache the score
-    const score = Math.floor(Math.random() * 20) + 80; // Returns 80-100
+    const score = Math.floor(Math.random() * 20) + 80;
     this.matchScoreCache.set(jobId, score);
     return score;
   }
@@ -525,17 +949,14 @@ export class JobExplorerComponent implements OnInit, OnDestroy {
   getRating(job: Job): number {
     const jobId = this.getJobId(job);
     
-    // Return cached value if exists
     if (this.ratingCache.has(jobId)) {
       return this.ratingCache.get(jobId)!;
     }
     
-    // Calculate rating based on applications_count or views_count
     const baseRating = 4.0;
     const bonus = Math.min(job.applications_count * 0.01, 0.9);
     const rating = Math.min(baseRating + bonus, 5.0);
     
-    // Cache the rating
     this.ratingCache.set(jobId, rating);
     return rating;
   }

@@ -1,10 +1,5 @@
 // src/types/cv.type.ts
 export interface PersonalInfo {
-  x_handle: any;
-  twitter: any;
-  github: any;
-  website: undefined;
-  linkedIn: any;
   full_name: string;
   email: string;
   phone: string;
@@ -12,6 +7,12 @@ export interface PersonalInfo {
   linkedin_url?: string;
   website_url?: string;
   professional_summary: string;
+  profile_image?: string;  // ← NEW: URL to profile image
+  x_handle?: string;
+  twitter?: string;
+  github?: string;
+  website?: string;
+  linkedIn?: string;
 }
 
 export interface Education {
@@ -27,10 +28,10 @@ export interface Education {
 }
 
 export interface WorkExperience {
-  title: string;
   id?: string;
   company: string;
   position: string;
+  title?: string;
   start_date: string;
   end_date?: string;
   is_current: boolean;
@@ -40,18 +41,18 @@ export interface WorkExperience {
 }
 
 export interface Skill {
-  name: string;
   id?: string;
   skill_name: string;
+  name?: string;
   skill_level: 'Beginner' | 'Intermediate' | 'Advanced' | 'Expert';
   category: string;
   display_order?: number;
 }
 
 export interface Certification {
-  name: string;
   id?: string;
   certification_name: string;
+  name?: string;
   issuer: string;
   date_issued: string;
   expiry_date?: string;
@@ -60,9 +61,9 @@ export interface Certification {
 }
 
 export interface Project {
-  name: string;
   id?: string;
   project_name: string;
+  name?: string;
   description: string;
   technologies: string;
   start_date: string;
@@ -91,7 +92,7 @@ export interface CV {
   file_url?: string;
   created_at: Date;
   updated_at: Date;
-  cv_data?: CVData; // Populated when fetching with data
+  cv_data?: CVData;
 }
 
 export interface CVParseResult {

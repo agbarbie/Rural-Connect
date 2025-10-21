@@ -17,6 +17,7 @@ export interface PersonalInfo {
   linkedIn?: string;
   website?: string;
   professionalSummary?: string;
+   profileImage: string;
 }
 
 export interface Education {
@@ -98,7 +99,18 @@ export interface APIResponse<T> {
 
 export interface ExportOptions {
   format: 'pdf' | 'docx';
-  template?: string;
+}
+
+export interface ProfileImageUploadResponse {
+  success: boolean;
+  message: string;
+  data?: {
+    imageUrl: string;
+    filename: string;
+    originalName: string;
+    size: number;
+    mimetype: string;
+  };
 }
 
 // ============================================
@@ -140,6 +152,21 @@ export class CvService {
       .pipe(
         catchError(this.handleError)
       );
+  }
+
+  /**
+   * Upload profile image for CV
+   */
+  uploadProfileImage(file: File): Observable<ProfileImageUploadResponse> {
+    const formData = new FormData();
+    formData.append('profileImage', file);
+
+    return this.http.post<ProfileImageUploadResponse>(
+      `${this.apiUrl}/upload-profile-image`,
+      formData
+    ).pipe(
+      catchError(this.handleError)
+    );
   }
 
   // ============================================
@@ -288,7 +315,8 @@ updateCVStatus(cvId: string, status: 'draft' | 'final'): Observable<APIResponse<
         address: cvData.personalInfo.address || null,
         linkedin_url: cvData.personalInfo.linkedIn || null,
         website_url: cvData.personalInfo.website || null,
-        professional_summary: cvData.personalInfo.professionalSummary || null
+        professional_summary: cvData.personalInfo.professionalSummary || null,
+        profile_image: cvData.personalInfo.profileImage || null
       },
       education: cvData.education.map(edu => ({
         institution: edu.institution,
@@ -336,74 +364,93 @@ updateCVStatus(cvId: string, status: 'draft' | 'final'): Observable<APIResponse<
   /**
    * Transform backend format to frontend CVData format
    */
-  private transformFromBackendFormat(cv: any): CV {
-    return {
-      id: cv.id,
-      userId: cv.user_id,
-      status: cv.status,
-      parsedFromFile: cv.parsed_from_file,
-      originalFilename: cv.original_filename,
-      fileUrl: cv.file_url,
-      createdAt: cv.created_at,
-      updatedAt: cv.updated_at,
-      cvData: {
-        personalInfo: {
-          fullName: cv.cv_data?.personal_info?.full_name || '',
-          email: cv.cv_data?.personal_info?.email || '',
-          phone: cv.cv_data?.personal_info?.phone || '',
-          address: cv.cv_data?.personal_info?.address || '',
-          linkedIn: cv.cv_data?.personal_info?.linkedin_url || '',
-          website: cv.cv_data?.personal_info?.website_url || '',
-          professionalSummary: cv.cv_data?.personal_info?.professional_summary || ''
-        },
-        education: (cv.cv_data?.education || []).map((edu: any) => ({
-          id: edu.id,
-          institution: edu.institution,
-          degree: edu.degree,
-          fieldOfStudy: edu.field_of_study,
-          startYear: edu.start_year,
-          endYear: edu.end_year,
-          gpa: edu.gpa,
-          achievements: edu.achievements
-        })),
-        workExperience: (cv.cv_data?.work_experience || []).map((work: any) => ({
-          id: work.id,
-          company: work.company,
-          position: work.position,
-          startDate: work.start_date,
-          endDate: work.end_date,
-          current: work.is_current,
-          responsibilities: work.responsibilities,
-          achievements: work.achievements
-        })),
-        skills: (cv.cv_data?.skills || []).map((skill: any) => ({
+// frontend/src/app/services/cv.service.ts - FIXED transformFromBackendFormat method
+
+private transformFromBackendFormat(cv: any): CV {
+  console.log('Transforming CV from backend:', cv);
+  console.log('Raw skills data:', cv.cv_data?.skills);
+  
+  return {
+    id: cv.id,
+    userId: cv.user_id,
+    status: cv.status,
+    parsedFromFile: cv.parsed_from_file,
+    originalFilename: cv.original_filename,
+    fileUrl: cv.file_url,
+    createdAt: cv.created_at,
+    updatedAt: cv.updated_at,
+    cvData: {
+      personalInfo: {
+        fullName: cv.cv_data?.personal_info?.full_name || '',
+        email: cv.cv_data?.personal_info?.email || '',
+        phone: cv.cv_data?.personal_info?.phone || '',
+        address: cv.cv_data?.personal_info?.address || '',
+        linkedIn: cv.cv_data?.personal_info?.linkedin_url || '',
+        website: cv.cv_data?.personal_info?.website_url || '',
+        professionalSummary: cv.cv_data?.personal_info?.professional_summary || '',
+        profileImage: cv.cv_data?.personal_info?.profile_image || ''
+      },
+      education: (cv.cv_data?.education || []).map((edu: any) => ({
+        id: edu.id,
+        institution: edu.institution,
+        degree: edu.degree,
+        fieldOfStudy: edu.field_of_study,
+        startYear: edu.start_year,
+        endYear: edu.end_year,
+        gpa: edu.gpa,
+        achievements: edu.achievements
+      })),
+      workExperience: (cv.cv_data?.work_experience || []).map((work: any) => ({
+        id: work.id,
+        company: work.company,
+        position: work.position,
+        startDate: work.start_date,
+        endDate: work.end_date,
+        current: work.is_current,
+        responsibilities: work.responsibilities,
+        achievements: work.achievements
+      })),
+      // CRITICAL FIX: Handle skills properly with all possible field names
+      skills: (cv.cv_data?.skills || []).map((skill: any) => {
+        // Handle multiple possible field name formats
+        const skillName = skill.skill_name || skill.name || skill.skillName || '';
+        const skillLevel = skill.skill_level || skill.level || skill.skillLevel || '';
+        const skillCategory = skill.category || skill.skill_category || skill.skillCategory || '';
+        
+        console.log('Mapping skill:', {
+          original: skill,
+          mapped: { name: skillName, level: skillLevel, category: skillCategory }
+        });
+        
+        return {
           id: skill.id,
-          name: skill.skill_name,
-          level: skill.skill_level,
-          category: skill.category
-        })),
-        certifications: (cv.cv_data?.certifications || []).map((cert: any) => ({
-          id: cert.id,
-          name: cert.certification_name,
-          issuer: cert.issuer,
-          dateIssued: cert.date_issued,
-          expiryDate: cert.expiry_date,
-          credentialId: cert.credential_id
-        })),
-        projects: (cv.cv_data?.projects || []).map((project: any) => ({
-          id: project.id,
-          name: project.project_name,
-          description: project.description,
-          technologies: project.technologies,
-          startDate: project.start_date,
-          endDate: project.end_date,
-          githubLink: project.github_link,
-          demoLink: project.demo_link,
-          outcomes: project.outcomes
-        }))
-      }
-    };
-  }
+          name: skillName,
+          level: skillLevel,
+          category: skillCategory
+        };
+      }).filter((skill: Skill) => skill.name), // Remove empty skills
+      certifications: (cv.cv_data?.certifications || []).map((cert: any) => ({
+        id: cert.id,
+        name: cert.certification_name,
+        issuer: cert.issuer,
+        dateIssued: cert.date_issued,
+        expiryDate: cert.expiry_date,
+        credentialId: cert.credential_id
+      })),
+      projects: (cv.cv_data?.projects || []).map((project: any) => ({
+        id: project.id,
+        name: project.project_name,
+        description: project.description,
+        technologies: project.technologies,
+        startDate: project.start_date,
+        endDate: project.end_date,
+        githubLink: project.github_link,
+        demoLink: project.demo_link,
+        outcomes: project.outcomes
+      }))
+    }
+  };
+}
 
   // ============================================
   // ERROR HANDLING

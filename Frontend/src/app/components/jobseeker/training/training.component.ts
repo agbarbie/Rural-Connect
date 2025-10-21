@@ -96,6 +96,11 @@ export class TrainingComponent implements OnInit, OnDestroy {
             this.trainings = response.data.trainings;
             this.filteredTrainings = [...this.trainings];
             
+            // Log video counts for debugging
+            this.trainings.forEach(training => {
+              console.log(`Training "${training.title}" has ${training.videos?.length || 0} videos`);
+            });
+            
             if (response.pagination) {
               this.currentPage = response.pagination.current_page;
               this.totalPages = response.pagination.total_pages;
@@ -154,9 +159,34 @@ export class TrainingComponent implements OnInit, OnDestroy {
     this.loadTrainings(this.currentPage);
   }
 
+  // Modified to fetch full training details with videos
   viewTrainingDetail(training: Training): void {
-    this.selectedTraining = training;
-    this.showTrainingDetail = true;
+    this.loading = true;
+    this.error = null;
+    
+    console.log('Fetching full details for training:', training.id);
+    
+    // Fetch complete training details including videos and outcomes
+    this.trainingService.getTrainingDetails(training.id)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (response) => {
+          console.log('Training details response:', response);
+          if (response.success && response.data) {
+            this.selectedTraining = response.data;
+            console.log('Selected training videos:', this.selectedTraining.videos);
+            this.showTrainingDetail = true;
+          } else {
+            this.error = 'Failed to load training details.';
+          }
+          this.loading = false;
+        },
+        error: (error) => {
+          console.error('Error loading training details:', error);
+          this.error = 'Failed to load training details. Please try again.';
+          this.loading = false;
+        }
+      });
   }
 
   closeTrainingDetail(): void {
@@ -173,7 +203,11 @@ export class TrainingComponent implements OnInit, OnDestroy {
         next: (response: any) => {
           if (response.success) {
             training.enrolled = true;
+            if (this.selectedTraining && this.selectedTraining.id === training.id) {
+              this.selectedTraining.enrolled = true;
+            }
             console.log('Successfully enrolled in:', training.title);
+            alert('Successfully enrolled in the training!');
           }
         },
         error: (error: any) => {
@@ -185,6 +219,9 @@ export class TrainingComponent implements OnInit, OnDestroy {
 
   startTraining(training: Training): void {
     console.log('Starting training:', training.title);
+    // Navigate to training player/viewer
+    // You can implement navigation to a detailed training viewer here
+    alert('Starting training: ' + training.title);
   }
 
   onFilterCheckboxChange(filterType: keyof FilterOptions, value: string, event: any): void {
@@ -270,5 +307,16 @@ export class TrainingComponent implements OnInit, OnDestroy {
       pages.push(i);
     }
     return pages;
+  }
+
+  // Helper method to get video embed URL
+  getVideoEmbedUrl(videoUrl: string): string {
+    return this.trainingService.getVideoEmbedUrl(videoUrl);
+  }
+
+  // Helper method to check if video is accessible
+  isVideoAccessible(video: any): boolean {
+    if (!this.selectedTraining) return false;
+    return this.trainingService.isVideoAccessible(video, this.selectedTraining);
   }
 }

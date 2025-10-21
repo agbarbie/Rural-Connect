@@ -3,7 +3,7 @@ import { CommonModule } from '@angular/common';
 import { ReactiveFormsModule, FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { RouterModule } from '@angular/router';
 import { FormsModule } from '@angular/forms';
-import { Subject, takeUntil, finalize } from 'rxjs';
+import { Subject, takeUntil, finalize, interval, merge } from 'rxjs';
 import { JobService, Job, CreateJobRequest, JobStats } from '../../../../../services/job.service';
 
 interface Notification {
@@ -21,13 +21,13 @@ interface Notification {
 })
 export class PostJobsComponent implements OnInit, OnDestroy {
   private destroy$ = new Subject<void>();
+  private autoRefreshInterval$ = new Subject<void>();
   
   employerName: string = 'TechCorp Solutions';
   jobForm: FormGroup;
   jobPosts: Job[] = [];
   filteredJobPosts: Job[] = [];
   
-  // Updated to match the new JobStats interface
   jobStats: JobStats = {
     overview: {
       total_jobs: 0,
@@ -76,6 +76,11 @@ export class PostJobsComponent implements OnInit, OnDestroy {
   itemsPerPage: number = 10;
   totalPages: number = 1;
   totalJobs: number = 0;
+  
+  // 🔥 Auto-refresh with enhanced notification
+  autoRefreshEnabled: boolean = true;
+  lastRefreshTime: Date = new Date();
+  newApplicationsDetected: number = 0;
 
   constructor(
     private fb: FormBuilder,
@@ -103,20 +108,145 @@ export class PostJobsComponent implements OnInit, OnDestroy {
   }
 
   ngOnInit(): void {
-    // Add debug info
+    console.log('🚀 PostJobsComponent initialized');
     this.jobService.debugAuthInfo();
     
     this.loadJobPosts();
     this.loadJobStats();
+    
+    // 🔥 CRITICAL: Listen for real-time application updates
+    this.subscribeToApplicationUpdates();
+    
+    // 🔥 Start auto-refresh with shorter interval (20 seconds for better responsiveness)
+    this.startAutoRefresh();
   }
 
   ngOnDestroy(): void {
     this.destroy$.next();
     this.destroy$.complete();
+    this.autoRefreshInterval$.next();
+    this.autoRefreshInterval$.complete();
   }
 
-  loadJobPosts(page: number = 1): void {
-    this.isLoading = true;
+  /**
+   * 🔥 NEW: Subscribe to real-time application updates from JobService
+   */
+  subscribeToApplicationUpdates(): void {
+    console.log('🔔 Subscribing to application updates...');
+    
+    this.jobService.applicationUpdate$
+      .pipe(takeUntil(this.destroy$))
+      .subscribe(update => {
+        if (!update) return;
+        
+        console.log('🔔 Received application update:', update);
+        
+        // Find and update the specific job
+        const jobIndex = this.jobPosts.findIndex(j => j.id === update.jobId);
+        
+        if (jobIndex !== -1) {
+          const previousCount = this.jobPosts[jobIndex].applications_count;
+          
+          // Update the job in the list
+          this.jobPosts[jobIndex] = {
+            ...this.jobPosts[jobIndex],
+            applications_count: update.count
+          };
+          
+          this.filteredJobPosts = [...this.jobPosts];
+          
+          // Calculate new applications
+          const newApps = update.count - previousCount;
+          
+          if (newApps > 0) {
+            this.newApplicationsDetected += newApps;
+            
+            console.log(`✅ Updated job "${this.jobPosts[jobIndex].title}" - New applications: ${newApps}`);
+            
+            // Show notification
+            this.addNotification(
+              `🎉 ${newApps} new application${newApps > 1 ? 's' : ''} for "${this.jobPosts[jobIndex].title}"`,
+              'success'
+            );
+            
+            // Update stats
+            this.loadJobStats();
+          }
+          
+          // Update selected job if it's the one being viewed
+          if (this.selectedJob && this.selectedJob.id === update.jobId) {
+            this.selectedJob = { ...this.jobPosts[jobIndex] };
+          }
+        }
+      });
+  }
+
+  /**
+   * 🔥 UPDATED: Enhanced auto-refresh with better detection
+   */
+  startAutoRefresh(): void {
+    if (!this.autoRefreshEnabled) return;
+    
+    console.log('🔄 Starting auto-refresh (20s interval)');
+    
+    // Refresh every 20 seconds for more responsive updates
+    interval(20000)
+      .pipe(takeUntil(this.autoRefreshInterval$), takeUntil(this.destroy$))
+      .subscribe(() => {
+        if (this.autoRefreshEnabled && !this.isLoading) {
+          console.log('🔄 Auto-refreshing job data...');
+          this.refreshData();
+        }
+      });
+  }
+
+  /**
+   * 🔥 Stop auto-refresh
+   */
+  stopAutoRefresh(): void {
+    console.log('⏸️ Stopping auto-refresh');
+    this.autoRefreshInterval$.next();
+  }
+
+  /**
+   * 🔥 Toggle auto-refresh on/off
+   */
+  toggleAutoRefresh(): void {
+    this.autoRefreshEnabled = !this.autoRefreshEnabled;
+    
+    if (this.autoRefreshEnabled) {
+      this.startAutoRefresh();
+      this.addNotification('Auto-refresh enabled (20s)', 'info');
+    } else {
+      this.stopAutoRefresh();
+      this.addNotification('Auto-refresh disabled', 'info');
+    }
+  }
+
+  /**
+   * 🔥 ENHANCED: Manual refresh with visual feedback
+   */
+  refreshData(): void {
+    console.log('🔄 Manual refresh triggered');
+    this.loadJobPosts(this.currentPage, true); // Silent refresh
+    this.loadJobStats();
+    this.lastRefreshTime = new Date();
+    
+    // Reset new applications counter after manual refresh
+    if (this.newApplicationsDetected > 0) {
+      console.log(`✅ Acknowledged ${this.newApplicationsDetected} new applications`);
+      this.newApplicationsDetected = 0;
+    }
+  }
+
+  /**
+   * 🔥 ENHANCED: Load jobs with better application tracking
+   */
+  loadJobPosts(page: number = 1, silent: boolean = false): void {
+    if (!silent) {
+      this.isLoading = true;
+    }
+    
     this.currentPage = page;
     
     const query = {
@@ -127,35 +257,76 @@ export class PostJobsComponent implements OnInit, OnDestroy {
       sort_order: 'DESC' as const
     };
 
+    // Store previous application counts for comparison
+    const previousApplicationCounts = new Map(
+      this.jobPosts.map(job => [job.id, job.applications_count])
+    );
+
     this.jobService.getMyJobs(query)
       .pipe(
         takeUntil(this.destroy$),
-        finalize(() => this.isLoading = false)
+        finalize(() => {
+          if (!silent) {
+            this.isLoading = false;
+          }
+        })
       )
       .subscribe({
         next: (response) => {
-          console.log('Jobs response:', response);
+          console.log('📦 Jobs response:', response);
+          
           if (response.success && response.data) {
             this.jobPosts = response.data.jobs;
             this.filteredJobPosts = [...this.jobPosts];
             this.totalJobs = response.data.pagination.total;
             this.totalPages = response.data.pagination.total_pages;
             this.jobService.updateJobsCache(this.jobPosts);
+            
+            // 🔥 DETECT NEW APPLICATIONS during refresh
+            if (silent && previousApplicationCounts.size > 0) {
+              let totalNewApps = 0;
+              
+              this.jobPosts.forEach(job => {
+                const previousCount = previousApplicationCounts.get(job.id) || 0;
+                const currentCount = job.applications_count;
+                
+                if (currentCount > previousCount) {
+                  const newApps = currentCount - previousCount;
+                  totalNewApps += newApps;
+                  
+                  console.log(`✅ Detected ${newApps} new application(s) for "${job.title}"`);
+                  
+                  this.addNotification(
+                    `🎉 ${newApps} new application${newApps > 1 ? 's' : ''} for "${job.title}"`,
+                    'success'
+                  );
+                }
+              });
+              
+              if (totalNewApps > 0) {
+                this.newApplicationsDetected += totalNewApps;
+              }
+            }
           } else {
-            this.addNotification(response.message || 'Failed to load jobs', 'error');
+            if (!silent) {
+              this.addNotification(response.message || 'Failed to load jobs', 'error');
+            }
           }
         },
         error: (error) => {
-          console.error('Error loading jobs:', error);
-          let errorMessage = 'Failed to load job posts. Please try again.';
+          console.error('❌ Error loading jobs:', error);
           
-          if (error.status === 401) {
-            errorMessage = 'Your session has expired. Please log in again.';
-          } else if (error.error?.message) {
-            errorMessage = error.error.message;
+          if (!silent) {
+            let errorMessage = 'Failed to load job posts. Please try again.';
+            
+            if (error.status === 401) {
+              errorMessage = 'Your session has expired. Please log in again.';
+            } else if (error.error?.message) {
+              errorMessage = error.error.message;
+            }
+            
+            this.addNotification(errorMessage, 'error');
           }
-          
-          this.addNotification(errorMessage, 'error');
         }
       });
   }
@@ -165,14 +336,13 @@ export class PostJobsComponent implements OnInit, OnDestroy {
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: (response) => {
-          console.log('Stats response:', response);
+          console.log('📊 Stats response:', response);
           if (response.success && response.data) {
             this.jobStats = response.data;
           }
         },
         error: (error) => {
-          console.error('Error loading job stats:', error);
-          // Don't show error notification for stats as it's not critical
+          console.error('❌ Error loading job stats:', error);
           if (error.status === 404) {
             console.warn('Stats endpoint not found - using default values');
           }
@@ -190,7 +360,7 @@ export class PostJobsComponent implements OnInit, OnDestroy {
 
   onSubmit(): void {
     if (this.jobForm.valid) {
-      console.log('Form submission started');
+      console.log('📝 Form submission started');
       this.isSubmitting = true;
       
       const formData = { ...this.jobForm.value };
@@ -227,7 +397,7 @@ export class PostJobsComponent implements OnInit, OnDestroy {
       });
 
       const jobData: CreateJobRequest = formData;
-      console.log('Processed job data:', jobData);
+      console.log('📤 Processed job data:', jobData);
       
       this.jobService.createJob(jobData)
         .pipe(
@@ -236,7 +406,7 @@ export class PostJobsComponent implements OnInit, OnDestroy {
         )
         .subscribe({
           next: (response) => {
-            console.log('Job creation response:', response);
+            console.log('✅ Job creation response:', response);
             if (response.success && response.data) {
               this.addNotification('Job posted successfully!', 'success');
               this.toggleAddForm();
@@ -247,17 +417,15 @@ export class PostJobsComponent implements OnInit, OnDestroy {
             }
           },
           error: (error) => {
-            console.error('Error creating job:', error);
+            console.error('❌ Error creating job:', error);
             let errorMessage = 'Failed to create job. Please try again.';
             
             if (error.status === 403) {
-              errorMessage = 'You do not have permission to create jobs. Please check your account or complete your company profile.';
+              errorMessage = 'You do not have permission to create jobs.';
             } else if (error.status === 401) {
               errorMessage = 'Your session has expired. Please log in again.';
             } else if (error.error?.message) {
               errorMessage = error.error.message;
-            } else if (error.status === 400) {
-              errorMessage = 'Please check all required fields and try again.';
             }
             
             this.addNotification(errorMessage, 'error');
@@ -322,12 +490,10 @@ export class PostJobsComponent implements OnInit, OnDestroy {
             
             this.loadJobStats();
             this.addNotification(`Job ${updatedJob.status.toLowerCase()} successfully`, 'info');
-          } else {
-            this.addNotification(response.message || 'Failed to update job status', 'error');
           }
         },
         error: (error) => {
-          console.error('Error toggling job status:', error);
+          console.error('❌ Error toggling job status:', error);
           this.addNotification('Failed to update job status. Please try again.', 'error');
         }
       });
@@ -337,7 +503,7 @@ export class PostJobsComponent implements OnInit, OnDestroy {
     const job = this.jobPosts.find(j => j.id === jobId);
     if (!job) return;
     
-    const confirmMessage = `Are you sure you want to delete the job "${job.title}"? This action cannot be undone.`;
+    const confirmMessage = `Are you sure you want to delete the job "${job.title}"?`;
     if (!confirm(confirmMessage)) return;
     
     this.isDeleting = jobId;
@@ -363,12 +529,10 @@ export class PostJobsComponent implements OnInit, OnDestroy {
             if (this.filteredJobPosts.length === 0 && this.currentPage > 1) {
               this.loadJobPosts(this.currentPage - 1);
             }
-          } else {
-            this.addNotification(response.message || 'Failed to delete job', 'error');
           }
         },
         error: (error) => {
-          console.error('Error deleting job:', error);
+          console.error('❌ Error deleting job:', error);
           this.addNotification('Failed to delete job. Please try again.', 'error');
         }
       });
@@ -383,12 +547,10 @@ export class PostJobsComponent implements OnInit, OnDestroy {
             this.addNotification(`Job "${job.title}" duplicated successfully`, 'success');
             this.loadJobPosts();
             this.loadJobStats();
-          } else {
-            this.addNotification(response.message || 'Failed to duplicate job', 'error');
           }
         },
         error: (error) => {
-          console.error('Error duplicating job:', error);
+          console.error('❌ Error duplicating job:', error);
           this.addNotification('Failed to duplicate job. Please try again.', 'error');
         }
       });
@@ -409,12 +571,10 @@ export class PostJobsComponent implements OnInit, OnDestroy {
             
             this.loadJobStats();
             this.addNotification(`Job "${job.title}" marked as filled`, 'success');
-          } else {
-            this.addNotification(response.message || 'Failed to mark job as filled', 'error');
           }
         },
         error: (error) => {
-          console.error('Error marking job as filled:', error);
+          console.error('❌ Error marking job as filled:', error);
           this.addNotification('Failed to mark job as filled. Please try again.', 'error');
         }
       });
@@ -455,9 +615,6 @@ export class PostJobsComponent implements OnInit, OnDestroy {
     if (typeof job.skills_required === 'string') {
       return (job.skills_required as string).split(',').map((skill: string) => skill.trim());
     }
-    if (!job.skills_required) {
-      return [];
-    }
     return [];
   }
 
@@ -480,7 +637,7 @@ export class PostJobsComponent implements OnInit, OnDestroy {
     });
   }
 
-  // Updated computed properties to work with new JobStats structure
+  // Computed properties
   get activeJobPostsCount(): number {
     return this.jobStats.overview.active_jobs;
   }
@@ -489,12 +646,23 @@ export class PostJobsComponent implements OnInit, OnDestroy {
     return this.jobStats.overview.total_applications;
   }
 
-  // Additional getters for template use
   get totalJobPosts(): number {
     return this.jobStats.overview.total_jobs;
   }
 
   get featuredJobsCount(): number {
     return this.jobStats.overview.featured_jobs_count;
+  }
+  
+  /**
+   * 🔥 Get time since last refresh
+   */
+  getTimeSinceRefresh(): string {
+    const now = new Date();
+    const diff = Math.floor((now.getTime() - this.lastRefreshTime.getTime()) / 1000);
+    
+    if (diff < 60) return `${diff}s ago`;
+    if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+    return `${Math.floor(diff / 3600)}h ago`;
   }
 }

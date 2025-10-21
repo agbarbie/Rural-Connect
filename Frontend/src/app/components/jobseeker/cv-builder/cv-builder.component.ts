@@ -1,11 +1,13 @@
-// src/app/components/cv-builder/cv-builder.component.ts
-import { Component, OnInit, OnDestroy } from '@angular/core';
+// cv-builder.component.ts
+import { Component, OnInit, OnDestroy, ViewChild, ElementRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { Subscription } from 'rxjs';
 import { CvService, CVData, CV } from '../../../../../services/cv.service';
 import { AuthService } from '../../../../../services/auth.service';
+import { ProfileService } from '../../../../../services/profile.service';
+import { environment } from '../../../../environments/environments';
 
 @Component({
   selector: 'app-cv-builder',
@@ -43,7 +45,8 @@ export class CvBuilderComponent implements OnInit, OnDestroy {
       address: '',
       linkedIn: '',
       website: '',
-      professionalSummary: ''
+      professionalSummary: '',
+      profileImage: ''
     },
     education: [],
     workExperience: [],
@@ -51,6 +54,11 @@ export class CvBuilderComponent implements OnInit, OnDestroy {
     certifications: [],
     projects: []
   };
+
+  // Profile image upload
+  @ViewChild('profileImageInput') profileImageInput!: ElementRef<HTMLInputElement>;
+  profileImageFile: File | null = null;
+  profileImagePreview: string | null = null;
 
   skillLevels = ['Beginner', 'Intermediate', 'Advanced', 'Expert'];
   skillCategories = ['Technical', 'Programming', 'Design', 'Management', 'Communication', 'Other'];
@@ -64,6 +72,7 @@ export class CvBuilderComponent implements OnInit, OnDestroy {
 
   constructor(
     private cvService: CvService,
+    private profileService: ProfileService,
     private authService: AuthService,
     private router: Router
   ) {}
@@ -215,6 +224,100 @@ export class CvBuilderComponent implements OnInit, OnDestroy {
   }
 
   // ============================================
+  // PROFILE IMAGE UPLOAD METHODS
+  // ============================================
+
+  onProfileImageSelected(event: any): void {
+    if (!this.checkAuthentication()) return;
+    
+    const file = event.target.files[0];
+    if (file && file.type.startsWith('image/')) {
+      if (file.size > 5 * 1024 * 1024) {
+        this.displayNotification('Image size must be less than 5MB', 'error');
+        return;
+      }
+
+      this.profileImageFile = file;
+      
+      const reader = new FileReader();
+      reader.onload = (e: any) => {
+        this.profileImagePreview = e.target.result;
+      };
+      reader.readAsDataURL(file);
+      
+      this.uploadProfileImage(file);
+    } else {
+      this.displayNotification('Please select a valid image file (JPEG, PNG, GIF, WebP).', 'error');
+    }
+  }
+
+  private uploadProfileImage(file: File): void {
+    this.displayNotification('Uploading profile image...', 'success');
+
+    this.cvService.uploadProfileImage(file).subscribe({
+      next: (response) => {
+        if (response.success && response.data) {
+          // Store the profile image URL in CV data
+          this.cvData.personalInfo.profileImage = response.data.imageUrl;
+          this.profileImagePreview = null; // Clear preview since we have actual URL
+          
+          // Auto-save the CV to ensure profile image is persisted
+          this.autoSaveCV();
+          
+          this.displayNotification('Profile image uploaded successfully!', 'success');
+        } else {
+          this.displayNotification('Failed to upload image. Please try again.', 'error');
+        }
+      },
+      error: (error) => {
+        this.handleServiceError(error, 'uploading profile image');
+      }
+    });
+  }
+
+  removeProfileImage(): void {
+    if (!this.checkAuthentication()) return;
+    
+    if (confirm('Are you sure you want to remove your profile image?')) {
+      this.cvData.personalInfo.profileImage = '';
+      this.profileImageFile = null;
+      this.profileImagePreview = null;
+      this.displayNotification('Profile image removed', 'success');
+    }
+  }
+
+  getProfileImageUrl(): string {
+    if (this.profileImagePreview) {
+      return this.profileImagePreview;
+    }
+    if (this.cvData.personalInfo.profileImage) {
+      return this.getFullImageUrl(this.cvData.personalInfo.profileImage);
+    }
+    return 'assets/images/default-avatar.png';
+  }
+
+  private getFullImageUrl(imagePath: string): string {
+    if (!imagePath) return 'assets/images/default-avatar.png';
+    
+    // If it's already a full URL, return as is
+    if (imagePath.startsWith('http')) {
+      return imagePath;
+    }
+    
+    // If it's a relative path, construct full URL
+    if (imagePath.startsWith('/uploads') || imagePath.startsWith('uploads')) {
+      const baseUrl = environment.apiUrl.replace('/api', '');
+      return `${baseUrl}${imagePath.startsWith('/') ? '' : '/'}${imagePath}`;
+    }
+    
+    return imagePath;
+  }
+
+  triggerProfileImageUpload(): void {
+    this.profileImageInput.nativeElement.click();
+  }
+
+  // ============================================
   // CV OPERATIONS
   // ============================================
 
@@ -230,7 +333,8 @@ export class CvBuilderComponent implements OnInit, OnDestroy {
         address: '',
         linkedIn: '',
         website: '',
-        professionalSummary: ''
+        professionalSummary: '',
+        profileImage: ''
       },
       education: [],
       workExperience: [],
@@ -239,6 +343,8 @@ export class CvBuilderComponent implements OnInit, OnDestroy {
       projects: []
     };
 
+    this.profileImageFile = null;
+    this.profileImagePreview = null;
     this.currentCVId = null;
     this.isDraft = true;
     this.startCVBuilder();
@@ -247,6 +353,20 @@ export class CvBuilderComponent implements OnInit, OnDestroy {
   private startCVBuilder(): void {
     this.showWelcome = false;
     this.currentStep = 1;
+  }
+
+  // Add auto-save method
+  private autoSaveCV(): void {
+    if (this.currentCVId) {
+      this.cvService.updateCV(this.currentCVId, this.cvData).subscribe({
+        next: (response) => {
+          console.log('CV auto-saved with profile image');
+        },
+        error: (error) => {
+          console.error('Error auto-saving CV:', error);
+        }
+      });
+    }
   }
 
   saveAsDraft(): void {

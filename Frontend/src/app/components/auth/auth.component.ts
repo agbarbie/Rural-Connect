@@ -177,7 +177,7 @@ export class AuthComponent {
         
         if (response.success) {
           this.success = 'Login successful! Redirecting...';
-          alert(`The logged in user type is: ${(response.data as any)?.user?.user_type || 'unknown'} and the token is ${response.data?.token}`);
+
           
           
           // Get user type from response

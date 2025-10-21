@@ -1,28 +1,26 @@
-
 // src/app/services/job.service.ts
 import { Injectable } from '@angular/core';
 import { HttpClient, HttpHeaders, HttpParams } from '@angular/common/http';
-import { Observable, BehaviorSubject, throwError } from 'rxjs';
-import { catchError, tap } from 'rxjs/operators';
-import { environment } from '../src/environments/environment.prod'
+import { Observable, BehaviorSubject, throwError, of } from 'rxjs';
+import { catchError, tap, map } from 'rxjs/operators';
+import { environment } from '../src/environments/environment.prod';
 import { AuthService } from './auth.service';
 
-// Extend User interface to include company_id
 interface User {
   id: string;
   company_id?: string;
-  user_type?: string; // Added to access user_type for debugging
+  user_type?: string;
   // add other properties as needed
 }
 
 export interface Job {
-skills: any;
-rating: any;
-salary: any;
-postedDays: any;
-type: any;
-matchScore: any;
-company: any;
+  skills?: any;
+  rating?: any;
+  salary?: any;
+  postedDays?: any;
+  type?: any;
+  matchScore?: any;
+  company?: any;
   id: string;
   title: string;
   description: string;
@@ -48,7 +46,6 @@ company: any;
   updated_at: string;
   employer_id: string;
   company_id: string;
-  // Company details (from join)
   company_name?: string;
   company_logo?: string;
   company_industry?: string;
@@ -140,7 +137,7 @@ export interface ApiResponse<T> {
 }
 
 export interface PaginatedResponse<T> {
-  data: any[];
+  data: PaginatedResponse<any>;
   jobs: T[];
   pagination: {
     current_page: number;
@@ -157,6 +154,10 @@ export class JobService {
   private apiUrl = `${environment.apiUrl}/jobs`;
   private jobsSubject = new BehaviorSubject<Job[]>([]);
   public jobs$ = this.jobsSubject.asObservable();
+
+  // 🔥 NEW: Observable for real-time application updates
+  private applicationUpdateSubject = new BehaviorSubject<{ jobId: string, count: number } | null>(null);
+  public applicationUpdate$ = this.applicationUpdateSubject.asObservable();
 
   constructor(
     private http: HttpClient,
@@ -270,7 +271,13 @@ export class JobService {
       headers: this.getAuthHeaders(),
       params
     }).pipe(
-      tap(response => console.log('Get my jobs response:', response)),
+      tap(response => {
+        console.log('Get my jobs response:', response);
+        // 🔥 Update cache when fetching jobs
+        if (response.success && response.data && response.data.jobs) {
+          this.updateJobsCache(response.data.jobs);
+        }
+      }),
       catchError(error => {
         console.error('Error fetching my jobs:', error);
         if (error.status === 401) {
@@ -281,55 +288,54 @@ export class JobService {
       })
     );
   }
-getJobById(jobId: string): Observable<ApiResponse<Job>> {
-  if (!this.authService.isAuthenticated()) {
-    return throwError(() => ({
-      error: { message: 'Authentication required. Please log in again.' }
-    }));
+
+  getJobById(jobId: string): Observable<ApiResponse<Job>> {
+    if (!this.authService.isAuthenticated()) {
+      return throwError(() => ({
+        error: { message: 'Authentication required. Please log in again.' }
+      }));
+    }
+
+    console.log('Fetching job by ID:', jobId);
+
+    return this.http.get<ApiResponse<Job>>(`${this.apiUrl}/employer/${jobId}`, {
+      headers: this.getAuthHeaders()
+    }).pipe(
+      tap(response => console.log('Get job by ID response:', response)),
+      catchError(error => {
+        console.error('Error fetching job by ID:', error);
+        if (error.status === 401) {
+          console.error('401 Unauthorized: Clearing auth data');
+          this.authService.logout();
+        }
+        return throwError(() => error);
+      })
+    );
   }
 
-  console.log('Fetching job by ID:', jobId);
+  updateJob(jobId: string, updateData: Partial<CreateJobRequest>): Observable<ApiResponse<Job>> {
+    if (!this.authService.isAuthenticated()) {
+      return throwError(() => ({
+        error: { message: 'Authentication required. Please log in again.' }
+      }));
+    }
 
-  // FIXED: Use the correct route path
-  return this.http.get<ApiResponse<Job>>(`${this.apiUrl}/employer/${jobId}`, {
-    headers: this.getAuthHeaders()
-  }).pipe(
-    tap(response => console.log('Get job by ID response:', response)),
-    catchError(error => {
-      console.error('Error fetching job by ID:', error);
-      if (error.status === 401) {
-        console.error('401 Unauthorized: Clearing auth data');
-        this.authService.logout();
-      }
-      return throwError(() => error);
-    })
-  );
-}
+    console.log('Updating job ID:', jobId, 'with data:', updateData);
 
-updateJob(jobId: string, updateData: Partial<CreateJobRequest>): Observable<ApiResponse<Job>> {
-  if (!this.authService.isAuthenticated()) {
-    return throwError(() => ({
-      error: { message: 'Authentication required. Please log in again.' }
-    }));
+    return this.http.put<ApiResponse<Job>>(`${this.apiUrl}/employer/${jobId}`, updateData, {
+      headers: this.getAuthHeaders()
+    }).pipe(
+      tap(response => console.log('Update job response:', response)),
+      catchError(error => {
+        console.error('Error updating job:', error);
+        if (error.status === 401) {
+          console.error('401 Unauthorized: Clearing auth data');
+          this.authService.logout();
+        }
+        return throwError(() => error);
+      })
+    );
   }
-
-  console.log('Updating job ID:', jobId, 'with data:', updateData);
-
-  // FIXED: Use the correct route path
-  return this.http.put<ApiResponse<Job>>(`${this.apiUrl}/employer/${jobId}`, updateData, {
-    headers: this.getAuthHeaders()
-  }).pipe(
-    tap(response => console.log('Update job response:', response)),
-    catchError(error => {
-      console.error('Error updating job:', error);
-      if (error.status === 401) {
-        console.error('401 Unauthorized: Clearing auth data');
-        this.authService.logout();
-      }
-      return throwError(() => error);
-    })
-  );
-}
 
   deleteJob(jobId: string): Observable<ApiResponse<void>> {
     if (!this.authService.isAuthenticated()) {
@@ -530,7 +536,6 @@ updateJob(jobId: string, updateData: Partial<CreateJobRequest>): Observable<ApiR
     );
   }
 
-  // Public Job Browsing (for job seekers)
   getAllJobs(query?: JobQuery): Observable<ApiResponse<PaginatedResponse<Job>>> {
     let params = new HttpParams();
     
@@ -578,7 +583,6 @@ updateJob(jobId: string, updateData: Partial<CreateJobRequest>): Observable<ApiR
     );
   }
 
-  // Jobseeker-specific endpoints
   getRecommendedJobs(query?: { page?: number; limit?: number }): Observable<ApiResponse<PaginatedResponse<Job>>> {
     let params = new HttpParams();
     
@@ -608,110 +612,106 @@ updateJob(jobId: string, updateData: Partial<CreateJobRequest>): Observable<ApiR
     );
   }
 
-saveJob(jobId: string): Observable<ApiResponse<any>> {
-  if (!this.authService.isAuthenticated()) {
-    console.error('saveJob: User is not authenticated');
-    return throwError(() => ({
-      error: { message: 'Authentication required. Please log in again.' }
-    }));
+  saveJob(jobId: string): Observable<ApiResponse<any>> {
+    if (!this.authService.isAuthenticated()) {
+      console.error('saveJob: User is not authenticated');
+      return throwError(() => ({
+        error: { message: 'Authentication required. Please log in again.' }
+      }));
+    }
+
+    console.log('JobService.saveJob - Saving job ID:', jobId);
+
+    return this.http.post<ApiResponse<any>>(`${this.apiUrl}/jobseeker/bookmark/${jobId}`, {}, {
+      headers: this.getAuthHeaders()
+    }).pipe(
+      tap(response => {
+        console.log('JobService.saveJob - Response:', response);
+      }),
+      catchError(error => {
+        console.error('JobService.saveJob - Error:', error);
+        console.error('JobService.saveJob - Error status:', error.status);
+        console.error('JobService.saveJob - Error body:', error.error);
+        
+        if (error.status === 401) {
+          console.error('401 Unauthorized: Clearing auth data');
+          this.authService.logout();
+        }
+        return throwError(() => error);
+      })
+    );
   }
 
-  console.log('JobService.saveJob - Saving job ID:', jobId);
+  unsaveJob(jobId: string): Observable<ApiResponse<any>> {
+    if (!this.authService.isAuthenticated()) {
+      console.error('unsaveJob: User is not authenticated');
+      return throwError(() => ({
+        error: { message: 'Authentication required. Please log in again.' }
+      }));
+    }
 
-  // FIXED: Your backend route is: POST /jobs/jobseeker/bookmark/:jobId
-  return this.http.post<ApiResponse<any>>(`${this.apiUrl}/jobseeker/bookmark/${jobId}`, {}, {
-    headers: this.getAuthHeaders()
-  }).pipe(
-    tap(response => {
-      console.log('JobService.saveJob - Response:', response);
-    }),
-    catchError(error => {
-      console.error('JobService.saveJob - Error:', error);
-      console.error('JobService.saveJob - Error status:', error.status);
-      console.error('JobService.saveJob - Error body:', error.error);
-      
-      if (error.status === 401) {
-        console.error('401 Unauthorized: Clearing auth data');
-        this.authService.logout();
-      }
-      return throwError(() => error);
-    })
-  );
-}
+    console.log('JobService.unsaveJob - Unsaving job ID:', jobId);
 
-// Replace the existing unsaveJob method:
-unsaveJob(jobId: string): Observable<ApiResponse<any>> {
-  if (!this.authService.isAuthenticated()) {
-    console.error('unsaveJob: User is not authenticated');
-    return throwError(() => ({
-      error: { message: 'Authentication required. Please log in again.' }
-    }));
+    return this.http.delete<ApiResponse<any>>(`${this.apiUrl}/jobseeker/bookmark/${jobId}`, {
+      headers: this.getAuthHeaders()
+    }).pipe(
+      tap(response => {
+        console.log('JobService.unsaveJob - Response:', response);
+      }),
+      catchError(error => {
+        console.error('JobService.unsaveJob - Error:', error);
+        console.error('JobService.unsaveJob - Error status:', error.status);
+        console.error('JobService.unsaveJob - Error body:', error.error);
+        
+        if (error.status === 401) {
+          console.error('401 Unauthorized: Clearing auth data');
+          this.authService.logout();
+        }
+        return throwError(() => error);
+      })
+    );
   }
 
-  console.log('JobService.unsaveJob - Unsaving job ID:', jobId);
+  getSavedJobs(query?: { page?: number; limit?: number }): Observable<ApiResponse<PaginatedResponse<any>>> {
+    if (!this.authService.isAuthenticated()) {
+      console.error('getSavedJobs: User is not authenticated');
+      return throwError(() => ({
+        error: { message: 'Authentication required. Please log in again.' }
+      }));
+    }
 
-  // FIXED: Your backend route is: DELETE /jobs/jobseeker/bookmark/:jobId
-  return this.http.delete<ApiResponse<any>>(`${this.apiUrl}/jobseeker/bookmark/${jobId}`, {
-    headers: this.getAuthHeaders()
-  }).pipe(
-    tap(response => {
-      console.log('JobService.unsaveJob - Response:', response);
-    }),
-    catchError(error => {
-      console.error('JobService.unsaveJob - Error:', error);
-      console.error('JobService.unsaveJob - Error status:', error.status);
-      console.error('JobService.unsaveJob - Error body:', error.error);
-      
-      if (error.status === 401) {
-        console.error('401 Unauthorized: Clearing auth data');
-        this.authService.logout();
-      }
-      return throwError(() => error);
-    })
-  );
-}
+    let params = new HttpParams();
+    
+    if (query) {
+      Object.entries(query).forEach(([key, value]) => {
+        if (value !== undefined && value !== null) {
+          params = params.set(key, value.toString());
+        }
+      });
+    }
 
-// Replace the existing getSavedJobs method:
-getSavedJobs(query?: { page?: number; limit?: number }): Observable<ApiResponse<PaginatedResponse<any>>> {
-  if (!this.authService.isAuthenticated()) {
-    console.error('getSavedJobs: User is not authenticated');
-    return throwError(() => ({
-      error: { message: 'Authentication required. Please log in again.' }
-    }));
+    console.log('JobService.getSavedJobs - Fetching with params:', params.toString());
+
+    return this.http.get<ApiResponse<PaginatedResponse<any>>>(`${this.apiUrl}/jobseeker/bookmarked`, {
+      headers: this.getAuthHeaders(),
+      params
+    }).pipe(
+      tap(response => {
+        console.log('JobService.getSavedJobs - Response:', response);
+      }),
+      catchError(error => {
+        console.error('JobService.getSavedJobs - Error:', error);
+        
+        if (error.status === 401) {
+          console.error('401 Unauthorized: Clearing auth data');
+          this.authService.logout();
+        }
+        return throwError(() => error);
+      })
+    );
   }
 
-  let params = new HttpParams();
-  
-  if (query) {
-    Object.entries(query).forEach(([key, value]) => {
-      if (value !== undefined && value !== null) {
-        params = params.set(key, value.toString());
-      }
-    });
-  }
-
-  console.log('JobService.getSavedJobs - Fetching with params:', params.toString());
-
-  // FIXED: Your backend route is: GET /jobs/jobseeker/bookmarked
-  return this.http.get<ApiResponse<PaginatedResponse<any>>>(`${this.apiUrl}/jobseeker/bookmarked`, {
-    headers: this.getAuthHeaders(),
-    params
-  }).pipe(
-    tap(response => {
-      console.log('JobService.getSavedJobs - Response:', response);
-    }),
-    catchError(error => {
-      console.error('JobService.getSavedJobs - Error:', error);
-      
-      if (error.status === 401) {
-        console.error('401 Unauthorized: Clearing auth data');
-        this.authService.logout();
-      }
-      return throwError(() => error);
-    })
-  );
-}
-
+  // 🔥 CRITICAL FIX: Enhanced applyToJob with real-time update notification
   applyToJob(jobId: string, applicationData: {
     coverLetter?: string;
     resumeId?: string;
@@ -719,14 +719,29 @@ getSavedJobs(query?: { page?: number; limit?: number }): Observable<ApiResponse<
     expectedSalary?: number;
     availabilityDate?: string;
   }): Observable<ApiResponse<any>> {
-    console.log('Applying to job ID:', jobId, 'with data:', applicationData);
+    console.log('🚀 Applying to job ID:', jobId, 'with data:', applicationData);
 
     return this.http.post<ApiResponse<any>>(`${this.apiUrl}/jobseeker/apply/${jobId}`, applicationData, {
       headers: this.getAuthHeaders()
     }).pipe(
-      tap(response => console.log('Apply to job response:', response)),
+      tap(response => {
+        console.log('✅ Apply to job response:', response);
+        
+        if (response.success) {
+          // 🔥 IMMEDIATELY INCREMENT LOCAL COUNT
+          this.incrementApplicationCount(jobId);
+          
+          // 🔥 NOTIFY ALL SUBSCRIBERS (Employer dashboard) of the update
+          const currentJob = this.jobsSubject.value.find(j => j.id === jobId);
+          const newCount = currentJob ? currentJob.applications_count : 1;
+          
+          this.applicationUpdateSubject.next({ jobId, count: newCount });
+          
+          console.log('🔔 Application update broadcast:', { jobId, count: newCount });
+        }
+      }),
       catchError(error => {
-        console.error('Error applying to job:', error);
+        console.error('❌ Error applying to job:', error);
         if (error.status === 401) {
           console.error('401 Unauthorized: Clearing auth data');
           this.authService.logout();
@@ -783,7 +798,6 @@ getSavedJobs(query?: { page?: number; limit?: number }): Observable<ApiResponse<
     );
   }
 
-  // Utility methods
   formatSalary(min?: number, max?: number, currency: string = 'USD'): string {
     const formatter = new Intl.NumberFormat('en-US', {
       style: 'currency',
@@ -806,19 +820,16 @@ getSavedJobs(query?: { page?: number; limit?: number }): Observable<ApiResponse<
     return `${employment_type} • ${work_arrangement}`;
   }
 
-  // Update local jobs array
   updateJobsCache(jobs: Job[]): void {
     console.log('Updating jobs cache with:', jobs);
     this.jobsSubject.next(jobs);
   }
 
-  // Get local jobs array
   getJobsCache(): Job[] {
     console.log('Retrieving jobs cache:', this.jobsSubject.value);
     return this.jobsSubject.value;
   }
 
-  // Debug method to check auth state
   debugAuthInfo(): void {
     console.log('=== AUTH DEBUG INFO ===');
     console.log('Is authenticated:', this.authService.isAuthenticated());
@@ -829,7 +840,6 @@ getSavedJobs(query?: { page?: number; limit?: number }): Observable<ApiResponse<
     console.log('========================');
   }
 
-  // Debug method to verify token with backend
   verifyToken(): Observable<ApiResponse<any>> {
     console.log('Verifying token with backend');
     return this.http.get<ApiResponse<any>>(`${this.apiUrl}/verify-token`, {
@@ -843,6 +853,72 @@ getSavedJobs(query?: { page?: number; limit?: number }): Observable<ApiResponse<
           this.authService.logout();
         }
         return throwError(() => error);
+      })
+    );
+  }
+
+  /**
+   * 🔥 CRITICAL: Increment application count locally (optimistic update)
+   */
+  incrementApplicationCount(jobId: string): void {
+    const jobs = this.jobsSubject.value;
+    const jobIndex = jobs.findIndex(j => j.id === jobId);
+    
+    if (jobIndex !== -1) {
+      jobs[jobIndex] = {
+        ...jobs[jobIndex],
+        applications_count: jobs[jobIndex].applications_count + 1
+      };
+      this.jobsSubject.next([...jobs]);
+      console.log(`✅ Incremented application count for job ${jobId} to ${jobs[jobIndex].applications_count}`);
+    } else {
+      console.warn(`⚠️ Job ${jobId} not found in cache for increment`);
+    }
+  }
+
+  /**
+   * 🔥 CRITICAL: Refresh a specific job's data from backend
+   */
+  refreshJobData(jobId: string): Observable<void> {
+    return this.getJobById(jobId).pipe(
+      tap(response => {
+        if (response.success && response.data) {
+          const jobs = this.jobsSubject.value;
+          const jobIndex = jobs.findIndex(j => j.id === jobId);
+          
+          if (jobIndex !== -1) {
+            jobs[jobIndex] = response.data;
+            this.jobsSubject.next([...jobs]);
+            console.log(`✅ Refreshed job data for ${jobId}`, response.data);
+          }
+        }
+      }),
+      map(() => void 0),
+      catchError(error => {
+        console.error('Error refreshing job data:', error);
+        return of(void 0);
+      })
+    );
+  }
+
+  /**
+   * 🔥 NEW: Force refresh all jobs with latest data from backend
+   */
+  forceRefreshJobs(): Observable<ApiResponse<PaginatedResponse<Job>>> {
+    console.log('🔄 Force refreshing all jobs from backend...');
+    
+    const query = {
+      page: 1,
+      limit: 1000, // Get all jobs
+      sort_by: 'created_at' as const,
+      sort_order: 'DESC' as const
+    };
+
+    return this.getMyJobs(query).pipe(
+      tap(response => {
+        if (response.success && response.data) {
+          console.log('✅ Force refresh completed with latest data');
+        }
       })
     );
   }

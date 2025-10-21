@@ -130,6 +130,7 @@ export class CVBuilderService {
         linkedin_url: mappedInput?.personal_info?.linkedin_url ?? '',
         website_url: mappedInput?.personal_info?.website_url ?? '',
         professional_summary: (mappedInput?.personal_info?.professional_summary ?? 'Professional seeking new opportunities') as string,  // Default to avoid null
+        profile_image: mappedInput?.personal_info?.profile_image ?? undefined,  // ← CHANGED: null to undefined
         website: undefined,
         linkedIn: undefined,
         github: undefined,
@@ -145,7 +146,7 @@ export class CVBuilderService {
   }
 
   // Create a new CV
-  async createCV(
+ async createCV(
     userId: string,
     cvDataInput?: CVData,
     parsedFromFile: boolean = false,
@@ -162,7 +163,6 @@ export class CVBuilderService {
 
       await client.query('BEGIN');
 
-      // In createCV method, update the INSERT query:
       const cvResult = await client.query(
         `
         INSERT INTO cvs (user_id, status, parsed_from_file, original_filename, file_url)
@@ -174,13 +174,13 @@ export class CVBuilderService {
 
       const cvId = cvResult.rows[0].id as string;
 
-      // Insert personal info if available (we always insert at least empty personal_info so we have a row)
+      // Insert personal info WITH profile_image
       const pi = cvData.personal_info;
       await client.query(
         `
         INSERT INTO cv_personal_info (
-          cv_id, full_name, email, phone, address, linkedin_url, website_url, professional_summary
-        ) VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, $8)
+          cv_id, full_name, email, phone, address, linkedin_url, website_url, professional_summary, profile_image
+        ) VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, $8, $9)
         `,
         [
           cvId,
@@ -190,7 +190,8 @@ export class CVBuilderService {
           pi.address || null,
           pi.linkedin_url || null,
           pi.website_url || null,
-          pi.professional_summary || ''  // Ensure empty string, not null
+          pi.professional_summary || '',
+          pi.profile_image ?? null  // ← CHANGED: || to ?? for consistency, but null is fine for DB
         ]
       );
 
@@ -323,22 +324,21 @@ for (let i = 0; i < cvData.projects.length; i++) {
 
     const client = await pool.connect();
     try {
-      // FIX: Remove ::uuid casts from placeholders
       const cvResult = await client.query(
         `
         SELECT id::text, user_id::text, status, parsed_from_file, original_filename, file_url, created_at, updated_at
         FROM cvs
         WHERE id = $1 AND user_id = $2
         `,
-        [cvId, userId]  // pg-node will handle UUID conversion
+        [cvId, userId]
       );
 
       if (cvResult.rows.length === 0) return null;
       const cvRow = cvResult.rows[0];
 
-      // Get all sections
+      // Get personal info WITH profile_image
       const personalInfoResult = await client.query(
-        `SELECT full_name, email, phone, address, linkedin_url, website_url, professional_summary FROM cv_personal_info WHERE cv_id = $1`,
+        `SELECT full_name, email, phone, address, linkedin_url, website_url, professional_summary, profile_image FROM cv_personal_info WHERE cv_id = $1`,
         [cvId]
       );
 
@@ -374,7 +374,8 @@ for (let i = 0; i < cvData.projects.length; i++) {
         address: '',
         linkedin_url: '',
         website_url: '',
-        professional_summary: ''
+        professional_summary: '',
+        profile_image: undefined  // ← CHANGED: null to undefined
       };
 
       const cvData: CVData = {
@@ -472,14 +473,14 @@ async updateCV(cvId: string, userId: string, cvDataInput?: CVData): Promise<CV |
     await client.query('DELETE FROM cv_certifications WHERE cv_id = $1::uuid', [cvId]);
     await client.query('DELETE FROM cv_projects WHERE cv_id = $1::uuid', [cvId]);
 
-    // Reinsert personal info
+    // Reinsert personal info WITH profile_image
     const pi = cvData.personal_info;
     await client.query(
       `
-      INSERT INTO cv_personal_info (cv_id, full_name, email, phone, address, linkedin_url, website_url, professional_summary)
-      VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, $8)
+      INSERT INTO cv_personal_info (cv_id, full_name, email, phone, address, linkedin_url, website_url, professional_summary, profile_image)
+      VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, $8, $9)
       `,
-      [cvId, pi.full_name || '', pi.email || '', pi.phone || '', pi.address ?? null, pi.linkedin_url ?? null, pi.website_url ?? null, pi.professional_summary || '']
+      [cvId, pi.full_name || '', pi.email || '', pi.phone || '', pi.address ?? null, pi.linkedin_url ?? null, pi.website_url ?? null, pi.professional_summary || '', pi.profile_image ?? null]  // ← CHANGED: added profile_image ?? null
     );
 
     // Reinsert education
@@ -671,6 +672,7 @@ async updateCV(cvId: string, userId: string, cvDataInput?: CVData): Promise<CV |
           linkedin_url: '',
           website_url: '',
           professional_summary: '',
+          profile_image: undefined,  // ← CHANGED: null to undefined
           website: undefined,
           linkedIn: undefined,
           github: undefined,

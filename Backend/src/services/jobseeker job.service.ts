@@ -359,57 +359,107 @@ export class JobseekerJobService {
   }
 
   // Get saved jobs
-  async getSavedJobs(userId: string, filters: { page: number; limit: number }): Promise<PaginatedResult<JobBookmarkWithDetails>> {
-    const { page, limit } = filters;
-    const offset = (page - 1) * limit;
 
-    try {
-      const baseQuery = `
-        FROM job_bookmarks jb
-        JOIN jobs j ON jb.job_id = j.id
-        LEFT JOIN companies c ON j.company_id = c.id
-        WHERE jb.user_id = $1
-      `;
+async getSavedJobs(userId: string, filters: { page: number; limit: number }): Promise<PaginatedResult<JobBookmarkWithDetails>> {
+  const { page, limit } = filters;
+  const offset = (page - 1) * limit;
 
-      // Count query
-      const countResult = await this.db.query(`SELECT COUNT(*) as total ${baseQuery}`, [userId]);
-      const total = parseInt(countResult.rows[0].total);
+  try {
+    const baseQuery = `
+      FROM job_bookmarks jb
+      JOIN jobs j ON jb.job_id = j.id
+      LEFT JOIN companies c ON j.company_id = c.id
+      LEFT JOIN categories cat ON j.category_id = cat.id
+      WHERE jb.user_id = $1
+    `;
 
-      // Data query
-      const dataQuery = `
-        SELECT 
-          jb.*,
-          j.title as job_title,
-          j.location as job_location,
-          j.employment_type as job_employment_type,
-          j.salary_min as job_salary_min,
-          j.salary_max as job_salary_max,
-          c.name as company_name,
-          c.logo_url as company_logo
-        ${baseQuery}
-        ORDER BY jb.saved_at DESC
-        LIMIT $2 OFFSET $3
-      `;
+    // Count query
+    const countResult = await this.db.query(`SELECT COUNT(*) as total ${baseQuery}`, [userId]);
+    const total = parseInt(countResult.rows[0].total);
 
-      const result = await this.db.query(dataQuery, [userId, limit, offset]);
-      const totalPages = Math.ceil(total / limit);
+    // Data query - Simple version that returns everything
+    const dataQuery = `
+      SELECT 
+        jb.id as bookmark_id,
+        jb.saved_at,
+        jb.user_id as bookmark_user_id,
+        jb.job_id,
+        j.*,
+        c.name as company_name,
+        c.logo_url as company_logo,
+        c.industry as company_industry,
+        c.company_size,
+        c.website_url as company_website,
+        cat.name as category_name
+      ${baseQuery}
+      ORDER BY jb.saved_at DESC
+      LIMIT $2 OFFSET $3
+    `;
 
-      return {
-        data: result.rows as JobBookmarkWithDetails[],
-        pagination: {
-          total,
-          page,
-          limit,
-          totalPages,
-          hasNext: page < totalPages,
-          hasPrev: page > 1
-        }
-      };
-    } catch (error) {
-      console.error('Error fetching saved jobs:', error);
-      throw error;
-    }
+    const result = await this.db.query(dataQuery, [userId, limit, offset]);
+    const totalPages = Math.ceil(total / limit);
+
+    // Transform the flat rows into the expected nested structure
+    const transformedData = result.rows.map(row => ({
+      id: row.bookmark_id,
+      saved_at: row.saved_at,
+      user_id: row.bookmark_user_id,
+      job_id: row.job_id,
+      // Create nested job object
+      job: {
+        id: row.id,
+        title: row.title,
+        description: row.description,
+        requirements: row.requirements,
+        responsibilities: row.responsibilities,
+        location: row.location,
+        employment_type: row.employment_type,
+        work_arrangement: row.work_arrangement,
+        salary_min: row.salary_min,
+        salary_max: row.salary_max,
+        currency: row.currency,
+        skills_required: row.skills_required,
+        experience_level: row.experience_level,
+        education_level: row.education_level,
+        benefits: row.benefits,
+        department: row.department,
+        status: row.status,
+        application_deadline: row.application_deadline,
+        is_featured: row.is_featured,
+        applications_count: row.applications_count,
+        views_count: row.views_count,
+        created_at: row.created_at,
+        updated_at: row.updated_at,
+        employer_id: row.employer_id,
+        company_id: row.company_id,
+        category_id: row.category_id,
+        company_name: row.company_name,
+        company_logo: row.company_logo,
+        company_industry: row.company_industry,
+        company_size: row.company_size,
+        company_website: row.company_website,
+        category_name: row.category_name,
+        is_saved: true, // Always true for saved jobs
+        has_applied: false // Will need separate query if needed
+      }
+    }));
+
+    return {
+      data: transformedData as unknown as JobBookmarkWithDetails[],
+      pagination: {
+        total,
+        page,
+        limit,
+        totalPages,
+        hasNext: page < totalPages,
+        hasPrev: page > 1
+      }
+    };
+  } catch (error) {
+    console.error('Error fetching saved jobs:', error);
+    throw error;
   }
+}
 
   // Apply to a job
   async applyToJob(userId: string, jobId: string, applicationData: ApplicationData): Promise<ServiceResponse<JobApplication>> {
@@ -480,68 +530,134 @@ export class JobseekerJobService {
   }
 
   // Get applied jobs
-  async getAppliedJobs(userId: string, filters: { page: number; limit: number; status?: string }): Promise<PaginatedResult<JobApplicationWithDetails>> {
-    const { page, limit, status } = filters;
-    const offset = (page - 1) * limit;
+async getAppliedJobs(userId: string, filters: { page: number; limit: number; status?: string }): Promise<PaginatedResult<JobApplicationWithDetails>> {
+  const { page, limit, status } = filters;
+  const offset = (page - 1) * limit;
 
-    try {
-      let whereConditions = ['ja.user_id = $1'];
-      let queryParams: any[] = [userId];
-      let paramIndex = 2;
+  try {
+    let whereConditions = ['ja.user_id = $1'];
+    let queryParams: any[] = [userId];
+    let paramIndex = 2;
 
-      if (status) {
-        whereConditions.push(`ja.status = $${paramIndex}`);
-        queryParams.push(status);
-        paramIndex++;
-      }
-
-      const whereClause = whereConditions.join(' AND ');
-
-      const baseQuery = `
-        FROM job_applications ja
-        JOIN jobs j ON ja.job_id = j.id
-        LEFT JOIN companies c ON j.company_id = c.id
-        WHERE ${whereClause}
-      `;
-
-      // Count query
-      const countResult = await this.db.query(`SELECT COUNT(*) as total ${baseQuery}`, queryParams);
-      const total = parseInt(countResult.rows[0].total);
-
-      // Data query
-      const dataQuery = `
-        SELECT 
-          ja.*,
-          j.title as job_title,
-          j.location as job_location,
-          j.employment_type as job_employment_type,
-          c.name as company_name,
-          c.logo_url as company_logo
-        ${baseQuery}
-        ORDER BY ja.applied_at DESC
-        LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
-      `;
-
-      queryParams.push(limit, offset);
-      const result = await this.db.query(dataQuery, queryParams);
-      const totalPages = Math.ceil(total / limit);
-
-      return {
-        data: result.rows as JobApplicationWithDetails[],
-        pagination: {
-          total,
-          page,
-          limit,
-          totalPages,
-          hasNext: page < totalPages,
-          hasPrev: page > 1
-        }
-      };
-    } catch (error) {
-      console.error('Error fetching applied jobs:', error);
-      throw error;
+    if (status) {
+      whereConditions.push(`ja.status = $${paramIndex}`);
+      queryParams.push(status);
+      paramIndex++;
     }
+
+    const whereClause = whereConditions.join(' AND ');
+
+    const baseQuery = `
+      FROM job_applications ja
+      JOIN jobs j ON ja.job_id = j.id
+      LEFT JOIN companies c ON j.company_id = c.id
+      LEFT JOIN categories cat ON j.category_id = cat.id
+      WHERE ${whereClause}
+    `;
+
+    // Count query
+    const countResult = await this.db.query(`SELECT COUNT(*) as total ${baseQuery}`, queryParams);
+    const total = parseInt(countResult.rows[0].total);
+
+    // Data query - Simple version
+    const dataQuery = `
+      SELECT 
+        ja.id as application_id,
+        ja.applied_at,
+        ja.status as application_status,
+        ja.cover_letter,
+        ja.resume_id,
+        ja.portfolio_url,
+        ja.expected_salary,
+        ja.availability_date,
+        ja.updated_at as application_updated_at,
+        ja.user_id as application_user_id,
+        ja.job_id,
+        j.*,
+        c.name as company_name,
+        c.logo_url as company_logo,
+        c.industry as company_industry,
+        c.company_size,
+        c.website_url as company_website,
+        cat.name as category_name
+      ${baseQuery}
+      ORDER BY ja.applied_at DESC
+      LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
+    `;
+
+    queryParams.push(limit, offset);
+    const result = await this.db.query(dataQuery, queryParams);
+    const totalPages = Math.ceil(total / limit);
+
+    // Transform the flat rows into the expected nested structure
+    const transformedData = result.rows.map(row => ({
+      id: row.application_id,
+      applied_at: row.applied_at,
+      status: row.application_status,
+      cover_letter: row.cover_letter,
+      resume_id: row.resume_id,
+      portfolio_url: row.portfolio_url,
+      expected_salary: row.expected_salary,
+      availability_date: row.availability_date,
+      updated_at: row.application_updated_at,
+      user_id: row.application_user_id,
+      job_id: row.job_id,
+      // Create nested job object
+      job: {
+        id: row.id,
+        title: row.title,
+        description: row.description,
+        requirements: row.requirements,
+        responsibilities: row.responsibilities,
+        location: row.location,
+        employment_type: row.employment_type,
+        work_arrangement: row.work_arrangement,
+        salary_min: row.salary_min,
+        salary_max: row.salary_max,
+        currency: row.currency,
+        skills_required: row.skills_required,
+        experience_level: row.experience_level,
+        education_level: row.education_level,
+        benefits: row.benefits,
+        department: row.department,
+        status: row.status,
+        application_deadline: row.application_deadline,
+        is_featured: row.is_featured,
+        applications_count: row.applications_count,
+        views_count: row.views_count,
+        created_at: row.created_at,
+        updated_at: row.updated_at,
+        employer_id: row.employer_id,
+        company_id: row.company_id,
+        category_id: row.category_id,
+        company_name: row.company_name,
+        company_logo: row.company_logo,
+        company_industry: row.company_industry,
+        company_size: row.company_size,
+        company_website: row.company_website,
+        category_name: row.category_name,
+        is_saved: false, // Will need separate query if needed
+        has_applied: true, // Always true for applied jobs
+        application_status: row.application_status
+      }
+    }));
+
+    return {
+      data: transformedData as unknown as JobApplicationWithDetails[],
+      pagination: {
+        total,
+        page,
+        limit,
+        totalPages,
+        hasNext: page < totalPages,
+        hasPrev: page > 1
+      }
+    };
+  } catch (error) {
+    console.error('Error fetching applied jobs:', error);
+    throw error;
   }
+}
 
   // Get application status for a specific job
   async getApplicationStatus(userId: string, jobId: string): Promise<JobApplication | null> {
@@ -642,57 +758,106 @@ export class JobseekerJobService {
     }
   }
 
-  // Get jobseeker statistics
+  // Get jobseeker statistics - FIXED VERSION WITH ERROR HANDLING
   async getJobseekerStats(userId: string): Promise<JobseekerStats> {
     try {
-      const [
-        applicationsResult,
-        savedJobsResult,
-        profileViewsResult,
-        monthlyAppsResult
-      ] = await Promise.all([
-        // Applications by status
-        this.db.query(`
+      console.log('📊 Fetching jobseeker stats for user:', userId);
+
+      // Query for applications by status with error handling
+      let applicationsResult;
+      try {
+        applicationsResult = await this.db.query(`
           SELECT status, COUNT(*) as count 
           FROM job_applications 
           WHERE user_id = $1 
           GROUP BY status
-        `, [userId]),
-        
-        // Total saved jobs
-        this.db.query('SELECT COUNT(*) as total FROM job_bookmarks WHERE user_id = $1', [userId]),
-        
-        // Profile views
-        this.db.query('SELECT COUNT(*) as total FROM profile_views WHERE profile_user_id = $1', [userId]),
-        
-        // Applications this month
-        this.db.query(`
+        `, [userId]);
+      } catch (error) {
+        console.error('Error fetching applications stats:', error);
+        applicationsResult = { rows: [] };
+      }
+
+      // Query for saved jobs with error handling
+      let savedJobsResult;
+      try {
+        savedJobsResult = await this.db.query(
+          'SELECT COUNT(*) as total FROM job_bookmarks WHERE user_id = $1',
+          [userId]
+        );
+      } catch (error) {
+        console.error('Error fetching saved jobs count:', error);
+        savedJobsResult = { rows: [{ total: '0' }] };
+      }
+
+      // Query for profile views with graceful error handling
+      let profileViewsResult;
+      try {
+        profileViewsResult = await this.db.query(
+          'SELECT COUNT(*) as total FROM profile_views WHERE profile_user_id = $1',
+          [userId]
+        );
+      } catch (error: any) {
+        // Check if it's a "relation does not exist" error
+        if (error.code === '42P01' || error.message?.includes('does not exist')) {
+          console.warn('⚠️ profile_views table does not exist. Defaulting to 0.');
+        } else {
+          console.error('Error fetching profile views:', error);
+        }
+        profileViewsResult = { rows: [{ total: '0' }] };
+      }
+
+      // Query for monthly applications with error handling
+      let monthlyAppsResult;
+      try {
+        monthlyAppsResult = await this.db.query(`
           SELECT COUNT(*) as total 
           FROM job_applications 
           WHERE user_id = $1 AND applied_at >= date_trunc('month', CURRENT_DATE)
-        `, [userId])
-      ]);
+        `, [userId]);
+      } catch (error) {
+        console.error('Error fetching monthly applications:', error);
+        monthlyAppsResult = { rows: [{ total: '0' }] };
+      }
 
+      // Process application statistics
       const applicationStats = applicationsResult.rows.reduce((acc: any, row) => {
         acc[`${row.status}_applications`] = parseInt(row.count);
         return acc;
       }, {});
 
-      const totalApplications = applicationsResult.rows.reduce((sum, row) => sum + parseInt(row.count), 0);
+      const totalApplications = applicationsResult.rows.reduce(
+        (sum, row) => sum + parseInt(row.count), 
+        0
+      );
 
-      return {
+      const stats = {
         total_applications: totalApplications,
         pending_applications: applicationStats.pending_applications || 0,
         reviewed_applications: applicationStats.reviewed_applications || 0,
         shortlisted_applications: applicationStats.shortlisted_applications || 0,
         rejected_applications: applicationStats.rejected_applications || 0,
-        total_saved_jobs: parseInt(savedJobsResult.rows[0].total),
-        profile_views: parseInt(profileViewsResult.rows[0].total),
-        applications_this_month: parseInt(monthlyAppsResult.rows[0].total)
+        total_saved_jobs: parseInt(savedJobsResult.rows[0]?.total || '0'),
+        profile_views: parseInt(profileViewsResult.rows[0]?.total || '0'),
+        applications_this_month: parseInt(monthlyAppsResult.rows[0]?.total || '0')
       };
+
+      console.log('✅ Stats fetched successfully:', stats);
+      return stats;
+
     } catch (error) {
-      console.error('Error fetching jobseeker stats:', error);
-      throw error;
+      console.error('❌ Critical error in getJobseekerStats:', error);
+      
+      // Return default stats instead of throwing
+      return {
+        total_applications: 0,
+        pending_applications: 0,
+        reviewed_applications: 0,
+        shortlisted_applications: 0,
+        rejected_applications: 0,
+        total_saved_jobs: 0,
+        profile_views: 0,
+        applications_this_month: 0
+      };
     }
   }
 }

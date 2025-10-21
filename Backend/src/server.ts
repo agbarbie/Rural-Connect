@@ -8,6 +8,7 @@ import cvBuilderRoutes from './routes/cv-builder.routes';
 import portfolioRoutes from './routes/portfolio.routes';
 import profileRoutes from './routes/profile.routes';
 import pool from './db/db.config';
+import path from 'path';
 
 // Load environment variables
 dotenv.config();
@@ -165,6 +166,10 @@ app.use((req: Request, res: Response, next: NextFunction) => {
   next();
 });
 
+// Add after middleware section, before route registration
+app.use('/uploads/cvs', express.static(path.join(__dirname, '../uploads/cvs')));
+app.use('/uploads/profile-images', express.static(path.join(__dirname, '../uploads/profile-images')));
+
 // Debug route registration
 console.log('Registering routes:');
 console.log('- Auth routes: /api/auth/*');
@@ -181,6 +186,7 @@ app.use('/api/trainings', trainingRoutes);
 app.use('/api/cv', cvBuilderRoutes);
 app.use('/api/portfolio', portfolioRoutes);
 app.use('/api/profile', profileRoutes);
+
 
 // Root route
 app.get('/', (req: Request, res: Response) => {

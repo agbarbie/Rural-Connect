@@ -56,6 +56,26 @@
 </nav>
 
 <div class="job-explorer-container">
+  <!-- Profile Completion Warning Banner -->
+  <div class="profile-warning-banner" *ngIf="!isProfileComplete && !isCheckingProfile">
+    <div class="warning-content">
+      <div class="warning-icon">
+        <i class="fas fa-exclamation-triangle"></i>
+      </div>
+      <div class="warning-text">
+        <h4>⚠️ Complete Your Profile to Apply for Jobs</h4>
+        <p>Your profile is {{ profileCompletion }}% complete. You need at least 80% completion to apply for jobs.</p>
+      </div>
+      <button class="btn-complete-profile" routerLink="/jobseeker/cv-manager">
+        <i class="fas fa-user-edit"></i>
+        Complete Profile Now
+      </button>
+    </div>
+    <div class="progress-bar-container">
+      <div class="progress-bar" [style.width.%]="profileCompletion"></div>
+    </div>
+  </div>
+
   <!-- Header -->
   <div class="header">
     <div class="header-left">
@@ -238,6 +258,12 @@
         </div>
       </div>
 
+      <!-- Profile Completion Warning for Individual Job -->
+      <div class="job-card-warning" *ngIf="!isProfileComplete && !isJobApplied(getJobId(job))">
+        <i class="fas fa-info-circle"></i>
+        <span>Complete your profile ({{ profileCompletion }}%/80%) to apply for this job</span>
+      </div>
+
       <div class="job-actions">
         <button 
           class="save-btn" 
@@ -252,11 +278,22 @@
         <button 
           class="apply-btn" 
           [class.applied]="isJobApplied(getJobId(job))"
+          [class.disabled-incomplete]="!isProfileComplete && !isJobApplied(getJobId(job))"
           (click)="applyToJob(getJobId(job))"
-          [disabled]="isJobApplied(getJobId(job)) || isApplying === getJobId(job)">
-          <span *ngIf="isApplying === getJobId(job)">Applying...</span>
-          <span *ngIf="isApplying !== getJobId(job) && !isJobApplied(getJobId(job))">Apply</span>
-          <span *ngIf="isApplying !== getJobId(job) && isJobApplied(getJobId(job))">Applied</span>
+          [disabled]="isJobApplied(getJobId(job)) || isApplying === getJobId(job)"
+          [title]="!isProfileComplete && !isJobApplied(getJobId(job)) ? 'Complete your profile to apply ('+profileCompletion+'%/80%)' : ''">
+          <span *ngIf="isApplying === getJobId(job)">
+            <i class="fas fa-spinner fa-spin"></i> Applying...
+          </span>
+          <span *ngIf="isApplying !== getJobId(job) && !isJobApplied(getJobId(job)) && isProfileComplete">
+            <i class="fas fa-paper-plane"></i> Apply
+          </span>
+          <span *ngIf="isApplying !== getJobId(job) && !isJobApplied(getJobId(job)) && !isProfileComplete">
+            <i class="fas fa-lock"></i> Complete Profile First
+          </span>
+          <span *ngIf="isApplying !== getJobId(job) && isJobApplied(getJobId(job))">
+            <i class="fas fa-check"></i> Applied
+          </span>
         </button>
       </div>
     </div>
@@ -306,18 +343,20 @@
   </div>
 </div>
 
-<!-- Error/Info Notifications -->
+<!-- Error/Info/Warning Notifications -->
 <div class="notifications-container">
   <div 
     *ngFor="let notification of notifications" 
     class="notification-toast" 
     [class.success]="notification.type === 'success'"
     [class.error]="notification.type === 'error'"
-    [class.info]="notification.type === 'info'">
+    [class.info]="notification.type === 'info'"
+    [class.warning]="notification.type === 'warning'">
     <i class="fas" 
        [class.fa-check-circle]="notification.type === 'success'"
        [class.fa-exclamation-circle]="notification.type === 'error'"
-       [class.fa-info-circle]="notification.type === 'info'"></i>
+       [class.fa-info-circle]="notification.type === 'info'"
+       [class.fa-exclamation-triangle]="notification.type === 'warning'"></i>
     <span>{{ notification.message }}</span>
     <button class="close-toast" (click)="dismissNotification(notification.id)">×</button>
   </div>

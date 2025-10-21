@@ -8,16 +8,20 @@ import fs from 'fs';
 
 const router = Router();
 
-// Ensure upload directory exists
-const uploadDir = path.join(__dirname, '../../uploads/cvs');
-if (!fs.existsSync(uploadDir)) {
-  fs.mkdirSync(uploadDir, { recursive: true });
-}
+// Ensure upload directories exist
+const cvUploadDir = path.join(__dirname, '../../uploads/cvs');
+const profileImageDir = path.join(__dirname, '../../uploads/profile-images');
+
+[cvUploadDir, profileImageDir].forEach(dir => {
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
+  }
+});
 
 // Configure multer for CV file uploads
-const storage = multer.diskStorage({
+const cvStorage = multer.diskStorage({
   destination: (req, file, cb) => {
-    cb(null, uploadDir);
+    cb(null, cvUploadDir);
   },
   filename: (req, file, cb) => {
     const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
@@ -27,7 +31,19 @@ const storage = multer.diskStorage({
   }
 });
 
-const fileFilter = (req: any, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
+// Configure multer for profile image uploads
+const profileImageStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, profileImageDir);
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    const ext = path.extname(file.originalname);
+    cb(null, `profile-${uniqueSuffix}${ext}`);
+  }
+});
+
+const cvFileFilter = (req: any, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
   const allowedTypes = [
     'application/pdf',
     'application/msword',
@@ -42,11 +58,29 @@ const fileFilter = (req: any, file: Express.Multer.File, cb: multer.FileFilterCa
   }
 };
 
-const upload = multer({
-  storage: storage,
-  fileFilter: fileFilter,
+const imageFileFilter = (req: any, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
+  const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
+
+  if (allowedTypes.includes(file.mimetype)) {
+    cb(null, true);
+  } else {
+    cb(new Error('Invalid file type. Only JPEG, PNG, GIF, and WebP images are allowed.'));
+  }
+};
+
+const uploadCV = multer({
+  storage: cvStorage,
+  fileFilter: cvFileFilter,
   limits: {
     fileSize: 10 * 1024 * 1024 // 10MB max file size
+  }
+});
+
+const uploadProfileImage = multer({
+  storage: profileImageStorage,
+  fileFilter: imageFileFilter,
+  limits: {
+    fileSize: 5 * 1024 * 1024 // 5MB max file size for images
   }
 });
 
@@ -94,7 +128,18 @@ router.delete('/:id', cvBuilderController.deleteCV);
  * @desc Upload and parse CV file
  * @access Private (Jobseeker only)
  */
-router.post('/upload', upload.single('cvFile'), cvBuilderController.uploadCV);
+router.post('/upload', uploadCV.single('cvFile'), (req, res, next) => {
+  cvBuilderController.uploadCV(req as any, res, next);
+});
+
+/**
+ * @route POST /api/cv/upload-profile-image
+ * @desc Upload profile image for CV
+ * @access Private (Jobseeker only)
+ */
+router.post('/upload-profile-image', uploadProfileImage.single('profileImage'), (req, res, next) => {
+  cvBuilderController.uploadProfileImage(req as any, res, next);
+});
 
 /**
  * @route POST /api/cv/:id/draft
