@@ -384,7 +384,7 @@ export class TrainingService {
   /**
    * EMPLOYER: Create new training
    */
-  createTraining(trainingData: CreateTrainingRequest): Observable<ApiResponse<Training>> {
+  createTraining(trainingData: CreateTrainingRequest, employerId: string): Observable<ApiResponse<Training>> {
     console.log('=== Creating Training ===');
     console.log('Title:', trainingData.title);
     console.log('Videos being sent:', trainingData.videos);
@@ -440,7 +440,7 @@ export class TrainingService {
   /**
    * EMPLOYER: Update existing training
    */
-  updateTraining(id: string, trainingData: UpdateTrainingRequest): Observable<ApiResponse<Training>> {
+  updateTraining(id: string, trainingData: UpdateTrainingRequest, employerId: string): Observable<ApiResponse<Training>> {
     this.loadingSubject.next(true);
     
     // Normalize video data if present
@@ -483,7 +483,7 @@ export class TrainingService {
   /**
    * EMPLOYER: Delete training
    */
-  deleteTraining(id: string): Observable<ApiResponse<void>> {
+  deleteTraining(id: string, employerId: string): Observable<ApiResponse<void>> {
     this.loadingSubject.next(true);
     
     return this.http.delete<ApiResponse<void>>(
@@ -824,7 +824,7 @@ export class TrainingService {
   /**
    * ANALYTICS AND STATS
    */
-  getTrainingStats(): Observable<ApiResponse<TrainingStats>> {
+  getTrainingStats(employerId: string): Observable<ApiResponse<TrainingStats>> {
     return this.http.get<ApiResponse<TrainingStats>>(
       `${this.TRAINING_ENDPOINT}/stats/overview`,
       { headers: this.getAuthHeaders() }
@@ -833,7 +833,7 @@ export class TrainingService {
     );
   }
 
-  getTrainingEnrollments(id: string, params: any = {}): Observable<ApiResponse<any>> {
+  getTrainingEnrollments(id: string, params: any = {}, p0: { page: number; limit: number; }): Observable<ApiResponse<any>> {
     const httpParams = this.buildParams(params);
     
     return this.http.get<ApiResponse<any>>(
@@ -847,7 +847,7 @@ export class TrainingService {
     );
   }
 
-  getTrainingAnalytics(id: string, timeRange: string = '30days'): Observable<ApiResponse<any>> {
+  getTrainingAnalytics(id: string, timeRange: string = '30days', p0: string): Observable<ApiResponse<any>> {
     const params = new HttpParams().set('range', timeRange);
     
     return this.http.get<ApiResponse<any>>(

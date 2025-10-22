@@ -1062,56 +1062,60 @@ export class TrainingService {
     return deleted;
   }
 
-  async getTrainingStats(employerId: string): Promise<TrainingStatsResponse> {
-    console.log('Getting adaptive training stats for user:', employerId);
-    
-    // Get employer profile ID
-    const employerProfileCheck = await this.db.query(
-      'SELECT id FROM employers WHERE user_id = $1',
-      [employerId]
-    );
+async getTrainingStats(employerId: string): Promise<TrainingStatsResponse> {
+  console.log('Getting training stats for employer:', employerId);
+  
+  // Get employer profile ID
+  const employerProfileCheck = await this.db.query(
+    'SELECT id FROM employers WHERE user_id = $1',
+    [employerId]
+  );
 
-    let providerCondition = 'provider_id = $1';
-    let queryParams = [employerId];
+  let providerCondition = 'provider_id = $1';
+  let queryParams = [employerId];
 
-    if (employerProfileCheck.rows.length > 0) {
-      const employerProfileId = employerProfileCheck.rows[0].id;
-      console.log('Using adaptive query with both IDs');
-      providerCondition = '(provider_id = $1 OR provider_id = $2)';
-      queryParams = [employerId, employerProfileId];
-    }
-
-    const query = `
-      SELECT 
-        COUNT(*) as total_trainings,
-        COUNT(*) FILTER (WHERE status = 'published') as published_trainings,
-        COUNT(*) FILTER (WHERE status = 'draft') as draft_trainings,
-        COALESCE(AVG(rating), 0) as avg_rating
-      FROM trainings 
-      WHERE ${providerCondition}
-    `;
-
-    console.log('Stats query:', query);
-    console.log('Stats params:', queryParams);
-
-    const result = await this.db.query(query, queryParams);
-    const stats = result.rows[0];
-
-    console.log('Stats result:', stats);
-
-    return {
-      total_trainings: parseInt(stats.total_trainings),
-      published_trainings: parseInt(stats.published_trainings),
-      draft_trainings: parseInt(stats.draft_trainings),
-      suspended_trainings: 0,
-      total_enrollments: 0,
-      total_revenue: 0,
-      avg_rating: parseFloat(stats.avg_rating),
-      completion_rate: 0,
-      categories_breakdown: [],
-      monthly_enrollments: []
-    };
+  if (employerProfileCheck.rows.length > 0) {
+    const employerProfileId = employerProfileCheck.rows[0].id;
+    console.log('Using employer profile ID:', employerProfileId);
+    providerCondition = '(provider_id = $1 OR provider_id = $2)';
+    queryParams = [employerId, employerProfileId];
   }
+
+  // Get training stats
+  const statsQuery = `
+    SELECT 
+      COUNT(*) as total_trainings,
+      COUNT(*) FILTER (WHERE status = 'published') as published_trainings,
+      COUNT(*) FILTER (WHERE status = 'draft') as draft_trainings,
+      COUNT(*) FILTER (WHERE status = 'suspended') as suspended_trainings,
+      COALESCE(SUM(total_students), 0) as total_enrollments,
+      COALESCE(AVG(rating), 0) as avg_rating,
+      COALESCE(SUM(CASE WHEN cost_type = 'Paid' THEN price * total_students ELSE 0 END), 0) as total_revenue
+    FROM trainings 
+    WHERE ${providerCondition}
+  `;
+
+  console.log('Stats query:', statsQuery);
+  console.log('Stats params:', queryParams);
+
+  const result = await this.db.query(statsQuery, queryParams);
+  const stats = result.rows[0];
+
+  console.log('Stats result:', stats);
+
+  return {
+    total_trainings: parseInt(stats.total_trainings) || 0,
+    published_trainings: parseInt(stats.published_trainings) || 0,
+    draft_trainings: parseInt(stats.draft_trainings) || 0,
+    suspended_trainings: parseInt(stats.suspended_trainings) || 0,
+    total_enrollments: parseInt(stats.total_enrollments) || 0,
+    total_revenue: parseFloat(stats.total_revenue) || 0,
+    avg_rating: parseFloat(stats.avg_rating) || 0,
+    completion_rate: 0,
+    categories_breakdown: [],
+    monthly_enrollments: []
+  };
+}
 
   async getEnrolledTrainings(userId: string, params: TrainingSearchParams): Promise<TrainingListResponse> {
     const {

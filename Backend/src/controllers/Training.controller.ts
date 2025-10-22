@@ -24,46 +24,113 @@ export class TrainingController {
   /**
    * Get all trainings (public endpoint with optional auth)
    */
-  async getAllTrainings(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+async getAllTrainings(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
   try {
+    const userId = req.user?.id;
+    const userType = req.user?.user_type;
+
+    // Build query based on user type
+    let whereClause = '';
+    let queryParams: any[] = [];
+
+    if (userType === 'employer' && userId) {
+      // For employers, get their trainings (check both user_id and employer profile id)
+      const employerCheck = await pool.query(
+        'SELECT id FROM employers WHERE user_id = $1',
+        [userId]
+      );
+
+      if (employerCheck.rows.length > 0) {
+        const employerProfileId = employerCheck.rows[0].id;
+        whereClause = 'WHERE (t.provider_id = $1 OR t.provider_id = $2)';
+        queryParams = [userId, employerProfileId];
+      } else {
+        whereClause = 'WHERE t.provider_id = $1';
+        queryParams = [userId];
+      }
+    } else {
+      // For public/jobseeker, show only published trainings
+      whereClause = "WHERE t.status = 'published'";
+    }
+
     const query = `
       SELECT 
-        t.id AS training_id,
-        t.title AS training_title,
+        t.id,
+        t.title,
         t.description,
-        COUNT(v.id) AS total_videos,
-        COALESCE(json_agg(v.video_url) FILTER (WHERE v.video_url IS NOT NULL), '[]') AS video_urls,
         t.category,
         t.level,
-        t.duration,
+        t.duration_hours,
         t.mode,
         t.cost_type,
+        t.price,
         t.start_date,
         t.end_date,
         t.max_participants,
+        t.current_participants,
         t.thumbnail_url,
-        t.organization,
-        t.issue_certificate,
-        t.created_at
+        t.provider_name,
+        t.provider_id,
+        t.has_certificate,
+        t.status,
+        t.rating,
+        t.total_students,
+        t.location,
+        t.created_at,
+        t.updated_at,
+        COUNT(v.id) AS video_count,
+        COALESCE(json_agg(
+          json_build_object(
+            'id', v.id,
+            'title', v.title,
+            'description', v.description,
+            'video_url', v.video_url,
+            'duration_minutes', v.duration_minutes,
+            'order_index', v.order_index,
+            'is_preview', v.is_preview
+          ) ORDER BY v.order_index
+        ) FILTER (WHERE v.id IS NOT NULL), '[]') AS videos,
+        COALESCE(json_agg(
+          json_build_object(
+            'id', o.id,
+            'outcome_text', o.outcome_text,
+            'order_index', o.order_index
+          ) ORDER BY o.order_index
+        ) FILTER (WHERE o.id IS NOT NULL), '[]') AS outcomes
       FROM trainings t
       LEFT JOIN training_videos v ON v.training_id = t.id
+      LEFT JOIN training_outcomes o ON o.training_id = t.id
+      ${whereClause}
       GROUP BY 
-        t.id, t.title, t.description, t.category, t.level, t.duration, t.mode, 
-        t.cost_type, t.start_date, t.end_date, t.max_participants, 
-        t.thumbnail_url, t.organization, t.issue_certificate, t.created_at
+        t.id, t.title, t.description, t.category, t.level, t.duration_hours, 
+        t.mode, t.cost_type, t.price, t.start_date, t.end_date, 
+        t.max_participants, t.current_participants, t.thumbnail_url, 
+        t.provider_name, t.provider_id, t.has_certificate, t.status,
+        t.rating, t.total_students, t.location, t.created_at, t.updated_at
       ORDER BY t.created_at DESC;
     `;
 
-    const result = await pool.query(query);
+    const result = await pool.query(query, queryParams);
 
+    // Format response to match frontend expectations
     res.status(200).json({
       success: true,
       message: "Trainings retrieved successfully",
-      count: result.rowCount,
-      data: result.rows
+      data: {
+        trainings: result.rows
+      },
+      pagination: {
+        current_page: 1,
+        total_pages: 1,
+        page_size: result.rows.length,
+        total_count: result.rows.length,
+        has_next: false,
+        has_previous: false
+      }
     });
 
   } catch (error) {
+    console.error('Error in getAllTrainings:', error);
     next(error);
   }
 }

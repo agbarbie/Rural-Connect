@@ -607,8 +607,8 @@
       </button>
     </div>
 
-    <!-- Analytics Summary -->
-    <div class="analytics-section" *ngIf="trainings.length > 0 && stats && !showAddForm">
+<!-- Analytics Summary -->
+    <div class="analytics-section" *ngIf="stats && !showAddForm">
       <h3 class="section-title">
         <i class="fas fa-chart-bar"></i>
         Training Analytics
@@ -620,7 +620,7 @@
             <i class="fas fa-video"></i>
           </div>
           <div class="card-data">
-            <h4>{{ stats.total_trainings }}</h4>
+            <h4>{{ stats.total_trainings || 0 }}</h4>
             <p>Total Trainings</p>
           </div>
         </div>
@@ -630,7 +630,7 @@
             <i class="fas fa-play"></i>
           </div>
           <div class="card-data">
-            <h4>{{ stats.published_trainings }}</h4>
+            <h4>{{ stats.published_trainings || 0 }}</h4>
             <p>Published</p>
           </div>
         </div>
@@ -640,7 +640,7 @@
             <i class="fas fa-edit"></i>
           </div>
           <div class="card-data">
-            <h4>{{ stats.draft_trainings }}</h4>
+            <h4>{{ stats.draft_trainings || 0 }}</h4>
             <p>Drafts</p>
           </div>
         </div>
@@ -650,7 +650,7 @@
             <i class="fas fa-users"></i>
           </div>
           <div class="card-data">
-            <h4>{{ stats.total_enrollments }}</h4>
+            <h4>{{ stats.total_enrollments || 0 }}</h4>
             <p>Total Enrollments</p>
           </div>
         </div>
@@ -676,7 +676,6 @@
         </div>
       </div>
     </div>
-  </div>
 
   <!-- Video Player Modal -->
   <div class="video-modal" *ngIf="showVideoPlayer && selectedTraining">

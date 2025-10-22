@@ -46,6 +46,7 @@ export class TrainingComponent implements OnInit, OnDestroy {
   
   // Component state
   employerName: string = 'TechCorp Solutions';
+  employerId: string = 'current-employer-id'; // Replace with actual employer ID from auth service/context
   trainings: Training[] = [];
   showAddForm: boolean = false;
   selectedTraining: Training | null = null;
@@ -102,17 +103,17 @@ export class TrainingComponent implements OnInit, OnDestroy {
   
   // Video form
   showVideoForm: boolean = false;
-newVideo: TrainingVideo = {
-  title: '',
-  description: '',
-  video_url: '',
-  duration_minutes: 0,
-  duration: 0, // ADD THIS LINE
-  order_index: 0,
-  is_preview: false,
-  completed: false // ADD THIS LINE
-};
-
+  newVideo: TrainingVideo = {
+    title: '',
+    description: '',
+    video_url: '',
+    duration_minutes: 0,
+    duration: 0,
+    order_index: 0,
+    is_preview: false,
+    completed: false,
+    url: ''
+  };
   
   // Outcome form
   showOutcomeForm: boolean = false;
@@ -134,7 +135,7 @@ newVideo: TrainingVideo = {
     this.trainingService.trainings$
       .pipe(takeUntil(this.destroy$))
       .subscribe(trainings => {
-        this.trainings = trainings;
+        this.trainings = trainings || [];
       });
     
     this.trainingService.loading$
@@ -156,25 +157,68 @@ newVideo: TrainingVideo = {
   }
 
   // ================ COMPUTED PROPERTIES ================
-  
+
   get totalCompletions(): number {
-    return this.stats?.total_enrollments || 0;
+    // Sum of all total_students across all trainings
+    return this.trainings.reduce((sum, t) => sum + (t.total_students || 0), 0);
   }
 
   get totalCertificates(): number {
-    return this.trainings.reduce((sum, t) => sum + t.total_students, 0);
+    // Count trainings that offer certificates multiplied by their enrollments
+    return this.trainings
+      .filter(t => t.has_certificate)
+      .reduce((sum, t) => sum + (t.total_students || 0), 0);
   }
 
   get activeTrainingsCount(): number {
-    return this.stats?.published_trainings || 0;
+    // Count of published trainings
+    return this.trainings.filter(t => t.status === 'published').length;
   }
-  
+
   get draftTrainingsCount(): number {
-    return this.stats?.draft_trainings || 0;
+    // Count of draft trainings
+    return this.trainings.filter(t => t.status === 'draft').length;
   }
-  
+
   get suspendedTrainingsCount(): number {
-    return this.stats?.suspended_trainings || 0;
+    // Count of suspended trainings
+    return this.trainings.filter(t => t.status === 'suspended').length;
+  }
+
+  get totalTrainingsCount(): number {
+    // Total count of all trainings
+    return this.trainings.length;
+  }
+
+  get totalVideosCount(): number {
+    // Sum of all videos across all trainings
+    return this.trainings.reduce((sum, t) => {
+      const videoCount = t.videos?.length || t.video_count || 0;
+      return sum + videoCount;
+    }, 0);
+  }
+
+  get averageRating(): number {
+    // Average rating across all trainings
+    if (this.trainings.length === 0) return 0;
+    
+    const totalRating = this.trainings.reduce((sum, t) => sum + (t.rating || 0), 0);
+    return Math.round((totalRating / this.trainings.length) * 10) / 10;
+  }
+
+  get totalRevenue(): number {
+    // Sum of price * total_students for paid trainings
+    return this.trainings
+      .filter(t => t.cost_type === 'Paid')
+      .reduce((sum, t) => sum + ((t.price || 0) * (t.total_students || 0)), 0);
+  }
+
+  get freeTrainingsCount(): number {
+    return this.trainings.filter(t => t.cost_type === 'Free').length;
+  }
+
+  get paidTrainingsCount(): number {
+    return this.trainings.filter(t => t.cost_type === 'Paid').length;
   }
 
   // ================ DATA LOADING ================
@@ -184,34 +228,89 @@ newVideo: TrainingVideo = {
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: (response) => {
-          if (response.success && response.data) {
-            this.trainings = response.data.trainings;
+          console.log('Raw response:', response);
+          
+          if (response.success) {
+            if (response.data && Array.isArray(response.data.trainings)) {
+              this.trainings = response.data.trainings;
+            } else if (Array.isArray(response.data)) {
+              this.trainings = response.data;
+            } else {
+              console.warn('Unexpected response structure:', response);
+              this.trainings = [];
+            }
+            
             if (response.pagination) {
               this.totalPages = response.pagination.total_pages;
               this.currentPage = response.pagination.current_page;
             }
+          } else {
+            this.trainings = [];
           }
         },
         error: (error) => {
           console.error('Error loading trainings:', error);
           this.error = 'Failed to load trainings. Please try again.';
+          this.trainings = [];
         }
       });
   }
-
-  loadStats(): void {
-    this.trainingService.getTrainingStats()
+loadStats(): void {
+    // Always calculate stats from local data for reliability
+    this.calculateLocalStats();
+    
+    // Optionally try to get stats from API to supplement
+    this.trainingService.getTrainingStats(this.employerId)
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: (response) => {
           if (response.success && response.data) {
-            this.stats = response.data;
+            // Merge API stats with calculated stats
+            this.stats = {
+              ...this.stats,
+              ...response.data
+            };
+            console.log('Stats loaded and merged:', this.stats);
           }
         },
         error: (error) => {
-          console.error('Error loading stats:', error);
+          console.error('Error loading stats from API:', error);
+          // Continue using calculated stats
         }
       });
+  }
+
+  private calculateLocalStats(): void {
+    // Calculate stats from the trainings array as fallback
+    const computedStats: Partial<TrainingStats> & { categories_breakdown?: any[] } = {
+      total_trainings: this.totalTrainingsCount,
+      published_trainings: this.activeTrainingsCount,
+      draft_trainings: this.draftTrainingsCount,
+      suspended_trainings: this.suspendedTrainingsCount,
+      total_enrollments: this.totalCompletions,
+      total_revenue: this.totalRevenue,
+      avg_rating: this.averageRating,
+      completion_rate: 0, // This requires enrollment data
+      categories_breakdown: this.getCategoriesBreakdown()
+    };
+    
+    this.stats = computedStats as TrainingStats;
+    
+    console.log('Calculated local stats:', this.stats);
+  }
+
+  private getCategoriesBreakdown(): any[] {
+    const categoriesMap = new Map<string, number>();
+    
+    this.trainings.forEach(t => {
+      const count = categoriesMap.get(t.category) || 0;
+      categoriesMap.set(t.category, count + 1);
+    });
+    
+    return Array.from(categoriesMap.entries()).map(([category, count]) => ({
+      category,
+      count
+    }));
   }
 
   // ================ SEARCH AND FILTERING ================
@@ -279,10 +378,8 @@ newVideo: TrainingVideo = {
       outcomes: []
     };
     
-    // Reset thumbnail-related properties
     this.thumbnailPreview = null;
     this.thumbnailFile = null;
-    
     this.error = null;
   }
 
@@ -291,13 +388,11 @@ newVideo: TrainingVideo = {
   onThumbnailSelected(event: any): void {
     const file = event.target.files[0];
     if (file) {
-      // Validate file type
       if (!file.type.startsWith('image/')) {
         this.error = 'Please select a valid image file.';
         return;
       }
 
-      // Validate file size (max 5MB)
       if (file.size > 5 * 1024 * 1024) {
         this.error = 'Image file must be less than 5MB.';
         return;
@@ -305,14 +400,12 @@ newVideo: TrainingVideo = {
 
       this.thumbnailFile = file;
       
-      // Create preview URL
       const reader = new FileReader();
       reader.onload = (e: any) => {
         this.thumbnailPreview = e.target.result;
       };
       reader.readAsDataURL(file);
       
-      // Clear any previous errors
       this.error = null;
     }
   }
@@ -322,7 +415,6 @@ newVideo: TrainingVideo = {
     this.thumbnailFile = null;
     this.newTraining.thumbnail_url = '';
     
-    // Reset file input
     const fileInput = document.getElementById('thumbnail') as HTMLInputElement;
     if (fileInput) {
       fileInput.value = '';
@@ -339,20 +431,9 @@ newVideo: TrainingVideo = {
       const formData = new FormData();
       formData.append('thumbnail', this.thumbnailFile);
 
-      // For demo purposes, we'll use the preview URL
-      // In production, replace this with your actual upload endpoint
       setTimeout(() => {
         resolve(this.thumbnailPreview || '');
       }, 1000);
-
-      /* 
-      // Uncomment and modify when you have an actual upload endpoint
-      this.http.post<{url: string}>('/api/upload/thumbnail', formData)
-        .subscribe({
-          next: (response) => resolve(response.url),
-          error: (error) => reject(error)
-        });
-      */
     });
   }
 
@@ -365,18 +446,19 @@ newVideo: TrainingVideo = {
     }
   }
 
-resetVideoForm(): void {
-  this.newVideo = {
-    title: '',
-    description: '',
-    video_url: '',
-    duration_minutes: 0,
-    duration: 0, // ADD THIS LINE
-    order_index: this.newTraining.videos.length,
-    is_preview: false,
-    completed: false // ADD THIS LINE
-  };
-}
+  resetVideoForm(): void {
+    this.newVideo = {
+      title: '',
+      description: '',
+      video_url: '',
+      duration_minutes: 0,
+      duration: 0,
+      order_index: this.newTraining.videos.length,
+      is_preview: false,
+      completed: false,
+      url: ''
+    };
+  }
 
   addVideo(): void {
     if (this.newVideo.title && this.newVideo.duration_minutes > 0) {
@@ -387,7 +469,6 @@ resetVideoForm(): void {
 
   removeVideo(index: number): void {
     this.newTraining.videos.splice(index, 1);
-    // Update order indices
     this.newTraining.videos.forEach((video, i) => {
       video.order_index = i;
     });
@@ -418,7 +499,6 @@ resetVideoForm(): void {
 
   removeOutcome(index: number): void {
     this.newTraining.outcomes.splice(index, 1);
-    // Update order indices
     this.newTraining.outcomes.forEach((outcome, i) => {
       outcome.order_index = i;
     });
@@ -428,7 +508,6 @@ resetVideoForm(): void {
 
   addTraining(): void {
     if (this.isFormValid()) {
-      // If there's a thumbnail file, upload it first
       if (this.thumbnailFile) {
         this.uploadThumbnail().then(thumbnailUrl => {
           this.createTrainingWithThumbnail(thumbnailUrl);
@@ -463,7 +542,7 @@ resetVideoForm(): void {
       outcomes: this.newTraining.outcomes
     };
 
-    this.trainingService.createTraining(trainingData)
+    this.trainingService.createTraining(trainingData, this.employerId)
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: (response) => {
@@ -481,12 +560,11 @@ resetVideoForm(): void {
   }
 
   updateTraining(training: Training, updateData: UpdateTrainingRequest): void {
-    this.trainingService.updateTraining(training.id, updateData)
+    this.trainingService.updateTraining(training.id, updateData, this.employerId)
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: (response) => {
           if (response.success) {
-            // Training list will be updated automatically via the service
             alert('Training updated successfully!');
           }
         },
@@ -499,13 +577,12 @@ resetVideoForm(): void {
 
   deleteTraining(trainingId: string): void {
     if (confirm('Are you sure you want to delete this training? This action cannot be undone.')) {
-      this.trainingService.deleteTraining(trainingId)
+      this.trainingService.deleteTraining(trainingId, this.employerId)
         .pipe(takeUntil(this.destroy$))
         .subscribe({
           next: (response) => {
             if (response.success) {
-              // Training will be removed from list automatically via the service
-              this.loadStats(); // Refresh stats
+              this.loadStats();
               alert('Training deleted successfully!');
             }
           },
@@ -526,7 +603,7 @@ resetVideoForm(): void {
         .subscribe({
           next: (response) => {
             if (response.success) {
-              this.loadStats(); // Refresh stats
+              this.loadStats();
               alert('Training published successfully!');
             }
           },
@@ -545,7 +622,7 @@ resetVideoForm(): void {
         .subscribe({
           next: (response) => {
             if (response.success) {
-              this.loadStats(); // Refresh stats
+              this.loadStats();
               alert('Training unpublished successfully!');
             }
           },
@@ -564,7 +641,7 @@ resetVideoForm(): void {
         .subscribe({
           next: (response) => {
             if (response.success) {
-              this.loadStats(); // Refresh stats
+              this.loadStats();
               alert('Training suspended successfully!');
             }
           },
@@ -603,17 +680,14 @@ resetVideoForm(): void {
   }
 
   viewTrainingAnalytics(training: Training): void {
-    // Navigate to analytics view or open modal
-    // This would typically navigate to a detailed analytics page
     console.log('Viewing analytics for training:', training.id);
     
-    this.trainingService.getTrainingAnalytics(training.id)
+    this.trainingService.getTrainingAnalytics(training.id, this.employerId, '30days')
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: (response) => {
           if (response.success && response.data) {
             console.log('Training analytics:', response.data);
-            // Display analytics in modal or navigate to analytics page
           }
         },
         error: (error) => {
@@ -624,16 +698,14 @@ resetVideoForm(): void {
   }
 
   viewEnrollments(training: Training): void {
-    // Navigate to enrollments view or open modal
     console.log('Viewing enrollments for training:', training.id);
     
-    this.trainingService.getTrainingEnrollments(training.id)
+    this.trainingService.getTrainingEnrollments(training.id, this.employerId, { page: 1, limit: 10 })
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: (response) => {
           if (response.success && response.data) {
             console.log('Training enrollments:', response.data);
-            // Display enrollments in modal or navigate to enrollments page
           }
         },
         error: (error) => {
@@ -644,16 +716,14 @@ resetVideoForm(): void {
   }
 
   viewReviews(training: Training): void {
-    // Navigate to reviews view or open modal
     console.log('Viewing reviews for training:', training.id);
     
-    this.trainingService.getTrainingReviews(training.id)
+    this.trainingService.getTrainingReviews(training.id, { page: 1, limit: 10 })
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: (response) => {
           if (response.success && response.data) {
             console.log('Training reviews:', response.data);
-            // Display reviews in modal or navigate to reviews page
           }
         },
         error: (error) => {
@@ -675,17 +745,14 @@ resetVideoForm(): void {
       this.newTraining.provider_name
     );
     
-    // Additional validation for paid trainings
     if (this.newTraining.cost_type === 'Paid' && this.newTraining.price <= 0) {
       return false;
     }
     
-    // Additional validation for offline trainings
     if (this.newTraining.mode === 'Offline' && !this.newTraining.location?.trim()) {
       return false;
     }
     
-    // Validate dates if provided
     if (this.newTraining.start_date && this.newTraining.end_date) {
       const startDate = new Date(this.newTraining.start_date);
       const endDate = new Date(this.newTraining.end_date);
@@ -788,7 +855,7 @@ resetVideoForm(): void {
         outcomes: training.outcomes || []
       };
 
-      this.trainingService.createTraining(duplicatedTraining)
+      this.trainingService.createTraining(duplicatedTraining, this.employerId)
         .pipe(takeUntil(this.destroy$))
         .subscribe({
           next: (response) => {
