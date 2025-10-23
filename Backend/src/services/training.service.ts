@@ -107,96 +107,136 @@ export class TrainingService {
   }
 
   async getPublishedTrainingsForJobseeker(userId: string, params: TrainingSearchParams): Promise<TrainingListResponse> {
-    const {
-      page = 1,
-      limit = 10,
-      sort_by = 'created_at',
-      sort_order = 'desc',
-      filters = {}
-    } = params;
+  const {
+    page = 1,
+    limit = 10,
+    sort_by = 'created_at',
+    sort_order = 'desc',
+    filters = {}
+  } = params;
 
-    const offset = (page - 1) * limit;
-    let whereConditions: string[] = ["t.status IN ('published', 'draft')"];
-    let queryParams: any[] = [];
-    let paramIndex = 1;
+  const offset = (page - 1) * limit;
+  
+  // CRITICAL FIX: Only show published trainings to jobseekers
+  let whereConditions: string[] = ["t.status = 'published'"];  // CHANGED FROM: ["t.status IN ('published', 'draft')"]
+  
+  let queryParams: any[] = [];
+  let paramIndex = 1;
 
-    if (filters.category || params.category) {
-      const category = filters.category || params.category;
-      whereConditions.push(`t.category = $${paramIndex++}`);
-      queryParams.push(category);
-    }
-
-    if (params.level) {
-      whereConditions.push(`t.level = $${paramIndex++}`);
-      queryParams.push(params.level);
-    }
-
-    if (params.cost_type) {
-      whereConditions.push(`t.cost_type = $${paramIndex++}`);
-      queryParams.push(params.cost_type);
-    }
-
-    if (params.mode) {
-      whereConditions.push(`t.mode = $${paramIndex++}`);
-      queryParams.push(params.mode);
-    }
-
-    if (params.search) {
-      whereConditions.push(`(t.title ILIKE $${paramIndex++} OR t.description ILIKE $${paramIndex++})`);
-      const searchPattern = `%${params.search}%`;
-      queryParams.push(searchPattern, searchPattern);
-    }
-
-    const whereClause = `WHERE ${whereConditions.join(' AND ')}`;
-
-    // Enhanced query with video count
-    const query = `
-      SELECT 
-        t.*,
-        CASE WHEN e.id IS NOT NULL THEN true ELSE false END as enrolled,
-        COALESCE(e.progress_percentage, 0) as progress,
-        e.status as enrollment_status,
-        e.enrolled_at,
-        e.completed_at,
-        (SELECT COUNT(*) FROM training_videos WHERE training_id = t.id) as video_count,
-        COUNT(*) OVER() as total_count
-      FROM trainings t
-      LEFT JOIN training_enrollments e ON t.id = e.training_id AND e.user_id = $${paramIndex++}
-      ${whereClause}
-      ORDER BY t.${sort_by} ${sort_order.toUpperCase()}
-      LIMIT $${paramIndex++} OFFSET $${paramIndex++}
-    `;
-
-    queryParams.push(userId, limit, offset);
-
-    console.log('Jobseeker trainings query:', query);
-    console.log('Query params:', queryParams);
-
-    const result = await this.db.query(query, queryParams);
-    const trainings = result.rows;
-    const totalCount = trainings.length > 0 ? parseInt(trainings[0].total_count) : 0;
-
-    return {
-      trainings: trainings.map(row => ({
-        ...this.mapTrainingFromDb(row),
-        enrolled: row.enrolled,
-        progress: row.progress || 0,
-        enrollment_status: row.enrollment_status,
-        enrolled_at: row.enrolled_at,
-        completed_at: row.completed_at,
-        video_count: parseInt(row.video_count || 0)
-      })),
-      pagination: {
-        current_page: page,
-        total_pages: Math.ceil(totalCount / limit),
-        page_size: limit,
-        total_count: totalCount,
-        has_next: page * limit < totalCount,
-        has_previous: page > 1
-      },
-      filters_applied: filters
-    };
+  if (filters.category || params.category) {
+    const category = filters.category || params.category;
+    whereConditions.push(`t.category = $${paramIndex++}`);
+    queryParams.push(category);
   }
+
+  if (params.level) {
+    whereConditions.push(`t.level = $${paramIndex++}`);
+    queryParams.push(params.level);
+  }
+
+  if (params.cost_type) {
+    whereConditions.push(`t.cost_type = $${paramIndex++}`);
+    queryParams.push(params.cost_type);
+  }
+
+  if (params.mode) {
+    whereConditions.push(`t.mode = $${paramIndex++}`);
+    queryParams.push(params.mode);
+  }
+
+  if (params.search) {
+    whereConditions.push(`(t.title ILIKE $${paramIndex} OR t.description ILIKE $${paramIndex})`);
+    const searchPattern = `%${params.search}%`;
+    queryParams.push(searchPattern);
+    paramIndex++;
+  }
+
+  const whereClause = `WHERE ${whereConditions.join(' AND ')}`;
+  const userIdParam = paramIndex++;
+  const limitParam = paramIndex++;
+  const offsetParam = paramIndex++;
+
+  const query = `
+    SELECT 
+      t.*,
+      CASE WHEN e.id IS NOT NULL THEN true ELSE false END as enrolled,
+      COALESCE(e.progress_percentage, 0) as progress,
+      e.status as enrollment_status,
+      e.enrolled_at,
+      e.completed_at,
+      COUNT(v.id) as video_count,
+      COALESCE(json_agg(
+        json_build_object(
+          'id', v.id,
+          'title', v.title,
+          'description', v.description,
+          'video_url', v.video_url,
+          'duration_minutes', v.duration_minutes,
+          'order_index', v.order_index,
+          'is_preview', v.is_preview
+        ) ORDER BY v.order_index
+      ) FILTER (WHERE v.id IS NOT NULL), '[]') AS videos,
+      COALESCE(json_agg(
+        json_build_object(
+          'id', o.id,
+          'outcome_text', o.outcome_text,
+          'order_index', o.order_index
+        ) ORDER BY o.order_index
+      ) FILTER (WHERE o.id IS NOT NULL), '[]') AS outcomes,
+      COUNT(*) OVER() as total_count
+    FROM trainings t
+    LEFT JOIN training_enrollments e ON t.id = e.training_id AND e.user_id = $${userIdParam}
+    LEFT JOIN training_videos v ON v.training_id = t.id
+    LEFT JOIN training_outcomes o ON o.training_id = t.id
+    ${whereClause}
+    GROUP BY 
+      t.id, t.title, t.description, t.category, t.level, t.duration_hours, 
+      t.mode, t.cost_type, t.price, t.start_date, t.end_date, 
+      t.max_participants, t.current_participants, t.thumbnail_url, 
+      t.provider_name, t.provider_id, t.has_certificate, t.status,
+      t.rating, t.total_students, t.location, t.created_at, t.updated_at,
+      e.id, e.progress_percentage, e.status, e.enrolled_at, e.completed_at
+    ORDER BY t.${sort_by} ${sort_order.toUpperCase()}
+    LIMIT $${limitParam} OFFSET $${offsetParam}
+  `;
+
+  queryParams.push(userId, limit, offset);
+
+  console.log('FIXED Jobseeker trainings query (published only):', query);
+  console.log('Query params:', queryParams);
+
+  const result = await this.db.query(query, queryParams);
+  const trainings = result.rows;
+  const totalCount = trainings.length > 0 ? parseInt(trainings[0].total_count) : 0;
+
+  console.log('Query returned', trainings.length, 'published trainings with videos');
+  trainings.forEach(t => {
+    console.log(`- ${t.title}: ${t.video_count} videos, status: ${t.status}`);
+  });
+
+  return {
+    trainings: trainings.map(row => ({
+      ...this.mapTrainingFromDb(row),
+      enrolled: row.enrolled,
+      progress: row.progress || 0,
+      enrollment_status: row.enrollment_status,
+      enrolled_at: row.enrolled_at,
+      completed_at: row.completed_at,
+      video_count: parseInt(row.video_count || 0),
+      videos: row.videos,
+      outcomes: row.outcomes
+    })),
+    pagination: {
+      current_page: page,
+      total_pages: Math.ceil(totalCount / limit),
+      page_size: limit,
+      total_count: totalCount,
+      has_next: page * limit < totalCount,
+      has_previous: page > 1
+    },
+    filters_applied: filters
+  };
+}
 
   async getTrainingById(id: string): Promise<any | null> {
     const result = await this.db.query(

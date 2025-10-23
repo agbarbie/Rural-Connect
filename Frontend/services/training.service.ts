@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
 import { HttpClient, HttpHeaders, HttpParams } from '@angular/common/http';
-import { Observable, BehaviorSubject, throwError } from 'rxjs';
+import { Observable, BehaviorSubject, throwError, of } from 'rxjs';
 import { catchError, tap, map } from 'rxjs/operators';
 import { environment } from '../src/environments/environment.prod';
 
@@ -380,6 +380,26 @@ export class TrainingService {
       })
     );
   }
+
+  private fetchTrainingVideos(trainingId: string): Observable<TrainingVideo[]> {
+  console.log('Fetching videos separately for training:', trainingId);
+  
+  return this.http.get<ApiResponse<{ videos: any[] }>>(
+    `${this.TRAINING_ENDPOINT}/${trainingId}/videos`,
+    { headers: this.getAuthHeaders() }
+  ).pipe(
+    map(response => {
+      if (response.success && response.data?.videos) {
+        return response.data.videos.map(v => this.normalizeVideoData(v));
+      }
+      return [];
+    }),
+    catchError(err => {
+      console.error('Error fetching videos:', err);
+      return of([]);
+    })
+  );
+}
 
   /**
    * EMPLOYER: Create new training
@@ -923,3 +943,4 @@ export class TrainingService {
     }
   }
 }
+

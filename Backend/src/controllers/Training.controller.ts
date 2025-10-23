@@ -9,7 +9,13 @@ import { ParsedQs } from 'qs';
  * Controller for handling training operations
  */
 export class TrainingController {
-  getPopularTrainings(req: Request<{}, any, any, ParsedQs, Record<string, any>>, res: Response<any, Record<string, any>>, next: NextFunction): void {
+  getTrainingVideoCount(req: Request, res: Response, next: NextFunction) {
+    throw new Error('Method not implemented.');
+  }
+  getTrainingVideos(req: Request, res: Response, next: NextFunction) {
+    throw new Error('Method not implemented.');
+  }
+  getPopularTrainings(req: Request, res: Response, next: NextFunction): void {
     throw new Error('Method not implemented.');
   }
   private trainingService: TrainingService;
@@ -643,32 +649,188 @@ async getAllTrainings(req: AuthenticatedRequest, res: Response, next: NextFuncti
   /**
    * Get training by ID (uses service for full details including videos)
    */
+
+  // FIXED: Replace your getTrainingById method in Training.controller.ts
+
   async getTrainingById(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
-    try {
-      const { id } = req.params;
-      const userId = req.user?.id || null;  // Null for unauth/public
+  try {
+    const { id } = req.params;
+    const userId = req.user?.id || null;
+    const userType = req.user?.user_type;
 
-      // Use service method for full videos/enrollment details
-      const training = await this.trainingService.getTrainingWithDetailsForJobseeker(id, userId || '');
+    console.log('=== Getting Training By ID ===');
+    console.log('Training ID:', id);
+    console.log('User ID:', userId);
+    console.log('User Type:', userType);
 
-      if (!training) {
-        res.status(404).json({
-          success: false,
-          message: "Training not found or not published"
-        });
-        return;
+    let training;
+    
+    if (!userId) {
+      // Public/unauthenticated - ONLY show published trainings
+      const query = `
+        SELECT 
+          t.*,
+          COUNT(v.id) as video_count,
+          COALESCE(json_agg(
+            json_build_object(
+              'id', v.id,
+              'title', v.title,
+              'description', v.description,
+              'video_url', v.video_url,
+              'duration_minutes', v.duration_minutes,
+              'order_index', v.order_index,
+              'is_preview', v.is_preview
+            ) ORDER BY v.order_index
+          ) FILTER (WHERE v.id IS NOT NULL AND v.is_preview = true), '[]') AS videos,
+          COALESCE(json_agg(
+            json_build_object(
+              'id', o.id,
+              'outcome_text', o.outcome_text,
+              'order_index', o.order_index
+            ) ORDER BY o.order_index
+          ) FILTER (WHERE o.id IS NOT NULL), '[]') AS outcomes
+        FROM trainings t
+        LEFT JOIN training_videos v ON v.training_id = t.id
+        LEFT JOIN training_outcomes o ON o.training_id = t.id
+        WHERE t.id = $1 AND t.status = 'published'
+        GROUP BY t.id
+      `;
+      
+      const result = await pool.query(query, [id]);
+      training = result.rows[0] || null;
+      
+      if (training) {
+        training.enrolled = false;
+        training.can_enroll = true;
       }
-
-      res.status(200).json({
-        success: true,
-        message: "Training retrieved successfully",
-        data: training  // Now includes full `videos` array
-      });
-
-    } catch (error) {
-      next(error);
+      
+    } else if (userType === 'jobseeker') {
+      // FIXED: Jobseeker - Show published trainings with enrollment status
+      const query = `
+        SELECT 
+          t.*,
+          CASE WHEN e.id IS NOT NULL THEN true ELSE false END as enrolled,
+          COALESCE(e.progress_percentage, 0) as progress,
+          e.status as enrollment_status,
+          e.id as enrollment_id,
+          COUNT(v.id) as video_count,
+          COALESCE(json_agg(
+            json_build_object(
+              'id', v.id,
+              'title', v.title,
+              'description', v.description,
+              'video_url', v.video_url,
+              'duration_minutes', v.duration_minutes,
+              'order_index', v.order_index,
+              'is_preview', v.is_preview,
+              'accessible', CASE 
+                WHEN e.id IS NOT NULL THEN true 
+                WHEN v.is_preview = true THEN true 
+                ELSE false 
+              END
+            ) ORDER BY v.order_index
+          ) FILTER (WHERE v.id IS NOT NULL), '[]') AS videos,
+          COALESCE(json_agg(
+            json_build_object(
+              'id', o.id,
+              'outcome_text', o.outcome_text,
+              'order_index', o.order_index
+            ) ORDER BY o.order_index
+          ) FILTER (WHERE o.id IS NOT NULL), '[]') AS outcomes
+        FROM trainings t
+        LEFT JOIN training_enrollments e ON t.id = e.training_id AND e.user_id = $2
+        LEFT JOIN training_videos v ON v.training_id = t.id
+        LEFT JOIN training_outcomes o ON o.training_id = t.id
+        WHERE t.id = $1 AND t.status = 'published'
+        GROUP BY t.id, e.id, e.progress_percentage, e.status
+      `;
+      
+      const result = await pool.query(query, [id, userId]);
+      training = result.rows[0] || null;
+      
+      if (training) {
+        training.can_enroll = !training.enrolled && training.status === 'published';
+      }
+      
+    } else if (userType === 'employer') {
+      // Employer - Check ownership and show ALL statuses (draft, published, suspended)
+      const employerProfileCheck = await pool.query(
+        'SELECT id FROM employers WHERE user_id = $1',
+        [userId]
+      );
+      
+      let whereClause = 't.id = $1';
+      let queryParams: any[] = [id];
+      
+      if (employerProfileCheck.rows.length > 0) {
+        const employerProfileId = employerProfileCheck.rows[0].id;
+        whereClause = 't.id = $1 AND (t.provider_id = $2 OR t.provider_id = $3)';
+        queryParams = [id, userId, employerProfileId];
+      } else {
+        whereClause = 't.id = $1 AND t.provider_id = $2';
+        queryParams = [id, userId];
+      }
+      
+      const query = `
+        SELECT 
+          t.*,
+          COUNT(v.id) as video_count,
+          COALESCE(json_agg(
+            json_build_object(
+              'id', v.id,
+              'title', v.title,
+              'description', v.description,
+              'video_url', v.video_url,
+              'duration_minutes', v.duration_minutes,
+              'order_index', v.order_index,
+              'is_preview', v.is_preview
+            ) ORDER BY v.order_index
+          ) FILTER (WHERE v.id IS NOT NULL), '[]') AS videos,
+          COALESCE(json_agg(
+            json_build_object(
+              'id', o.id,
+              'outcome_text', o.outcome_text,
+              'order_index', o.order_index
+            ) ORDER BY o.order_index
+          ) FILTER (WHERE o.id IS NOT NULL), '[]') AS outcomes
+        FROM trainings t
+        LEFT JOIN training_videos v ON v.training_id = t.id
+        LEFT JOIN training_outcomes o ON o.training_id = t.id
+        WHERE ${whereClause}
+        GROUP BY t.id
+      `;
+      
+      const result = await pool.query(query, queryParams);
+      training = result.rows[0] || null;
     }
+
+    if (!training) {
+      console.log('Training not found or not accessible');
+      res.status(404).json({
+        success: false,
+        message: userType === 'employer' 
+          ? "Training not found or you don't have permission to view it"
+          : "Training not found or not published"
+      });
+      return;
+    }
+
+    console.log('Training found:', training.title);
+    console.log('Videos count:', training.videos?.length || training.video_count || 0);
+    console.log('Status:', training.status);
+    console.log('Enrolled:', training.enrolled || false);
+
+    res.status(200).json({
+      success: true,
+      message: "Training retrieved successfully",
+      data: training
+    });
+
+  } catch (error) {
+    console.error('Error in getTrainingById:', error);
+    next(error);
   }
+}
 
 
   // ================ JOBSEEKER METHODS ================
