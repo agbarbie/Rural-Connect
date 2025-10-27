@@ -17,96 +17,220 @@ export class TrainingService {
   constructor(private db: Pool) {}
 
   async getTrainingWithDetailsForJobseeker(trainingId: string, userId: string): Promise<any> {
-    console.log('Getting training details for jobseeker:', { trainingId, userId });
-    
-    let query = `
-      SELECT t.*,
-            CASE WHEN e.id IS NOT NULL THEN true ELSE false END as enrolled,
-            COALESCE(e.progress_percentage, 0) as progress,
-            e.status as enrollment_status,
-            e.id as enrollment_id
-      FROM trainings t
-      LEFT JOIN training_enrollments e ON t.id = e.training_id AND e.user_id = $2
-      WHERE t.id = $1 AND t.status = 'published'
-    `;
+  console.log('Getting training details for jobseeker:', { trainingId, userId });
+  
+  // CRITICAL: Add status check and provider validation
+  let query = `
+    SELECT t.*,
+          CASE WHEN e.id IS NOT NULL THEN true ELSE false END as enrolled,
+          COALESCE(e.progress_percentage, 0) as progress,
+          e.status as enrollment_status,
+          e.id as enrollment_id
+    FROM trainings t
+    LEFT JOIN training_enrollments e ON t.id = e.training_id AND e.user_id = $2
+    WHERE t.id = $1 
+      AND t.status = 'published'
+      AND t.provider_id IS NOT NULL
+      AND EXISTS (
+        SELECT 1 FROM employers emp 
+        WHERE emp.id = t.provider_id 
+        AND emp.deleted_at IS NULL
+      )
+  `;
 
-    const result = await this.db.query(query, [trainingId, userId]);
+  const result = await this.db.query(query, [trainingId, userId]);
 
-    if (result.rows.length === 0) {
-      console.log('Training not found or not published');
-      return null;
-    }
-
-    const training = this.mapTrainingFromDb(result.rows[0]);
-    const isEnrolled = result.rows[0].enrolled;
-    const enrollmentId = result.rows[0].enrollment_id;
-
-    console.log('Training found:', { 
-      title: training.title, 
-      enrolled: isEnrolled,
-      enrollmentId: enrollmentId 
-    });
-
-    // FIXED: Fetch ALL videos for details view (filter previews only for playback in frontend)
-    const videosQuery = `
-      SELECT id, training_id, title, description, video_url, duration_minutes, order_index, is_preview, created_at
-      FROM training_videos 
-      WHERE training_id = $1
-      ORDER BY order_index
-    `;
-
-    const videosResult = await this.db.query(videosQuery, [trainingId]);
-    console.log(`Found ${videosResult.rows.length} videos in details (all shown, enrolled: ${isEnrolled})`);
-
-    // Fetch outcomes
-    const outcomesResult = await this.db.query(
-      `SELECT id, training_id, outcome_text, order_index, created_at
-      FROM training_outcomes 
-      WHERE training_id = $1 
-      ORDER BY order_index`,
-      [trainingId]
-    );
-
-    // Fetch user's video progress if enrolled
-    let videoProgress = [];
-    if (isEnrolled && enrollmentId) {
-      try {
-        const progressResult = await this.db.query(
-          `SELECT video_id, watch_time_minutes, is_completed, completed_at
-          FROM training_video_progress
-          WHERE enrollment_id = $1`,
-          [enrollmentId]
-        );
-        videoProgress = progressResult.rows;
-      } catch (error) {
-        console.warn('Video progress table may not exist:', error);
-      }
-    }
-
-    // Merge video progress with videos
-    const videosWithProgress = videosResult.rows.map(video => {
-      const progress = videoProgress.find(p => p.video_id === video.id);
-      return {
-        ...video,
-        completed: progress?.is_completed || false,
-        watch_time: progress?.watch_time_minutes || 0,
-        accessible: isEnrolled || video.is_preview  // FIXED: Gate playback, but show all in list
-      };
-    });
-
-    return {
-      ...training,
-      enrolled: isEnrolled,
-      progress: result.rows[0].progress || 0,
-      enrollment_status: result.rows[0].enrollment_status,
-      enrollment_id: enrollmentId,
-      videos: videosWithProgress,  // FIXED: Always full array for details
-      outcomes: outcomesResult.rows,
-      can_enroll: !isEnrolled && training.status === 'published'
-    };
+  if (result.rows.length === 0) {
+    console.log('⚠️ Training not found, not published, or has invalid provider');
+    return null;
   }
 
-  async getPublishedTrainingsForJobseeker(userId: string, params: TrainingSearchParams): Promise<TrainingListResponse> {
+  const training = this.mapTrainingFromDb(result.rows[0]);
+  const isEnrolled = result.rows[0].enrolled;
+  const enrollmentId = result.rows[0].enrollment_id;
+
+  console.log('✅ Valid training found:', { 
+    title: training.title, 
+    status: training.status,
+    provider_id: training.provider_id,
+    enrolled: isEnrolled
+  });
+
+  // Fetch videos (all for enrolled, only previews for not enrolled)
+  const videosQuery = `
+    SELECT id, training_id, title, description, video_url, duration_minutes, order_index, is_preview, created_at
+    FROM training_videos 
+    WHERE training_id = $1
+    ${isEnrolled ? '' : 'AND is_preview = true'}
+    ORDER BY order_index
+  `;
+
+  const videosResult = await this.db.query(videosQuery, [trainingId]);
+  console.log(`Found ${videosResult.rows.length} videos (enrolled: ${isEnrolled})`);
+
+  // Fetch outcomes
+  const outcomesResult = await this.db.query(
+    `SELECT id, training_id, outcome_text, order_index, created_at
+    FROM training_outcomes 
+    WHERE training_id = $1 
+    ORDER BY order_index`,
+    [trainingId]
+  );
+
+  // Fetch video progress if enrolled
+  let videoProgress = [];
+  if (isEnrolled && enrollmentId) {
+    try {
+      const progressResult = await this.db.query(
+        `SELECT video_id, watch_time_minutes, is_completed, completed_at
+        FROM training_video_progress
+        WHERE enrollment_id = $1`,
+        [enrollmentId]
+      );
+      videoProgress = progressResult.rows;
+    } catch (error) {
+      console.warn('Video progress table may not exist:', error);
+    }
+  }
+
+  // Merge video progress
+  const videosWithProgress = videosResult.rows.map(video => {
+    const progress = videoProgress.find(p => p.video_id === video.id);
+    return {
+      ...video,
+      completed: progress?.is_completed || false,
+      watch_time: progress?.watch_time_minutes || 0,
+      accessible: isEnrolled || video.is_preview
+    };
+  });
+
+  return {
+    ...training,
+    enrolled: isEnrolled,
+    progress: result.rows[0].progress || 0,
+    enrollment_status: result.rows[0].enrollment_status,
+    enrollment_id: enrollmentId,
+    videos: videosWithProgress,
+    outcomes: outcomesResult.rows,
+    can_enroll: !isEnrolled && training.status === 'published'
+  };
+}
+
+async cleanupInvalidTrainings(): Promise<void> {
+  console.log('🧹 Starting training database cleanup...');
+  
+  const client = await this.db.connect();
+  
+  try {
+    await client.query('BEGIN');
+    
+    // Find and log invalid trainings
+    const invalidTrainings = await client.query(`
+      SELECT t.id, t.title, t.status, t.provider_id, t.provider_name, t.created_at
+      FROM trainings t
+      WHERE t.provider_id IS NULL
+         OR t.title IS NULL
+         OR t.description IS NULL
+         OR t.duration_hours <= 0
+         OR NOT EXISTS (
+           SELECT 1 FROM employers e 
+           WHERE e.id = t.provider_id 
+           AND e.deleted_at IS NULL
+         )
+      ORDER BY t.created_at DESC
+    `);
+    
+    console.log('⚠️ Found invalid trainings:', invalidTrainings.rows.length);
+    invalidTrainings.rows.forEach(training => {
+      console.log(`  - ${training.title} (ID: ${training.id}, Status: ${training.status}, Provider: ${training.provider_id})`);
+    });
+    
+    // Option 1: Mark them as suspended instead of deleting
+    if (invalidTrainings.rows.length > 0) {
+      await client.query(`
+        UPDATE trainings
+        SET status = 'suspended'
+        WHERE id = ANY($1)
+      `, [invalidTrainings.rows.map(t => t.id)]);
+      
+      console.log('✅ Marked invalid trainings as suspended');
+    }
+    
+    await client.query('COMMIT');
+    console.log('🧹 Cleanup completed successfully');
+    
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('❌ Cleanup failed:', error);
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+async diagnoseTrainingData(): Promise<void> {
+  console.log('\n' + '='.repeat(80));
+  console.log('🔍 TRAINING DATABASE DIAGNOSTICS');
+  console.log('='.repeat(80) + '\n');
+  
+  // Total trainings by status
+  const statusQuery = await this.db.query(`
+    SELECT status, COUNT(*) as count
+    FROM trainings
+    GROUP BY status
+    ORDER BY count DESC
+  `);
+  
+  console.log('📊 Trainings by Status:');
+  statusQuery.rows.forEach(row => {
+    console.log(`   ${row.status}: ${row.count}`);
+  });
+  
+  // Trainings without valid provider
+  const invalidProviderQuery = await this.db.query(`
+    SELECT COUNT(*) as count
+    FROM trainings t
+    WHERE t.provider_id IS NULL
+       OR NOT EXISTS (
+         SELECT 1 FROM employers e 
+         WHERE e.id = t.provider_id
+       )
+  `);
+  
+  console.log(`\n⚠️  Trainings with invalid provider_id: ${invalidProviderQuery.rows[0].count}`);
+  
+  // Published trainings that would show to jobseekers
+  const validPublishedQuery = await this.db.query(`
+    SELECT COUNT(*) as count
+    FROM trainings t
+    WHERE t.status = 'published'
+      AND t.provider_id IS NOT NULL
+      AND t.title IS NOT NULL
+      AND t.description IS NOT NULL
+      AND EXISTS (
+        SELECT 1 FROM employers e 
+        WHERE e.id = t.provider_id 
+        AND e.deleted_at IS NULL
+      )
+  `);
+  
+  console.log(`✅ Valid published trainings (visible to jobseekers): ${validPublishedQuery.rows[0].count}`);
+  
+  // Test data patterns
+  const testDataQuery = await this.db.query(`
+    SELECT COUNT(*) as count
+    FROM trainings
+    WHERE title ILIKE '%test%'
+       OR title ILIKE '%postman%'
+       OR description ILIKE '%test%'
+  `);
+  
+  console.log(`🧪 Potential test data entries: ${testDataQuery.rows[0].count}`);
+  
+  console.log('\n' + '='.repeat(80) + '\n');
+}
+
+async getPublishedTrainingsForJobseeker(userId: string, params: TrainingSearchParams): Promise<TrainingListResponse> {
   const {
     page = 1,
     limit = 10,
@@ -117,12 +241,24 @@ export class TrainingService {
 
   const offset = (page - 1) * limit;
   
-  // CRITICAL FIX: Only show published trainings to jobseekers
-  let whereConditions: string[] = ["t.status = 'published'"];  // CHANGED FROM: ["t.status IN ('published', 'draft')"]
+  // FIXED: Only show published trainings from valid employers (no deleted_at check)
+  let whereConditions: string[] = [
+    "t.status = 'published'",
+    "t.provider_id IS NOT NULL",
+    "t.title IS NOT NULL",
+    "t.description IS NOT NULL",
+    "t.duration_hours > 0",
+    // FIXED: Simple employer existence check without deleted_at
+    `EXISTS (
+      SELECT 1 FROM employers e 
+      WHERE e.id = t.provider_id
+    )`
+  ];
   
   let queryParams: any[] = [];
   let paramIndex = 1;
 
+  // Apply user filters
   if (filters.category || params.category) {
     const category = filters.category || params.category;
     whereConditions.push(`t.category = $${paramIndex++}`);
@@ -145,93 +281,106 @@ export class TrainingService {
   }
 
   if (params.search) {
-    whereConditions.push(`(t.title ILIKE $${paramIndex} OR t.description ILIKE $${paramIndex})`);
+    whereConditions.push(`(t.title ILIKE $${paramIndex++} OR t.description ILIKE $${paramIndex++})`);
     const searchPattern = `%${params.search}%`;
-    queryParams.push(searchPattern);
-    paramIndex++;
+    queryParams.push(searchPattern, searchPattern);
   }
 
   const whereClause = `WHERE ${whereConditions.join(' AND ')}`;
-  const userIdParam = paramIndex++;
-  const limitParam = paramIndex++;
-  const offsetParam = paramIndex++;
 
+  console.log('=== JOBSEEKER TRAINING QUERY ===');
+  console.log('WHERE conditions:', whereConditions);
+  console.log('Parameters:', queryParams);
+
+  // Enhanced query with video count and enrollment status
   const query = `
     SELECT 
-      t.*,
+      t.id,
+      t.title,
+      t.description,
+      t.category,
+      t.level,
+      t.duration_hours,
+      t.cost_type,
+      t.price,
+      t.mode,
+      t.provider_id,
+      t.provider_name,
+      t.has_certificate,
+      t.rating,
+      t.total_students,
+      t.thumbnail_url,
+      t.location,
+      t.start_date,
+      t.end_date,
+      t.max_participants,
+      t.current_participants,
+      t.status,
+      t.created_at,
+      t.updated_at,
       CASE WHEN e.id IS NOT NULL THEN true ELSE false END as enrolled,
       COALESCE(e.progress_percentage, 0) as progress,
       e.status as enrollment_status,
       e.enrolled_at,
       e.completed_at,
-      COUNT(v.id) as video_count,
-      COALESCE(json_agg(
-        json_build_object(
-          'id', v.id,
-          'title', v.title,
-          'description', v.description,
-          'video_url', v.video_url,
-          'duration_minutes', v.duration_minutes,
-          'order_index', v.order_index,
-          'is_preview', v.is_preview
-        ) ORDER BY v.order_index
-      ) FILTER (WHERE v.id IS NOT NULL), '[]') AS videos,
-      COALESCE(json_agg(
-        json_build_object(
-          'id', o.id,
-          'outcome_text', o.outcome_text,
-          'order_index', o.order_index
-        ) ORDER BY o.order_index
-      ) FILTER (WHERE o.id IS NOT NULL), '[]') AS outcomes,
+      (SELECT COUNT(*) FROM training_videos WHERE training_id = t.id) as video_count,
       COUNT(*) OVER() as total_count
     FROM trainings t
-    LEFT JOIN training_enrollments e ON t.id = e.training_id AND e.user_id = $${userIdParam}
-    LEFT JOIN training_videos v ON v.training_id = t.id
-    LEFT JOIN training_outcomes o ON o.training_id = t.id
+    LEFT JOIN training_enrollments e ON t.id = e.training_id AND e.user_id = $${paramIndex++}
     ${whereClause}
-    GROUP BY 
-      t.id, t.title, t.description, t.category, t.level, t.duration_hours, 
-      t.mode, t.cost_type, t.price, t.start_date, t.end_date, 
-      t.max_participants, t.current_participants, t.thumbnail_url, 
-      t.provider_name, t.provider_id, t.has_certificate, t.status,
-      t.rating, t.total_students, t.location, t.created_at, t.updated_at,
-      e.id, e.progress_percentage, e.status, e.enrolled_at, e.completed_at
     ORDER BY t.${sort_by} ${sort_order.toUpperCase()}
-    LIMIT $${limitParam} OFFSET $${offsetParam}
+    LIMIT $${paramIndex++} OFFSET $${paramIndex++}
   `;
 
   queryParams.push(userId, limit, offset);
 
-  console.log('FIXED Jobseeker trainings query (published only):', query);
-  console.log('Query params:', queryParams);
+  console.log('Final query:', query);
+  console.log('Final params:', queryParams);
 
   const result = await this.db.query(query, queryParams);
   const trainings = result.rows;
   const totalCount = trainings.length > 0 ? parseInt(trainings[0].total_count) : 0;
 
-  console.log('Query returned', trainings.length, 'published trainings with videos');
-  trainings.forEach(t => {
-    console.log(`- ${t.title}: ${t.video_count} videos, status: ${t.status}`);
+  console.log('=== QUERY RESULTS ===');
+  console.log('Total trainings found:', trainings.length);
+
+  // Validation filter
+  const validatedTrainings = trainings.filter(training => {
+    const isValid = 
+      training.status === 'published' &&
+      training.provider_id &&
+      training.title &&
+      training.description &&
+      training.duration_hours > 0;
+    
+    if (!isValid) {
+      console.warn('⚠️ Filtered out invalid training:', {
+        id: training.id,
+        title: training.title,
+        status: training.status,
+        provider_id: training.provider_id
+      });
+    }
+    
+    return isValid;
   });
 
   return {
-    trainings: trainings.map(row => ({
+    trainings: validatedTrainings.map(row => ({
       ...this.mapTrainingFromDb(row),
       enrolled: row.enrolled,
       progress: row.progress || 0,
       enrollment_status: row.enrollment_status,
       enrolled_at: row.enrolled_at,
       completed_at: row.completed_at,
-      video_count: parseInt(row.video_count || 0),
-      videos: row.videos,
-      outcomes: row.outcomes
+      video_count: parseInt(row.video_count || 0)
     })),
     pagination: {
       current_page: page,
-      total_pages: Math.ceil(totalCount / limit),
+      total_pages: Math.ceil(validatedTrainings.length / limit),
       page_size: limit,
-      total_count: totalCount,
-      has_next: page * limit < totalCount,
+      total_count: validatedTrainings.length,
+      has_next: page * limit < validatedTrainings.length,
       has_previous: page > 1
     },
     filters_applied: filters

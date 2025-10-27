@@ -141,6 +141,9 @@ export interface TrainingSearchParams {
   providedIn: 'root'
 })
 export class TrainingService {
+  markVideoComplete(id: any) {
+    throw new Error('Method not implemented.');
+  }
   private readonly API_BASE = environment.apiUrl;
   private readonly TRAINING_ENDPOINT = `${this.API_BASE}/trainings`;
   
@@ -616,20 +619,26 @@ export class TrainingService {
   /**
    * JOBSEEKER: Get available trainings - CRITICAL FIX
    */
-  getJobseekerTrainings(params: TrainingSearchParams = {}): Observable<PaginatedResponse<{ trainings: Training[] }>> {
+
+    /**
+   * JOBSEEKER: Get available trainings - CRITICAL FIX
+   */
+
+    getJobseekerTrainings(params: TrainingSearchParams = {}): Observable<PaginatedResponse<{ trainings: Training[] }>> {
     this.loadingSubject.next(true);
     
     console.log('=== Fetching Jobseeker Trainings ===');
     console.log('Initial params:', params);
     
-    // CRITICAL: Always include videos and outcomes
+    // CRITICAL: Always include videos, outcomes, AND filter for published status only
     const enhancedParams = {
       ...params,
       include_videos: true,
-      include_outcomes: true
+      include_outcomes: true,
+      status: 'published'  // CRITICAL: Only fetch published trainings
     };
     
-    console.log('Enhanced params with video flag:', enhancedParams);
+    console.log('Enhanced params with video flag and published status:', enhancedParams);
     
     const httpParams = this.buildParams(enhancedParams);
     
@@ -647,15 +656,45 @@ export class TrainingService {
         console.log('Raw response data:', response.data);
         
         if (response.success && response.data?.trainings) {
-          // Process each training
-          response.data.trainings = response.data.trainings.map(t => this.processTrainingData(t));
+          // Log ALL trainings before filtering
+          console.log('\n=== RAW TRAININGS FROM API ===');
+          response.data.trainings.forEach((t, i) => {
+            console.log(`[${i}] ${t.title} | Status: ${t.status} | Provider: ${t.provider_name} (ID: ${t.provider_id})`);
+          });
           
-          console.log('Processed trainings summary:');
+          // ADDITIONAL SECURITY: Filter out any non-published trainings on client side
+          const publishedTrainings = response.data.trainings.filter(
+            training => {
+              const isPublished = training.status === 'published';
+              if (!isPublished) {
+                console.warn(`⚠️ Filtering out NON-PUBLISHED training: "${training.title}" (Status: ${training.status})`);
+              }
+              return isPublished;
+            }
+          );
+          
+          console.log(`\n📊 Filtered ${response.data.trainings.length} to ${publishedTrainings.length} published trainings`);
+          
+          // Additional validation
+          const validTrainings = publishedTrainings.filter(training => {
+            const isValid = training.id && training.title && training.provider_name;
+            if (!isValid) {
+              console.warn(`⚠️ Filtering out INVALID training:`, training);
+            }
+            return isValid;
+          });
+          
+          console.log(`✅ Final valid trainings: ${validTrainings.length}`);
+          
+          // Process each training
+          response.data.trainings = validTrainings.map(t => this.processTrainingData(t));
+          
+          console.log('\n=== PROCESSED TRAININGS SUMMARY ===');
           response.data.trainings.forEach(t => {
-            console.log(`- ${t.title}: ${t.videos?.length || t.video_count || 0} videos`);
+            console.log(`✓ ${t.title} (Status: ${t.status}, Provider: ${t.provider_name}): ${t.videos?.length || t.video_count || 0} videos`);
           });
         } else {
-          console.warn('No training data in response');
+          console.warn('⚠️ No training data in response');
         }
         
         return response;

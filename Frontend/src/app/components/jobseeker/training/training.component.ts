@@ -1,10 +1,12 @@
 import { Component, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { Subject, takeUntil } from 'rxjs';
 import { 
   TrainingService, 
   Training, 
+  TrainingVideo,
   TrainingSearchParams, 
   PaginatedResponse 
 } from '../../../../../services/training.service';
@@ -50,7 +52,13 @@ export class TrainingComponent implements OnInit, OnDestroy {
   // Loading and error states
   loading: boolean = false;
   error: string | null = null;
-  showVideoLoading: boolean = false;  // NEW: For modal video section
+  showVideoLoading: boolean = false;
+  
+  // ✅ FIXED: Video player state
+  showVideoPlayer: boolean = false;
+  currentVideo: TrainingVideo | null = null;
+  currentVideoIndex: number = -1;
+  safeVideoUrl: SafeResourceUrl | null = null;
   
   // Pagination
   currentPage: number = 1;
@@ -58,29 +66,27 @@ export class TrainingComponent implements OnInit, OnDestroy {
   pageSize: number = 12;
   totalCount: number = 0;
 
-  // FIXED: Wishlist management (localStorage-based)
-  private wishlistKey = 'training-wishlist';
-  get wishlist(): string[] {
-    return JSON.parse(localStorage.getItem(this.wishlistKey) || '[]');
-  }
+  // Wishlist management (in-memory only)
+  private wishlistSet: Set<string> = new Set();
+  
   addToWishlist(trainingId: string): void {
-    let wishlist = this.wishlist;
-    if (!wishlist.includes(trainingId)) {
-      wishlist.push(trainingId);
-      localStorage.setItem(this.wishlistKey, JSON.stringify(wishlist));
-      console.log('Added to wishlist:', trainingId);
-    }
+    this.wishlistSet.add(trainingId);
+    console.log('Added to wishlist:', trainingId);
   }
+  
   removeFromWishlist(trainingId: string): void {
-    let wishlist = this.wishlist.filter(id => id !== trainingId);
-    localStorage.setItem(this.wishlistKey, JSON.stringify(wishlist));
+    this.wishlistSet.delete(trainingId);
     console.log('Removed from wishlist:', trainingId);
   }
+  
   isInWishlist(trainingId: string): boolean {
-    return this.wishlist.includes(trainingId);
+    return this.wishlistSet.has(trainingId);
   }
 
-  constructor(private trainingService: TrainingService) {}
+  constructor(
+    private trainingService: TrainingService,
+    private sanitizer: DomSanitizer  // ✅ Added for safe video URLs
+  ) {}
 
   ngOnInit(): void {
     this.loadTrainings();
@@ -92,6 +98,130 @@ export class TrainingComponent implements OnInit, OnDestroy {
     this.destroy$.complete();
   }
 
+  // ============================================
+  // VIDEO PLAYER METHODS
+  // ============================================
+
+  /**
+   * ✅ NEW: Play video with proper URL handling
+   */
+  playVideo(video: TrainingVideo, index: number): void {
+    console.log('🎥 Playing video:', video);
+    
+    if (!video.video_url) {
+      console.error('❌ No video URL found');
+      alert('Video URL is missing');
+      return;
+    }
+
+    // Check if video is accessible
+    if (!this.isVideoAccessible(video)) {
+      alert('This video is not available in preview. Please enroll in the training to access all videos.');
+      return;
+    }
+
+    this.currentVideo = video;
+    this.currentVideoIndex = index;
+    
+    // Get embed URL and sanitize it
+    const embedUrl = this.trainingService.getVideoEmbedUrl(video.video_url);
+    console.log('📺 Embed URL:', embedUrl);
+    
+    this.safeVideoUrl = this.sanitizer.bypassSecurityTrustResourceUrl(embedUrl);
+    this.showVideoPlayer = true;
+  }
+
+  /**
+   * ✅ NEW: Close video player
+   */
+  closeVideoPlayer(): void {
+    this.showVideoPlayer = false;
+    this.currentVideo = null;
+    this.currentVideoIndex = -1;
+    this.safeVideoUrl = null;
+  }
+
+  /**
+   * ✅ NEW: Play next video
+   */
+  playNextVideo(): void {
+    if (!this.selectedTraining?.videos) return;
+    
+    const nextIndex = this.currentVideoIndex + 1;
+    if (nextIndex < this.selectedTraining.videos.length) {
+      const nextVideo = this.selectedTraining.videos[nextIndex];
+      if (this.isVideoAccessible(nextVideo)) {
+        this.playVideo(nextVideo, nextIndex);
+      } else {
+        alert('Next video requires enrollment');
+      }
+    }
+  }
+
+  /**
+   * ✅ NEW: Play previous video
+   */
+  playPreviousVideo(): void {
+    if (!this.selectedTraining?.videos) return;
+    
+    const prevIndex = this.currentVideoIndex - 1;
+    if (prevIndex >= 0) {
+      const prevVideo = this.selectedTraining.videos[prevIndex];
+      this.playVideo(prevVideo, prevIndex);
+    }
+  }
+
+  /**
+   * ✅ NEW: Check if video is accessible
+   */
+  isVideoAccessible(video: TrainingVideo): boolean {
+    if (!this.selectedTraining) return false;
+    return this.trainingService.isVideoAccessible(video, this.selectedTraining);
+  }
+
+  /**
+   * ✅ NEW: Get video status badge
+   */
+  getVideoStatusBadge(video: TrainingVideo): string {
+    if (video.completed) return '✓ Completed';
+    if (video.is_preview) return '🔓 Preview';
+    if (!this.selectedTraining?.enrolled) return '🔒 Locked';
+    return '';
+  }
+
+  // ============================================
+  // EXISTING METHODS (unchanged)
+  // ============================================
+
+  private isValidTraining(training: Training): boolean {
+    if (!training.id || !training.title || !training.description || !training.provider_name) {
+      console.warn('❌ Missing required fields:', training.id);
+      return false;
+    }
+
+    if (training.status !== 'published') {
+      console.warn('❌ Not published:', training.title, 'Status:', training.status);
+      return false;
+    }
+
+    if (!training.provider_id || training.provider_id === 'null' || training.provider_id === 'undefined') {
+      console.warn('❌ Invalid provider_id:', training.title, 'Provider ID:', training.provider_id);
+      return false;
+    }
+
+    if (training.duration_hours <= 0) {
+      console.warn('❌ Invalid duration:', training.title);
+      return false;
+    }
+
+    if (training.cost_type === 'Paid' && (!training.price || training.price <= 0)) {
+      console.warn('❌ Paid training with invalid price:', training.title);
+      return false;
+    }
+
+    return true;
+  }
+
   loadTrainings(page: number = 1): void {
     this.loading = true;
     this.error = null;
@@ -101,6 +231,7 @@ export class TrainingComponent implements OnInit, OnDestroy {
       limit: this.pageSize,
       sort_by: 'created_at',
       sort_order: 'desc',
+      status: 'published',
       category: this.selectedCategory !== 'all' ? this.selectedCategory : undefined,
       search: this.searchQuery.trim() || undefined,
       level: this.filters.level.length > 0 ? this.filters.level[0] : undefined,
@@ -108,21 +239,22 @@ export class TrainingComponent implements OnInit, OnDestroy {
       mode: this.filters.mode.length > 0 ? this.filters.mode[0] : undefined
     };
 
-    console.log('Loading trainings with params:', searchParams);
+    console.log('🔍 Loading trainings with params:', searchParams);
 
     this.trainingService.getJobseekerTrainings(searchParams)
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: (response) => {
-          console.log('Trainings loaded:', response);
+          console.log('📦 Raw API response:', response);
+          
           if (response.success && response.data) {
-            this.trainings = response.data.trainings;
-            this.filteredTrainings = [...this.trainings];
+            const rawTrainings = response.data.trainings || [];
+            const validTrainings = rawTrainings.filter((training: Training) => 
+              this.isValidTraining(training)
+            );
             
-            // Log video counts for debugging
-            this.trainings.forEach(training => {
-              console.log(`Training "${training.title}" has ${training.videos?.length || training.video_count || 0} videos`);
-            });
+            this.trainings = validTrainings;
+            this.filteredTrainings = [...this.trainings];
             
             if (response.pagination) {
               this.currentPage = response.pagination.current_page;
@@ -133,7 +265,7 @@ export class TrainingComponent implements OnInit, OnDestroy {
           this.loading = false;
         },
         error: (error) => {
-          console.error('Error loading trainings:', error);
+          console.error('❌ Error loading trainings:', error);
           this.error = 'Failed to load training programs. Please try again.';
           this.loading = false;
         }
@@ -182,39 +314,27 @@ export class TrainingComponent implements OnInit, OnDestroy {
     this.loadTrainings(this.currentPage);
   }
 
-  // UPDATED: viewTrainingDetail with extra logging and video fallback
   viewTrainingDetail(training: Training): void {
     this.loading = true;
-    this.showVideoLoading = true;  // NEW
+    this.showVideoLoading = true;
     this.error = null;
     
-    console.log('Fetching full details for training:', training.id);
+    console.log('🔍 Fetching full details for training:', training.id);
     
-    // Fetch complete training details including videos and outcomes
     this.trainingService.getTrainingDetails(training.id)
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: (response) => {
-          console.log('Training details response:', response);
+          console.log('📦 Training details response:', response);
           if (response.success && response.data) {
-            this.selectedTraining = response.data;
-            console.log('Selected training videos in modal:', this.selectedTraining.videos?.length || 0, 
-                        'Count:', this.selectedTraining.video_count);
-            
-            // NEW: If video_count is 0 and videos empty, fetch count separately
-            if ((!this.selectedTraining.videos || this.selectedTraining.videos.length === 0) && 
-                (this.selectedTraining.video_count || 0) === 0) {
-              this.trainingService.getVideoCount(training.id).subscribe(countResponse => {
-                if (countResponse.success && countResponse.data) {
-                  this.selectedTraining!.video_count = countResponse.data.count;
-                  console.log('Fetched video count:', this.selectedTraining!.video_count);
-                }
-                this.showVideoLoading = false;
-              });
+            if (this.isValidTraining(response.data)) {
+              this.selectedTraining = response.data;
+              console.log('✅ Training loaded with videos:', this.selectedTraining.videos?.length || 0);
             } else {
-              this.showVideoLoading = false;
+              console.error('❌ Training failed validation check');
+              this.error = 'This training is no longer available.';
             }
-            
+            this.showVideoLoading = false;
             this.showTrainingDetail = true;
           } else {
             this.error = 'Failed to load training details.';
@@ -223,7 +343,7 @@ export class TrainingComponent implements OnInit, OnDestroy {
           this.loading = false;
         },
         error: (error) => {
-          console.error('Error loading training details:', error);
+          console.error('❌ Error loading training details:', error);
           this.error = 'Failed to load training details. Please try again.';
           this.loading = false;
           this.showVideoLoading = false;
@@ -231,21 +351,15 @@ export class TrainingComponent implements OnInit, OnDestroy {
       });
   }
 
-  // NEW: Refresh videos for current training
-  refreshTrainingVideos(trainingId: string): void {
-    if (this.selectedTraining?.id === trainingId) {
-      this.viewTrainingDetail(this.selectedTraining);
-    }
-  }
-
   closeTrainingDetail(): void {
     this.showTrainingDetail = false;
     this.selectedTraining = null;
-    this.showVideoLoading = false;  // NEW
+    this.showVideoLoading = false;
+    this.closeVideoPlayer();  // ✅ Also close video player
   }
 
   enrollInTraining(training: Training): void {
-    console.log('Enrolling in training:', training.id);
+    console.log('📝 Enrolling in training:', training.id);
     
     this.trainingService.enrollInTraining(training.id)
       .pipe(takeUntil(this.destroy$))
@@ -256,25 +370,22 @@ export class TrainingComponent implements OnInit, OnDestroy {
             if (this.selectedTraining && this.selectedTraining.id === training.id) {
               this.selectedTraining.enrolled = true;
             }
-            console.log('Successfully enrolled in:', training.title);
+            console.log('✅ Successfully enrolled in:', training.title);
             alert('Successfully enrolled in the training!');
           }
         },
         error: (error: any) => {
-          console.error('Error enrolling in training:', error);
+          console.error('❌ Error enrolling in training:', error);
           this.error = 'Failed to enroll in training. Please try again.';
         }
       });
   }
 
   startTraining(training: Training): void {
-    console.log('Starting training:', training.title);
-    // Navigate to training player/viewer
-    // You can implement navigation to a detailed training viewer here
+    console.log('▶️ Starting training:', training.title);
     alert('Starting training: ' + training.title);
   }
 
-  // FIXED: Add handlers for wishlist and share
   toggleWishlist(trainingId: string): void {
     if (this.isInWishlist(trainingId)) {
       this.removeFromWishlist(trainingId);
@@ -291,7 +402,6 @@ export class TrainingComponent implements OnInit, OnDestroy {
         url: window.location.origin + `/trainings/${training.id}`
       }).catch(err => console.error('Share failed:', err));
     } else {
-      // Fallback: Copy link to clipboard or alert
       navigator.clipboard.writeText(window.location.origin + `/trainings/${training.id}`);
       alert(`Link copied to clipboard: ${training.title}`);
     }
@@ -382,14 +492,7 @@ export class TrainingComponent implements OnInit, OnDestroy {
     return pages;
   }
 
-  // Helper method to get video embed URL
   getVideoEmbedUrl(videoUrl: string): string {
     return this.trainingService.getVideoEmbedUrl(videoUrl);
-  }
-
-  // Helper method to check if video is accessible
-  isVideoAccessible(video: any): boolean {
-    if (!this.selectedTraining) return false;
-    return this.trainingService.isVideoAccessible(video, this.selectedTraining);
   }
 }

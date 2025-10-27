@@ -379,8 +379,7 @@
           </ul>
         </div>
 
-        <!-- Video Syllabus (UPDATED: Fallback to video_count; add loading) -->
-        <div class="section">
+         <div class="section">
           <h3><i class="fas fa-play-circle"></i> Course Videos ({{selectedTraining.videos?.length || selectedTraining.video_count || 0}})</h3>
           
           <!-- NEW: Video loading state -->
@@ -390,7 +389,11 @@
           </div>
           
           <div class="video-list" *ngIf="!showVideoLoading">
-            <div class="video-item" *ngFor="let video of selectedTraining.videos; let i = index">
+            
+            <div class="video-item" 
+                 *ngFor="let video of selectedTraining?.videos; let i = index"
+                 [class.clickable]="true"
+                 (click)="playVideo(video, i); $event.stopPropagation()">
               <div class="video-number">{{i + 1}}</div>
               <div class="video-info">
                 <h4>{{video.title}}</h4>
@@ -398,51 +401,20 @@
                   <i class="fas fa-clock"></i>
                   {{video.duration_minutes || 0}} mins
                 </span>
+                <div style="font-size: 11px; color: #6b7280; margin-top: 4px;">
+                  URL: {{video.video_url ? (video.video_url.substring(0, 40) + '...') : 'NO URL'}}
+                </div>
               </div>
               <div class="video-status">
                 <i class="fas fa-check-circle" *ngIf="video.completed" style="color: #10b981;"></i>
-                <i class="fas fa-play-circle" *ngIf="!video.completed" style="color: #6b7280;"></i>
-                <!-- FIXED: Accessibility indicator -->
-                <span *ngIf="!isVideoAccessible(video)" class="preview-badge" title="Preview only">Preview</span>
+                <button class="play-video-btn" 
+                        (click)="playVideo(video, i); $event.stopPropagation()"
+                        type="button">
+                  <i class="fas fa-play-circle"></i>
+                  Play
+                </button>
               </div>
             </div>
-            <!-- UPDATED: Fallback message if no videos -->
-            <div *ngIf="!(selectedTraining.videos && selectedTraining.videos.length > 0)" class="no-videos" 
-                 [ngClass]="{'count-only': (selectedTraining.video_count ?? 0) > 0}">
-              <p *ngIf="(selectedTraining?.video_count ?? 0) > 0">
-                {{selectedTraining.video_count ?? 0}} videos available. 
-                <a href="#" (click)="refreshTrainingVideos(selectedTraining.id); $event.preventDefault()">
-                  Refresh to load
-                </a>.
-              </p>
-              <p *ngIf="selectedTraining.video_count === 0">No videos available yet. Contact the provider for more details.</p>
-            </div>
-          </div>
-        </div>
-
-        <!-- Provider Info -->
-        <div class="section">
-          <h3><i class="fas fa-building"></i> Provider Information</h3>
-          <div class="provider-info">
-            <p><strong>Organization:</strong> {{selectedTraining.provider_name}}</p>
-            <p><strong>Certificate:</strong> 
-              <span *ngIf="selectedTraining.has_certificate" style="color: #10b981;">
-                <i class="fas fa-check"></i> Available upon completion
-              </span>
-              <span *ngIf="!selectedTraining.has_certificate" style="color: #6b7280;">
-                <i class="fas fa-times"></i> Not available
-              </span>
-            </p>
-            <p><strong>Mode:</strong> {{selectedTraining.mode}}</p>
-            <p><strong>Cost:</strong> 
-              <span [style.color]="selectedTraining.cost_type === 'Free' ? '#10b981' : '#f59e0b'">
-                {{formatPrice(selectedTraining)}}
-              </span>
-            </p>
-          </div>
-        </div>
-      </div>
-    </div>
     
     <div class="modal-footer">
       <button class="btn btn-outline" (click)="closeTrainingDetail()">
@@ -465,4 +437,89 @@
       </ng-template>
     </div>
   </div>
+
+  <div class="video-player-modal" *ngIf="showVideoPlayer" (click)="closeVideoPlayer()">
+  <div class="video-player-container" (click)="$event.stopPropagation()">
+    <div class="video-player-header">
+      <div class="video-player-title">
+        <h3>{{ currentVideo?.title }}</h3>
+        <span class="video-counter" *ngIf="selectedTraining.videos?.length">
+          Video {{ (currentVideoIndex || 0) + 1 }} of {{ selectedTraining.videos?.length }}
+        </span>
+      </div>
+      <button class="close-video-btn" (click)="closeVideoPlayer()">
+        <i class="fas fa-times"></i>
+      </button>
+    </div>
+
+    <div class="video-player-content">
+      <div class="video-wrapper">
+        <iframe 
+          *ngIf="safeVideoUrl"
+          [src]="safeVideoUrl" 
+          frameborder="0" 
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
+          allowfullscreen
+          class="video-iframe">
+        </iframe>
+        
+        <div *ngIf="!safeVideoUrl" class="video-error">
+          <i class="fas fa-exclamation-triangle"></i>
+          <p>Unable to load video</p>
+        </div>
+      </div>
+
+      <div class="video-controls">
+        <button 
+          class="video-nav-btn" 
+          [disabled]="currentVideoIndex === 0"
+          (click)="playPreviousVideo()">
+          <i class="fas fa-chevron-left"></i>
+          Previous
+        </button>
+        
+        <div class="video-info">
+          <span class="video-status-badge">{{ getVideoStatusBadge(currentVideo!) }}</span>
+          <span class="video-duration" *ngIf="currentVideo">
+            <i class="fas fa-clock"></i>
+            {{ currentVideo.duration_minutes || 0 }} mins
+          </span>
+        </div>
+        
+        <button 
+            class="video-nav-btn" 
+            [disabled]="!selectedTraining.videos || currentVideoIndex === ((selectedTraining.videos.length || 0) - 1)"
+            (click)="playNextVideo()">
+            Next
+            <i class="fas fa-chevron-right"></i>
+          </button>
+      </div>
+
+      <!-- Video Playlist Sidebar -->
+      <div class="video-playlist" *ngIf="(selectedTraining?.videos?.length || 0) > 1">
+        <h4>Course Videos</h4>
+        <div class="playlist-items">
+          <div 
+            class="playlist-item" 
+            *ngFor="let video of selectedTraining?.videos; let i = index"
+            [class.active]="i === currentVideoIndex"
+            [class.locked]="!isVideoAccessible(video)"
+            (click)="isVideoAccessible(video) ? playVideo(video, i) : null">
+            <div class="playlist-number">{{ i + 1 }}</div>
+            <div class="playlist-info">
+              <span class="playlist-title">{{ video.title }}</span>
+              <span class="playlist-duration">{{ video.duration_minutes || 0 }} mins</span>
+            </div>
+            <div class="playlist-status">
+              <i class="fas fa-check-circle" *ngIf="video.completed"></i>
+              <i class="fas fa-lock" *ngIf="!isVideoAccessible(video)"></i>
+              <i class="fas fa-play-circle" *ngIf="isVideoAccessible(video) && !video.completed"></i>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
 </div>
