@@ -127,15 +127,26 @@ export class TrainingComponent implements OnInit, OnDestroy {
     private http: HttpClient
   ) {}
 
-  ngOnInit(): void {
-    this.loadTrainings();
-    this.loadStats();
+   ngOnInit(): void {
+    console.log('🚀 Initializing Training Component...');
     
-    // Subscribe to service state
+    // CRITICAL FIX: Load employer ID from auth/storage
+    const userId = localStorage.getItem('userId');
+    if (userId) {
+      this.employerId = userId;
+      console.log('✅ Employer ID loaded:', this.employerId);
+    }
+    
+    // Subscribe to service state BEFORE loading
     this.trainingService.trainings$
       .pipe(takeUntil(this.destroy$))
       .subscribe(trainings => {
+        console.log('📦 Trainings received from service:', trainings?.length || 0);
         this.trainings = trainings || [];
+        
+        // CRITICAL: Recalculate stats every time trainings change
+        console.log('📊 Recalculating stats from trainings...');
+        this.calculateLocalStats();
       });
     
     this.trainingService.loading$
@@ -149,6 +160,10 @@ export class TrainingComponent implements OnInit, OnDestroy {
       .subscribe(error => {
         this.error = error;
       });
+    
+    // FIXED: Load trainings with enrollment stats, THEN load API stats
+    this.loadTrainings();
+    this.loadStats(); // FIXED: Load API stats on init to ensure consistency on refresh
   }
 
   ngOnDestroy(): void {
@@ -224,7 +239,7 @@ export class TrainingComponent implements OnInit, OnDestroy {
   // ================ DATA LOADING ================
 
   loadTrainings(): void {
-    this.trainingService.getMyTrainings(this.searchParams)
+    this.trainingService.getMyTrainings(this.searchParams, this.employerId) // FIXED: Pass employerId
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: (response) => {
@@ -932,4 +947,4 @@ loadStats(): void {
       this.selectedTrainingIds.clear();
     }
   }
-}
+} 

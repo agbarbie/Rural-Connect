@@ -495,4 +495,4 @@ export class TrainingComponent implements OnInit, OnDestroy {
   getVideoEmbedUrl(videoUrl: string): string {
     return this.trainingService.getVideoEmbedUrl(videoUrl);
   }
-}
+} 

@@ -333,14 +333,16 @@ export class TrainingService {
   /**
    * EMPLOYER: Get trainings created by the employer
    */
-  getMyTrainings(params: TrainingSearchParams = {}): Observable<PaginatedResponse<{ trainings: Training[] }>> {
+   getMyTrainings(params: TrainingSearchParams = {}, employerId?: string): Observable<PaginatedResponse<{ trainings: Training[] }>> { // FIXED: Accept employerId
     this.loadingSubject.next(true);
     
-    // ALWAYS include videos and outcomes for employer view
+    // CRITICAL: Always include videos, outcomes, AND enrollment stats
     const enhancedParams = {
       ...params,
       include_videos: true,
-      include_outcomes: true
+      include_outcomes: true,
+      include_enrollment_stats: true,  // NEW: Request enrollment statistics
+      employer_id: employerId // FIXED: Pass employerId as param
     };
     
     const httpParams = this.buildParams(enhancedParams);
@@ -360,11 +362,21 @@ export class TrainingService {
         console.log('Training count:', response.data?.trainings?.length || 0);
         
         if (response.success && response.data?.trainings) {
-          response.data.trainings = response.data.trainings.map(t => this.processTrainingData(t));
+          response.data.trainings = response.data.trainings.map(t => {
+            const processed = this.processTrainingData(t);
+            
+            // FIXED: Ensure enrollment count is preserved from backend
+            console.log(`Training "${processed.title}" enrollments:`, {
+              total_students: processed.total_students,
+              current_participants: processed.current_participants
+            });
+            
+            return processed;
+          });
           
           console.log('Processed trainings summary:');
           response.data.trainings.forEach(t => {
-            console.log(`- ${t.title}: ${t.videos?.length || t.video_count || 0} videos`);
+            console.log(`- ${t.title}: ${t.videos?.length || t.video_count || 0} videos, ${t.total_students || 0} enrollments`);
           });
         }
         
@@ -886,14 +898,17 @@ export class TrainingService {
   getTrainingStats(employerId: string): Observable<ApiResponse<TrainingStats>> {
     return this.http.get<ApiResponse<TrainingStats>>(
       `${this.TRAINING_ENDPOINT}/stats/overview`,
-      { headers: this.getAuthHeaders() }
+      { 
+        headers: this.getAuthHeaders(),
+        params: new HttpParams().set('employer_id', employerId) // FIXED: Pass employerId
+      }
     ).pipe(
       catchError(this.handleError.bind(this))
     );
   }
 
-  getTrainingEnrollments(id: string, params: any = {}, p0: { page: number; limit: number; }): Observable<ApiResponse<any>> {
-    const httpParams = this.buildParams(params);
+  getTrainingEnrollments(id: string, employerId: string, params: any = {}): Observable<ApiResponse<any>> { // FIXED: Accept employerId
+    const httpParams = this.buildParams({ ...params, employer_id: employerId }); // FIXED: Pass employerId
     
     return this.http.get<ApiResponse<any>>(
       `${this.TRAINING_ENDPOINT}/${id}/enrollments`,
@@ -906,8 +921,10 @@ export class TrainingService {
     );
   }
 
-  getTrainingAnalytics(id: string, timeRange: string = '30days', p0: string): Observable<ApiResponse<any>> {
-    const params = new HttpParams().set('range', timeRange);
+  getTrainingAnalytics(id: string, employerId: string, timeRange: string = '30days'): Observable<ApiResponse<any>> { // FIXED: Proper signature and pass employerId
+    const params = new HttpParams()
+      .set('range', timeRange)
+      .set('employer_id', employerId); // FIXED: Pass employerId
     
     return this.http.get<ApiResponse<any>>(
       `${this.TRAINING_ENDPOINT}/${id}/analytics`,
@@ -982,4 +999,3 @@ export class TrainingService {
     }
   }
 }
-

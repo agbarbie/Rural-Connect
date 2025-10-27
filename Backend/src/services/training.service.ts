@@ -793,9 +793,13 @@ async getPublishedTrainingsForJobseeker(userId: string, params: TrainingSearchPa
 
     const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
 
+    // CRITICAL FIX: Add enrollment count subquery
     const query = `
       SELECT 
         t.*,
+        (SELECT COUNT(*) FROM training_enrollments WHERE training_id = t.id) as enrollment_count,
+        COALESCE(t.total_students, 0) as total_students,
+        COALESCE(t.current_participants, 0) as current_participants,
         COUNT(*) OVER() as total_count
       FROM trainings t
       ${whereClause}
@@ -805,21 +809,27 @@ async getPublishedTrainingsForJobseeker(userId: string, params: TrainingSearchPa
 
     queryParams.push(limit, offset);
 
-    console.log('Adaptive query:', query);
-    console.log('Adaptive params:', queryParams);
+    console.log('📊 Adaptive query with enrollment counts:', query);
+    console.log('📊 Adaptive params:', queryParams);
 
     const result = await this.db.query(query, queryParams);
     const trainings = result.rows;
     const totalCount = trainings.length > 0 ? parseInt(trainings[0].total_count) : 0;
 
-    console.log('Found trainings:', trainings.length);
+    console.log('✅ Found trainings with enrollment data:', trainings.length);
+    trainings.forEach(t => {
+      console.log(`  - "${t.title}": ${t.enrollment_count} enrollments (total_students: ${t.total_students})`);
+    });
 
     return {
       trainings: trainings.map(row => ({
         ...this.mapTrainingFromDb(row),
         enrolled: false,
         progress: 0,
-        enrollment_status: undefined
+        enrollment_status: undefined,
+        // CRITICAL: Preserve enrollment counts
+        total_students: parseInt(row.enrollment_count || row.total_students || 0),
+        current_participants: parseInt(row.current_participants || row.enrollment_count || 0)
       })),
       pagination: {
         current_page: page,
@@ -1270,17 +1280,22 @@ async getTrainingStats(employerId: string): Promise<TrainingStatsResponse> {
     queryParams = [employerId, employerProfileId];
   }
 
-  // Get training stats
+  // FIXED: Use lateral join for accurate enrollment counts without relying on total_students column
   const statsQuery = `
     SELECT 
       COUNT(*) as total_trainings,
       COUNT(*) FILTER (WHERE status = 'published') as published_trainings,
       COUNT(*) FILTER (WHERE status = 'draft') as draft_trainings,
       COUNT(*) FILTER (WHERE status = 'suspended') as suspended_trainings,
-      COALESCE(SUM(total_students), 0) as total_enrollments,
-      COALESCE(AVG(rating), 0) as avg_rating,
-      COALESCE(SUM(CASE WHEN cost_type = 'Paid' THEN price * total_students ELSE 0 END), 0) as total_revenue
-    FROM trainings 
+      COALESCE(SUM(te_count.enrollment_count), 0) as total_enrollments,
+      COALESCE(AVG(t.rating), 0) as avg_rating,
+      COALESCE(SUM(CASE WHEN t.cost_type = 'Paid' THEN t.price * te_count.enrollment_count ELSE 0 END), 0) as total_revenue
+    FROM trainings t
+    LEFT JOIN LATERAL (
+      SELECT COUNT(*) as enrollment_count 
+      FROM training_enrollments te 
+      WHERE te.training_id = t.id
+    ) te_count ON true
     WHERE ${providerCondition}
   `;
 
@@ -1509,10 +1524,12 @@ async getTrainingStats(employerId: string): Promise<TrainingStatsResponse> {
 
       console.log('Enrollment created:', enrollmentResult.rows[0]);
 
-      // Update training participant count
+      // FIXED: Update both current_participants and total_students for consistency
       await client.query(`
         UPDATE trainings 
-        SET current_participants = COALESCE(current_participants, 0) + 1
+        SET 
+          current_participants = COALESCE(current_participants, 0) + 1,
+          total_students = COALESCE(total_students, 0) + 1
         WHERE id = $1
       `, [trainingId]);
 
@@ -1944,4 +1961,4 @@ async getTrainingStats(employerId: string): Promise<TrainingStatsResponse> {
       updated_at: row.updated_at
     };
   }
-}
+}  
