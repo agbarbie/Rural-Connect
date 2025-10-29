@@ -104,6 +104,72 @@
       </div>
     </div>
 
+    <!-- Notification Bell -->
+    <div class="notification-wrapper" *ngIf="!showAddForm">
+      <button class="notification-bell" (click)="toggleNotifications()">
+        <i class="fas fa-bell"></i>
+        <span class="notification-badge" *ngIf="unreadNotificationCount > 0">
+          {{ unreadNotificationCount }}
+        </span>
+      </button>
+      
+      <!-- Enrollment Notifications Dropdown -->
+      <div class="notification-dropdown" *ngIf="showNotifications">
+        <div class="notification-header">
+          <h3>Enrollment Updates</h3>
+          <button class="close-btn" (click)="toggleNotifications()">
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+        
+        <div class="notification-list">
+          <div class="notification-item" 
+               *ngFor="let notification of enrollmentNotifications"
+               [class]="'notification-' + notification.notification_type">
+            <div class="notification-icon" [style.color]="getNotificationColor(notification.notification_type)">
+              <i class="fas" [ngClass]="getNotificationIcon(notification.notification_type)"></i>
+            </div>
+            <div class="notification-content">
+              <p class="notification-message">
+                <strong>{{ notification.first_name }} {{ notification.last_name }}</strong>
+                <span *ngIf="notification.notification_type === 'new'"> enrolled in </span>
+                <span *ngIf="notification.notification_type === 'completed'"> completed </span>
+                <span *ngIf="notification.notification_type === 'in_progress'"> is learning </span>
+                <strong>{{ notification.training_title }}</strong>
+              </p>
+              <div class="notification-meta">
+                <span class="notification-time">{{ notification.enrolled_at | date:'short' }}</span>
+                <span class="notification-progress" *ngIf="notification.progress_percentage">
+                  Progress: {{ notification.progress_percentage }}%
+                </span>
+              </div>
+            </div>
+            
+            <!-- Issue Certificate Button -->
+            <button 
+              *ngIf="notification.notification_type === 'completed' && !notification.certificate_issued"
+              class="btn-issue-cert"
+              (click)="issueCertificate(notification.enrollment_id); $event.stopPropagation()">
+              <i class="fas fa-certificate"></i>
+              Issue Certificate
+            </button>
+            
+            <span 
+              *ngIf="notification.certificate_issued"
+              class="certificate-badge">
+              <i class="fas fa-check-circle"></i>
+              Certificate Issued
+            </span>
+          </div>
+          
+          <div class="no-notifications" *ngIf="enrollmentNotifications.length === 0">
+            <i class="fas fa-inbox"></i>
+            <p>No enrollment updates</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- Search and Filters -->
     <div class="search-filters" *ngIf="!showAddForm">
       <div class="search-box">
@@ -487,20 +553,60 @@
           <div class="training-status" [ngClass]="training.status">
             {{ getStatusText(training.status) }}
           </div>
+          <h3>{{ training.title }}</h3>
+          <span class="enrollment-count">
+            <i class="fas fa-users"></i>
+            {{ training.total_students || 0 }} enrolled
+          </span>
         </div>
 
         <div class="card-content">
-          <h3 class="training-title">{{ training.title }}</h3>
           <p class="training-description">{{ training.description }}</p>
+          
+          <!-- Videos Section -->
+          <div class="videos-section">
+          <div class="section-header">
+            <h4>
+              <i class="fas fa-video"></i>
+              Videos ({{ training.videos?.length || 0 }})
+            </h4>
+            <button class="btn-add-video" (click)="openVideoForm(training)">
+              <i class="fas fa-plus"></i>
+              Add Video
+            </button>
+          </div>
+          
+          <div class="video-list" *ngIf="(training.videos?.length || 0) > 0">
+            <div class="video-item" *ngFor="let video of training.videos">
+                <div class="video-info">
+                  <span class="video-order">{{ video.order_index + 1 }}.</span>
+                  <div class="video-details">
+                    <h5>{{ video.title }}</h5>
+                    <span class="video-duration">{{ video.duration_minutes }} min</span>
+                    <span class="video-preview-badge" *ngIf="video.is_preview">Preview</span>
+                  </div>
+                </div>
+                <div class="video-actions">
+                  <button class="btn-edit" (click)="openVideoForm(training, video)">
+                    <i class="fas fa-edit"></i>
+                  </button>
+                  <button class="btn-delete" (click)="deleteVideo(training.id!, video.id!)">
+                    <i class="fas fa-trash"></i>
+                  </button>
+                </div>
+              </div>
+            </div>
+            
+            <div class="empty-videos" *ngIf="!training.videos || training.videos.length === 0">
+              <i class="fas fa-video-slash"></i>
+              <p>No videos yet. Add your first video!</p>
+            </div>
+          </div>
           
           <div class="training-meta">
             <div class="meta-item">
               <i class="fas fa-clock"></i>
               <span>{{ formatDuration(training.duration_hours) }}</span>
-            </div>
-            <div class="meta-item">
-              <i class="fas fa-users"></i>
-              <span>{{ training.total_students }} enrolled</span>
             </div>
             <div class="meta-item">
               <i class="fas fa-star"></i>
@@ -731,4 +837,102 @@
       </div>
     </div>
   </div>
+
+  <!-- Video Form Modal -->
+  <div class="modal-overlay" *ngIf="showVideoForm" (click)="showVideoForm = false">
+    <div class="modal-content" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <h3>
+          <i class="fas fa-video"></i>
+          {{ editingVideoId ? 'Edit Video' : 'Add New Video' }}
+        </h3>
+        <button class="close-btn" (click)="showVideoForm = false">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+      
+      <div class="modal-body">
+        <form (ngSubmit)="saveVideo()">
+          <div class="form-group">
+            <label for="videoTitle">Video Title *</label>
+            <input 
+              type="text" 
+              id="videoTitle"
+              [(ngModel)]="newVideo.title"
+              name="videoTitle"
+              placeholder="Enter video title"
+              required>
+          </div>
+          
+          <div class="form-group">
+            <label for="videoUrl">Video URL *</label>
+            <input 
+              type="url" 
+              id="videoUrl"
+              [(ngModel)]="newVideo.video_url"
+              name="videoUrl"
+              placeholder="https://youtube.com/watch?v=..."
+              required>
+            <small>Supports YouTube and Vimeo URLs</small>
+          </div>
+          
+          <div class="form-row">
+            <div class="form-group">
+              <label for="videoDuration">Duration (minutes) *</label>
+              <input 
+                type="number" 
+                id="videoDuration"
+                [(ngModel)]="newVideo.duration_minutes"
+                name="videoDuration"
+                min="1"
+                placeholder="30"
+                required>
+            </div>
+            
+            <div class="form-group">
+              <label for="videoOrder">Order</label>
+              <input 
+                type="number" 
+                id="videoOrder"
+                [(ngModel)]="newVideo.order_index"
+                name="videoOrder"
+                min="0"
+                placeholder="0">
+            </div>
+          </div>
+          
+          <div class="form-group">
+            <label for="videoDescription">Description</label>
+            <textarea 
+              id="videoDescription"
+              [(ngModel)]="newVideo.description"
+              name="videoDescription"
+              rows="3"
+              placeholder="Brief description of video content"></textarea>
+          </div>
+          
+          <div class="form-group checkbox-group">
+            <label>
+              <input 
+                type="checkbox" 
+                [(ngModel)]="newVideo.is_preview"
+                name="isPreview">
+              <span>Allow as preview (visible to non-enrolled students)</span>
+            </label>
+          </div>
+          
+          <div class="form-actions">
+            <button type="button" class="btn-secondary" (click)="showVideoForm = false">
+              Cancel
+            </button>
+            <button type="submit" class="btn-primary">
+              <i class="fas fa-save"></i>
+              {{ editingVideoId ? 'Update Video' : 'Add Video' }}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
 </div>

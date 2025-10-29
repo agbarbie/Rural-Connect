@@ -186,6 +186,7 @@ app.use('/api/trainings', trainingRoutes);
 app.use('/api/cv', cvBuilderRoutes);
 app.use('/api/portfolio', portfolioRoutes);
 app.use('/api/profile', profileRoutes);
+app.use('/uploads/certificates', express.static(path.join(__dirname, '../uploads/certificates')));
 
 
 // Root route

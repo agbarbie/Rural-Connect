@@ -1,8 +1,8 @@
-import { Component, OnInit, OnDestroy } from '@angular/core';
+import { Component, OnInit, OnDestroy, ViewChild, ElementRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
-import { Subject, takeUntil } from 'rxjs';
+import { Subject, interval, takeUntil } from 'rxjs';
 import { 
   TrainingService, 
   Training, 
@@ -26,9 +26,13 @@ interface FilterOptions {
   styleUrls: ['./training.component.css']
 })
 export class TrainingComponent implements OnInit, OnDestroy {
+  @ViewChild('videoPlayer', { static: false }) videoPlayer!: ElementRef<HTMLIFrameElement>;
+  
   Math = Math;
   
   private destroy$ = new Subject<void>();
+  private progressInterval: any;
+  private videoStartTime: number = 0;
   
   trainings: Training[] = [];
   filteredTrainings: Training[] = [];
@@ -59,6 +63,15 @@ export class TrainingComponent implements OnInit, OnDestroy {
   currentVideo: TrainingVideo | null = null;
   currentVideoIndex: number = -1;
   safeVideoUrl: SafeResourceUrl | null = null;
+  
+  // Progress tracking
+  videoWatchTime: number = 0;
+  lastProgressUpdate: number = 0;
+  
+  // Notifications
+  notifications: any[] = [];
+  unreadNotificationCount: number = 0;
+  showNotifications: boolean = false;
   
   // Pagination
   currentPage: number = 1;
@@ -91,11 +104,52 @@ export class TrainingComponent implements OnInit, OnDestroy {
   ngOnInit(): void {
     this.loadTrainings();
     this.loadCategories();
+    this.loadNotifications();
+    
+    // Refresh notifications every 30 seconds
+    interval(30000)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe(() => this.loadNotifications());
   }
 
   ngOnDestroy(): void {
+    this.stopProgressTracking();
     this.destroy$.next();
     this.destroy$.complete();
+  }
+
+  // ============================================
+  // NOTIFICATIONS
+  // ============================================
+
+  loadNotifications(): void {
+    this.trainingService.getNotifications('', { read: false })
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (response) => {
+          if (response.success && response.data) {
+            this.notifications = response.data.notifications || [];
+            this.unreadNotificationCount = this.notifications.length;
+          }
+        },
+        error: (error) => {
+          console.error('❌ Error loading notifications:', error);
+        }
+      });
+  }
+
+  toggleNotifications(): void {
+    this.showNotifications = !this.showNotifications;
+  }
+
+  markNotificationAsRead(notificationId: string): void {
+    this.trainingService.markNotificationRead(notificationId)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: () => {
+          this.loadNotifications();
+        }
+      });
   }
 
   // ============================================
@@ -120,8 +174,15 @@ export class TrainingComponent implements OnInit, OnDestroy {
       return;
     }
 
+    // Save progress of previous video
+    if (this.currentVideo) {
+      this.saveVideoProgress(false);
+    }
+
     this.currentVideo = video;
     this.currentVideoIndex = index;
+    this.videoWatchTime = 0;
+    this.videoStartTime = Date.now();
     
     // Get embed URL and sanitize it
     const embedUrl = this.trainingService.getVideoEmbedUrl(video.video_url);
@@ -129,16 +190,26 @@ export class TrainingComponent implements OnInit, OnDestroy {
     
     this.safeVideoUrl = this.sanitizer.bypassSecurityTrustResourceUrl(embedUrl);
     this.showVideoPlayer = true;
+    
+    // Start progress tracking
+    this.startProgressTracking();
   }
 
   /**
    * ✅ NEW: Close video player
    */
   closeVideoPlayer(): void {
+    // Save progress before closing
+    if (this.currentVideo) {
+      this.saveVideoProgress(false);
+    }
+    
+    this.stopProgressTracking();
     this.showVideoPlayer = false;
     this.currentVideo = null;
     this.currentVideoIndex = -1;
     this.safeVideoUrl = null;
+    this.videoWatchTime = 0;
   }
 
   /**
@@ -187,6 +258,115 @@ export class TrainingComponent implements OnInit, OnDestroy {
     if (video.is_preview) return '🔓 Preview';
     if (!this.selectedTraining?.enrolled) return '🔒 Locked';
     return '';
+  }
+
+  // ============================================
+  // PROGRESS TRACKING
+  // ============================================
+
+  startProgressTracking(): void {
+    // Update progress every 10 seconds
+    this.progressInterval = setInterval(() => {
+      this.updateWatchTime();
+    }, 10000);
+  }
+
+  stopProgressTracking(): void {
+    if (this.progressInterval) {
+      clearInterval(this.progressInterval);
+      this.progressInterval = null;
+    }
+  }
+
+  updateWatchTime(): void {
+    if (!this.currentVideo) return;
+    
+    const now = Date.now();
+    const elapsed = Math.floor((now - this.videoStartTime) / 1000);
+    this.videoWatchTime = elapsed;
+    
+    // Save progress every 30 seconds
+    if (elapsed - this.lastProgressUpdate >= 30) {
+      this.saveVideoProgress(false);
+      this.lastProgressUpdate = elapsed;
+    }
+  }
+
+  markVideoComplete(): void {
+    if (!this.currentVideo) return;
+    
+    this.saveVideoProgress(true);
+    
+    // Show completion message
+    alert('Video marked as complete!');
+    
+    // Move to next video
+    if (this.currentVideoIndex < (this.selectedTraining?.videos?.length || 0) - 1) {
+      setTimeout(() => {
+        this.playNextVideo();
+      }, 1000);
+    }
+  }
+
+  saveVideoProgress(isCompleted: boolean): void {
+    if (!this.selectedTraining || !this.currentVideo) return;
+    
+    console.log('💾 Saving video progress:', {
+      training: this.selectedTraining.title,
+      video: this.currentVideo.title,
+      watchTime: this.videoWatchTime,
+      completed: isCompleted
+    });
+    
+    this.trainingService.updateVideoProgress(
+      this.selectedTraining.id,
+      this.currentVideo.id!,
+      this.videoWatchTime,
+      isCompleted
+    ).pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (response) => {
+          console.log('✅ Progress saved:', response);
+          
+          if (response.data) {
+            // Update training progress if selectedTraining is present
+            if (this.selectedTraining) {
+              this.selectedTraining.progress = response.data.overall_progress || 0;
+            } else {
+              console.warn('No selectedTraining to update progress on.');
+            }
+            
+            // Check if training completed
+            if (response.data.training_completed) {
+              alert('🎉 Congratulations! You completed the training!');
+              
+              // Check for certificate
+              if (response.data.certificate_issued) {
+                alert('🎓 Your certificate is ready for download!');
+                this.loadNotifications(); // Refresh to show certificate notification
+              }
+            }
+            
+            // Mark video as completed in the list
+            if (isCompleted && this.currentVideo) {
+              this.currentVideo.completed = true;
+            }
+          }
+        },
+        error: (error) => {
+          console.error('❌ Error saving progress:', error);
+        }
+      });
+  }
+
+  // ============================================
+  // CERTIFICATE DOWNLOAD
+  // ============================================
+
+  downloadCertificate(enrollmentId: string, trainingTitle: string): void {
+    console.log('📥 Downloading certificate for enrollment:', enrollmentId);
+    
+    this.trainingService.triggerCertificateDownload(enrollmentId, trainingTitle);
   }
 
   // ============================================
@@ -447,6 +627,13 @@ export class TrainingComponent implements OnInit, OnDestroy {
     return this.trainingService.formatDuration(duration_hours);
   }
 
+  formatDurationMinutes(minutes: number): string {
+    if (minutes < 60) return `${minutes} min`;
+    const hours = Math.floor(minutes / 60);
+    const mins = minutes % 60;
+    return `${hours}h ${mins}m`;
+  }
+
   formatPrice(training: Training): string {
     return this.trainingService.formatPrice(training.price, training.cost_type);
   }
@@ -495,4 +682,4 @@ export class TrainingComponent implements OnInit, OnDestroy {
   getVideoEmbedUrl(videoUrl: string): string {
     return this.trainingService.getVideoEmbedUrl(videoUrl);
   }
-} 
+}

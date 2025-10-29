@@ -4,20 +4,13 @@ import { AuthenticatedRequest } from '../middleware/auth.middleware';
 import pool from '../db/db.config';
 import { TrainingSearchParams } from '../types/training.type';
 import { ParsedQs } from 'qs';
+import path from 'path';
+import { ParamsDictionary } from 'express-serve-static-core';
 
 /**
  * Controller for handling training operations
  */
 export class TrainingController {
-  getTrainingVideoCount(req: Request, res: Response, next: NextFunction) {
-    throw new Error('Method not implemented.');
-  }
-  getTrainingVideos(req: Request, res: Response, next: NextFunction) {
-    throw new Error('Method not implemented.');
-  }
-  getPopularTrainings(req: Request, res: Response, next: NextFunction): void {
-    throw new Error('Method not implemented.');
-  }
   private trainingService: TrainingService;
 
   constructor(trainingService: TrainingService) {
@@ -30,117 +23,116 @@ export class TrainingController {
   /**
    * Get all trainings (public endpoint with optional auth)
    */
-async getAllTrainings(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
-  try {
-    const userId = req.user?.id;
-    const userType = req.user?.user_type;
+  async getAllTrainings(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const userId = req.user?.id;
+      const userType = req.user?.user_type;
 
-    // Build query based on user type
-    let whereClause = '';
-    let queryParams: any[] = [];
+      // Build query based on user type
+      let whereClause = '';
+      let queryParams: any[] = [];
 
-    if (userType === 'employer' && userId) {
-      // For employers, get their trainings (check both user_id and employer profile id)
-      const employerCheck = await pool.query(
-        'SELECT id FROM employers WHERE user_id = $1',
-        [userId]
-      );
+      if (userType === 'employer' && userId) {
+        // For employers, get their trainings (check both user_id and employer profile id)
+        const employerCheck = await pool.query(
+          'SELECT id FROM employers WHERE user_id = $1',
+          [userId]
+        );
 
-      if (employerCheck.rows.length > 0) {
-        const employerProfileId = employerCheck.rows[0].id;
-        whereClause = 'WHERE (t.provider_id = $1 OR t.provider_id = $2)';
-        queryParams = [userId, employerProfileId];
+        if (employerCheck.rows.length > 0) {
+          const employerProfileId = employerCheck.rows[0].id;
+          whereClause = 'WHERE (t.provider_id = $1 OR t.provider_id = $2)';
+          queryParams = [userId, employerProfileId];
+        } else {
+          whereClause = 'WHERE t.provider_id = $1';
+          queryParams = [userId];
+        }
       } else {
-        whereClause = 'WHERE t.provider_id = $1';
-        queryParams = [userId];
+        // For public/jobseeker, show only published trainings
+        whereClause = "WHERE t.status = 'published'";
       }
-    } else {
-      // For public/jobseeker, show only published trainings
-      whereClause = "WHERE t.status = 'published'";
+
+      const query = `
+        SELECT 
+          t.id,
+          t.title,
+          t.description,
+          t.category,
+          t.level,
+          t.duration_hours,
+          t.mode,
+          t.cost_type,
+          t.price,
+          t.start_date,
+          t.end_date,
+          t.max_participants,
+          t.current_participants,
+          t.thumbnail_url,
+          t.provider_name,
+          t.provider_id,
+          t.has_certificate,
+          t.status,
+          t.rating,
+          t.total_students,
+          t.location,
+          t.created_at,
+          t.updated_at,
+          COUNT(v.id) AS video_count,
+          COALESCE(json_agg(
+            json_build_object(
+              'id', v.id,
+              'title', v.title,
+              'description', v.description,
+              'video_url', v.video_url,
+              'duration_minutes', v.duration_minutes,
+              'order_index', v.order_index,
+              'is_preview', v.is_preview
+            ) ORDER BY v.order_index
+          ) FILTER (WHERE v.id IS NOT NULL), '[]') AS videos,
+          COALESCE(json_agg(
+            json_build_object(
+              'id', o.id,
+              'outcome_text', o.outcome_text,
+              'order_index', o.order_index
+            ) ORDER BY o.order_index
+          ) FILTER (WHERE o.id IS NOT NULL), '[]') AS outcomes
+        FROM trainings t
+        LEFT JOIN training_videos v ON v.training_id = t.id
+        LEFT JOIN training_outcomes o ON o.training_id = t.id
+        ${whereClause}
+        GROUP BY 
+          t.id, t.title, t.description, t.category, t.level, t.duration_hours, 
+          t.mode, t.cost_type, t.price, t.start_date, t.end_date, 
+          t.max_participants, t.current_participants, t.thumbnail_url, 
+          t.provider_name, t.provider_id, t.has_certificate, t.status,
+          t.rating, t.total_students, t.location, t.created_at, t.updated_at
+        ORDER BY t.created_at DESC;
+      `;
+
+      const result = await pool.query(query, queryParams);
+
+      // Format response to match frontend expectations
+      res.status(200).json({
+        success: true,
+        message: "Trainings retrieved successfully",
+        data: {
+          trainings: result.rows
+        },
+        pagination: {
+          current_page: 1,
+          total_pages: 1,
+          page_size: result.rows.length,
+          total_count: result.rows.length,
+          has_next: false,
+          has_previous: false
+        }
+      });
+
+    } catch (error) {
+      console.error('Error in getAllTrainings:', error);
+      next(error);
     }
-
-    const query = `
-      SELECT 
-        t.id,
-        t.title,
-        t.description,
-        t.category,
-        t.level,
-        t.duration_hours,
-        t.mode,
-        t.cost_type,
-        t.price,
-        t.start_date,
-        t.end_date,
-        t.max_participants,
-        t.current_participants,
-        t.thumbnail_url,
-        t.provider_name,
-        t.provider_id,
-        t.has_certificate,
-        t.status,
-        t.rating,
-        t.total_students,
-        t.location,
-        t.created_at,
-        t.updated_at,
-        COUNT(v.id) AS video_count,
-        COALESCE(json_agg(
-          json_build_object(
-            'id', v.id,
-            'title', v.title,
-            'description', v.description,
-            'video_url', v.video_url,
-            'duration_minutes', v.duration_minutes,
-            'order_index', v.order_index,
-            'is_preview', v.is_preview
-          ) ORDER BY v.order_index
-        ) FILTER (WHERE v.id IS NOT NULL), '[]') AS videos,
-        COALESCE(json_agg(
-          json_build_object(
-            'id', o.id,
-            'outcome_text', o.outcome_text,
-            'order_index', o.order_index
-          ) ORDER BY o.order_index
-        ) FILTER (WHERE o.id IS NOT NULL), '[]') AS outcomes
-      FROM trainings t
-      LEFT JOIN training_videos v ON v.training_id = t.id
-      LEFT JOIN training_outcomes o ON o.training_id = t.id
-      ${whereClause}
-      GROUP BY 
-        t.id, t.title, t.description, t.category, t.level, t.duration_hours, 
-        t.mode, t.cost_type, t.price, t.start_date, t.end_date, 
-        t.max_participants, t.current_participants, t.thumbnail_url, 
-        t.provider_name, t.provider_id, t.has_certificate, t.status,
-        t.rating, t.total_students, t.location, t.created_at, t.updated_at
-      ORDER BY t.created_at DESC;
-    `;
-
-    const result = await pool.query(query, queryParams);
-
-    // Format response to match frontend expectations
-    res.status(200).json({
-      success: true,
-      message: "Trainings retrieved successfully",
-      data: {
-        trainings: result.rows
-      },
-      pagination: {
-        current_page: 1,
-        total_pages: 1,
-        page_size: result.rows.length,
-        total_count: result.rows.length,
-        has_next: false,
-        has_previous: false
-      }
-    });
-
-  } catch (error) {
-    console.error('Error in getAllTrainings:', error);
-    next(error);
   }
-}
-
 
   /**
    * Get training categories (public endpoint)
@@ -153,6 +145,35 @@ async getAllTrainings(req: AuthenticatedRequest, res: Response, next: NextFuncti
         success: true,
         message: 'Training categories retrieved successfully',
         data: categories
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * Get popular trainings (public endpoint)
+   */
+  async getPopularTrainings(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const { limit = 10 } = req.query;
+      const query = `
+        SELECT 
+          t.*,
+          COUNT(e.id) as enrollment_count
+        FROM trainings t
+        LEFT JOIN training_enrollments e ON t.id = e.training_id
+        WHERE t.status = 'published'
+        GROUP BY t.id
+        ORDER BY enrollment_count DESC, t.rating DESC
+        LIMIT $1
+      `;
+      const result = await pool.query(query, [parseInt(limit as string)]);
+
+      res.status(200).json({
+        success: true,
+        message: 'Popular trainings retrieved successfully',
+        data: result.rows
       });
     } catch (error) {
       next(error);
@@ -285,9 +306,9 @@ async getAllTrainings(req: AuthenticatedRequest, res: Response, next: NextFuncti
         return;
       }
 
-      const deleted = await this.trainingService.deleteTraining(id, userId);
+      const deleted = await this.trainingService.deleteTraining(id, userId) as any;
 
-      if (!deleted) {
+      if (deleted === false) {
         res.status(404).json({
           success: false,
           message: 'Training not found or unauthorized'
@@ -649,276 +670,271 @@ async getAllTrainings(req: AuthenticatedRequest, res: Response, next: NextFuncti
   /**
    * Get training by ID (uses service for full details including videos)
    */
-
-  // FIXED: Replace your getTrainingById method in Training.controller.ts
-
   async getTrainingById(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
-  try {
-    const { id } = req.params;
-    const userId = req.user?.id || null;
-    const userType = req.user?.user_type;
+    try {
+      const { id } = req.params;
+      const userId = req.user?.id || null;
+      const userType = req.user?.user_type;
 
-    console.log('=== Getting Training By ID ===');
-    console.log('Training ID:', id);
-    console.log('User ID:', userId);
-    console.log('User Type:', userType);
+      console.log('=== Getting Training By ID ===');
+      console.log('Training ID:', id);
+      console.log('User ID:', userId);
+      console.log('User Type:', userType);
 
-    let training;
-    
-    if (!userId) {
-      // Public/unauthenticated - ONLY show published trainings
-      const query = `
-        SELECT 
-          t.*,
-          COUNT(v.id) as video_count,
-          COALESCE(json_agg(
-            json_build_object(
-              'id', v.id,
-              'title', v.title,
-              'description', v.description,
-              'video_url', v.video_url,
-              'duration_minutes', v.duration_minutes,
-              'order_index', v.order_index,
-              'is_preview', v.is_preview
-            ) ORDER BY v.order_index
-          ) FILTER (WHERE v.id IS NOT NULL AND v.is_preview = true), '[]') AS videos,
-          COALESCE(json_agg(
-            json_build_object(
-              'id', o.id,
-              'outcome_text', o.outcome_text,
-              'order_index', o.order_index
-            ) ORDER BY o.order_index
-          ) FILTER (WHERE o.id IS NOT NULL), '[]') AS outcomes
-        FROM trainings t
-        LEFT JOIN training_videos v ON v.training_id = t.id
-        LEFT JOIN training_outcomes o ON o.training_id = t.id
-        WHERE t.id = $1 AND t.status = 'published'
-        GROUP BY t.id
-      `;
+      let training;
       
-      const result = await pool.query(query, [id]);
-      training = result.rows[0] || null;
-      
-      if (training) {
-        training.enrolled = false;
-        training.can_enroll = true;
+      if (!userId) {
+        // Public/unauthenticated - ONLY show published trainings
+        const query = `
+          SELECT 
+            t.*,
+            COUNT(v.id) as video_count,
+            COALESCE(json_agg(
+              json_build_object(
+                'id', v.id,
+                'title', v.title,
+                'description', v.description,
+                'video_url', v.video_url,
+                'duration_minutes', v.duration_minutes,
+                'order_index', v.order_index,
+                'is_preview', v.is_preview
+              ) ORDER BY v.order_index
+            ) FILTER (WHERE v.id IS NOT NULL AND v.is_preview = true), '[]') AS videos,
+            COALESCE(json_agg(
+              json_build_object(
+                'id', o.id,
+                'outcome_text', o.outcome_text,
+                'order_index', o.order_index
+              ) ORDER BY o.order_index
+            ) FILTER (WHERE o.id IS NOT NULL), '[]') AS outcomes
+          FROM trainings t
+          LEFT JOIN training_videos v ON v.training_id = t.id
+          LEFT JOIN training_outcomes o ON o.training_id = t.id
+          WHERE t.id = $1 AND t.status = 'published'
+          GROUP BY t.id
+        `;
+        
+        const result = await pool.query(query, [id]);
+        training = result.rows[0] || null;
+        
+        if (training) {
+          training.enrolled = false;
+          training.can_enroll = true;
+        }
+        
+      } else if (userType === 'jobseeker') {
+        // FIXED: Jobseeker - Show published trainings with enrollment status
+        training = await this.trainingService.getTrainingWithDetailsForJobseeker(id, userId);
+        
+      } else if (userType === 'employer') {
+        // Employer - Check ownership and show ALL statuses (draft, published, suspended)
+        const employerProfileCheck = await pool.query(
+          'SELECT id FROM employers WHERE user_id = $1',
+          [userId]
+        );
+        
+        let whereClause = 't.id = $1';
+        let queryParams: any[] = [id];
+        
+        if (employerProfileCheck.rows.length > 0) {
+          const employerProfileId = employerProfileCheck.rows[0].id;
+          whereClause = 't.id = $1 AND (t.provider_id = $2 OR t.provider_id = $3)';
+          queryParams = [id, userId, employerProfileId];
+        } else {
+          whereClause = 't.id = $1 AND t.provider_id = $2';
+          queryParams = [id, userId];
+        }
+        
+        const query = `
+          SELECT 
+            t.*,
+            COUNT(v.id) as video_count,
+            COALESCE(json_agg(
+              json_build_object(
+                'id', v.id,
+                'title', v.title,
+                'description', v.description,
+                'video_url', v.video_url,
+                'duration_minutes', v.duration_minutes,
+                'order_index', v.order_index,
+                'is_preview', v.is_preview
+              ) ORDER BY v.order_index
+            ) FILTER (WHERE v.id IS NOT NULL), '[]') AS videos,
+            COALESCE(json_agg(
+              json_build_object(
+                'id', o.id,
+                'outcome_text', o.outcome_text,
+                'order_index', o.order_index
+              ) ORDER BY o.order_index
+            ) FILTER (WHERE o.id IS NOT NULL), '[]') AS outcomes
+          FROM trainings t
+          LEFT JOIN training_videos v ON v.training_id = t.id
+          LEFT JOIN training_outcomes o ON o.training_id = t.id
+          WHERE ${whereClause}
+          GROUP BY t.id
+        `;
+        
+        const result = await pool.query(query, queryParams);
+        training = result.rows[0] || null;
       }
-      
-    } else if (userType === 'jobseeker') {
-      // FIXED: Jobseeker - Show published trainings with enrollment status
-      const query = `
-        SELECT 
-          t.*,
-          CASE WHEN e.id IS NOT NULL THEN true ELSE false END as enrolled,
-          COALESCE(e.progress_percentage, 0) as progress,
-          e.status as enrollment_status,
-          e.id as enrollment_id,
-          COUNT(v.id) as video_count,
-          COALESCE(json_agg(
-            json_build_object(
-              'id', v.id,
-              'title', v.title,
-              'description', v.description,
-              'video_url', v.video_url,
-              'duration_minutes', v.duration_minutes,
-              'order_index', v.order_index,
-              'is_preview', v.is_preview,
-              'accessible', CASE 
-                WHEN e.id IS NOT NULL THEN true 
-                WHEN v.is_preview = true THEN true 
-                ELSE false 
-              END
-            ) ORDER BY v.order_index
-          ) FILTER (WHERE v.id IS NOT NULL), '[]') AS videos,
-          COALESCE(json_agg(
-            json_build_object(
-              'id', o.id,
-              'outcome_text', o.outcome_text,
-              'order_index', o.order_index
-            ) ORDER BY o.order_index
-          ) FILTER (WHERE o.id IS NOT NULL), '[]') AS outcomes
-        FROM trainings t
-        LEFT JOIN training_enrollments e ON t.id = e.training_id AND e.user_id = $2
-        LEFT JOIN training_videos v ON v.training_id = t.id
-        LEFT JOIN training_outcomes o ON o.training_id = t.id
-        WHERE t.id = $1 AND t.status = 'published'
-        GROUP BY t.id, e.id, e.progress_percentage, e.status
-      `;
-      
-      const result = await pool.query(query, [id, userId]);
-      training = result.rows[0] || null;
-      
-      if (training) {
-        training.can_enroll = !training.enrolled && training.status === 'published';
-      }
-      
-    } else if (userType === 'employer') {
-      // Employer - Check ownership and show ALL statuses (draft, published, suspended)
-      const employerProfileCheck = await pool.query(
-        'SELECT id FROM employers WHERE user_id = $1',
-        [userId]
-      );
-      
-      let whereClause = 't.id = $1';
-      let queryParams: any[] = [id];
-      
-      if (employerProfileCheck.rows.length > 0) {
-        const employerProfileId = employerProfileCheck.rows[0].id;
-        whereClause = 't.id = $1 AND (t.provider_id = $2 OR t.provider_id = $3)';
-        queryParams = [id, userId, employerProfileId];
-      } else {
-        whereClause = 't.id = $1 AND t.provider_id = $2';
-        queryParams = [id, userId];
-      }
-      
-      const query = `
-        SELECT 
-          t.*,
-          COUNT(v.id) as video_count,
-          COALESCE(json_agg(
-            json_build_object(
-              'id', v.id,
-              'title', v.title,
-              'description', v.description,
-              'video_url', v.video_url,
-              'duration_minutes', v.duration_minutes,
-              'order_index', v.order_index,
-              'is_preview', v.is_preview
-            ) ORDER BY v.order_index
-          ) FILTER (WHERE v.id IS NOT NULL), '[]') AS videos,
-          COALESCE(json_agg(
-            json_build_object(
-              'id', o.id,
-              'outcome_text', o.outcome_text,
-              'order_index', o.order_index
-            ) ORDER BY o.order_index
-          ) FILTER (WHERE o.id IS NOT NULL), '[]') AS outcomes
-        FROM trainings t
-        LEFT JOIN training_videos v ON v.training_id = t.id
-        LEFT JOIN training_outcomes o ON o.training_id = t.id
-        WHERE ${whereClause}
-        GROUP BY t.id
-      `;
-      
-      const result = await pool.query(query, queryParams);
-      training = result.rows[0] || null;
-    }
 
-    if (!training) {
-      console.log('Training not found or not accessible');
-      res.status(404).json({
-        success: false,
-        message: userType === 'employer' 
-          ? "Training not found or you don't have permission to view it"
-          : "Training not found or not published"
+      if (!training) {
+        console.log('Training not found or not accessible');
+        res.status(404).json({
+          success: false,
+          message: userType === 'employer' 
+            ? "Training not found or you don't have permission to view it"
+            : "Training not found or not published"
+        });
+        return;
+      }
+
+      console.log('Training found:', training.title);
+      console.log('Videos count:', training.videos?.length || training.video_count || 0);
+      console.log('Status:', training.status);
+      console.log('Enrolled:', training.enrolled || false);
+
+      res.status(200).json({
+        success: true,
+        message: "Training retrieved successfully",
+        data: training
       });
-      return;
+
+    } catch (error) {
+      console.error('Error in getTrainingById:', error);
+      next(error);
     }
-
-    console.log('Training found:', training.title);
-    console.log('Videos count:', training.videos?.length || training.video_count || 0);
-    console.log('Status:', training.status);
-    console.log('Enrolled:', training.enrolled || false);
-
-    res.status(200).json({
-      success: true,
-      message: "Training retrieved successfully",
-      data: training
-    });
-
-  } catch (error) {
-    console.error('Error in getTrainingById:', error);
-    next(error);
   }
-}
 
+  /**
+   * Get training videos count
+   */
+  async getTrainingVideoCount(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const { trainingId } = req.params;
+      const result = await pool.query(
+        'SELECT COUNT(*) as count FROM training_videos WHERE training_id = $1',
+        [trainingId]
+      );
+      res.status(200).json({
+        success: true,
+        data: { video_count: parseInt(result.rows[0].count) }
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * Get training videos
+   */
+  async getTrainingVideos(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const { trainingId } = req.params;
+      const result = await pool.query(
+        'SELECT * FROM training_videos WHERE training_id = $1 ORDER BY order_index',
+        [trainingId]
+      );
+      res.status(200).json({
+        success: true,
+        data: result.rows
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
 
   // ================ JOBSEEKER METHODS ================
-async getJobseekerTrainings(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
-  try {
-    const userId = req.user?.id;
 
-    if (!userId) {
-      res.status(401).json({
-        success: false,
-        message: 'Unauthorized: User ID not found'
+  async getJobseekerTrainings(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const userId = req.user?.id;
+
+      if (!userId) {
+        res.status(401).json({
+          success: false,
+          message: 'Unauthorized: User ID not found'
+        });
+        return;
+      }
+
+      if (req.user?.user_type !== 'jobseeker') {
+        res.status(403).json({
+          success: false,
+          message: 'Forbidden: Only jobseekers can access this endpoint'
+        });
+        return;
+      }
+
+      const params: TrainingSearchParams = {
+        page: Number(req.query.page) || 1,
+        limit: Math.min(Number(req.query.limit) || 10, 50),
+        sort_by: (req.query.sort_by as any) || 'created_at',
+        sort_order: (req.query.sort_order as 'asc' | 'desc') || 'desc',
+        filters: {
+          category: req.query.category as string,
+          level: (req.query.level as string[]) || undefined,
+          search: req.query.search as string,
+          status: (req.query.status as string[]) || undefined,
+          cost_type: (req.query.cost_type as string[]) || undefined,
+          mode: (req.query.mode as string[]) || undefined,
+          has_certificate: req.query.has_certificate ? req.query.has_certificate === 'true' : undefined
+        },
+        search: '',
+        cost_type: '',
+        level: '',
+        category: ''
+      };
+
+      // Use the method that actually gets trainings, not stats
+      const result = await this.trainingService.getPublishedTrainingsForJobseeker(userId, params);
+
+      res.status(200).json({
+        success: true,
+        message: 'Available trainings retrieved successfully',
+        data: result,
+        pagination: result.pagination
       });
-      return;
+    } catch (error) {
+      console.error('Error in getJobseekerTrainings:', error);
+      next(error);
     }
+  }
 
-    if (req.user?.user_type !== 'jobseeker') {
-      res.status(403).json({
-        success: false,
-        message: 'Forbidden: Only jobseekers can access this endpoint'
+  async getEnrolledTrainings(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      console.log('Getting enrolled trainings for user:', req.user?.id);
+      
+      const params: TrainingSearchParams = {
+        page: parseInt(req.query.page as string) || 1,
+        limit: parseInt(req.query.limit as string) || 12,
+        sort_by: ['created_at', 'title', 'rating', 'total_students', 'start_date'].includes(req.query.sort_by as string)
+          ? (req.query.sort_by as 'created_at' | 'title' | 'rating' | 'total_students' | 'start_date')
+          : 'created_at',
+        sort_order: (req.query.sort_order as 'asc' | 'desc') || 'desc',
+        search: '',
+        mode: '',
+        cost_type: '',
+        level: '',
+        category: ''
+      };
+
+      const result = await this.trainingService.getEnrolledTrainings(req.user!.id, params);
+
+      res.status(200).json({
+        success: true,
+        data: {
+          trainings: result.trainings
+        },
+        pagination: result.pagination,
+        message: 'Enrolled trainings retrieved successfully'
       });
-      return;
+
+    } catch (error: any) {
+      console.error('Error in getEnrolledTrainings:', error);
+      next(error);
     }
-
-    const params = {
-      page: Number(req.query.page) || 1,
-      limit: Math.min(Number(req.query.limit) || 10, 50),
-      sort_by: (req.query.sort_by as any) || 'created_at',
-      sort_order: (req.query.sort_order as 'asc' | 'desc') || 'desc',
-      // Move filters to top level to match TrainingSearchParams interface
-      category: req.query.category as string,
-      level: req.query.level as string,
-      search: req.query.search as string,
-      cost_type: req.query.cost_type as string,
-      mode: req.query.mode as string,
-      has_certificate: req.query.has_certificate ? req.query.has_certificate === 'true' : undefined,
-      status: req.query.status as string,
-      filters: {} // Keep empty filters object for compatibility
-    };
-
-    // Use the method that actually gets trainings, not stats
-    const result = await this.trainingService.getPublishedTrainingsForJobseeker(userId, params);
-
-    res.status(200).json({
-      success: true,
-      message: 'Available trainings retrieved successfully',
-      data: result,
-      pagination: result.pagination
-    });
-  } catch (error) {
-    console.error('Error in getJobseekerTrainings:', error);
-    next(error);
   }
-}
-
-async getEnrolledTrainings(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
-  try {
-    console.log('Getting enrolled trainings for user:', req.user?.id);
-    
-    const params: TrainingSearchParams = {
-      page: parseInt(req.query.page as string) || 1,
-      limit: parseInt(req.query.limit as string) || 12,
-      sort_by: ['created_at', 'title', 'rating', 'total_students', 'start_date'].includes(req.query.sort_by as string)
-        ? (req.query.sort_by as 'created_at' | 'title' | 'rating' | 'total_students' | 'start_date')
-        : 'created_at',
-      sort_order: (req.query.sort_order as 'asc' | 'desc') || 'desc',
-      search: '',
-      mode: '',
-      cost_type: '',
-      level: '',
-      category: ''
-    };
-
-    const result = await this.trainingService.getEnrolledTrainings(req.user!.id, params);
-
-    res.status(200).json({
-      success: true,
-      data: {
-        trainings: result.trainings
-      },
-      pagination: result.pagination,
-      message: 'Enrolled trainings retrieved successfully'
-    });
-
-  } catch (error: any) {
-    console.error('Error in getEnrolledTrainings:', error);
-    next(error);
-  }
-}
 
   /**
    * Get jobseeker training statistics
@@ -1235,6 +1251,322 @@ async getEnrolledTrainings(req: AuthenticatedRequest, res: Response, next: NextF
         success: true,
         message: 'Training review submitted successfully',
         data: review
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  // ============================================
+  // VIDEO MANAGEMENT (EMPLOYER)
+  // ============================================
+
+  async addVideoToTraining(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const { trainingId } = req.params;
+      const userId = req.user?.id;
+      const videoData = req.body;
+
+      if (!userId) {
+        res.status(401).json({ success: false, message: 'Unauthorized' });
+        return;
+      }
+
+      if (req.user?.user_type !== 'employer') {
+        res.status(403).json({ success: false, message: 'Forbidden' });
+        return;
+      }
+
+      const video = await this.trainingService.addVideoToTraining(trainingId, videoData, userId);
+
+      res.status(201).json({
+        success: true,
+        message: 'Video added successfully',
+        data: video
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async updateVideoInTraining(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const { trainingId, videoId } = req.params;
+      const userId = req.user?.id;
+      const videoData = req.body;
+
+      if (!userId) {
+        res.status(401).json({ success: false, message: 'Unauthorized' });
+        return;
+      }
+
+      if (req.user?.user_type !== 'employer') {
+        res.status(403).json({ success: false, message: 'Forbidden' });
+        return;
+      }
+
+      const video = await this.trainingService.updateTrainingVideo(trainingId, videoId, videoData, userId);
+
+      res.status(200).json({
+        success: true,
+        message: 'Video updated successfully',
+        data: video
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async deleteVideoFromTraining(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const { trainingId, videoId } = req.params;
+      const userId = req.user?.id;
+
+      if (!userId) {
+        res.status(401).json({ success: false, message: 'Unauthorized' });
+        return;
+      }
+
+      if (req.user?.user_type !== 'employer') {
+        res.status(403).json({ success: false, message: 'Forbidden' });
+        return;
+      }
+
+      const deleted = await this.trainingService.deleteTrainingVideo(trainingId, videoId, userId);
+
+      if (!deleted) {
+        res.status(404).json({ success: false, message: 'Video not found' });
+        return;
+      }
+
+      res.status(200).json({
+        success: true,
+        message: 'Video deleted successfully'
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  // ============================================
+  // VIDEO PROGRESS (JOBSEEKER)
+  // ============================================
+
+  async updateVideoProgress(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const { trainingId, videoId } = req.params;
+      const userId = req.user?.id;
+      const { watch_time_seconds, is_completed } = req.body;
+
+      console.log('🎥 Updating video progress:', {
+        trainingId,
+        videoId,
+        userId,
+        watch_time_seconds,
+        is_completed
+      });
+
+      if (!userId) {
+        res.status(401).json({ success: false, message: 'Unauthorized' });
+        return;
+      }
+
+      if (req.user?.user_type !== 'jobseeker') {
+        res.status(403).json({ success: false, message: 'Forbidden' });
+        return;
+      }
+
+      const result = await this.trainingService.updateVideoProgress(
+        trainingId,
+        userId,
+        videoId,
+        watch_time_seconds || 0,
+        is_completed || false
+      );
+
+      console.log('✅ Video progress updated:', result);
+
+      res.status(200).json({
+        success: true,
+        message: 'Progress updated successfully',
+        data: result
+      });
+    } catch (error) {
+      console.error('❌ Error updating video progress:', error);
+      next(error);
+    }
+  }
+
+  // ============================================
+  // NOTIFICATIONS (GENERAL)
+  // ============================================
+
+  async getNotifications(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const userId = req.user?.id;
+      if (!userId) {
+        res.status(401).json({ success: false, message: 'Unauthorized' });
+        return;
+      }
+      const page = parseInt(req.query.page as string) || 1;
+      const limit = parseInt(req.query.limit as string) || 10;
+
+      let read: boolean | undefined = undefined;
+      if (typeof req.query.read === 'string') {
+        const r = (req.query.read as string).toLowerCase();
+        if (r === 'true') read = true;
+        else if (r === 'false') read = false;
+      }
+
+      const params = { page, limit, read };
+      const notifications = await this.trainingService.getNotifications(userId, params);
+      res.status(200).json({ success: true, data: notifications });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async markNotificationRead(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const { id } = req.params;
+      const userId = req.user?.id;
+      if (!userId) {
+        res.status(401).json({ success: false, message: 'Unauthorized' });
+        return;
+      }
+      await this.trainingService.markNotificationRead(id, userId);
+      res.status(200).json({ success: true, message: 'Marked as read' });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  // ============================================
+  // ENROLLMENT NOTIFICATIONS (EMPLOYER)
+  // ============================================
+
+  async getEnrollmentNotifications(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const userId = req.user?.id;
+
+      if (!userId) {
+        res.status(401).json({ success: false, message: 'Unauthorized' });
+        return;
+      }
+
+      if (req.user?.user_type !== 'employer') {
+        res.status(403).json({ success: false, message: 'Forbidden' });
+        return;
+      }
+
+      const notifications = await this.trainingService.getEnrollmentNotifications(userId);
+
+      res.status(200).json({
+        success: true,
+        data: notifications
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  // ============================================
+  // CERTIFICATE MANAGEMENT
+  // ============================================
+
+  async downloadCertificate(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const { enrollmentId } = req.params;
+      const userId = req.user?.id;
+
+      if (!userId) {
+        res.status(401).json({ success: false, message: 'Unauthorized' });
+        return;
+      }
+
+      // Fetch enrollment and verify ownership
+      const enrollment = await pool.query(
+        'SELECT certificate_url FROM training_enrollments WHERE id = $1 AND user_id = $2 AND certificate_issued = true',
+        [enrollmentId, userId]
+      );
+      
+      if (enrollment.rows.length === 0) {
+        res.status(404).json({ success: false, message: 'Certificate not found' });
+        return;
+      }
+      
+      // Serve PDF file
+      const certPath = path.join(__dirname, `../../uploads/certificates/${enrollment.rows[0].certificate_url}`);
+      res.download(certPath, `certificate-${enrollmentId}.pdf`, (err) => {
+        if (err) next(err);
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async issueCertificate(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const { enrollmentId } = req.params;
+      const userId = req.user?.id;
+
+      if (!userId) {
+        res.status(401).json({ success: false, message: 'Unauthorized' });
+        return;
+      }
+
+      if (req.user?.user_type !== 'employer') {
+        res.status(403).json({ success: false, message: 'Forbidden' });
+        return;
+      }
+
+      // Get enrollment details
+      const enrollment = await pool.query(`
+        SELECT e.*, t.title, t.provider_id, u.id as user_id
+        FROM training_enrollments e
+        JOIN trainings t ON e.training_id = t.id
+        JOIN users u ON e.user_id = u.id
+        WHERE e.id = $1 AND t.provider_id = $2
+      `, [enrollmentId, userId]);
+
+      if (enrollment.rows.length === 0) {
+        res.status(404).json({ success: false, message: 'Enrollment not found' });
+        return;
+      }
+
+      const enrollmentData = enrollment.rows[0];
+
+      // Generate certificate
+      const certResult = await this.trainingService.generateCertificate(
+        enrollmentId,
+        enrollmentData.user_id,
+        enrollmentData.training_id,
+        enrollmentData.title
+      );
+
+      // Update enrollment
+      await pool.query(`
+        UPDATE training_enrollments
+        SET certificate_issued = true, certificate_url = $1, certificate_issued_at = CURRENT_TIMESTAMP
+        WHERE id = $2
+      `, [certResult.certificate_url, enrollmentId]);
+
+      // Create notification for jobseeker
+      await this.trainingService.createNotification(
+        enrollmentData.user_id,
+        'certificate_issued',
+        `Congratulations! You've earned a certificate for ${enrollmentData.title}`,
+        { 
+          training_id: enrollmentData.training_id, 
+          enrollment_id: enrollmentId, 
+          certificate_url: certResult.certificate_url 
+        }
+      );
+
+      res.status(200).json({
+        success: true,
+        message: 'Certificate issued successfully',
+        data: certResult
       });
     } catch (error) {
       next(error);

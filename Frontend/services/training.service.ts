@@ -31,6 +31,9 @@ export interface TrainingOutcome {
 
 // Main Training Interface (FIXED: Added video_count, video_urls, and videos for legacy backend compatibility)
 export interface Training {
+certificate_issued: any;
+enrollment_id: string;
+  completed: any;
   id: string;
   title: string;
   description: string;
@@ -104,6 +107,8 @@ export interface TrainingStats {
 }
 
 export interface ApiResponse<T> {
+  training_completed: any;
+  overall_progress: number | undefined;
   success: boolean;
   data?: T;
   message?: string;
@@ -141,9 +146,214 @@ export interface TrainingSearchParams {
   providedIn: 'root'
 })
 export class TrainingService {
-  markVideoComplete(id: any) {
-    throw new Error('Method not implemented.');
+  // ============================================
+  // VIDEO MANAGEMENT (EMPLOYER)
+  // ============================================
+
+  addVideoToTraining(trainingId: string, videoData: TrainingVideo, employerId?: string): Observable<ApiResponse<TrainingVideo>> {
+    return this.http.post<ApiResponse<TrainingVideo>>(
+      `${this.TRAINING_ENDPOINT}/${trainingId}/videos`,
+      { ...videoData, employer_id: employerId },
+      { headers: this.getAuthHeaders() }
+    ).pipe(
+      tap(response => console.log('✅ Video added:', response)),
+      catchError(this.handleError.bind(this))
+    );
   }
+
+  updateTrainingVideo(trainingId: string, videoId: string, videoData: TrainingVideo, employerId?: string): Observable<ApiResponse<TrainingVideo>> {
+    return this.http.put<ApiResponse<TrainingVideo>>(
+      `${this.TRAINING_ENDPOINT}/${trainingId}/videos/${videoId}`,
+      { ...videoData, employer_id: employerId },
+      { headers: this.getAuthHeaders() }
+    ).pipe(
+      tap(response => console.log('✅ Video updated:', response)),
+      catchError(this.handleError.bind(this))
+    );
+  }
+
+// In training.service.ts - Add to deleteTrainingVideo method
+deleteTrainingVideo(trainingId: string, videoId: string, employerId?: string): Observable<ApiResponse<void>> {
+  console.log('🗑️ Deleting video:', {
+    trainingId,
+    videoId,
+    employerId,
+    hasAuth: !!this.getAuthHeaders().get('Authorization')
+  });
+  
+  return this.http.delete<ApiResponse<void>>(
+    `${this.TRAINING_ENDPOINT}/${trainingId}/videos/${videoId}`,
+    { 
+      headers: this.getAuthHeaders(),
+      params: employerId ? new HttpParams().set('employer_id', employerId) : {}
+    }
+  ).pipe(
+    tap(response => console.log('✅ Video deleted:', response)),
+    catchError(this.handleError.bind(this))
+  );
+}
+
+  // ============================================
+  // VIDEO PROGRESS (JOBSEEKER)
+  // ============================================
+
+  updateVideoProgress(
+    trainingId: string, 
+    videoId: string, 
+    watchTimeSeconds: number, 
+    isCompleted: boolean,
+    userId?: string
+  ): Observable<ApiResponse<any>> {
+    console.log('🎥 Updating video progress:', {
+      trainingId,
+      videoId,
+      watchTimeSeconds,
+      isCompleted
+    });
+
+    return this.http.put<ApiResponse<any>>(
+      `${this.TRAINING_ENDPOINT}/${trainingId}/videos/${videoId}/progress`,
+      { 
+        watch_time_seconds: watchTimeSeconds, 
+        is_completed: isCompleted,
+        user_id: userId
+      },
+      { headers: this.getAuthHeaders() }
+    ).pipe(
+      tap(response => console.log('✅ Video progress updated:', response)),
+      catchError(this.handleError.bind(this))
+    );
+  }
+
+  markVideoComplete(videoId: string): Observable<ApiResponse<any>> {
+    return this.updateVideoProgress('', videoId, 0, true); // Simplified; adjust trainingId if needed
+  }
+
+  // ============================================
+  // NOTIFICATIONS (EMPLOYER)
+  // ============================================
+
+  getEnrollmentNotifications(employerId: string): Observable<ApiResponse<any[]>> {
+    return this.http.get<ApiResponse<any[]>>(
+      `${this.TRAINING_ENDPOINT}/employer/enrollment-notifications?employer_id=${employerId}`,
+      { headers: this.getAuthHeaders() }
+    ).pipe(
+      tap(response => console.log('🔔 Enrollment notifications:', response)),
+      catchError(this.handleError.bind(this))
+    );
+  }
+
+  // ============================================
+  // NOTIFICATIONS (JOBSEEKER/EMPLOYER)
+  // ============================================
+
+  getNotifications(employerId: string, params: { read?: boolean }): Observable<ApiResponse<any>> {
+    let httpParams = new HttpParams().set('employer_id', employerId);
+    if (params.read !== undefined) {
+      httpParams = httpParams.set('read', params.read.toString());
+    }
+
+    return this.http.get<ApiResponse<any>>(
+      `${this.TRAINING_ENDPOINT}/notifications`,
+      { 
+        headers: this.getAuthHeaders(),
+        params: httpParams
+      }
+    ).pipe(
+      tap(response => console.log('🔔 Notifications:', response)),
+      catchError(this.handleError.bind(this))
+    );
+  }
+
+  markNotificationRead(notificationId: string, employerId?: string): Observable<ApiResponse<void>> {
+    let httpParams = new HttpParams();
+    if (employerId) {
+      httpParams = httpParams.set('employer_id', employerId);
+    }
+
+    return this.http.put<ApiResponse<void>>(
+      `${this.TRAINING_ENDPOINT}/notifications/${notificationId}/read`,
+      {},
+      { 
+        headers: this.getAuthHeaders(),
+        params: httpParams
+      }
+    ).pipe(
+      tap(response => console.log('✅ Notification marked as read')),
+      catchError(this.handleError.bind(this))
+    );
+  }
+
+  // ============================================
+  // CERTIFICATES
+  // ============================================
+
+  issueCertificate(enrollmentId: string, employerId: string): Observable<ApiResponse<any>> {
+    return this.http.post<ApiResponse<any>>(
+      `${this.TRAINING_ENDPOINT}/enrollments/${enrollmentId}/issue-certificate`,
+      { employer_id: employerId },
+      { headers: this.getAuthHeaders() }
+    ).pipe(
+      tap(response => console.log('🎓 Certificate issued:', response)),
+      catchError(this.handleError.bind(this))
+    );
+  }
+
+  triggerCertificateDownload(enrollmentId: string, trainingTitle: string): void {
+    this.downloadCertificate(enrollmentId).subscribe({
+      next: (blob) => {
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `certificate-${trainingTitle.replace(/\s+/g, '-')}.pdf`;
+        link.click();
+        window.URL.revokeObjectURL(url);
+        console.log('✅ Certificate download triggered');
+      },
+      error: (error) => {
+        console.error('❌ Certificate download failed:', error);
+        alert('Failed to download certificate. Please try again.');
+      }
+    });
+  }
+
+  // ============================================
+  // OTHER STUBS (SIMPLE IMPLEMENTATIONS)
+  // ============================================
+
+  getTrainingWithDetailsForJobseeker(id: string, userId: string): Observable<ApiResponse<Training>> {
+    const params = new HttpParams()
+      .set('include_videos', 'true')
+      .set('include_outcomes', 'true')
+      .set('user_id', userId);
+    return this.http.get<ApiResponse<Training>>(
+      `${this.TRAINING_ENDPOINT}/${id}`,
+      { 
+        headers: this.getAuthHeaders(),
+        params 
+      }
+    ).pipe(
+      map(response => {
+        if (response.success && response.data) {
+          response.data = this.processTrainingData(response.data);
+        }
+        return response;
+      }),
+      catchError(this.handleError.bind(this))
+    );
+  }
+
+  enrollUserInTraining(id: string, userId: string): Observable<ApiResponse<any>> {
+    return this.http.post<ApiResponse<any>>(
+      `${this.TRAINING_ENDPOINT}/${id}/enroll`,
+      { user_id: userId },
+      { headers: this.getAuthHeaders() }
+    ).pipe(
+      tap(response => console.log('Enrollment response:', response)),
+      catchError(this.handleError.bind(this))
+    );
+  }
+
   private readonly API_BASE = environment.apiUrl;
   private readonly TRAINING_ENDPOINT = `${this.API_BASE}/trainings`;
   
@@ -174,7 +384,7 @@ export class TrainingService {
   }
 
   private handleError(error: any): Observable<never> {
-    console.error('Training service error:', error);
+    console.error('❌ Service error:', error);
     let errorMessage = 'An unexpected error occurred';
     
     if (error.error?.message) {
@@ -998,4 +1208,32 @@ export class TrainingService {
       default: return 'gray';
     }
   }
+
+  // In TrainingService class...
+
+saveVideoProgress(trainingId: string, videoId: string, watchTime: number, isCompleted: boolean): Observable<ApiResponse<any>> {
+  return this.http.put<ApiResponse<any>>(
+    `${this.TRAINING_ENDPOINT}/${trainingId}/progress`,
+    { video_id: videoId, watch_time_minutes: watchTime / 60, is_completed: isCompleted },
+    { headers: this.getAuthHeaders() }
+  ).pipe(catchError(this.handleError.bind(this)));
+}
+
+updateTrainingProgress(trainingId: string, progress: number): Observable<ApiResponse<any>> {
+  return this.http.put<ApiResponse<any>>(
+    `${this.TRAINING_ENDPOINT}/${trainingId}/progress`,
+    { progress_percentage: progress },
+    { headers: this.getAuthHeaders() }
+  ).pipe(catchError(this.handleError.bind(this)));
+}
+
+downloadCertificate(enrollmentId: string): Observable<Blob> {
+  return this.http.get(`${this.TRAINING_ENDPOINT}/enrollments/${enrollmentId}/certificate`, {
+    responseType: 'blob',
+    headers: this.getAuthHeaders()
+  }).pipe(
+    tap(() => console.log('📥 Certificate downloaded')),
+    catchError(this.handleError.bind(this))
+  );
+}
 }

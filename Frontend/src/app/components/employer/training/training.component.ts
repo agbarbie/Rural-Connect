@@ -2,7 +2,7 @@ import { Component, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
-import { Subject } from 'rxjs';
+import { Subject, interval } from 'rxjs';
 import { takeUntil } from 'rxjs/operators';
 import { 
   TrainingService, 
@@ -103,6 +103,7 @@ export class TrainingComponent implements OnInit, OnDestroy {
   
   // Video form
   showVideoForm: boolean = false;
+  editingVideoId: string | null = null;
   newVideo: TrainingVideo = {
     title: '',
     description: '',
@@ -121,6 +122,11 @@ export class TrainingComponent implements OnInit, OnDestroy {
     outcome_text: '',
     order_index: 0
   };
+
+  // Notifications
+  enrollmentNotifications: any[] = [];
+  unreadNotificationCount: number = 0;
+  showNotifications: boolean = false;
 
   constructor(
     private trainingService: TrainingService,
@@ -164,6 +170,13 @@ export class TrainingComponent implements OnInit, OnDestroy {
     // FIXED: Load trainings with enrollment stats, THEN load API stats
     this.loadTrainings();
     this.loadStats(); // FIXED: Load API stats on init to ensure consistency on refresh
+
+    this.loadNotifications();
+    
+    // Refresh notifications every 30 seconds
+    interval(30000)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe(() => this.loadNotifications());
   }
 
   ngOnDestroy(): void {
@@ -328,6 +341,50 @@ loadStats(): void {
     }));
   }
 
+  // ============================================
+  // NOTIFICATIONS
+  // ============================================
+
+  loadNotifications(): void {
+    this.trainingService.getEnrollmentNotifications(this.employerId)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (response) => {
+          if (response.success && response.data) {
+            this.enrollmentNotifications = response.data;
+            this.unreadNotificationCount = response.data.filter(
+              (n: any) => n.notification_type === 'new' || n.notification_type === 'completed'
+            ).length;
+          }
+        },
+        error: (error) => {
+          console.error('❌ Error loading notifications:', error);
+        }
+      });
+  }
+
+  toggleNotifications(): void {
+    this.showNotifications = !this.showNotifications;
+  }
+
+  getNotificationIcon(type: string): string {
+    switch (type) {
+      case 'new': return 'fa-user-plus';
+      case 'completed': return 'fa-check-circle';
+      case 'in_progress': return 'fa-spinner';
+      default: return 'fa-info-circle';
+    }
+  }
+
+  getNotificationColor(type: string): string {
+    switch (type) {
+      case 'new': return 'blue';
+      case 'completed': return 'green';
+      case 'in_progress': return 'orange';
+      default: return 'gray';
+    }
+  }
+
   // ================ SEARCH AND FILTERING ================
 
   onSearch(searchTerm: string): void {
@@ -487,6 +544,86 @@ loadStats(): void {
     this.newTraining.videos.forEach((video, i) => {
       video.order_index = i;
     });
+  }
+
+  openVideoForm(training: Training, video?: TrainingVideo): void {
+    this.selectedTraining = training;
+    
+    if (video) {
+      this.editingVideoId = video.id || null;
+      this.newVideo = { ...video };
+    } else {
+      this.resetVideoForm();
+      this.newVideo.order_index = training.videos?.length || 0;
+    }
+    
+    this.showVideoForm = true;
+  }
+
+  saveVideo(): void {
+    if (!this.selectedTraining || !this.newVideo.title || !this.newVideo.video_url) {
+      alert('Please fill in all required fields');
+      return;
+    }
+
+    if (this.editingVideoId) {
+      // Update existing video
+      this.trainingService.updateTrainingVideo(
+        this.selectedTraining.id,
+        this.editingVideoId,
+        this.newVideo,
+        this.employerId
+      ).pipe(takeUntil(this.destroy$))
+        .subscribe({
+          next: (response) => {
+            if (response.success) {
+              alert('Video updated successfully');
+              this.showVideoForm = false;
+              this.loadTrainings();
+            }
+          },
+          error: (error) => {
+            alert('Failed to update video: ' + error.message);
+          }
+        });
+    } else {
+      // Add new video
+      this.trainingService.addVideoToTraining(
+        this.selectedTraining.id,
+        this.newVideo,
+        this.employerId
+      ).pipe(takeUntil(this.destroy$))
+        .subscribe({
+          next: (response) => {
+            if (response.success) {
+              alert('Video added successfully');
+              this.showVideoForm = false;
+              this.loadTrainings();
+            }
+          },
+          error: (error) => {
+            alert('Failed to add video: ' + error.message);
+          }
+        });
+    }
+  }
+
+  deleteVideo(trainingId: string, videoId: string): void {
+    if (confirm('Are you sure you want to delete this video?')) {
+      this.trainingService.deleteTrainingVideo(trainingId, videoId, this.employerId)
+        .pipe(takeUntil(this.destroy$))
+        .subscribe({
+          next: (response) => {
+            if (response.success) {
+              alert('Video deleted successfully');
+              this.loadTrainings();
+            }
+          },
+          error: (error) => {
+            alert('Failed to delete video: ' + error.message);
+          }
+        });
+    }
   }
 
   // ================ OUTCOME MANAGEMENT ================
@@ -748,6 +885,28 @@ loadStats(): void {
       });
   }
 
+  // ============================================
+  // CERTIFICATE MANAGEMENT
+  // ============================================
+
+  issueCertificate(enrollmentId: string): void {
+    if (confirm('Issue certificate for this enrollment?')) {
+      this.trainingService.issueCertificate(enrollmentId, this.employerId)
+        .pipe(takeUntil(this.destroy$))
+        .subscribe({
+          next: (response) => {
+            if (response.success) {
+              alert('Certificate issued successfully');
+              this.loadNotifications();
+            }
+          },
+          error: (error) => {
+            alert('Failed to issue certificate: ' + error.message);
+          }
+        });
+    }
+  }
+
   // ================ FORM VALIDATION ================
 
   isFormValid(): boolean {
@@ -947,4 +1106,4 @@ loadStats(): void {
       this.selectedTrainingIds.clear();
     }
   }
-} 
+}
