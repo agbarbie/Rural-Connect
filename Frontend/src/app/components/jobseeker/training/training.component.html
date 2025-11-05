@@ -82,50 +82,109 @@
     </div>
   </div>
 
-  <!-- Notification Bell -->
+  <!-- Enhanced Notification Dropdown -->
   <div class="notification-wrapper">
     <button class="notification-bell" (click)="toggleNotifications()">
-      <i class="fas fa-bell"></i>
+      <i class="fas fa-bell" [class.ringing]="unreadNotificationCount > 0"></i>
       <span class="notification-badge" *ngIf="unreadNotificationCount > 0">
         {{ unreadNotificationCount }}
       </span>
     </button>
-    
-    <!-- Notification Dropdown -->
+ 
+    <!-- Enhanced Notification Dropdown -->
     <div class="notification-dropdown" *ngIf="showNotifications">
       <div class="notification-header">
-        <h3>Notifications</h3>
+        <h3>
+          <i class="fas fa-bell"></i>
+          Notifications
+          <span class="unread-count" *ngIf="unreadNotificationCount > 0">
+            ({{ unreadNotificationCount }} new)
+          </span>
+        </h3>
         <button class="close-btn" (click)="toggleNotifications()">
           <i class="fas fa-times"></i>
         </button>
       </div>
-      
+     
       <div class="notification-list">
-        <div class="notification-item" 
+        <!-- Certificate Notification -->
+        <div class="notification-item certificate-notification"
              *ngFor="let notification of notifications"
-             (click)="markNotificationAsRead(notification.id)">
-          <div class="notification-icon">
-            <i class="fas fa-bell" [style.color]="notification.type === 'certificate_issued' ? 'gold' : 'blue'"></i>
+             [class.unread]="!notification.read"
+             (click)="handleNotificationClick(notification)">
+         
+          <!-- Notification Icon -->
+          <div class="notification-icon" [ngClass]="getNotificationIconClass(notification.type)">
+            <i class="fas" [ngClass]="getNotificationIcon(notification.type)"></i>
           </div>
+         
+          <!-- Notification Content -->
           <div class="notification-content">
+            <h4 class="notification-title">{{ notification.title || getNotificationTitle(notification.type) }}</h4>
             <p class="notification-message">{{ notification.message }}</p>
-            <span class="notification-time">{{ notification.created_at | date:'short' }}</span>
+            <span class="notification-time">
+              <i class="fas fa-clock"></i>
+              {{ notification.created_at | date:'short' }}
+            </span>
           </div>
-          
-          <!-- Certificate Download Button -->
-          <button 
-            *ngIf="notification.type === 'certificate_issued'"
-            class="btn-download-cert"
-            (click)="downloadCertificate(notification.metadata.enrollment_id, 'training'); $event.stopPropagation()">
-            <i class="fas fa-download"></i>
-            Download
-          </button>
+         
+          <!-- Notification Actions -->
+          <div class="notification-actions">
+            <!-- Certificate Download -->
+            <button
+              *ngIf="notification.type === 'certificate_issued'"
+              class="btn-notification-action btn-download"
+              (click)="downloadCertificate(notification.metadata?.enrollment_id, notification.metadata?.training_title); $event.stopPropagation()"
+              title="Download Certificate">
+              <i class="fas fa-download"></i>
+              Download
+            </button>
+           
+            <!-- View Training (for new training notifications) -->
+            <button
+              *ngIf="notification.type === 'new_training' && notification.metadata?.training_id"
+              class="btn-notification-action btn-view"
+              (click)="viewTrainingFromNotification(notification.metadata.training_id); $event.stopPropagation()"
+              title="View Training">
+              <i class="fas fa-eye"></i>
+              View
+            </button>
+           
+            <!-- Resume Training (for update notifications) -->
+            <button
+              *ngIf="(notification.type === 'training_updated' || notification.type === 'video_added') && notification.metadata?.training_id"
+              class="btn-notification-action btn-resume"
+              (click)="viewTrainingFromNotification(notification.metadata.training_id); $event.stopPropagation()"
+              title="Resume Training">
+              <i class="fas fa-play"></i>
+              Resume
+            </button>
+           
+            <!-- Mark as Read -->
+            <button
+              *ngIf="!notification.read"
+              class="btn-notification-action btn-mark-read"
+              (click)="markNotificationAsRead(notification.id); $event.stopPropagation()"
+              title="Mark as Read">
+              <i class="fas fa-check"></i>
+            </button>
+          </div>
         </div>
-        
+       
+        <!-- Empty State -->
         <div class="no-notifications" *ngIf="notifications.length === 0">
           <i class="fas fa-inbox"></i>
           <p>No new notifications</p>
+          <small>You'll be notified about training updates</small>
         </div>
+      </div>
+     
+      <!-- Notification Footer -->
+      <div class="notification-footer" *ngIf="notifications.length > 0">
+        <button class="btn-view-all" (click)="viewAllNotifications()">
+          <i class="fas fa-list"></i>
+          View All Notifications
+        </button>
       </div>
     </div>
   </div>

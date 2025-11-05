@@ -50,20 +50,14 @@ router.get('/browse', optionalAuth, (req, res, next) => {
   trainingController.getAllTrainings(req, res, next);
 });
 
-// General get all and get by id with optional auth
-router.get('/', optionalAuth, (req, res, next) => trainingController.getAllTrainings(req, res, next));
-router.get('/:id', optionalAuth, (req, res, next) => trainingController.getTrainingById(req, res, next));
-
-// Shared routes with optional auth
-router.get('/:id/reviews', optionalAuth, (req, res, next) => trainingController.getTrainingReviews(req, res, next));
-router.get('/:id/videos', optionalAuth, (req, res, next) => trainingController.getTrainingVideos(req, res, next));
-router.get('/:id/video-count', optionalAuth, (req, res, next) => trainingController.getTrainingVideoCount(req, res, next));
-
+// ==============================================
+// CRITICAL: AUTHENTICATED ROUTES BEFORE WILDCARD
 // Apply authentication to all subsequent routes
+// ==============================================
 router.use(authenticateToken);
 
 // ==============================================
-// JOBSEEKER ROUTES
+// JOBSEEKER ROUTES (BEFORE WILDCARD :id ROUTES)
 // ==============================================
 router.get('/jobseeker/available', requireJobseeker, (req, res, next) => {
   req.query.status = 'published';
@@ -82,52 +76,8 @@ router.get('/jobseeker/recommendations', requireJobseeker, (req, res, next) =>
   trainingController.getRecommendedTrainings(req, res, next)
 );
 
-// Enrollment
-router.post('/:trainingId/enroll', requireJobseeker, (req, res, next) =>
-  trainingController.enrollInTraining(req, res, next)
-);
-router.delete('/:trainingId/enroll', requireJobseeker, (req, res, next) =>
-  trainingController.unenrollFromTraining(req, res, next)
-);
-
-// Progress tracking
-router.get('/:trainingId/progress', requireJobseeker, (req, res, next) =>
-  trainingController.getTrainingProgress(req, res, next)
-);
-router.put('/:trainingId/progress', requireJobseeker, (req, res, next) =>
-  trainingController.updateTrainingProgress(req, res, next)
-);
-
-// Video progress
-router.put('/:trainingId/videos/:videoId/progress', requireJobseeker, (req, res, next) => {
-  console.log('🎥 Route: PUT /trainings/:trainingId/videos/:videoId/progress');
-  trainingController.updateVideoProgress(req, res, next);
-});
-
-// Reviews
-router.post('/:trainingId/review', requireJobseeker, (req, res, next) =>
-  trainingController.submitTrainingReview(req, res, next)
-);
-
-// Jobseeker notifications
-router.get('/notifications', requireJobseeker, (req, res, next) => {
-  console.log('🔔 Route: GET /trainings/notifications');
-  trainingController.getNotifications(req, res, next);
-});
-
-router.put('/notifications/:id/read', requireJobseeker, (req, res, next) => {
-  console.log('🔔 Route: PUT /trainings/notifications/:id/read');
-  trainingController.markNotificationRead(req, res, next);
-});
-
-// Certificate download
-router.get('/enrollments/:enrollmentId/certificate', requireJobseeker, (req, res, next) => {
-  console.log('🎓 Route: GET /trainings/enrollments/:enrollmentId/certificate');
-  trainingController.downloadCertificate(req, res, next);
-});
-
 // ==============================================
-// EMPLOYER ROUTES
+// EMPLOYER ROUTES (BEFORE WILDCARD :id ROUTES)
 // ==============================================
 router.get('/employer/my-trainings', requireEmployer, (req, res, next) =>
   trainingController.getAllTrainings(req, res, next)
@@ -141,14 +91,39 @@ router.get('/stats/overview', requireEmployer, (req, res, next) =>
   trainingController.getTrainingStats(req, res, next)
 );
 
-// Employer notifications
 router.get('/employer/enrollment-notifications', requireEmployer, (req, res, next) => {
   console.log('🔔 Route: GET /trainings/employer/enrollment-notifications');
   trainingController.getEnrollmentNotifications(req, res, next);
 });
 
 // ==============================================
-// TRAINING CRUD (EMPLOYER ONLY)
+// NOTIFICATIONS ROUTES (BEFORE WILDCARD)
+// ==============================================
+router.get('/notifications', (req, res, next) => {
+  console.log('🔔 Route: GET /trainings/notifications (JOBSEEKER)');
+  trainingController.getNotifications(req, res, next);
+});
+
+router.put('/notifications/:id/read', (req, res, next) => {
+  console.log('🔔 Route: PUT /trainings/notifications/:id/read');
+  trainingController.markNotificationRead(req, res, next);
+});
+
+// ==============================================
+// ENROLLMENT ROUTES (BEFORE WILDCARD)
+// ==============================================
+router.post('/enrollments/:enrollmentId/issue-certificate', requireEmployer, (req, res, next) => {
+  console.log('🎓 Route: POST /trainings/enrollments/:enrollmentId/issue-certificate');
+  trainingController.issueCertificate(req, res, next);
+});
+
+router.get('/enrollments/:enrollmentId/certificate', requireJobseeker, (req, res, next) => {
+  console.log('🎓 Route: GET /trainings/enrollments/:enrollmentId/certificate');
+  trainingController.downloadCertificate(req, res, next);
+});
+
+// ==============================================
+// TRAINING CRUD (EMPLOYER ONLY) - SPECIFIC ROUTES FIRST
 // ==============================================
 router.post('/', requireEmployer, (req, res, next) => {
   const { title, description, category, level } = req.body;
@@ -162,19 +137,20 @@ router.post('/', requireEmployer, (req, res, next) => {
   trainingController.createTraining(req, res, next);
 });
 
-// DELETE VIDEO - Add explicit employerId extraction
-router.delete('/:trainingId/videos/:videoId', requireEmployer, (req: AuthenticatedRequest, res: any, next: any) => {
-  console.log('🗑️ DELETE video request:', {
-    trainingId: req.params.trainingId,
-    videoId: req.params.videoId,
-    userId: req.user?.id,
-    queryParams: req.query
-  });
-  
-  trainingController.deleteVideoFromTraining(req, res, next);
-});
+// ==============================================
+// GENERAL ROUTES WITH OPTIONAL AUTH
+// ==============================================
+router.get('/', optionalAuth, (req, res, next) => trainingController.getAllTrainings(req, res, next));
 
-// UPDATE VIDEO
+// ==============================================
+// WILDCARD :id ROUTES (MUST BE LAST)
+// ==============================================
+
+// Video routes for specific training
+router.post('/:trainingId/videos', requireEmployer, (req, res, next) => 
+  trainingController.addVideoToTraining(req, res, next)
+);
+
 router.put('/:trainingId/videos/:videoId', requireEmployer, (req: AuthenticatedRequest, res: any, next: any) => {
   console.log('✏️ UPDATE video request:', {
     trainingId: req.params.trainingId,
@@ -182,49 +158,99 @@ router.put('/:trainingId/videos/:videoId', requireEmployer, (req: AuthenticatedR
     userId: req.user?.id,
     body: req.body
   });
-  
   trainingController.updateVideoInTraining(req, res, next);
 });
 
-// ==============================================
-// TRAINING STATUS MANAGEMENT (EMPLOYER)
-// ==============================================
+router.delete('/:trainingId/videos/:videoId', requireEmployer, (req: AuthenticatedRequest, res: any, next: any) => {
+  console.log('🗑️ DELETE video request:', {
+    trainingId: req.params.trainingId,
+    videoId: req.params.videoId,
+    userId: req.user?.id,
+    queryParams: req.query
+  });
+  trainingController.deleteVideoFromTraining(req, res, next);
+});
+
+// Video progress (jobseeker) - MUST come before other video routes
+router.put('/:trainingId/videos/:videoId/progress', requireJobseeker, (req: AuthenticatedRequest, res: any, next: any) => {
+  console.log('🎥 Route: PUT /trainings/:trainingId/videos/:videoId/progress');
+  console.log('Request params:', req.params);
+  console.log('Request body:', req.body);
+  console.log('User ID:', req.user?.id);
+  trainingController.updateVideoProgress(req, res, next);
+});
+
+// Enrollment operations
+router.post('/:trainingId/enroll', requireJobseeker, (req, res, next) =>
+  trainingController.enrollInTraining(req, res, next)
+);
+
+router.delete('/:trainingId/enroll', requireJobseeker, (req, res, next) =>
+  trainingController.unenrollFromTraining(req, res, next)
+);
+
+// Progress tracking
+router.get('/:trainingId/progress', requireJobseeker, (req, res, next) =>
+  trainingController.getTrainingProgress(req, res, next)
+);
+
+router.put('/:trainingId/progress', requireJobseeker, (req, res, next) =>
+  trainingController.updateTrainingProgress(req, res, next)
+);
+
+// Reviews
+router.post('/:trainingId/review', requireJobseeker, (req, res, next) =>
+  trainingController.submitTrainingReview(req, res, next)
+);
+
+// Training status management (employer)
 router.post('/:id/publish', requireEmployer, (req, res, next) =>
   trainingController.publishTraining(req, res, next)
 );
+
 router.post('/:id/unpublish', requireEmployer, (req, res, next) =>
   trainingController.unpublishTraining(req, res, next)
 );
+
 router.post('/:id/suspend', requireEmployer, (req, res, next) =>
   trainingController.suspendTraining(req, res, next)
 );
 
-// ==============================================
-// VIDEO MANAGEMENT (EMPLOYER)
-// ==============================================
-router.post('/:trainingId/videos', requireEmployer, (req, res, next) => trainingController.addVideoToTraining(req, res, next));
-
-router.put('/:trainingId/videos/:videoId', requireEmployer, (req, res, next) => trainingController.updateVideoInTraining(req, res, next));
-
-router.delete('/:trainingId/videos/:videoId', requireEmployer, (req, res, next) => trainingController.deleteVideoFromTraining(req, res, next));
-
-// ==============================================
-// EMPLOYER ANALYTICS
-// ==============================================
+// Analytics (employer)
 router.get('/:id/enrollments', requireEmployer, (req, res, next) =>
   trainingController.getTrainingEnrollments(req, res, next)
 );
+
 router.get('/:id/analytics', requireEmployer, (req, res, next) =>
   trainingController.getTrainingAnalytics(req, res, next)
 );
 
-// ==============================================
-// CERTIFICATE ISSUE (EMPLOYER)
-// ==============================================
-router.post('/enrollments/:enrollmentId/issue-certificate', requireEmployer, (req, res, next) => {
-  console.log('🎓 Route: POST /trainings/enrollments/:enrollmentId/issue-certificate');
-  trainingController.issueCertificate(req, res, next);
-});
+// Shared routes with optional auth
+router.get('/:id/reviews', optionalAuth, (req, res, next) => 
+  trainingController.getTrainingReviews(req, res, next)
+);
 
-console.log('✅ Training routes loaded with enhanced logging');
+router.get('/:id/videos', optionalAuth, (req, res, next) => 
+  trainingController.getTrainingVideos(req, res, next)
+);
+
+router.get('/:id/video-count', optionalAuth, (req, res, next) => 
+  trainingController.getTrainingVideoCount(req, res, next)
+);
+
+// CRUD operations (must be at the end)
+router.put('/:id', requireEmployer, (req, res, next) =>
+  trainingController.updateTraining(req, res, next)
+);
+
+router.delete('/:id', requireEmployer, (req, res, next) =>
+  trainingController.deleteTraining(req, res, next)
+);
+
+// GET by ID must be ABSOLUTE LAST
+router.get('/:id', optionalAuth, (req, res, next) => 
+  trainingController.getTrainingById(req, res, next)
+);
+
+console.log('✅ Training routes loaded with correct order (specific before wildcard)');
 export default router;

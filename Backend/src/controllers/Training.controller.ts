@@ -18,6 +18,32 @@ export class TrainingController {
     console.log('TrainingController instantiated with service:', !!this.trainingService);
   }
 
+  // Add this route handler
+async issueCertificateManually(req: Request, res: Response): Promise<void> {
+  try {
+    const { enrollment_id } = req.params;
+    const employerId = (req as any).user?.userId;
+    
+    if (!employerId) {
+      res.status(401).json({
+        success: false,
+        message: 'Unauthorized'
+      });
+      return;
+    }
+    
+    const result = await this.trainingService.manuallyIssueCertificate(enrollment_id, employerId);
+    
+    res.json(result);
+  } catch (error: any) {
+    console.error('Error issuing certificate:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to issue certificate'
+    });
+  }
+}
+
   // ================ PUBLIC METHODS ================
 
   /**
@@ -1352,62 +1378,114 @@ export class TrainingController {
   // VIDEO PROGRESS (JOBSEEKER)
   // ============================================
 
-  async updateVideoProgress(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
-    try {
-      const { trainingId, videoId } = req.params;
-      const userId = req.user?.id;
-      const { watch_time_seconds, is_completed } = req.body;
+// In Training.controller.ts - Replace the updateVideoProgress method
 
-      console.log('🎥 Updating video progress:', {
-        trainingId,
-        videoId,
-        userId,
-        watch_time_seconds,
-        is_completed
+async updateVideoProgress(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const { trainingId, videoId } = req.params;
+    const userId = req.user?.id;
+    const { watch_time_seconds, is_completed } = req.body;
+
+    console.log('🎥 updateVideoProgress called:', {
+      trainingId,
+      videoId,
+      userId,
+      watch_time_seconds,
+      is_completed,
+      bodyKeys: Object.keys(req.body)
+    });
+
+    if (!userId) {
+      res.status(401).json({ 
+        success: false, 
+        message: 'Unauthorized: User ID not found' 
       });
-
-      if (!userId) {
-        res.status(401).json({ success: false, message: 'Unauthorized' });
-        return;
-      }
-
-      if (req.user?.user_type !== 'jobseeker') {
-        res.status(403).json({ success: false, message: 'Forbidden' });
-        return;
-      }
-
-      const result = await this.trainingService.updateVideoProgress(
-        trainingId,
-        userId,
-        videoId,
-        watch_time_seconds || 0,
-        is_completed || false
-      );
-
-      console.log('✅ Video progress updated:', result);
-
-      res.status(200).json({
-        success: true,
-        message: 'Progress updated successfully',
-        data: result
-      });
-    } catch (error) {
-      console.error('❌ Error updating video progress:', error);
-      next(error);
+      return;
     }
+
+    if (req.user?.user_type !== 'jobseeker') {
+      res.status(403).json({ 
+        success: false, 
+        message: 'Forbidden: Only jobseekers can update video progress' 
+      });
+      return;
+    }
+
+    // Validate inputs
+    if (!trainingId || !videoId) {
+      res.status(400).json({ 
+        success: false, 
+        message: 'Missing required parameters: trainingId and videoId' 
+      });
+      return;
+    }
+
+    // ✅ CRITICAL FIX: Pass parameters in correct order matching service method signature
+    // Service method signature: updateVideoProgress(trainingId, userId, videoId, watchTimeSeconds, isCompleted)
+    console.log('✅ Calling service with correct parameter order:', {
+      trainingId,
+      userId,
+      videoId,
+      watchTimeSeconds: watch_time_seconds || 0,
+      isCompleted: is_completed || false
+    });
+
+    const result = await this.trainingService.updateVideoProgress(
+      trainingId,           // 1st param: trainingId
+      userId,               // 2nd param: userId
+      videoId,              // 3rd param: videoId
+      watch_time_seconds || 0,  // 4th param: watchTimeSeconds
+      is_completed || false     // 5th param: isCompleted
+    );
+
+    console.log('✅ Service returned:', result);
+
+    res.status(200).json({
+      success: true,
+      message: 'Progress updated successfully',
+      data: result
+    });
+  } catch (error: any) {
+    console.error('❌ Error in updateVideoProgress controller:', error);
+    
+    // Handle specific error cases
+    if (error.message === 'User is not enrolled in this training') {
+      res.status(403).json({
+        success: false,
+        message: 'You must be enrolled in this training to track progress'
+      });
+      return;
+    }
+    
+    if (error.message === 'Video not found in this training') {
+      res.status(404).json({
+        success: false,
+        message: 'Video not found in this training'
+      });
+      return;
+    }
+    
+    next(error);
   }
+}
 
   // ============================================
   // NOTIFICATIONS (GENERAL)
   // ============================================
 
-  async getNotifications(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+async getNotifications(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
-      const userId = req.user?.id;
+      // Get userId from authenticated user (preferred) or fallback to query param
+      const userId = req.user?.id || req.query.user_id as string || req.query.employer_id as string;
+      
       if (!userId) {
-        res.status(401).json({ success: false, message: 'Unauthorized' });
+        res.status(401).json({ 
+          success: false, 
+          message: 'Unauthorized: User ID not found' 
+        });
         return;
       }
+
       const page = parseInt(req.query.page as string) || 1;
       const limit = parseInt(req.query.limit as string) || 10;
 
@@ -1418,25 +1496,61 @@ export class TrainingController {
         else if (r === 'false') read = false;
       }
 
+      console.log('🔔 Route: GET /trainings/notifications', req.user?.user_type?.toUpperCase() || 'UNKNOWN');
+      console.log('🔔 Getting notifications for user:', userId, {
+        userType: req.user?.user_type,
+        page,
+        limit,
+        read
+      });
+
       const params = { page, limit, read };
-      const notifications = await this.trainingService.getNotifications(userId, params);
-      res.status(200).json({ success: true, data: notifications });
-    } catch (error) {
+      const result = await this.trainingService.getNotifications(userId, params);
+
+      console.log('✅ Notifications retrieved:', {
+        count: result.notifications.length,
+        total: result.pagination?.total_count || 0
+      });
+
+      res.status(200).json({ 
+        success: true, 
+        data: result,
+        message: 'Notifications retrieved successfully'
+      });
+    } catch (error: any) {
+      console.error('❌ Error in getNotifications:', error);
       next(error);
     }
   }
 
-  async markNotificationRead(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+
+async markNotificationRead(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
       const { id } = req.params;
-      const userId = req.user?.id;
+      const userId = req.user?.id || req.query.user_id as string || req.query.employer_id as string;
+      
       if (!userId) {
-        res.status(401).json({ success: false, message: 'Unauthorized' });
+        res.status(401).json({ 
+          success: false, 
+          message: 'Unauthorized: User ID not found' 
+        });
         return;
       }
+
+      console.log('✅ Marking notification as read:', { 
+        notificationId: id, 
+        userId,
+        userType: req.user?.user_type 
+      });
+
       await this.trainingService.markNotificationRead(id, userId);
-      res.status(200).json({ success: true, message: 'Marked as read' });
+
+      res.status(200).json({ 
+        success: true, 
+        message: 'Notification marked as read' 
+      });
     } catch (error) {
+      console.error('❌ Error in markNotificationRead:', error);
       next(error);
     }
   }

@@ -16,6 +16,7 @@ export class TrainingService {
   deleteTraining(id: string, userId: string) {
     throw new Error('Method not implemented.');
   }
+
   constructor(private db: Pool) {}
 
   // ============================================
@@ -27,50 +28,225 @@ export class TrainingService {
     message: string,
     metadata: any
   ): Promise<void> {
-    await this.db.query(`
-      INSERT INTO notifications (user_id, type, message, metadata, created_at, read)
-      VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP, false)
-    `, [userId, type, message, JSON.stringify(metadata)]);
+    try {
+      // ✅ Generate title from type and message
+      const title = this.generateNotificationTitle(type, message);
+   
+      console.log('📬 Creating notification:', {
+        userId,
+        type,
+        title,
+        messagePreview: message.substring(0, 50)
+      });
+      await this.db.query(`
+        INSERT INTO notifications (user_id, type, title, message, metadata, created_at, read)
+        VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP, false)
+      `, [userId, type, title, message, JSON.stringify(metadata)]);
+   
+      console.log('✅ Notification created successfully');
+    } catch (error: any) {
+      console.error('❌ Error creating notification:', error);
+      // Don't throw - this is a non-critical operation
+    }
   }
 
-  async getNotifications(
-    userId: string,
-    params: { page: number; limit: number; read?: boolean }
-  ): Promise<any> {
-    const { page = 1, limit = 10, read } = params;
-    const offset = (page - 1) * limit;
-  
-    let whereClause = 'WHERE user_id = $1';
-    const queryParams: any[] = [userId];
-    let paramIndex = 2;
-  
-    if (read !== undefined) {
-      whereClause += ` AND read = $${paramIndex++}`;
-      queryParams.push(read);
-    }
-  
-    const query = `
-      SELECT *, COUNT(*) OVER() as total_count
-      FROM notifications
-      ${whereClause}
-      ORDER BY created_at DESC
-      LIMIT $${paramIndex++} OFFSET $${paramIndex++}
-    `;
-  
-    queryParams.push(limit, offset);
-  
-    const result = await this.db.query(query, queryParams);
-    const totalCount = result.rows.length > 0 ? parseInt(result.rows[0].total_count) : 0;
-  
-    return {
-      notifications: result.rows,
-      pagination: {
-        current_page: page,
-        total_pages: Math.ceil(totalCount / limit),
-        total_count: totalCount
-      }
+  private generateNotificationTitle(type: string, message: string): string {
+    const titleMap: Record<string, string> = {
+      'new_training': '🎓 New Training Available',
+      'training_updated': '✏️ Training Updated',
+      'training_deleted': '🗑️ Training Removed',
+      'training_suspended': '⏸️ Training Suspended',
+      'training_published': '📢 Training Published',
+      'certificate_issued': '🎓 Certificate Ready',
+      'training_completed': '🎉 Training Completed',
+      'enrollment_confirmed': '✅ Enrollment Confirmed',
+      'video_added': '📹 New Video Added',
+      'content_updated': '📝 Content Updated'
     };
+    // Return mapped title or extract from message
+    return titleMap[type] || message.split('.')[0].substring(0, 255) || 'Training Update';
   }
+
+  async notifyEnrolledJobseekers(
+    trainingId: string,
+    notificationType: 'training_updated' | 'training_deleted' | 'training_suspended',
+    message: string,
+    metadata: any
+  ): Promise<void> {
+    try {
+      console.log('📢 Notifying enrolled jobseekers:', {
+        trainingId,
+        type: notificationType
+      });
+      // Get all enrolled users for this training
+      const enrolledUsers = await this.db.query(`
+        SELECT DISTINCT user_id, u.first_name, u.last_name
+        FROM training_enrollments te
+        JOIN users u ON te.user_id = u.id
+        WHERE te.training_id = $1
+          AND te.status IN ('enrolled', 'in_progress')
+      `, [trainingId]);
+      console.log(`✅ Found ${enrolledUsers.rows.length} enrolled users to notify`);
+      // Create notification for each enrolled user
+      for (const user of enrolledUsers.rows) {
+        await this.createNotification(
+          user.user_id,
+          notificationType,
+          message,
+          metadata
+        );
+      }
+      console.log('✅ All enrolled users notified successfully');
+    } catch (error: any) {
+      console.error('❌ Error notifying enrolled jobseekers:', error);
+      // Don't throw - notifications are non-critical
+    }
+  }
+
+  /**
+   * Notify jobseekers about new training opportunities
+   */
+async notifyJobseekersAboutNewTraining(
+  trainingId: string,
+  trainingTitle: string,
+  category: string,
+  employerName: string
+): Promise<void> {
+  try {
+    console.log('📢 Notifying jobseekers about new training:', trainingTitle);
+    const jobseekers = await this.db.query(`
+      SELECT id, first_name, last_name, email
+      FROM users
+      WHERE user_type = 'jobseeker' AND deleted_at IS NULL
+      LIMIT 100  -- FIXED: Consider pagination for production
+    `);
+    console.log(`✅ Found ${jobseekers.rows.length} jobseekers to notify`);
+    const message = `New training available: "${trainingTitle}" by ${employerName}`;
+    const metadata = { training_id: trainingId, training_title: trainingTitle, category, employer_name: employerName };
+    // FIXED: Use Promise.all for parallel inserts (faster)
+    await Promise.all(
+      jobseekers.rows.map(jobseeker =>
+        this.createNotification(jobseeker.id, 'new_training', message, metadata)
+      )
+    );
+    console.log('✅ All jobseekers notified about new training');
+  } catch (error: any) {
+    console.error('❌ Error notifying jobseekers:', error);
+  }
+}
+
+  async notifyEnrolledJobseekersAboutNewVideo(
+    trainingId: string,
+    trainingTitle: string,
+    videoTitle: string,
+    employerName: string
+  ): Promise<void> {
+    try {
+      console.log('📹 Notifying enrolled jobseekers about new video:', videoTitle);
+    
+      // Get all enrolled users for this training
+      const enrolledUsers = await this.db.query(`
+        SELECT DISTINCT te.user_id, u.first_name, u.last_name, u.email
+        FROM training_enrollments te
+        JOIN users u ON te.user_id = u.id
+        WHERE te.training_id = $1
+          AND te.status IN ('enrolled', 'in_progress')
+      `, [trainingId]);
+    
+      console.log(`✅ Found ${enrolledUsers.rows.length} enrolled users to notify`);
+    
+      const message = `New video added to ${trainingTitle}: ${videoTitle}`;
+      const metadata = {
+        training_id: trainingId,
+        training_title: trainingTitle,
+        video_title: videoTitle,
+        employer_name: employerName,
+        action: 'video_added'
+      };
+    
+      // Create notifications for each enrolled user
+      for (const user of enrolledUsers.rows) {
+        await this.createNotification(
+          user.user_id,
+          'video_added',
+          message,
+          metadata
+        );
+      }
+    
+      console.log('✅ All enrolled users notified about new video');
+    } catch (error: any) {
+      console.error('❌ Error notifying about new video:', error);
+      // Don't throw - notifications are non-critical
+    }
+  }
+
+  // In backend training.service.ts - Replace getNotifications method
+async getNotifications(
+  userId: string,
+  params: { page?: number; limit?: number; read?: boolean | string } // Allow string from frontend
+): Promise<any> {
+  const { page = 1, limit = 10, read } = params;
+  const offset = (page - 1) * limit;
+  console.log('🔔 Backend: Getting notifications:', {
+    userId,
+    page,
+    limit,
+    read: typeof read === 'string' ? read : read ? 'true' : 'false'
+  });
+  let whereClause = 'WHERE user_id = $1';
+  const queryParams: any[] = [userId];
+  let paramIndex = 2;
+  if (read !== undefined) {
+    // FIXED: Parse to boolean (handles string 'false'/'true' from query params)
+    const readBool = (read === true || read === 'true');
+    whereClause += ` AND read = $${paramIndex++}`;
+    queryParams.push(readBool);
+    console.log('🔔 Read filter applied:', readBool);
+  }
+  const query = `
+    SELECT
+      id,
+      user_id,
+      type,
+      title,
+      message,
+      metadata,
+      read,
+      created_at,
+      COUNT(*) OVER() as total_count
+    FROM notifications
+    ${whereClause}
+    ORDER BY created_at DESC
+    LIMIT $${paramIndex++} OFFSET $${paramIndex++}
+  `;
+  queryParams.push(limit, offset);
+  console.log('🔍 Notification query params:', queryParams.slice(0, 3)); // Log first few
+  const result = await this.db.query(query, queryParams);
+  const totalCount = result.rows.length > 0 ? parseInt(result.rows[0].total_count) : 0;
+  console.log('✅ Notifications fetched:', {
+    count: result.rows.length,
+    unread: result.rows.filter(r => !r.read).length,
+    total: totalCount
+  });
+  return {
+    notifications: result.rows.map(row => ({
+      id: row.id,
+      user_id: row.user_id,
+      type: row.type,
+      title: row.title,
+      message: row.message,
+      metadata: row.metadata ? JSON.parse(row.metadata) : null, // FIXED: Parse JSON
+      read: row.read,
+      created_at: row.created_at
+    })),
+    pagination: {
+      current_page: page,
+      total_pages: Math.ceil(totalCount / limit),
+      total_count: totalCount
+    }
+  };
+}
 
   async markNotificationRead(notificationId: string, userId: string): Promise<void> {
     await this.db.query(
@@ -101,20 +277,41 @@ export class TrainingService {
     isCompleted: boolean
   ): Promise<any> {
     const client = await this.db.connect();
-  
     try {
+      console.log('💾 Starting video progress update:', {
+        trainingId,
+        userId,
+        videoId,
+        watchTimeSeconds,
+        isCompleted
+      });
       await client.query('BEGIN');
-      // Get enrollment
+      // Step 1: Check if user is enrolled
+      console.log('1️⃣ Checking enrollment...');
       const enrollmentResult = await client.query(
         'SELECT id FROM training_enrollments WHERE training_id = $1 AND user_id = $2',
         [trainingId, userId]
       );
       if (enrollmentResult.rows.length === 0) {
-        throw new Error('Enrollment not found');
+        await client.query('ROLLBACK');
+        throw new Error('User is not enrolled in this training');
       }
       const enrollmentId = enrollmentResult.rows[0].id;
-      // Upsert video progress
-      await client.query(`
+      console.log('✅ Enrollment found:', enrollmentId);
+      // Step 2: Check if video exists
+      console.log('2️⃣ Checking video exists...');
+      const videoCheck = await client.query(
+        'SELECT id, title FROM training_videos WHERE id = $1 AND training_id = $2',
+        [videoId, trainingId]
+      );
+      if (videoCheck.rows.length === 0) {
+        await client.query('ROLLBACK');
+        throw new Error('Video not found in this training');
+      }
+      console.log('✅ Video found:', videoCheck.rows[0].title);
+      // Step 3: Upsert video progress
+      console.log('3️⃣ Upserting video progress...');
+      const progressResult = await client.query(`
         INSERT INTO training_video_progress
           (enrollment_id, video_id, watch_time_seconds, is_completed, completed_at, last_updated)
         VALUES ($1, $2, $3, $4,
@@ -130,9 +327,12 @@ export class TrainingService {
             ELSE training_video_progress.completed_at
           END,
           last_updated = CURRENT_TIMESTAMP
+        RETURNING *
       `, [enrollmentId, videoId, watchTimeSeconds, isCompleted]);
-      // Recalculate overall progress
-      const progressResult = await client.query(`
+      console.log('✅ Video progress saved:', progressResult.rows[0]);
+      // Step 4: Recalculate overall progress
+      console.log('4️⃣ Calculating overall progress...');
+      const progressCalc = await client.query(`
         SELECT
           COUNT(*) as total_videos,
           COUNT(*) FILTER (WHERE tvp.is_completed = true) as completed_videos
@@ -141,11 +341,17 @@ export class TrainingService {
           ON tv.id = tvp.video_id AND tvp.enrollment_id = $1
         WHERE tv.training_id = $2
       `, [enrollmentId, trainingId]);
-      const { total_videos, completed_videos } = progressResult.rows[0];
+      const { total_videos, completed_videos } = progressCalc.rows[0];
       const progressPercentage = total_videos > 0
         ? Math.round((completed_videos / total_videos) * 100)
         : 0;
-      // Update enrollment
+      console.log('📊 Progress calculated:', {
+        total_videos,
+        completed_videos,
+        progressPercentage
+      });
+      // Step 5: Update enrollment
+      console.log('5️⃣ Updating enrollment...');
       const enrollmentUpdate = await client.query(`
         UPDATE training_enrollments
         SET
@@ -164,60 +370,67 @@ export class TrainingService {
         RETURNING *
       `, [progressPercentage, enrollmentId]);
       const enrollment = enrollmentUpdate.rows[0];
+      console.log('✅ Enrollment updated:', {
+        progress: enrollment.progress_percentage,
+        status: enrollment.status
+      });
       const trainingCompleted = progressPercentage === 100;
-      // If completed, check for certificate
       let certificateIssued = false;
       let certificateUrl = null;
+      // Step 6: Check for certificate if completed
       if (trainingCompleted) {
+        console.log('6️⃣ Checking certificate eligibility...');
         const trainingResult = await client.query(
           'SELECT has_certificate, provider_id, title FROM trainings WHERE id = $1',
           [trainingId]
         );
-      
         if (trainingResult.rows[0].has_certificate) {
-          // Generate certificate
+          console.log('📜 Generating certificate...');
           const certResult = await this.generateCertificate(
             enrollmentId,
             userId,
             trainingId,
             trainingResult.rows[0].title
           );
-        
           certificateIssued = true;
           certificateUrl = certResult.certificate_url;
-          // Update enrollment with certificate
           await client.query(`
             UPDATE training_enrollments
             SET certificate_issued = true, certificate_url = $1, certificate_issued_at = CURRENT_TIMESTAMP
             WHERE id = $2
           `, [certificateUrl, enrollmentId]);
-          // Create notification for employer
+          // Notify employer
           await this.createNotification(
             trainingResult.rows[0].provider_id,
             'training_completed',
             `A student has completed ${trainingResult.rows[0].title}`,
             { training_id: trainingId, user_id: userId, enrollment_id: enrollmentId }
           );
-          // Create notification for jobseeker
+          // Notify jobseeker
           await this.createNotification(
             userId,
             'certificate_issued',
             `Congratulations! You've earned a certificate for ${trainingResult.rows[0].title}`,
             { training_id: trainingId, enrollment_id: enrollmentId, certificate_url: certificateUrl }
           );
+          console.log('✅ Certificate issued and notifications sent');
         }
       }
       await client.query('COMMIT');
+      console.log('✅ Transaction committed successfully');
       return {
         success: true,
         overall_progress: progressPercentage,
         training_completed: trainingCompleted,
         certificate_issued: certificateIssued,
         certificate_url: certificateUrl,
-        enrollment
+        enrollment,
+        video_progress: progressResult.rows[0]
       };
-    } catch (error) {
+    } catch (error: any) {
       await client.query('ROLLBACK');
+      console.error('❌ Error in updateVideoProgress service:', error);
+      console.error('Stack:', error.stack);
       throw error;
     } finally {
       client.release();
@@ -238,68 +451,53 @@ export class TrainingService {
       'SELECT first_name, last_name, email FROM users WHERE id = $1',
       [userId]
     );
-  
     const user = userResult.rows[0];
     const userName = `${user.first_name} ${user.last_name}`;
     const certificateFileName = `certificate-${enrollmentId}-${Date.now()}.pdf`;
-  
     // Generate PDF certificate (using PDFKit)
     const fs = require('fs');
     const path = require('path');
-  
     const certificateDir = join(__dirname, '../../uploads/certificates');
     if (!fs.existsSync(certificateDir)) {
       fs.mkdirSync(certificateDir, { recursive: true });
     }
-  
     const certificatePath = path.join(certificateDir, certificateFileName);
     const doc = new PDFDocument({ size: 'A4', layout: 'landscape' });
     const writeStream = createWriteStream(certificatePath);
-  
     doc.pipe(writeStream);
-  
     // Certificate design
     doc.rect(50, 50, doc.page.width - 100, doc.page.height - 100).stroke();
     doc.rect(55, 55, doc.page.width - 110, doc.page.height - 110).stroke();
-  
     doc.fontSize(40).font('Helvetica-Bold').text('Certificate of Completion', 100, 120, {
       align: 'center',
       width: doc.page.width - 200
     });
-  
     doc.fontSize(16).font('Helvetica').text('This is to certify that', 100, 200, {
       align: 'center',
       width: doc.page.width - 200
     });
-  
     doc.fontSize(30).font('Helvetica-Bold').text(userName, 100, 240, {
       align: 'center',
       width: doc.page.width - 200
     });
-  
     doc.fontSize(16).font('Helvetica').text('has successfully completed the training', 100, 300, {
       align: 'center',
       width: doc.page.width - 200
     });
-  
     doc.fontSize(24).font('Helvetica-Bold').text(trainingTitle, 100, 340, {
       align: 'center',
       width: doc.page.width - 200
     });
-  
     const completionDate = new Date().toLocaleDateString('en-US', {
       year: 'numeric',
       month: 'long',
       day: 'numeric'
     });
-  
     doc.fontSize(14).font('Helvetica').text(`Issued on: ${completionDate}`, 100, 420, {
       align: 'center',
       width: doc.page.width - 200
     });
-  
     doc.end();
-  
     return new Promise((resolve, reject) => {
       writeStream.on('finish', () => {
         resolve({ certificate_url: `/certificates/${certificateFileName}` });
@@ -316,16 +514,32 @@ export class TrainingService {
     videoData: any,
     employerId: string
   ): Promise<any> {
-    // Verify ownership
-    const ownershipCheck = await this.db.query(
-      'SELECT id FROM trainings WHERE id = $1 AND provider_id = $2',
-      [trainingId, employerId]
+    console.log('🔍 Add video ownership check:', { trainingId, employerId });
+ 
+    // Get employer profile ID
+    const employerProfileCheck = await this.db.query(
+      'SELECT id FROM employers WHERE user_id = $1',
+      [employerId]
     );
-  
+ 
+    const employerProfileId = employerProfileCheck.rows.length > 0
+      ? employerProfileCheck.rows[0].id
+      : null;
+ 
+    console.log('🔍 Employer IDs:', {
+      userId: employerId,
+      profileId: employerProfileId
+    });
+    // Verify ownership with BOTH user ID and profile ID
+    const ownershipCheck = await this.db.query(
+      'SELECT id FROM trainings WHERE id = $1 AND (provider_id = $2 OR provider_id = $3)',
+      [trainingId, employerId, employerProfileId]
+    );
     if (ownershipCheck.rows.length === 0) {
+      console.error('❌ Ownership check failed for addVideo');
       throw new Error('Unauthorized');
     }
-  
+    console.log('✅ Ownership verified, adding video');
     const result = await this.db.query(`
       INSERT INTO training_videos
         (training_id, title, description, video_url, duration_minutes, order_index, is_preview)
@@ -340,7 +554,13 @@ export class TrainingService {
       videoData.order_index,
       videoData.is_preview || false
     ]);
-  
+    // ✅ NEW: Notify enrolled jobseekers about the new video
+    this.notifyEnrolledJobseekersAboutNewVideo(
+      trainingId,
+      videoData.training_title || 'Training', // Fallback if not provided
+      videoData.title,
+      videoData.employer_name || 'Employer' // Fallback
+    ).catch(err => console.error('Failed to notify about new video:', err));
     return result.rows[0];
   }
 
@@ -350,17 +570,57 @@ export class TrainingService {
     videoData: any,
     employerId: string
   ): Promise<any> {
-    // Verify ownership
+    console.log('🔍 Update video ownership check:', {
+      trainingId,
+      videoId,
+      employerId
+    });
+ 
+    // Get employer profile ID
+    const employerProfileCheck = await this.db.query(
+      'SELECT id FROM employers WHERE user_id = $1',
+      [employerId]
+    );
+ 
+    const employerProfileId = employerProfileCheck.rows.length > 0
+      ? employerProfileCheck.rows[0].id
+      : null;
+ 
+    console.log('🔍 Employer IDs:', {
+      userId: employerId,
+      profileId: employerProfileId
+    });
+    // Verify ownership with BOTH user ID and profile ID
     const ownershipCheck = await this.db.query(`
-      SELECT v.id FROM training_videos v
+      SELECT v.id, t.provider_id, t.title
+      FROM training_videos v
       JOIN trainings t ON v.training_id = t.id
-      WHERE v.id = $1 AND t.id = $2 AND t.provider_id = $3
-    `, [videoId, trainingId, employerId]);
-  
+      WHERE v.id = $1
+        AND t.id = $2
+        AND (t.provider_id = $3 OR t.provider_id = $4)
+    `, [videoId, trainingId, employerId, employerProfileId]);
+    console.log('🔍 Ownership check result:', {
+      found: ownershipCheck.rows.length > 0,
+      actualProviderId: ownershipCheck.rows[0]?.provider_id
+    });
     if (ownershipCheck.rows.length === 0) {
+      // Enhanced debug for failure case
+      const debugQuery = await this.db.query(`
+        SELECT t.provider_id, t.title
+        FROM trainings t
+        WHERE t.id = $1
+      `, [trainingId]);
+      console.error('❌ Ownership check failed:', {
+        videoId,
+        trainingId,
+        requestedBy: employerId,
+        requestedByProfile: employerProfileId,
+        actualOwner: debugQuery.rows[0]?.provider_id,
+        trainingTitle: debugQuery.rows[0]?.title
+      });
       throw new Error('Unauthorized');
     }
-  
+    console.log('✅ Ownership verified, updating video');
     const result = await this.db.query(`
       UPDATE training_videos
       SET
@@ -381,16 +641,32 @@ export class TrainingService {
       videoData.is_preview,
       videoId
     ]);
-  
+    console.log('✅ Video updated successfully');
     return result.rows[0];
   }
-
-
 
   // ============================================
   // ENROLLMENT NOTIFICATIONS (Employer)
   // ============================================
+  // In your training.service.ts - Update the enrollment notification query
   async getEnrollmentNotifications(employerId: string): Promise<any> {
+    console.log('🔔 Getting enrollment notifications for employer:', employerId);
+ 
+    // Get employer profile ID
+    const employerProfileCheck = await this.db.query(
+      'SELECT id FROM employers WHERE user_id = $1',
+      [employerId]
+    );
+ 
+    let providerCondition = 't.provider_id = $1';
+    let queryParams = [employerId];
+ 
+    if (employerProfileCheck.rows.length > 0) {
+      const employerProfileId = employerProfileCheck.rows[0].id;
+      providerCondition = '(t.provider_id = $1 OR t.provider_id = $2)';
+      queryParams = [employerId, employerProfileId];
+    }
+ 
     const query = `
       SELECT
         e.id as enrollment_id,
@@ -413,116 +689,109 @@ export class TrainingService {
       FROM training_enrollments e
       JOIN trainings t ON e.training_id = t.id
       JOIN users u ON e.user_id = u.id
-      WHERE t.provider_id = $1
+      WHERE ${providerCondition}
       ORDER BY
         CASE
           WHEN e.completed_at IS NOT NULL THEN e.completed_at
           ELSE e.enrolled_at
         END DESC
     `;
-  
-    const result = await this.db.query(query, [employerId]);
+    const result = await this.db.query(query, queryParams);
+ 
+    console.log(`✅ Found ${result.rows.length} enrollment notifications`);
+ 
     return result.rows;
   }
 
   // ============================================
   // JOBSEEKER-SPECIFIC TRAINING ACCESS
   // ============================================
-async getTrainingWithDetailsForJobseeker(trainingId: string, userId: string): Promise<any> {
-  // FIXED: Remove deleted_at check from query
-  let query = `
-    SELECT t.*,
-          CASE WHEN e.id IS NOT NULL THEN true ELSE false END as enrolled,
-          COALESCE(e.progress_percentage, 0) as progress,
-          e.status as enrollment_status,
-          e.id as enrollment_id
-    FROM trainings t
-    LEFT JOIN training_enrollments e ON t.id = e.training_id AND e.user_id = $2
-    WHERE t.id = $1
-      AND t.status = 'published'
-      AND t.provider_id IS NOT NULL
-      AND EXISTS (
-        SELECT 1 FROM employers emp
-        WHERE emp.id = t.provider_id
-      )
-  `;
-  
-  const result = await this.db.query(query, [trainingId, userId]);
-  if (result.rows.length === 0) {
-    return null;
-  }
-  
-  const training = this.mapTrainingFromDb(result.rows[0]);
-  const isEnrolled = result.rows[0].enrolled;
-  const enrollmentId = result.rows[0].enrollment_id;
-  
-  // Fetch videos (all for enrolled, only previews for not enrolled)
-  const videosQuery = `
-    SELECT id, training_id, title, description, video_url, duration_minutes, order_index, is_preview, created_at
-    FROM training_videos
-    WHERE training_id = $1
-    ${isEnrolled ? '' : 'AND is_preview = true'}
-    ORDER BY order_index
-  `;
-  const videosResult = await this.db.query(videosQuery, [trainingId]);
-  
-  // Fetch outcomes
-  const outcomesResult = await this.db.query(
-    `SELECT id, training_id, outcome_text, order_index, created_at
-    FROM training_outcomes
-    WHERE training_id = $1
-    ORDER BY order_index`,
-    [trainingId]
-  );
-  
-  // Fetch video progress if enrolled
-  let videoProgress = [];
-  if (isEnrolled && enrollmentId) {
-    try {
-      const progressResult = await this.db.query(
-        `SELECT video_id, watch_time_seconds as watch_time_minutes, is_completed, completed_at
-        FROM training_video_progress
-        WHERE enrollment_id = $1`,
-        [enrollmentId]
-      );
-      videoProgress = progressResult.rows;
-    } catch (error) {
-      console.warn('Video progress table may not exist:', error);
+  async getTrainingWithDetailsForJobseeker(trainingId: string, userId: string): Promise<any> {
+    // FIXED: Remove deleted_at check from query
+    let query = `
+      SELECT t.*,
+            CASE WHEN e.id IS NOT NULL THEN true ELSE false END as enrolled,
+            COALESCE(e.progress_percentage, 0) as progress,
+            e.status as enrollment_status,
+            e.id as enrollment_id
+      FROM trainings t
+      LEFT JOIN training_enrollments e ON t.id = e.training_id AND e.user_id = $2
+      WHERE t.id = $1
+        AND t.status = 'published'
+        AND t.provider_id IS NOT NULL
+        AND EXISTS (
+          SELECT 1 FROM employers emp
+          WHERE emp.id = t.provider_id
+        )
+    `;
+    const result = await this.db.query(query, [trainingId, userId]);
+    if (result.rows.length === 0) {
+      return null;
     }
-  }
-  
-  // Merge video progress
-  const videosWithProgress = videosResult.rows.map(video => {
-    const progress = videoProgress.find(p => p.video_id === video.id);
+    const training = this.mapTrainingFromDb(result.rows[0]);
+    const isEnrolled = result.rows[0].enrolled;
+    const enrollmentId = result.rows[0].enrollment_id;
+    // Fetch videos (all for enrolled, only previews for not enrolled)
+    const videosQuery = `
+      SELECT id, training_id, title, description, video_url, duration_minutes, order_index, is_preview, created_at
+      FROM training_videos
+      WHERE training_id = $1
+      ${isEnrolled ? '' : 'AND is_preview = true'}
+      ORDER BY order_index
+    `;
+    const videosResult = await this.db.query(videosQuery, [trainingId]);
+    // Fetch outcomes
+    const outcomesResult = await this.db.query(
+      `SELECT id, training_id, outcome_text, order_index, created_at
+      FROM training_outcomes
+      WHERE training_id = $1
+      ORDER BY order_index`,
+      [trainingId]
+    );
+    // Fetch video progress if enrolled
+    let videoProgress = [];
+    if (isEnrolled && enrollmentId) {
+      try {
+        const progressResult = await this.db.query(
+          `SELECT video_id, watch_time_seconds as watch_time_minutes, is_completed, completed_at
+          FROM training_video_progress
+          WHERE enrollment_id = $1`,
+          [enrollmentId]
+        );
+        videoProgress = progressResult.rows;
+      } catch (error) {
+        console.warn('Video progress table may not exist:', error);
+      }
+    }
+    // Merge video progress
+    const videosWithProgress = videosResult.rows.map(video => {
+      const progress = videoProgress.find(p => p.video_id === video.id);
+      return {
+        ...video,
+        completed: progress?.is_completed || false,
+        watch_time: progress?.watch_time_minutes || 0,
+        accessible: isEnrolled || video.is_preview
+      };
+    });
     return {
-      ...video,
-      completed: progress?.is_completed || false,
-      watch_time: progress?.watch_time_minutes || 0,
-      accessible: isEnrolled || video.is_preview
+      ...training,
+      enrolled: isEnrolled,
+      progress: result.rows[0].progress || 0,
+      enrollment_status: result.rows[0].enrollment_status,
+      enrollment_id: enrollmentId,
+      videos: videosWithProgress,
+      outcomes: outcomesResult.rows,
+      can_enroll: !isEnrolled && training.status === 'published'
     };
-  });
-  
-  return {
-    ...training,
-    enrolled: isEnrolled,
-    progress: result.rows[0].progress || 0,
-    enrollment_status: result.rows[0].enrollment_status,
-    enrollment_id: enrollmentId,
-    videos: videosWithProgress,
-    outcomes: outcomesResult.rows,
-    can_enroll: !isEnrolled && training.status === 'published'
-  };
-}
+  }
 
   // ============================================
   // DATABASE MAINTENANCE
   // ============================================
   async cleanupInvalidTrainings(): Promise<void> {
     const client = await this.db.connect();
-  
     try {
       await client.query('BEGIN');
-    
       // Find and mark invalid trainings as suspended
       const invalidTrainings = await client.query(`
         SELECT t.id, t.title, t.status, t.provider_id, t.provider_name, t.created_at
@@ -538,7 +807,6 @@ async getTrainingWithDetailsForJobseeker(trainingId: string, userId: string): Pr
            )
         ORDER BY t.created_at DESC
       `);
-    
       if (invalidTrainings.rows.length > 0) {
         await client.query(`
           UPDATE trainings
@@ -546,9 +814,7 @@ async getTrainingWithDetailsForJobseeker(trainingId: string, userId: string): Pr
           WHERE id = ANY($1)
         `, [invalidTrainings.rows.map(t => t.id)]);
       }
-    
       await client.query('COMMIT');
-    
     } catch (error) {
       await client.query('ROLLBACK');
       throw error;
@@ -565,7 +831,6 @@ async getTrainingWithDetailsForJobseeker(trainingId: string, userId: string): Pr
       GROUP BY status
       ORDER BY count DESC
     `);
-  
     // Trainings without valid provider
     const invalidProviderQuery = await this.db.query(`
       SELECT COUNT(*) as count
@@ -576,7 +841,6 @@ async getTrainingWithDetailsForJobseeker(trainingId: string, userId: string): Pr
            WHERE e.id = t.provider_id
          )
     `);
-  
     // Published trainings that would show to jobseekers
     const validPublishedQuery = await this.db.query(`
       SELECT COUNT(*) as count
@@ -591,7 +855,6 @@ async getTrainingWithDetailsForJobseeker(trainingId: string, userId: string): Pr
           AND e.deleted_at IS NULL
         )
     `);
-  
     // Test data patterns
     const testDataQuery = await this.db.query(`
       SELECT COUNT(*) as count
@@ -605,125 +868,142 @@ async getTrainingWithDetailsForJobseeker(trainingId: string, userId: string): Pr
   // ============================================
   // JOBSEEKER TRAINING LISTING
   // ============================================
-async getPublishedTrainingsForJobseeker(userId: string, params: TrainingSearchParams): Promise<TrainingListResponse> {
-  const {
-    page = 1,
-    limit = 10,
-    sort_by = 'created_at',
-    sort_order = 'desc',
-    filters = {}
-  } = params;
-  const offset = (page - 1) * limit;
-
-  // FIXED: Simple employer existence check without deleted_at
-  let whereConditions: string[] = [
-    "t.status = 'published'",
-    "t.provider_id IS NOT NULL",
-    "t.title IS NOT NULL",
-    "t.description IS NOT NULL",
-    "t.duration_hours > 0",
-    `EXISTS (
-      SELECT 1 FROM employers e
-      WHERE e.id = t.provider_id
-    )`
-  ];
-
-  let queryParams: any[] = [];
-  let paramIndex = 1;
-  
-  // Apply user filters
-  if (filters.category || params.category) {
-    const category = filters.category || params.category;
-    whereConditions.push(`t.category = $${paramIndex++}`);
-    queryParams.push(category);
+  // In training.service.ts - Replace the getPublishedTrainingsForJobseeker method
+  async getPublishedTrainingsForJobseeker(userId: string, params: TrainingSearchParams): Promise<TrainingListResponse> {
+    const {
+      page = 1,
+      limit = 10,
+      sort_by = 'created_at',
+      sort_order = 'desc',
+      filters = {}
+    } = params;
+    const offset = (page - 1) * limit;
+    let whereConditions: string[] = [
+      "t.status = 'published'",
+      "t.provider_id IS NOT NULL",
+      "t.title IS NOT NULL",
+      "t.description IS NOT NULL",
+      "t.duration_hours > 0",
+      `EXISTS (
+        SELECT 1 FROM employers e
+        WHERE e.id = t.provider_id
+      )`
+    ];
+    let queryParams: any[] = [];
+    let paramIndex = 1;
+    // Apply user filters
+    if (filters.category || params.category) {
+      const category = filters.category || params.category;
+      whereConditions.push(`t.category = $${paramIndex++}`);
+      queryParams.push(category);
+    }
+    if (params.level) {
+      whereConditions.push(`t.level = $${paramIndex++}`);
+      queryParams.push(params.level);
+    }
+    if (params.cost_type) {
+      whereConditions.push(`t.cost_type = $${paramIndex++}`);
+      queryParams.push(params.cost_type);
+    }
+    if (params.mode) {
+      whereConditions.push(`t.mode = $${paramIndex++}`);
+      queryParams.push(params.mode);
+    }
+    if (params.search) {
+      whereConditions.push(`(t.title ILIKE $${paramIndex} OR t.description ILIKE $${paramIndex})`);
+      const searchPattern = `%${params.search}%`;
+      queryParams.push(searchPattern);
+      paramIndex++;
+    }
+    const whereClause = `WHERE ${whereConditions.join(' AND ')}`;
+    // ✅ FIXED: Added videos aggregation to list query
+    const query = `
+      SELECT
+        t.id,
+        t.title,
+        t.description,
+        t.category,
+        t.level,
+        t.duration_hours,
+        t.cost_type,
+        t.price,
+        t.mode,
+        t.provider_id,
+        t.provider_name,
+        t.has_certificate,
+        t.rating,
+        t.total_students,
+        t.thumbnail_url,
+        t.location,
+        t.start_date,
+        t.end_date,
+        t.max_participants,
+        t.current_participants,
+        t.status,
+        t.created_at,
+        t.updated_at,
+        CASE WHEN e.id IS NOT NULL THEN true ELSE false END as enrolled,
+        COALESCE(e.progress_percentage, 0) as progress,
+        e.status as enrollment_status,
+        e.enrolled_at,
+        e.completed_at,
+        (SELECT COUNT(*) FROM training_videos WHERE training_id = t.id) as video_count,
+        COALESCE(
+          (SELECT json_agg(
+            json_build_object(
+              'id', v.id,
+              'training_id', v.training_id,
+              'title', v.title,
+              'description', v.description,
+              'video_url', v.video_url,
+              'duration_minutes', v.duration_minutes,
+              'order_index', v.order_index,
+              'is_preview', v.is_preview
+            ) ORDER BY v.order_index
+          )
+          FROM training_videos v
+          WHERE v.training_id = t.id),
+          '[]'::json
+        ) as videos,
+        COUNT(*) OVER() as total_count
+      FROM trainings t
+      LEFT JOIN training_enrollments e ON t.id = e.training_id AND e.user_id = $${paramIndex++}
+      ${whereClause}
+      ORDER BY t.${sort_by} ${sort_order.toUpperCase()}
+      LIMIT $${paramIndex++} OFFSET $${paramIndex++}
+    `;
+    queryParams.push(userId, limit, offset);
+    console.log('🔍 Query params:', queryParams);
+    console.log('🔍 Full query:', query);
+    const result = await this.db.query(query, queryParams);
+    const trainings = result.rows;
+    const totalCount = trainings.length > 0 ? parseInt(trainings[0].total_count) : 0;
+    console.log('✅ Query returned trainings:', trainings.length);
+    if (trainings.length > 0) {
+      console.log('✅ First training videos:', trainings[0].videos);
+    }
+    return {
+      trainings: trainings.map(row => ({
+        ...this.mapTrainingFromDb(row),
+        enrolled: row.enrolled,
+        progress: row.progress || 0,
+        enrollment_status: row.enrollment_status,
+        enrolled_at: row.enrolled_at,
+        completed_at: row.completed_at,
+        video_count: parseInt(row.video_count || 0),
+        videos: row.videos || [] // ✅ Include videos array
+      })),
+      pagination: {
+        current_page: page,
+        total_pages: Math.ceil(totalCount / limit),
+        page_size: limit,
+        total_count: totalCount,
+        has_next: page * limit < totalCount,
+        has_previous: page > 1
+      },
+      filters_applied: filters
+    };
   }
-  if (params.level) {
-    whereConditions.push(`t.level = $${paramIndex++}`);
-    queryParams.push(params.level);
-  }
-  if (params.cost_type) {
-    whereConditions.push(`t.cost_type = $${paramIndex++}`);
-    queryParams.push(params.cost_type);
-  }
-  if (params.mode) {
-    whereConditions.push(`t.mode = $${paramIndex++}`);
-    queryParams.push(params.mode);
-  }
-  if (params.search) {
-    whereConditions.push(`(t.title ILIKE $${paramIndex} OR t.description ILIKE $${paramIndex})`);
-    const searchPattern = `%${params.search}%`;
-    queryParams.push(searchPattern);
-    paramIndex++;
-  }
-  
-  const whereClause = `WHERE ${whereConditions.join(' AND ')}`;
-  
-  const query = `
-    SELECT
-      t.id,
-      t.title,
-      t.description,
-      t.category,
-      t.level,
-      t.duration_hours,
-      t.cost_type,
-      t.price,
-      t.mode,
-      t.provider_id,
-      t.provider_name,
-      t.has_certificate,
-      t.rating,
-      t.total_students,
-      t.thumbnail_url,
-      t.location,
-      t.start_date,
-      t.end_date,
-      t.max_participants,
-      t.current_participants,
-      t.status,
-      t.created_at,
-      t.updated_at,
-      CASE WHEN e.id IS NOT NULL THEN true ELSE false END as enrolled,
-      COALESCE(e.progress_percentage, 0) as progress,
-      e.status as enrollment_status,
-      e.enrolled_at,
-      e.completed_at,
-      (SELECT COUNT(*) FROM training_videos WHERE training_id = t.id) as video_count,
-      COUNT(*) OVER() as total_count
-    FROM trainings t
-    LEFT JOIN training_enrollments e ON t.id = e.training_id AND e.user_id = $${paramIndex++}
-    ${whereClause}
-    ORDER BY t.${sort_by} ${sort_order.toUpperCase()}
-    LIMIT $${paramIndex++} OFFSET $${paramIndex++}
-  `;
-  
-  queryParams.push(userId, limit, offset);
-  
-  const result = await this.db.query(query, queryParams);
-  const trainings = result.rows;
-  const totalCount = trainings.length > 0 ? parseInt(trainings[0].total_count) : 0;
-  
-  return {
-    trainings: trainings.map(row => ({
-      ...this.mapTrainingFromDb(row),
-      enrolled: row.enrolled,
-      progress: row.progress || 0,
-      enrollment_status: row.enrollment_status,
-      enrolled_at: row.enrolled_at,
-      completed_at: row.completed_at,
-      video_count: parseInt(row.video_count || 0)
-    })),
-    pagination: {
-      current_page: page,
-      total_pages: Math.ceil(totalCount / limit),
-      page_size: limit,
-      total_count: totalCount,
-      has_next: page * limit < totalCount,
-      has_previous: page > 1
-    },
-    filters_applied: filters
-  };
-}
 
   // ============================================
   // BASIC TRAINING RETRIEVAL
@@ -766,23 +1046,19 @@ async getPublishedTrainingsForJobseeker(userId: string, params: TrainingSearchPa
       FROM information_schema.columns
       WHERE table_name = 'users' AND table_schema = 'public'
     `);
-  
     const availableColumns = columnCheck.rows.map(row => row.column_name);
     // Build the SELECT clause based on available columns
     let userColumns = ['u.email'];
-  
     if (availableColumns.includes('first_name')) {
       userColumns.push('u.first_name');
     } else {
       userColumns.push("'' as first_name");
     }
-  
     if (availableColumns.includes('last_name')) {
       userColumns.push('u.last_name');
     } else {
       userColumns.push("'' as last_name");
     }
-  
     if (availableColumns.includes('profile_image')) {
       userColumns.push('u.profile_image');
     } else {
@@ -791,7 +1067,6 @@ async getPublishedTrainingsForJobseeker(userId: string, params: TrainingSearchPa
     // Build query with proper parameter indexing
     const limitParam = `$${paramIndex++}`;
     const offsetParam = `$${paramIndex++}`;
-  
     const query = `
       SELECT
         e.*,
@@ -865,7 +1140,6 @@ async getPublishedTrainingsForJobseeker(userId: string, params: TrainingSearchPa
     // Calculate date range
     let dateFilter = '';
     const params = [trainingId];
-  
     if (timeRange === '7days') {
       dateFilter = 'AND te.enrolled_at >= CURRENT_DATE - INTERVAL \'7 days\'';
     } else if (timeRange === '30days') {
@@ -1070,7 +1344,6 @@ async getPublishedTrainingsForJobseeker(userId: string, params: TrainingSearchPa
       );
       if (employerProfileCheck.rows.length > 0) {
         const employerProfileId = employerProfileCheck.rows[0].id;
-      
         // Check BOTH user ID and profile ID to find trainings
         whereConditions.push(`(t.provider_id = $${paramIndex++} OR t.provider_id = $${paramIndex++})`);
         queryParams.push(employerId, employerProfileId);
@@ -1138,7 +1411,6 @@ async getPublishedTrainingsForJobseeker(userId: string, params: TrainingSearchPa
   // ============================================
   async createTraining(data: CreateTrainingRequest, employerId: string): Promise<Training> {
     const client = await this.db.connect();
-  
     try {
       await client.query('BEGIN');
       // STEP 1: Verify the employer exists and has the correct user_type
@@ -1150,7 +1422,6 @@ async getPublishedTrainingsForJobseeker(userId: string, params: TrainingSearchPa
         throw new Error(`User with ID ${employerId} does not exist in the database`);
       }
       const user = userCheck.rows[0];
-    
       if (user.user_type !== 'employer') {
         throw new Error(`User ${user.email} is not an employer. Current type: ${user.user_type}`);
       }
@@ -1221,7 +1492,7 @@ async getPublishedTrainingsForJobseeker(userId: string, params: TrainingSearchPa
         for (let i = 0; i < data.videos.length; i++) {
           const video = data.videos[i];
           const isPreview = (i === 0) ? true : (video.is_preview || false); // FIXED: First video is preview by default
-        
+    
           await client.query(`
             INSERT INTO training_videos (
               training_id,
@@ -1247,7 +1518,7 @@ async getPublishedTrainingsForJobseeker(userId: string, params: TrainingSearchPa
       if (data.outcomes && data.outcomes.length > 0) {
         for (let i = 0; i < data.outcomes.length; i++) {
           const outcome = data.outcomes[i];
-        
+    
           await client.query(`
             INSERT INTO training_outcomes (training_id, outcome_text, order_index)
             VALUES ($1, $2, $3)
@@ -1259,11 +1530,20 @@ async getPublishedTrainingsForJobseeker(userId: string, params: TrainingSearchPa
         }
       }
       await client.query('COMMIT');
-    
+      // ✅ NEW: If training is published, notify jobseekers
+      const finalTraining = trainingResult.rows[0];
+      if (finalTraining.status === 'published') {
+        // Don't await - run in background
+        this.notifyJobseekersAboutNewTraining(
+          trainingId,
+          data.title,
+          data.category,
+          data.provider_name
+        ).catch(err => console.error('Failed to notify jobseekers:', err));
+      }
       // Return the created training
-      const finalTraining = await this.getTrainingById(trainingId) as Training;
-      return finalTraining;
-    
+      const fetchedTraining = await this.getTrainingById(trainingId) as Training;
+      return fetchedTraining;
     } catch (error: any) {
       await client.query('ROLLBACK');
       // Re-throw with enhanced error information
@@ -1272,7 +1552,6 @@ async getPublishedTrainingsForJobseeker(userId: string, params: TrainingSearchPa
           throw new Error(`Employer reference error: User ID ${employerId} cannot be used as provider_id. Database constraint: ${error.constraint}`);
         }
       }
-    
       throw error;
     } finally {
       client.release();
@@ -1281,7 +1560,6 @@ async getPublishedTrainingsForJobseeker(userId: string, params: TrainingSearchPa
 
   async updateTraining(id: string, data: UpdateTrainingRequest, employerId: string): Promise<Training | null> {
     const client = await this.db.connect();
-  
     try {
       await client.query('BEGIN');
       // STEP 1: Get the employer profile ID (same fix as createTraining)
@@ -1338,7 +1616,7 @@ async getPublishedTrainingsForJobseeker(userId: string, params: TrainingSearchPa
         for (let i = 0; i < data.videos.length; i++) {
           const video = data.videos[i];
           const isPreview = (i === 0) ? true : (video.is_preview || false); // FIXED: Maintain first video as preview
-        
+    
           await client.query(`
             INSERT INTO training_videos (
               training_id, title, description, video_url, duration_minutes, order_index, is_preview
@@ -1359,22 +1637,49 @@ async getPublishedTrainingsForJobseeker(userId: string, params: TrainingSearchPa
     }
   }
 
-// In deleteTrainingVideo method - ensure this logic exists
+  // In deleteTrainingVideo method - ensure this logic exists
   async deleteTrainingVideo(
     trainingId: string,
     videoId: string,
     employerId: string
   ): Promise<boolean> {
+    console.log('🗑️ Delete video ownership check:', {
+      trainingId,
+      videoId,
+      employerId
+    });
+ 
+    // Get employer profile ID
+    const employerProfileCheck = await this.db.query(
+      'SELECT id FROM employers WHERE user_id = $1',
+      [employerId]
+    );
+ 
+    const employerProfileId = employerProfileCheck.rows.length > 0
+      ? employerProfileCheck.rows[0].id
+      : null;
+ 
+    console.log('🔍 Employer IDs:', {
+      userId: employerId,
+      profileId: employerProfileId
+    });
+    // Delete with ownership check for BOTH user ID and profile ID
     const result = await this.db.query(`
       DELETE FROM training_videos v
       USING trainings t
       WHERE v.training_id = t.id
         AND v.id = $1
         AND t.id = $2
-        AND t.provider_id = $3
-    `, [videoId, trainingId, employerId]);
-  
-    return (result.rowCount ?? 0) > 0;
+        AND (t.provider_id = $3 OR t.provider_id = $4)
+      RETURNING v.id
+    `, [videoId, trainingId, employerId, employerProfileId]);
+    const deleted = (result.rowCount ?? 0) > 0;
+ 
+    console.log('🗑️ Delete result:', {
+      deleted,
+      rowCount: result.rowCount
+    });
+    return deleted;
   }
 
   // ============================================
@@ -1486,12 +1791,11 @@ async getPublishedTrainingsForJobseeker(userId: string, params: TrainingSearchPa
   // ============================================
   async enrollUserInTraining(trainingId: string, userId: string): Promise<any> {
     const client = await this.db.connect();
-  
     try {
       await client.query('BEGIN');
       // Check if training exists and is published
       const trainingCheck = await client.query(
-        'SELECT id, title, max_participants, current_participants, status FROM trainings WHERE id = $1',
+        'SELECT id, title, max_participants, current_participants, status, provider_id, provider_name FROM trainings WHERE id = $1',
         [trainingId]
       );
       if (trainingCheck.rows.length === 0) {
@@ -1536,7 +1840,18 @@ async getPublishedTrainingsForJobseeker(userId: string, params: TrainingSearchPa
         WHERE id = $1
       `, [trainingId]);
       await client.query('COMMIT');
-    
+      // ✅ Notify employer about new enrollment
+      await this.createNotification(
+        training.provider_id,
+        'new_enrollment',
+        `New enrollment in ${training.title}`,
+        {
+          training_id: trainingId,
+          training_title: training.title,
+          user_id: userId,
+          enrollment_id: enrollmentResult.rows[0].id
+        }
+      );
       return {
         success: true,
         message: 'Successfully enrolled in training',
@@ -1544,7 +1859,6 @@ async getPublishedTrainingsForJobseeker(userId: string, params: TrainingSearchPa
       };
     } catch (error: any) {
       await client.query('ROLLBACK');
-    
       return {
         success: false,
         message: 'Failed to enroll in training. Please try again.',
@@ -1557,7 +1871,6 @@ async getPublishedTrainingsForJobseeker(userId: string, params: TrainingSearchPa
 
   async unenrollUserFromTraining(trainingId: string, userId: string): Promise<boolean> {
     const client = await this.db.connect();
-  
     try {
       await client.query('BEGIN');
       const result = await client.query(`
@@ -1597,7 +1910,6 @@ async getPublishedTrainingsForJobseeker(userId: string, params: TrainingSearchPa
     }
     const enrollmentId = enrollmentCheck.rows[0].id;
     const client = await this.db.connect();
-  
     try {
       await client.query('BEGIN');
       // Update only the columns that exist in your schema
@@ -1639,7 +1951,6 @@ async getPublishedTrainingsForJobseeker(userId: string, params: TrainingSearchPa
         }
       }
       await client.query('COMMIT');
-    
       // Return updated progress
       return await this.getUserTrainingProgress(trainingId, userId);
     } catch (error) {
@@ -1713,7 +2024,6 @@ async getPublishedTrainingsForJobseeker(userId: string, params: TrainingSearchPa
       WHERE e.training_id = $1 AND e.user_id = $2
     `;
     const result = await this.db.query(query, [trainingId, userId]);
-  
     if (result.rows.length === 0) {
       return null;
     }
@@ -1735,7 +2045,6 @@ async getPublishedTrainingsForJobseeker(userId: string, params: TrainingSearchPa
         WHERE tv.training_id = $2
         ORDER BY tv.order_index
       `;
-    
       const videoResult = await this.db.query(videoQuery, [enrollment.id, trainingId]);
       videoProgress = videoResult.rows;
     } catch (error) {
@@ -1811,6 +2120,138 @@ async getPublishedTrainingsForJobseeker(userId: string, params: TrainingSearchPa
         count: parseInt(row.count)
       }))
     };
+  }
+
+  // In training.service.ts - ensure this exists
+  async manuallyIssueCertificate(enrollmentId: string, employerId: string): Promise<any> {
+    console.log('📜 Manually issuing certificate:', { enrollmentId, employerId });
+ 
+    // Get enrollment details
+    const enrollmentResult = await this.db.query(`
+      SELECT e.*, t.title, t.provider_id, t.has_certificate, u.id as user_id
+      FROM training_enrollments e
+      JOIN trainings t ON e.training_id = t.id
+      JOIN users u ON e.user_id = u.id
+      WHERE e.id = $1
+    `, [enrollmentId]);
+ 
+    if (enrollmentResult.rows.length === 0) {
+      throw new Error('Enrollment not found');
+    }
+ 
+    const enrollment = enrollmentResult.rows[0];
+ 
+    // Verify ownership
+    const employerProfileCheck = await this.db.query(
+      'SELECT id FROM employers WHERE user_id = $1',
+      [employerId]
+    );
+ 
+    const employerProfileId = employerProfileCheck.rows.length > 0
+      ? employerProfileCheck.rows[0].id
+      : null;
+ 
+    const isOwner = enrollment.provider_id === employerId || enrollment.provider_id === employerProfileId;
+ 
+    if (!isOwner) {
+      throw new Error('Unauthorized');
+    }
+ 
+    // Check if training offers certificate
+    if (!enrollment.has_certificate) {
+      throw new Error('This training does not offer certificates');
+    }
+ 
+    // Check if already issued
+    if (enrollment.certificate_issued) {
+      return {
+        success: true,
+        message: 'Certificate already issued',
+        certificate_url: enrollment.certificate_url
+      };
+    }
+ 
+    // Generate certificate
+    const certResult = await this.generateCertificate(
+      enrollmentId,
+      enrollment.user_id,
+      enrollment.training_id,
+      enrollment.title
+    );
+ 
+    // Update enrollment
+    await this.db.query(`
+      UPDATE training_enrollments
+      SET certificate_issued = true, certificate_url = $1, certificate_issued_at = CURRENT_TIMESTAMP
+      WHERE id = $2
+    `, [certResult.certificate_url, enrollmentId]);
+ 
+    // Create notification for jobseeker
+    await this.createNotification(
+      enrollment.user_id,
+      'certificate_issued',
+      `Congratulations! You've earned a certificate for ${enrollment.title}`,
+      {
+        training_id: enrollment.training_id,
+        enrollment_id: enrollmentId,
+        certificate_url: certResult.certificate_url
+      }
+    );
+ 
+    console.log('✅ Certificate issued successfully');
+ 
+    return {
+      success: true,
+      message: 'Certificate issued successfully',
+      certificate_url: certResult.certificate_url
+    };
+  }
+
+  /**
+   * ✅ CRITICAL FIX: Add notification to publishTraining
+   * Replace your existing publishTraining method
+   */
+  async publishTraining(trainingId: string, employerId: string): Promise<any> {
+    const client = await this.db.connect();
+    try {
+      await client.query('BEGIN');
+    
+      // Get training details
+      const trainingResult = await client.query(
+        'SELECT * FROM trainings WHERE id = $1',
+        [trainingId]
+      );
+    
+      if (trainingResult.rows.length === 0) {
+        throw new Error('Training not found');
+      }
+    
+      const training = trainingResult.rows[0];
+    
+      // Update status to published
+      await client.query(
+        'UPDATE trainings SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
+        ['published', trainingId]
+      );
+    
+      await client.query('COMMIT');
+    
+      // ✅ NEW: Notify jobseekers about the newly published training
+      this.notifyJobseekersAboutNewTraining(
+        trainingId,
+        training.title,
+        training.category,
+        training.provider_name
+      ).catch(err => console.error('Failed to notify jobseekers:', err));
+    
+      return { success: true, message: 'Training published successfully' };
+    
+    } catch (error: any) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
   }
 
   // ============================================

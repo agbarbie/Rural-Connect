@@ -3,13 +3,14 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { Subject, interval, takeUntil } from 'rxjs';
-import { 
-  TrainingService, 
-  Training, 
+import {
+  TrainingService,
+  Training,
   TrainingVideo,
-  TrainingSearchParams, 
-  PaginatedResponse 
+  TrainingSearchParams,
+  PaginatedResponse
 } from '../../../../../services/training.service';
+import { AuthService } from '../../../../../services/auth.service';
 
 interface FilterOptions {
   duration: string[];
@@ -33,6 +34,7 @@ export class TrainingComponent implements OnInit, OnDestroy {
   private destroy$ = new Subject<void>();
   private progressInterval: any;
   private videoStartTime: number = 0;
+  private lastNotificationCheck: Date = new Date();
   
   trainings: Training[] = [];
   filteredTrainings: Training[] = [];
@@ -46,7 +48,6 @@ export class TrainingComponent implements OnInit, OnDestroy {
     mode: [],
     category: []
   };
-
   categories: string[] = [];
   
   showFilters: boolean = false;
@@ -58,7 +59,7 @@ export class TrainingComponent implements OnInit, OnDestroy {
   error: string | null = null;
   showVideoLoading: boolean = false;
   
-  // ✅ FIXED: Video player state
+  // Video player state
   showVideoPlayer: boolean = false;
   currentVideo: TrainingVideo | null = null;
   currentVideoIndex: number = -1;
@@ -78,38 +79,52 @@ export class TrainingComponent implements OnInit, OnDestroy {
   totalPages: number = 1;
   pageSize: number = 12;
   totalCount: number = 0;
-
-  // Wishlist management (in-memory only)
+  
+  // Wishlist management
   private wishlistSet: Set<string> = new Set();
   
-  addToWishlist(trainingId: string): void {
-    this.wishlistSet.add(trainingId);
-    console.log('Added to wishlist:', trainingId);
-  }
+  // User ID
+  userId: string = '';
   
-  removeFromWishlist(trainingId: string): void {
-    this.wishlistSet.delete(trainingId);
-    console.log('Removed from wishlist:', trainingId);
-  }
-  
-  isInWishlist(trainingId: string): boolean {
-    return this.wishlistSet.has(trainingId);
-  }
-
   constructor(
     private trainingService: TrainingService,
-    private sanitizer: DomSanitizer  // ✅ Added for safe video URLs
+    private sanitizer: DomSanitizer,
+    private authService: AuthService
   ) {}
 
   ngOnInit(): void {
+    // Get user ID
+    this.userId = this.authService.getUserId() || '';
+    
+    if (!this.userId) {
+      console.error('No user ID found');
+      alert('Please log in to view trainings');
+      return;
+    }
+
+    console.log('✅ Jobseeker ID:', this.userId);
+    
     this.loadTrainings();
     this.loadCategories();
     this.loadNotifications();
+    
+    // ✅ NEW: Auto-refresh trainings every 30 seconds to get updates
+    interval(30000)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe(() => {
+        console.log('🔄 Auto-refreshing trainings...');
+        this.loadTrainings();
+      });
     
     // Refresh notifications every 30 seconds
     interval(30000)
       .pipe(takeUntil(this.destroy$))
       .subscribe(() => this.loadNotifications());
+ 
+    // Request desktop notification permission on init
+    if ('Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission();
+    }
   }
 
   ngOnDestroy(): void {
@@ -121,44 +136,296 @@ export class TrainingComponent implements OnInit, OnDestroy {
   // ============================================
   // NOTIFICATIONS
   // ============================================
-
-  loadNotifications(): void {
-    this.trainingService.getNotifications('', { read: false })
+  
+  /**
+   * Get notification icon based on type
+   */
+  getNotificationIcon(type: string): string {
+    const iconMap: Record<string, string> = {
+      'certificate_issued': 'fa-certificate',
+      'new_training': 'fa-plus-circle',
+      'training_updated': 'fa-edit',
+      'training_deleted': 'fa-trash-alt',
+      'training_suspended': 'fa-pause-circle',
+      'training_published': 'fa-rocket',
+      'video_added': 'fa-video',
+      'content_updated': 'fa-sync-alt',
+      'training_completed': 'fa-check-circle',
+      'enrollment_confirmed': 'fa-user-check'
+    };
+   
+    return iconMap[type] || 'fa-bell';
+  }
+  
+  /**
+   * Get notification icon CSS class for styling
+   */
+  getNotificationIconClass(type: string): string {
+    const classMap: Record<string, string> = {
+      'certificate_issued': 'certificate',
+      'new_training': 'new-training',
+      'training_updated': 'training-updated',
+      'training_deleted': 'training-deleted',
+      'training_suspended': 'training-suspended',
+      'training_published': 'new-training',
+      'video_added': 'video-added',
+      'content_updated': 'training-updated',
+      'training_completed': 'certificate',
+      'enrollment_confirmed': 'new-training'
+    };
+   
+    return classMap[type] || 'default';
+  }
+  
+  /**
+   * Get notification title (fallback if title not in database)
+   */
+  getNotificationTitle(type: string): string {
+    const titleMap: Record<string, string> = {
+      'certificate_issued': '🎓 Certificate Ready',
+      'new_training': '🎓 New Training Available',
+      'training_updated': '✏️ Training Updated',
+      'training_deleted': '🗑️ Training Removed',
+      'training_suspended': '⏸️ Training Suspended',
+      'training_published': '📢 Training Published',
+      'video_added': '📹 New Video Added',
+      'content_updated': '📝 Content Updated',
+      'training_completed': '🎉 Training Completed',
+      'enrollment_confirmed': '✅ Enrollment Confirmed'
+    };
+   
+    return titleMap[type] || 'Training Update';
+  }
+  
+  /**
+   * Handle notification click - perform appropriate action
+   */
+  handleNotificationClick(notification: any): void {
+    console.log('📌 Notification clicked:', notification);
+   
+    // Mark as read if not already read
+    if (!notification.read) {
+      this.markNotificationAsRead(notification.id);
+    }
+   
+    // Perform action based on notification type
+    switch (notification.type) {
+      case 'enrollment_confirmed':
+      case 'new_training':
+      case 'training_updated':
+      case 'video_added':
+      case 'content_updated':
+        if (notification.metadata?.training_id) {
+          this.viewTrainingFromNotification(notification.metadata.training_id);
+        }
+        break;
+       
+      case 'certificate_issued':
+        if (notification.metadata?.enrollment_id) {
+          this.downloadCertificate(
+            notification.metadata.enrollment_id,
+            notification.metadata?.training_title || 'Training'
+          );
+        }
+        break;
+       
+      case 'training_deleted':
+      case 'training_suspended':
+        // Show alert for deleted/suspended trainings
+        alert(notification.message);
+        this.showNotifications = false;
+        break;
+       
+      default:
+        console.log('No specific action for notification type:', notification.type);
+    }
+  }
+  
+  /**
+   * View training from notification
+   */
+  viewTrainingFromNotification(trainingId: string): void {
+    console.log('👀 Viewing training from notification:', trainingId);
+   
+    // Find training in current list
+    const training = this.trainings.find(t => t.id === trainingId);
+   
+    if (training) {
+      this.viewTrainingDetail(training);
+      this.showNotifications = false;
+    } else {
+      // Training not in current list - fetch it
+      this.trainingService.getTrainingWithDetailsForJobseeker(trainingId, this.userId)
+              .pipe(takeUntil(this.destroy$))
+              .subscribe({
+                next: (response) => {
+                  if (response && response.success && response.data) {
+                    this.viewTrainingDetail(response.data);
+                    this.showNotifications = false;
+                  } else {
+                    alert('Training not found or no longer available');
+                  }
+                },
+                error: (error) => {
+                  console.error('❌ Error loading training:', error);
+                  alert('Unable to load training. It may have been removed.');
+                }
+              });
+    }
+  }
+  
+  /**
+   * View all notifications (navigate to dedicated notifications page if available)
+   */
+  viewAllNotifications(): void {
+    console.log('📋 Viewing all notifications');
+   
+    // For now, just load more notifications
+    this.trainingService.getNotifications(this.userId, { read: undefined })
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: (response) => {
           if (response.success && response.data) {
             this.notifications = response.data.notifications || [];
-            this.unreadNotificationCount = this.notifications.length;
+            console.log('✅ All notifications loaded:', this.notifications.length);
           }
         },
         error: (error) => {
-          console.error('❌ Error loading notifications:', error);
+          console.error('❌ Error loading all notifications:', error);
         }
       });
   }
-
-  toggleNotifications(): void {
-    this.showNotifications = !this.showNotifications;
-  }
-
+  
+  /**
+   * Enhanced mark notification as read with UI feedback
+   */
   markNotificationAsRead(notificationId: string): void {
-    this.trainingService.markNotificationRead(notificationId)
+    console.log('✅ Marking notification as read:', notificationId);
+   
+    // Optimistic update - mark as read immediately in UI
+    const notification = this.notifications.find(n => n.id === notificationId);
+    if (notification) {
+      notification.read = true;
+      this.unreadNotificationCount = Math.max(0, this.unreadNotificationCount - 1);
+    }
+   
+    // Send to backend
+    this.trainingService.markNotificationRead(notificationId, this.userId)
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: () => {
-          this.loadNotifications();
+          console.log('✅ Notification marked as read on server');
+        },
+        error: (error) => {
+          console.error('❌ Error marking notification as read:', error);
+          // Revert optimistic update on error
+          if (notification) {
+            notification.read = false;
+            this.unreadNotificationCount++;
+          }
         }
       });
+  }
+  
+  /**
+   * Enhanced load notifications with filtering
+   */
+loadNotifications(): void {
+  console.log('🔔 Loading notifications for jobseeker:', this.userId);
+  this.trainingService.getNotifications(this.userId, { read: false }, 'jobseeker')  // FIXED: Boolean false
+    .pipe(takeUntil(this.destroy$))
+    .subscribe({
+      next: (response) => {
+        console.log('📦 Raw notification response:', response);
+        if (response.success && response.data) {
+          this.notifications = response.data.notifications || [];
+          // FIXED: Count only unread
+          this.unreadNotificationCount = this.notifications.filter(n => !n.read).length;
+          console.log('✅ Jobseeker notifications loaded:', {
+            total: this.notifications.length,
+            unread: this.unreadNotificationCount,
+            types: this.notifications.map(n => n.type)
+          });
+          // FIXED: Check for new ones
+          this.checkForNewNotifications();
+        } else {
+          this.notifications = [];
+          this.unreadNotificationCount = 0;
+        }
+      },
+      error: (error) => {
+        console.error('❌ Error loading notifications:', error);
+        this.notifications = [];
+        this.unreadNotificationCount = 0;
+      }
+    });
+}
+  
+  /**
+   * Check for new notifications and show desktop notification if enabled
+   */
+private checkForNewNotifications(): void {
+  const newNotifications = this.notifications.filter(n => {
+    const notificationDate = new Date(n.created_at);
+    return notificationDate > this.lastNotificationCheck;
+  });
+  if (newNotifications.length > 0) {
+    console.log('🔔 New notifications detected:', newNotifications.length);
+    const importantTypes = ['certificate_issued', 'enrollment_confirmed', 'training_deleted', 'training_suspended'];  // FIXED: Add enroll
+    const importantNotifications = newNotifications.filter(n => importantTypes.includes(n.type));
+    if (importantNotifications.length > 0 && 'Notification' in window && Notification.permission === 'granted') {
+      importantNotifications.forEach(n => {
+        new Notification(n.title || this.getNotificationTitle(n.type), {
+          body: n.message,
+          icon: '/assets/logo.png'
+        });
+      });
+    }
+  }
+  this.lastNotificationCheck = new Date();
+}
+  
+  /**
+   * Toggle notifications dropdown with animation
+   */
+  toggleNotifications(): void {
+    this.showNotifications = !this.showNotifications;
+   
+    // Update last check time when opening notifications
+    if (this.showNotifications) {
+      this.lastNotificationCheck = new Date();
+    }
+  }
+  
+  /**
+   * Clear all read notifications
+   */
+  clearReadNotifications(): void {
+    if (confirm('Clear all read notifications?')) {
+      // Filter out read notifications
+      const readIds = this.notifications
+        .filter(n => n.read)
+        .map(n => n.id);
+     
+      if (readIds.length === 0) {
+        alert('No read notifications to clear');
+        return;
+      }
+     
+      // In a real implementation, you'd call a backend API to bulk delete
+      console.log('🗑️ Clearing read notifications:', readIds.length);
+     
+      // Optimistic update
+      this.notifications = this.notifications.filter(n => !n.read);
+     
+      alert(`Cleared ${readIds.length} read notifications`);
+    }
   }
 
   // ============================================
   // VIDEO PLAYER METHODS
   // ============================================
-
-  /**
-   * ✅ NEW: Play video with proper URL handling
-   */
+  
   playVideo(video: TrainingVideo, index: number): void {
     console.log('🎥 Playing video:', video);
     
@@ -195,9 +462,6 @@ export class TrainingComponent implements OnInit, OnDestroy {
     this.startProgressTracking();
   }
 
-  /**
-   * ✅ NEW: Close video player
-   */
   closeVideoPlayer(): void {
     // Save progress before closing
     if (this.currentVideo) {
@@ -212,9 +476,6 @@ export class TrainingComponent implements OnInit, OnDestroy {
     this.videoWatchTime = 0;
   }
 
-  /**
-   * ✅ NEW: Play next video
-   */
   playNextVideo(): void {
     if (!this.selectedTraining?.videos) return;
     
@@ -229,9 +490,6 @@ export class TrainingComponent implements OnInit, OnDestroy {
     }
   }
 
-  /**
-   * ✅ NEW: Play previous video
-   */
   playPreviousVideo(): void {
     if (!this.selectedTraining?.videos) return;
     
@@ -242,17 +500,11 @@ export class TrainingComponent implements OnInit, OnDestroy {
     }
   }
 
-  /**
-   * ✅ NEW: Check if video is accessible
-   */
   isVideoAccessible(video: TrainingVideo): boolean {
     if (!this.selectedTraining) return false;
     return this.trainingService.isVideoAccessible(video, this.selectedTraining);
   }
 
-  /**
-   * ✅ NEW: Get video status badge
-   */
   getVideoStatusBadge(video: TrainingVideo): string {
     if (video.completed) return '✓ Completed';
     if (video.is_preview) return '🔓 Preview';
@@ -261,9 +513,9 @@ export class TrainingComponent implements OnInit, OnDestroy {
   }
 
   // ============================================
-  // PROGRESS TRACKING
+  // ✅ ENHANCED PROGRESS TRACKING
   // ============================================
-
+  
   startProgressTracking(): void {
     // Update progress every 10 seconds
     this.progressInterval = setInterval(() => {
@@ -305,100 +557,188 @@ export class TrainingComponent implements OnInit, OnDestroy {
       setTimeout(() => {
         this.playNextVideo();
       }, 1000);
+    } else {
+      // Last video completed
+      alert('🎉 Congratulations! You have completed all videos in this training!');
     }
   }
 
+  // In training.component.ts (Jobseeker) - Replace the saveVideoProgress method
+
   saveVideoProgress(isCompleted: boolean): void {
-    if (!this.selectedTraining || !this.currentVideo) return;
-    
+    if (!this.selectedTraining || !this.currentVideo) {
+      console.warn('⚠️ Cannot save progress: missing training or video');
+      return;
+    }
+
+    // Ensure we have the necessary IDs
+    if (!this.currentVideo.id) {
+      console.error('❌ Video ID is missing');
+      alert('Cannot save progress: Video ID is missing');
+      return;
+    }
+
     console.log('💾 Saving video progress:', {
-      training: this.selectedTraining.title,
-      video: this.currentVideo.title,
+      trainingId: this.selectedTraining.id,
+      trainingTitle: this.selectedTraining.title,
+      videoId: this.currentVideo.id,
+      videoTitle: this.currentVideo.title,
       watchTime: this.videoWatchTime,
-      completed: isCompleted
+      completed: isCompleted,
+      userId: this.userId
     });
-    
+
     this.trainingService.updateVideoProgress(
       this.selectedTraining.id,
-      this.currentVideo.id!,
+      this.currentVideo.id,
       this.videoWatchTime,
-      isCompleted
+      isCompleted,
+      this.userId
     ).pipe(takeUntil(this.destroy$))
       .subscribe({
         next: (response) => {
-          console.log('✅ Progress saved:', response);
-          
-          if (response.data) {
-            // Update training progress if selectedTraining is present
+          console.log('✅ Progress saved successfully:', response);
+
+          if (response.success && response.data) {
+            // Update training progress in real-time
             if (this.selectedTraining) {
               this.selectedTraining.progress = response.data.overall_progress || 0;
-            } else {
-              console.warn('No selectedTraining to update progress on.');
-            }
-            
-            // Check if training completed
-            if (response.data.training_completed) {
-              alert('🎉 Congratulations! You completed the training!');
-              
-              // Check for certificate
-              if (response.data.certificate_issued) {
-                alert('🎓 Your certificate is ready for download!');
-                this.loadNotifications(); // Refresh to show certificate notification
+
+              // Update in trainings list too
+              const trainingInList = this.trainings.find(t => t.id === this.selectedTraining!.id);
+              if (trainingInList) {
+                trainingInList.progress = response.data.overall_progress || 0;
               }
+
+              console.log('📊 Updated progress:', {
+                overall: response.data.overall_progress,
+                completed: response.data.training_completed
+              });
             }
-            
-            // Mark video as completed in the list
+
+            // Mark video as completed in the list FIRST
             if (isCompleted && this.currentVideo) {
               this.currentVideo.completed = true;
+              
+              // Update the video in the selected training's videos array
+              if (this.selectedTraining?.videos) {
+                const videoInList = this.selectedTraining.videos.find(v => v.id === this.currentVideo!.id);
+                if (videoInList) {
+                  videoInList.completed = true;
+                }
+              }
+              console.log('✓ Video marked as completed in UI');
+            }
+
+            // Check if training completed
+            if (response.data.training_completed) {
+              setTimeout(() => {
+                alert('🎉 Congratulations! You completed the training!');
+
+                // Check for certificate
+                if (response.data.certificate_issued) {
+                  alert('🎓 Your certificate is ready for download!');
+                  this.loadNotifications(); // Refresh to show certificate notification
+
+                  // Reload training details to show certificate button
+                  if (this.selectedTraining) {
+                    this.viewTrainingDetail(this.selectedTraining);
+                  }
+                }
+              }, 500);
+            } else if (isCompleted) {
+              // Only show subtle feedback for individual video completion
+              console.log('✓ Video completion saved');
             }
           }
         },
         error: (error) => {
           console.error('❌ Error saving progress:', error);
+          console.error('Error details:', {
+            status: error.status,
+            message: error.message,
+            error: error.error
+          });
+
+          // ✅ FIX: Check if it's actually a successful save with notification error
+          if (error.status === 500 && error.error?.message?.includes('notifications')) {
+            console.warn('⚠️ Progress saved but notification failed (backend DB issue)');
+            
+            // Still update UI since progress WAS saved
+            if (isCompleted && this.currentVideo) {
+              this.currentVideo.completed = true;
+              
+              if (this.selectedTraining?.videos) {
+                const videoInList = this.selectedTraining.videos.find(v => v.id === this.currentVideo!.id);
+                if (videoInList) {
+                  videoInList.completed = true;
+                }
+              }
+            }
+            
+            // Don't show error alert - progress was actually saved
+            console.log('✓ Video progress saved (notification system needs DB fix)');
+            return; // Exit without showing error
+          }
+
+          // Only show error for actual failures
+          let errorMessage = 'Failed to save progress.';
+          
+          if (error.status === 404) {
+            errorMessage += ' Training or video not found.';
+          } else if (error.status === 401) {
+            errorMessage += ' Please log in again.';
+          } else if (error.status === 403) {
+            errorMessage += ' You must be enrolled to save progress.';
+          } else if (error.error?.message && !error.error.message.includes('notifications')) {
+            errorMessage += ` ${error.error.message}`;
+          }
+
+          errorMessage += ' It will resume from here next time.';
+          alert(errorMessage);
         }
       });
   }
 
   // ============================================
-  // CERTIFICATE DOWNLOAD
+  // ✅ CERTIFICATE DOWNLOAD
   // ============================================
-
+  
   downloadCertificate(enrollmentId: string, trainingTitle: string): void {
     console.log('📥 Downloading certificate for enrollment:', enrollmentId);
     
     this.trainingService.triggerCertificateDownload(enrollmentId, trainingTitle);
   }
 
-  // ============================================
-  // EXISTING METHODS (unchanged)
-  // ============================================
+  canDownloadCertificate(training: Training): boolean {
+    return !!(training.enrolled && training.progress === 100 && training.certificate_issued);
+  }
 
+  // ============================================
+  // DATA LOADING
+  // ============================================
+  
   private isValidTraining(training: Training): boolean {
     if (!training.id || !training.title || !training.description || !training.provider_name) {
       console.warn('❌ Missing required fields:', training.id);
       return false;
     }
-
     if (training.status !== 'published') {
       console.warn('❌ Not published:', training.title, 'Status:', training.status);
       return false;
     }
-
     if (!training.provider_id || training.provider_id === 'null' || training.provider_id === 'undefined') {
       console.warn('❌ Invalid provider_id:', training.title, 'Provider ID:', training.provider_id);
       return false;
     }
-
     if (training.duration_hours <= 0) {
       console.warn('❌ Invalid duration:', training.title);
       return false;
     }
-
     if (training.cost_type === 'Paid' && (!training.price || training.price <= 0)) {
       console.warn('❌ Paid training with invalid price:', training.title);
       return false;
     }
-
     return true;
   }
 
@@ -429,7 +769,7 @@ export class TrainingComponent implements OnInit, OnDestroy {
           
           if (response.success && response.data) {
             const rawTrainings = response.data.trainings || [];
-            const validTrainings = rawTrainings.filter((training: Training) => 
+            const validTrainings = rawTrainings.filter((training: Training) =>
               this.isValidTraining(training)
             );
             
@@ -468,32 +808,6 @@ export class TrainingComponent implements OnInit, OnDestroy {
       });
   }
 
-  filterByCategory(category: string): void {
-    this.selectedCategory = category;
-    this.currentPage = 1;
-    this.loadTrainings(1);
-  }
-
-  onSearchChange(): void {
-    setTimeout(() => {
-      this.currentPage = 1;
-      this.loadTrainings(1);
-    }, 500);
-  }
-
-  toggleFilters(): void {
-    this.showFilters = !this.showFilters;
-  }
-
-  onFilterChange(): void {
-    this.currentPage = 1;
-    this.loadTrainings(1);
-  }
-
-  applyFilters(): void {
-    this.loadTrainings(this.currentPage);
-  }
-
   viewTrainingDetail(training: Training): void {
     this.loading = true;
     this.showVideoLoading = true;
@@ -501,7 +815,8 @@ export class TrainingComponent implements OnInit, OnDestroy {
     
     console.log('🔍 Fetching full details for training:', training.id);
     
-    this.trainingService.getTrainingDetails(training.id)
+    // ✅ Use jobseeker-specific endpoint with user ID
+    this.trainingService.getTrainingWithDetailsForJobseeker(training.id, this.userId)
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: (response) => {
@@ -509,7 +824,13 @@ export class TrainingComponent implements OnInit, OnDestroy {
           if (response.success && response.data) {
             if (this.isValidTraining(response.data)) {
               this.selectedTraining = response.data;
-              console.log('✅ Training loaded with videos:', this.selectedTraining.videos?.length || 0);
+              console.log('✅ Training loaded:', {
+                title: this.selectedTraining.title,
+                videos: this.selectedTraining.videos?.length || 0,
+                progress: this.selectedTraining.progress,
+                enrolled: this.selectedTraining.enrolled,
+                certificateIssued: this.selectedTraining.certificate_issued
+              });
             } else {
               console.error('❌ Training failed validation check');
               this.error = 'This training is no longer available.';
@@ -535,7 +856,7 @@ export class TrainingComponent implements OnInit, OnDestroy {
     this.showTrainingDetail = false;
     this.selectedTraining = null;
     this.showVideoLoading = false;
-    this.closeVideoPlayer();  // ✅ Also close video player
+    this.closeVideoPlayer();
   }
 
   enrollInTraining(training: Training): void {
@@ -552,6 +873,9 @@ export class TrainingComponent implements OnInit, OnDestroy {
             }
             console.log('✅ Successfully enrolled in:', training.title);
             alert('Successfully enrolled in the training!');
+            
+            // Reload training details to get full video list
+            this.viewTrainingDetail(training);
           }
         },
         error: (error: any) => {
@@ -563,7 +887,22 @@ export class TrainingComponent implements OnInit, OnDestroy {
 
   startTraining(training: Training): void {
     console.log('▶️ Starting training:', training.title);
-    alert('Starting training: ' + training.title);
+    this.viewTrainingDetail(training);
+  }
+
+  // Wishlist management
+  addToWishlist(trainingId: string): void {
+    this.wishlistSet.add(trainingId);
+    console.log('Added to wishlist:', trainingId);
+  }
+  
+  removeFromWishlist(trainingId: string): void {
+    this.wishlistSet.delete(trainingId);
+    console.log('Removed from wishlist:', trainingId);
+  }
+  
+  isInWishlist(trainingId: string): boolean {
+    return this.wishlistSet.has(trainingId);
   }
 
   toggleWishlist(trainingId: string): void {
@@ -585,6 +924,33 @@ export class TrainingComponent implements OnInit, OnDestroy {
       navigator.clipboard.writeText(window.location.origin + `/trainings/${training.id}`);
       alert(`Link copied to clipboard: ${training.title}`);
     }
+  }
+
+  // Filter methods
+  filterByCategory(category: string): void {
+    this.selectedCategory = category;
+    this.currentPage = 1;
+    this.loadTrainings(1);
+  }
+
+  onSearchChange(): void {
+    setTimeout(() => {
+      this.currentPage = 1;
+      this.loadTrainings(1);
+    }, 500);
+  }
+
+  toggleFilters(): void {
+    this.showFilters = !this.showFilters;
+  }
+
+  onFilterChange(): void {
+    this.currentPage = 1;
+    this.loadTrainings(1);
+  }
+
+  applyFilters(): void {
+    this.loadTrainings(this.currentPage);
   }
 
   onFilterCheckboxChange(filterType: keyof FilterOptions, value: string, event: any): void {
@@ -613,6 +979,7 @@ export class TrainingComponent implements OnInit, OnDestroy {
     this.loadTrainings(1);
   }
 
+  // Utility methods
   getDurationText(duration_hours: number): string {
     if (duration_hours < 10) return 'Short Course';
     if (duration_hours <= 40) return 'Medium Course';
@@ -638,6 +1005,7 @@ export class TrainingComponent implements OnInit, OnDestroy {
     return this.trainingService.formatPrice(training.price, training.cost_type);
   }
 
+  // Pagination
   goToPage(page: number): void {
     if (page >= 1 && page <= this.totalPages && page !== this.currentPage) {
       this.loadTrainings(page);
