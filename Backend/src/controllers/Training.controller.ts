@@ -1588,36 +1588,100 @@ async markNotificationRead(req: AuthenticatedRequest, res: Response, next: NextF
   // CERTIFICATE MANAGEMENT
   // ============================================
 
-  async downloadCertificate(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
-    try {
-      const { enrollmentId } = req.params;
-      const userId = req.user?.id;
+async downloadCertificate(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const { enrollmentId } = req.params;
+    const userId = req.user?.id;
 
-      if (!userId) {
-        res.status(401).json({ success: false, message: 'Unauthorized' });
-        return;
-      }
+    console.log('📥 Certificate download request:', { enrollmentId, userId });
 
-      // Fetch enrollment and verify ownership
-      const enrollment = await pool.query(
-        'SELECT certificate_url FROM training_enrollments WHERE id = $1 AND user_id = $2 AND certificate_issued = true',
-        [enrollmentId, userId]
-      );
-      
-      if (enrollment.rows.length === 0) {
-        res.status(404).json({ success: false, message: 'Certificate not found' });
-        return;
-      }
-      
-      // Serve PDF file
-      const certPath = path.join(__dirname, `../../uploads/certificates/${enrollment.rows[0].certificate_url}`);
-      res.download(certPath, `certificate-${enrollmentId}.pdf`, (err) => {
-        if (err) next(err);
-      });
-    } catch (error) {
-      next(error);
+    if (!userId) {
+      res.status(401).json({ success: false, message: 'Unauthorized' });
+      return;
     }
+
+    // Fetch enrollment and verify ownership
+    const enrollment = await pool.query(
+      `SELECT 
+        te.certificate_url, 
+        te.certificate_issued,
+        t.title 
+      FROM training_enrollments te
+      JOIN trainings t ON te.training_id = t.id
+      WHERE te.id = $1 
+        AND te.user_id = $2 
+        AND te.certificate_issued = true`,
+      [enrollmentId, userId]
+    );
+    
+    if (enrollment.rows.length === 0) {
+      console.log('❌ Certificate not found or not issued');
+      res.status(404).json({ 
+        success: false, 
+        message: 'Certificate not yet issued. Please complete all training videos first.' 
+      });
+      return;
+    }
+    
+    const certificateUrl = enrollment.rows[0].certificate_url;
+    const trainingTitle = enrollment.rows[0].title;
+    
+    console.log('Certificate URL from DB:', certificateUrl);
+    
+    // ✅ FIX: Handle both absolute and relative paths
+    let certificatePath: string;
+    
+    if (certificateUrl.startsWith('/certificates/')) {
+      // Relative path from DB (e.g., "/certificates/certificate-xyz.pdf")
+      certificatePath = path.join(__dirname, '../../uploads', certificateUrl);
+    } else if (certificateUrl.startsWith('certificates/')) {
+      // Path without leading slash
+      certificatePath = path.join(__dirname, '../../uploads', certificateUrl);
+    } else {
+      // Fallback: assume it's just the filename
+      certificatePath = path.join(__dirname, '../../uploads/certificates', certificateUrl);
+    }
+    
+    console.log('Resolved certificate path:', certificatePath);
+    
+    // Check if file exists
+    const fs = require('fs');
+    if (!fs.existsSync(certificatePath)) {
+      console.error('❌ Certificate file not found at:', certificatePath);
+      res.status(404).json({ 
+        success: false, 
+        message: 'Certificate file not found on server. Please contact support.' 
+      });
+      return;
+    }
+    
+    // ✅ Set proper headers and download
+    const filename = `certificate-${trainingTitle.replace(/\s+/g, '-')}-${enrollmentId}.pdf`;
+    
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    
+    console.log('✅ Sending certificate file:', filename);
+    
+    res.download(certificatePath, filename, (err) => {
+      if (err) {
+        console.error('❌ Error sending file:', err);
+        if (!res.headersSent) {
+          res.status(500).json({ 
+            success: false, 
+            message: 'Failed to download certificate' 
+          });
+        }
+      } else {
+        console.log('✅ Certificate download successful');
+      }
+    });
+    
+  } catch (error: any) {
+    console.error('❌ Error in downloadCertificate:', error);
+    next(error);
   }
+}
 
   async issueCertificate(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {

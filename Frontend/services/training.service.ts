@@ -344,23 +344,114 @@ markNotificationRead(
     );
   }
 
-  triggerCertificateDownload(enrollmentId: string, trainingTitle: string): void {
-    this.downloadCertificate(enrollmentId).subscribe({
-      next: (blob) => {
+triggerCertificateDownload(enrollmentId: string, trainingTitle: string): void {
+  console.log('📥 Triggering certificate download:', {
+    enrollmentId,
+    trainingTitle
+  });
+  
+  // Validate inputs
+  if (!enrollmentId) {
+    console.error('❌ No enrollment ID provided');
+    alert('Cannot download certificate: Enrollment ID is missing');
+    return;
+  }
+  
+  // Provide default title if missing and sanitize it
+  const sanitizedTitle = (trainingTitle || 'Training')
+    .trim()
+    .replace(/[^a-zA-Z0-9\s-]/g, '') // Remove special characters
+    .replace(/\s+/g, '-')            // Replace spaces with hyphens
+    .substring(0, 50);                // Limit length
+  
+  console.log('📝 Sanitized title:', sanitizedTitle);
+  
+  this.downloadCertificate(enrollmentId).subscribe({
+    next: (blob) => {
+      console.log('✅ Certificate blob received, creating download link');
+      
+      try {
+        // Create blob URL
         const url = window.URL.createObjectURL(blob);
+        
+        // Create temporary link element
         const link = document.createElement('a');
         link.href = url;
-        link.download = `certificate-${trainingTitle.replace(/\s+/g, '-')}.pdf`;
+        link.download = `certificate-${sanitizedTitle}.pdf`;
+        
+        // Append to body, click, and remove
+        document.body.appendChild(link);
         link.click();
-        window.URL.revokeObjectURL(url);
-        console.log('✅ Certificate download triggered');
-      },
-      error: (error) => {
-        console.error('❌ Certificate download failed:', error);
+        document.body.removeChild(link);
+        
+        // Clean up blob URL after a short delay
+        setTimeout(() => {
+          window.URL.revokeObjectURL(url);
+          console.log('✅ Certificate download completed and cleaned up');
+        }, 100);
+        
+        // Show success message
+        console.log('✅ Certificate download triggered successfully');
+        
+      } catch (error) {
+        console.error('❌ Error creating download link:', error);
         alert('Failed to download certificate. Please try again.');
       }
-    });
+    },
+    error: (error) => {
+      console.error('❌ Certificate download failed:', error);
+      
+      // Show user-friendly error message
+      const errorMessage = error.message || 'Failed to download certificate. Please try again.';
+      alert(errorMessage);
+    }
+  });
+}
+
+openCertificateInNewTab(enrollmentId: string): void {
+  console.log('📥 Opening certificate in new tab:', enrollmentId);
+  
+  if (!enrollmentId) {
+    console.error('❌ No enrollment ID provided');
+    alert('Cannot open certificate: Enrollment ID is missing');
+    return;
   }
+  
+  const token = localStorage.getItem('token');
+  if (!token) {
+    alert('Authentication required. Please log in again.');
+    return;
+  }
+  
+  // Create URL with token as query parameter (for direct browser access)
+  const url = `${this.TRAINING_ENDPOINT}/enrollments/${enrollmentId}/certificate?token=${encodeURIComponent(token)}`;
+  
+  // Open in new tab
+  window.open(url, '_blank');
+  
+  console.log('✅ Certificate opened in new tab');
+}
+
+
+checkCertificateAvailability(enrollmentId: string): Observable<ApiResponse<{ available: boolean, reason?: string }>> {
+  console.log('🔍 Checking certificate availability:', enrollmentId);
+  
+  return this.http.get<ApiResponse<{ available: boolean, reason?: string }>>(
+    `${this.TRAINING_ENDPOINT}/enrollments/${enrollmentId}/certificate/status`,
+    { headers: this.getAuthHeaders() }
+  ).pipe(
+    tap(response => {
+      console.log('✅ Certificate availability:', response);
+    }),
+    catchError(error => {
+      console.error('❌ Error checking certificate availability:', error);
+      return of({
+        success: false,
+        data: { available: false, reason: 'Unable to check certificate status' }
+      } as ApiResponse<{ available: boolean, reason?: string }>);
+    })
+  );
+}
 
   // ============================================
   // OTHER STUBS (SIMPLE IMPLEMENTATIONS)
@@ -1272,13 +1363,58 @@ markNotificationRead(
     ).pipe(catchError(this.handleError.bind(this)));
   }
 
-  downloadCertificate(enrollmentId: string): Observable<Blob> {
-    return this.http.get(`${this.TRAINING_ENDPOINT}/enrollments/${enrollmentId}/certificate`, {
-      responseType: 'blob',
-      headers: this.getAuthHeaders()
-    }).pipe(
-      tap(() => console.log('📥 Certificate downloaded')),
-      catchError(this.handleError.bind(this))
-    );
+downloadCertificate(enrollmentId: string): Observable<Blob> {
+  console.log('📥 Frontend: Downloading certificate for enrollment:', enrollmentId);
+  
+  if (!enrollmentId) {
+    console.error('❌ No enrollment ID provided');
+    return throwError(() => new Error('Enrollment ID is required'));
   }
+  
+  return this.http.get(
+    `${this.TRAINING_ENDPOINT}/enrollments/${enrollmentId}/certificate`, 
+    {
+      responseType: 'blob',
+      headers: this.getAuthHeaders(),
+      observe: 'response'
+    }
+  ).pipe(
+    map(response => {
+      console.log('✅ Certificate response received:', {
+        status: response.status,
+        contentType: response.headers.get('Content-Type'),
+        size: response.body?.size
+      });
+      
+      if (!response.body) {
+        throw new Error('Certificate data is empty');
+      }
+      
+      return response.body;
+    }),
+    catchError((error) => {
+      console.error('❌ Certificate download error:', {
+        status: error.status,
+        message: error.message,
+        error: error.error,
+        url: error.url
+      });
+      
+      // Provide user-friendly error messages
+      let errorMessage = 'Failed to download certificate';
+      
+      if (error.status === 404) {
+        errorMessage = 'Certificate not found. Please ensure you have completed the training.';
+      } else if (error.status === 401) {
+        errorMessage = 'Authentication required. Please log in again.';
+      } else if (error.status === 403) {
+        errorMessage = 'You do not have permission to download this certificate.';
+      } else if (error.status === 500) {
+        errorMessage = 'Server error while generating certificate. Please try again later.';
+      }
+      
+      return throwError(() => new Error(errorMessage));
+    })
+  );
+}
 }
