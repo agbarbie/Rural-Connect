@@ -5,7 +5,7 @@ import { Router } from '@angular/router';
 import { RouterModule } from '@angular/router';
 import { Subscription } from 'rxjs';
 import { AuthService } from '../../../../../services/auth.service'; // Adjust path as needed
-
+import { SidebarComponent } from '../../shared/sidebar/sidebar.component';
 interface JobApplicant {
   id: string;
   name: string;
@@ -44,7 +44,7 @@ interface AnalyticsData {
 @Component({
   selector: 'app-employer-dashboard',
   templateUrl: './employer-dashboard.component.html',
-  imports: [CommonModule, FormsModule, RouterModule],
+  imports: [CommonModule, FormsModule, RouterModule, SidebarComponent],
   standalone: true,
   styleUrls: ['./employer-dashboard.component.css']
 })

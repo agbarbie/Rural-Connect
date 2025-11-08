@@ -5,7 +5,7 @@ import { Router } from '@angular/router';
 import { Subject, takeUntil, finalize, forkJoin, catchError, of } from 'rxjs';
 import { JobService, Job } from '../../../../../services/job.service';
 import { ProfileService } from '../../../../../services/profile.service';
-
+import { SidebarComponent } from '../../shared/sidebar/sidebar.component';
 interface Notification {
   id: string;
   message: string;
@@ -15,7 +15,7 @@ interface Notification {
 @Component({
   selector: 'app-job-explorer',
   templateUrl: './job-explorer.component.html',
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, SidebarComponent],
   styleUrls: ['./job-explorer.component.css']
 })
 export class JobExplorerComponent implements OnInit, OnDestroy {

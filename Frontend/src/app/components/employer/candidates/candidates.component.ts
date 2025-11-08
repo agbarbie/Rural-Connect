@@ -1,7 +1,7 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-
+import { SidebarComponent } from '../../shared/sidebar/sidebar.component';
 interface Candidate {
   id: number;
   name: string;
@@ -41,7 +41,7 @@ interface AIInsight {
 @Component({
   selector: 'app-candidates',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, SidebarComponent],
   templateUrl: './candidates.component.html',
   styleUrls: ['./candidates.component.css']
 })

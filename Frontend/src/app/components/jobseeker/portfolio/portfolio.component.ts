@@ -6,7 +6,7 @@ import { CvService, CV } from '../../../../../services/cv.service';
 import { AuthService } from '../../../../../services/auth.service';
 import { PortfolioService, PortfolioData } from '../../../../../services/portfolio.service';
 import { environment } from '../../../../environments/environments';
-
+import { SidebarComponent } from '../../shared/sidebar/sidebar.component';
 interface Project {
   id: number;
   title: string;
@@ -50,7 +50,7 @@ interface Testimonial {
 @Component({
   selector: 'app-portfolio',
   templateUrl: './portfolio.component.html',
-  imports: [CommonModule, DatePipe],
+  imports: [CommonModule, DatePipe, SidebarComponent],
   styleUrls: ['./portfolio.component.css']
 })
 export class PortfolioComponent implements OnInit {

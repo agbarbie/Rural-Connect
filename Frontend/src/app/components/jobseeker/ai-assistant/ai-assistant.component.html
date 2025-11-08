@@ -1,106 +1,38 @@
 <!-- AI Assistant Component HTML -->
 <div class="ai-assistant-container">
   <!-- Sidebar -->
-  <nav class="sidebar">
-    <div class="sidebar-header">
-      <div class="logo">
-        <div class="logo-icon">
-          <i class="fas fa-graduation-cap"></i>
-        </div>
-        <span>Digital Skilling App</span>
-      </div>
-    </div>
+  <app-sidebar [userType]="'jobseeker'"></app-sidebar>
 
-    <div class="nav-section">
-      <div class="nav-title">Main</div>
-      <a href="#" class="nav-item" routerLink="/dashboard">
-        <i class="fas fa-th-large"></i>
-        <span>Dashboard</span>
-      </a>
-      <a href="#" class="nav-item" routerLink="/profile">
-        <i class="fas fa-user"></i>
-        <span>My Profile</span>
-      </a>
-      <a href="#" class="nav-item" routerLink="../job-explorer">
-        <i class="fas fa-briefcase"></i>
-        <span>Jobs Explorer</span>
-        <span class="nav-badge">5</span>
-      </a>
-      <a href="#" class="nav-item active" routerLink="../ai-assistant">
-        <i class="fas fa-robot"></i>
-        <span>AI Recommendations</span>
-      </a>
-      <a href="#" class="nav-item" routerLink="../cv-builder">
-        <i class="fas fa-file-alt"></i>
-        <span>CV Manager</span>
-      </a>
-      <a href="#" class="nav-item" routerLink="../portfolio">
-        <i class="fas fa-folder"></i>
-        <span>My Portfolio</span>
-      </a>
-      <a href="#" class="nav-item" routerLink="../training">
-        <i class="fas fa-play-circle"></i>
-        <span>Training</span>
-      </a>
-    </div>
-
-    <div class="nav-section">
-      <div class="nav-title">Support</div>
-      <a href="#" class="nav-item" routerLink="/settings">
-        <i class="fas fa-cog"></i>
-        <span>Settings</span>
-      </a>
-      <a href="#" class="nav-item" routerLink="/help">
-        <i class="fas fa-question-circle"></i>
-        <span>Help & Support</span>
-      </a>
-    </div>
-
-    <!-- History Section -->
-    <div class="nav-section history-section">
-      <div class="nav-title">Recent Interactions</div>
-      <div class="history-group">
-        <div class="history-date">Today</div>
-        <div class="history-item">
-          <i class="fas fa-briefcase"></i>
-          <span>Job recommendations</span>
-        </div>
-        <div class="history-item">
-          <i class="fas fa-graduation-cap"></i>
-          <span>SQL training completed</span>
-        </div>
-      </div>
-      <div class="history-group">
-        <div class="history-date">Last Week</div>
-        <div class="history-item">
-          <i class="fas fa-chart-line"></i>
-          <span>Career path analysis</span>
-        </div>
-        <div class="history-item">
-          <i class="fas fa-bookmark"></i>
-          <span>Saved 3 job openings</span>
-        </div>
-      </div>
-    </div>
-  </nav>
+  <!-- Loading State -->
+  @if (isLoading) {
+  <div class="loading-container">
+    <div class="spinner"></div>
+    <p>Loading your profile and recommendations...</p>
+  </div>
+  }
 
   <!-- Main Content Area -->
+  @if (!isLoading) {
   <div class="main-content">
     <!-- Header Section -->
     <div class="header-section">
       <div class="greeting-container">
         <div class="greeting-text">
-          <h1>👋 Hi Barbara, I've analyzed your latest skills and activity!</h1>
-          <p>Based on your recent progress in SQL and UI/UX skills, I have some exciting opportunities for you.</p>
+          <h1>👋 Hi {{ userData.name || 'there' }}, I've analyzed your latest skills and activity!</h1>
+          <p>Based on your {{ userData.topSkills.length > 0 ? 'skills in ' + userData.topSkills[0].name : 'profile' }}, I have some exciting opportunities for you.</p>
         </div>
         <div class="profile-snapshot">
           <div class="profile-avatar">
-            <img src="https://media.licdn.com/dms/image/v2/C4D03AQHFaMWAvn_4bw/profile-displayphoto-shrink_200_200/profile-displayphoto-shrink_200_200/0/1631786985120?e=2147483647&v=beta&t=3JmjmioV2R_bVheiTDGjs7GUZ4MbXD5FMcQ2xmM27G8" alt="Profile" />
+            <img [src]="userData.avatar" [alt]="userData.name" (error)="userData.avatar = 'assets/images/profile-placeholder.jpg'" />
           </div>
           <div class="top-skills">
-            <span class="skill-badge skill-high">UI/UX Design</span>
-            <span class="skill-badge skill-high">SQL</span>
-            <span class="skill-badge skill-medium">Frontend</span>
+            @if (userData.topSkills.length > 0) {
+              @for (skill of userData.topSkills; track skill.name) {
+                <span class="skill-badge" [class]="'skill-' + skill.level">{{ skill.name }}</span>
+              }
+            } @else {
+              <span class="skill-badge skill-medium">Building Skills...</span>
+            }
           </div>
         </div>
       </div>
@@ -108,160 +40,113 @@
 
     <!-- Conversation Area -->
     <div class="conversation-area">
-      <!-- AI Message -->
+      <!-- Initial AI Message with Job Recommendations -->
+      @if (jobRecommendations.length > 0) {
       <div class="message ai-message">
         <div class="message-avatar">
           <i class="fas fa-robot"></i>
         </div>
         <div class="message-content">
           <div class="message-text">
-            Great job completing the Advanced SQL Training! 🎉 I've found some exciting opportunities that match your enhanced skillset.
+            Great job on building your profile! 🎉 I've found {{ jobRecommendations.length }} exciting opportunities that match your skillset.
           </div>
           <div class="recommendation-cards">
-            <div class="card-section-title">🎯 Job Matches for You (3 found)</div>
+            <div class="card-section-title">🎯 Job Matches for You ({{ jobRecommendations.length }} found)</div>
             <div class="job-cards">
+              @for (job of jobRecommendations; track job.id) {
               <div class="job-card">
                 <div class="job-header">
                   <div class="company-logo">
-                    <i class="fab fa-microsoft"></i>
+                    <i [class]="job.logo"></i>
                   </div>
                   <div class="job-info">
-                    <h3>Data Analyst</h3>
-                    <p>Microsoft Kenya</p>
-                    <span class="salary">KSh 180,000 - 250,000</span>
+                    <h3>{{ job.title }}</h3>
+                    <p>{{ job.company }}</p>
+                    <span class="salary">{{ job.salary }}</span>
                   </div>
                 </div>
                 <div class="skills-match">
-                  <span class="skill-tag matched">SQL</span>
-                  <span class="skill-tag matched">Data Analysis</span>
-                  <span class="skill-tag partial">Python</span>
-                  <span class="skill-tag missing">R</span>
+                  @for (skill of job.skills; track skill.name) {
+                  <span class="skill-tag" [class]="skill.status">{{ skill.name }}</span>
+                  }
                 </div>
                 <div class="job-actions">
-                  <button class="btn btn-primary">Apply Now</button>
-                  <button class="btn btn-outline">Save</button>
+                  <button class="btn btn-primary" 
+                          [class.applied]="job.applied"
+                          (click)="applyToJob(job.id)"
+                          [disabled]="job.applied">
+                    {{ job.applied ? 'Applied' : 'Apply Now' }}
+                  </button>
+                  <button class="btn btn-outline" 
+                          [class.saved]="job.saved"
+                          (click)="saveJob(job.id)">
+                    {{ job.saved ? 'Saved' : 'Save' }}
+                  </button>
                 </div>
               </div>
-
-              <div class="job-card">
-                <div class="job-header">
-                  <div class="company-logo">
-                    <i class="fab fa-google"></i>
-                  </div>
-                  <div class="job-info">
-                    <h3>UI/UX Designer</h3>
-                    <p>Google Africa</p>
-                    <span class="salary">KSh 200,000 - 300,000</span>
-                  </div>
-                </div>
-                <div class="skills-match">
-                  <span class="skill-tag matched">UI/UX Design</span>
-                  <span class="skill-tag matched">Figma</span>
-                  <span class="skill-tag partial">React</span>
-                  <span class="skill-tag missing">Angular</span>
-                </div>
-                <div class="job-actions">
-                  <button class="btn btn-primary">Apply Now</button>
-                  <button class="btn btn-outline">Save</button>
-                </div>
-              </div>
-
-              <div class="job-card">
-                <div class="job-header">
-                  <div class="company-logo">
-                    <i class="fas fa-building"></i>
-                  </div>
-                  <div class="job-info">
-                    <h3>Frontend Developer</h3>
-                    <p>Safaricom PLC</p>
-                    <span class="salary">KSh 150,000 - 220,000</span>
-                  </div>
-                </div>
-                <div class="skills-match">
-                  <span class="skill-tag matched">HTML/CSS</span>
-                  <span class="skill-tag matched">JavaScript</span>
-                  <span class="skill-tag partial">React</span>
-                  <span class="skill-tag missing">Node.js</span>
-                </div>
-                <div class="job-actions">
-                  <button class="btn btn-primary">Apply Now</button>
-                  <button class="btn btn-outline">Save</button>
-                </div>
-              </div>
+              }
             </div>
           </div>
         </div>
       </div>
+      }
 
       <!-- Training Recommendations -->
+      @if (trainingRecommendations.length > 0) {
       <div class="message ai-message">
         <div class="message-avatar">
           <i class="fas fa-robot"></i>
         </div>
         <div class="message-content">
           <div class="message-text">
-            📚 Based on your skill gaps, here are some training recommendations to boost your career prospects:
+            📚 Based on your current skills, here are some training recommendations to expand your capabilities:
           </div>
           <div class="recommendation-cards">
             <div class="training-cards">
+              @for (training of trainingRecommendations; track training.id) {
               <div class="training-card">
                 <div class="training-header">
                   <div class="training-icon">
-                    <i class="fab fa-python"></i>
+                    <i [class]="training.icon"></i>
                   </div>
                   <div class="training-info">
-                    <h3>Python for Data Analysis</h3>
-                    <p>Coursera • Google</p>
+                    <h3>{{ training.title }}</h3>
+                    <p>{{ training.provider }}</p>
                     <div class="training-meta">
-                      <span class="duration">6 weeks</span>
-                      <span class="level">Intermediate</span>
+                      <span class="duration">{{ training.duration }}</span>
+                      <span class="level">{{ training.level }}</span>
                     </div>
                   </div>
                 </div>
                 <div class="training-description">
-                  Complete your data analysis toolkit with Python. Perfect complement to your SQL skills.
+                  {{ training.description }}
                 </div>
                 <div class="training-actions">
-                  <button class="btn btn-primary">Enroll Now</button>
+                  <button class="btn btn-primary" 
+                          [class.enrolled]="training.enrolled"
+                          (click)="enrollInTraining(training.id)"
+                          [disabled]="training.enrolled">
+                    {{ training.enrolled ? 'Enrolled' : 'Enroll Now' }}
+                  </button>
                   <button class="btn btn-outline">Learn More</button>
                 </div>
               </div>
-
-              <div class="training-card">
-                <div class="training-header">
-                  <div class="training-icon">
-                    <i class="fab fa-angular"></i>
-                  </div>
-                  <div class="training-info">
-                    <h3>Angular for Frontend Developers</h3>
-                    <p>Udemy • Internal Platform</p>
-                    <div class="training-meta">
-                      <span class="duration">4 weeks</span>
-                      <span class="level">Intermediate</span>
-                    </div>
-                  </div>
-                </div>
-                <div class="training-description">
-                  Expand your frontend skills with Angular to qualify for full-stack positions.
-                </div>
-                <div class="training-actions">
-                  <button class="btn btn-primary">Enroll Now</button>
-                  <button class="btn btn-outline">Learn More</button>
-                </div>
-              </div>
+              }
             </div>
           </div>
         </div>
       </div>
+      }
 
       <!-- Career Path Guidance -->
+      @if (userData.topSkills.length > 0) {
       <div class="message ai-message">
         <div class="message-avatar">
           <i class="fas fa-robot"></i>
         </div>
         <div class="message-content">
           <div class="message-text">
-            🚀 Since you excel in UI/UX and Frontend, consider training in Angular & React to grow into a Full-Stack Developer role. This path could increase your salary potential by 40-60%.
+            🚀 With your skills in {{ userData.topSkills[0].name }}{{ userData.topSkills.length > 1 ? ' and ' + userData.topSkills[1].name : '' }}, consider expanding into complementary areas to grow your career. This path could increase your salary potential by 40-60%.
           </div>
           <div class="career-path-card">
             <div class="path-timeline">
@@ -270,7 +155,7 @@
                   <i class="fas fa-check"></i>
                 </div>
                 <div class="step-content">
-                  <h4>Current: UI/UX Designer</h4>
+<h4>Current: {{ userData.topSkills.length > 0 ? userData.topSkills[0].name : 'Building Skills' }}</h4>
                   <p>Strong foundation established</p>
                 </div>
               </div>
@@ -280,8 +165,8 @@
                   <i class="fas fa-play"></i>
                 </div>
                 <div class="step-content">
-                  <h4>Next: Frontend Developer</h4>
-                  <p>Add Angular/React skills</p>
+                  <h4>Next: Expand Skills</h4>
+                  <p>Add complementary skills</p>
                 </div>
               </div>
               <div class="path-arrow">→</div>
@@ -290,14 +175,83 @@
                   <i class="fas fa-star"></i>
                 </div>
                 <div class="step-content">
-                  <h4>Goal: Full-Stack Developer</h4>
-                  <p>Complete backend training</p>
+                  <h4>Goal: Advanced Role</h4>
+                  <p>Achieve senior position</p>
                 </div>
               </div>
             </div>
           </div>
         </div>
       </div>
+      }
+
+      <!-- Dynamic conversation messages -->
+      @for (msg of conversationMessages; track msg.timestamp) {
+      <div class="message" [class]="msg.type === 'user' ? 'user-message' : 'ai-message'">
+        <div class="message-avatar">
+          @if (msg.type === 'user') {
+          <img [src]="userData.avatar" [alt]="userData.name" (error)="handleImageError($event)" />
+          } @else {
+          <i class="fas fa-robot"></i>
+          }
+        </div>
+        <div class="message-content">
+          <div class="message-text">{{ msg.content }}</div>
+          
+          @if (msg.cards && msg.cards.length > 0) {
+          <div class="recommendation-cards">
+            @if (isJobCards(msg.cards)) {
+            <div class="job-cards">
+              @for (job of msg.cards; track job.id) {
+              <div class="job-card">
+                <div class="job-header">
+                  <div class="company-logo">
+                    <i [class]="job.logo"></i>
+                  </div>
+                  <div class="job-info">
+                    <h3>{{ job.title }}</h3>
+                    <p>{{ job.company }}</p>
+                    <span class="salary">{{ job.salary }}</span>
+                  </div>
+                </div>
+                <div class="skills-match">
+                  @for (skill of job.skills; track skill.name) {
+                  <span class="skill-tag" [class]="skill.status">{{ skill.name }}</span>
+                  }
+                </div>
+                <div class="job-actions">
+                  <button class="btn btn-primary" (click)="applyToJob(job.id)">Apply Now</button>
+                  <button class="btn btn-outline" (click)="saveJob(job.id)">Save</button>
+                </div>
+              </div>
+              }
+            </div>
+            } @else if (isTrainingCards(msg.cards)) {
+            <div class="training-cards">
+              @for (training of msg.cards; track training.id) {
+              <div class="training-card">
+                <div class="training-header">
+                  <div class="training-icon">
+                    <i [class]="training.icon"></i>
+                  </div>
+                  <div class="training-info">
+                    <h3>{{ training.title }}</h3>
+                    <p>{{ training.provider }}</p>
+                  </div>
+                </div>
+                <div class="training-description">{{ training.description }}</div>
+                <div class="training-actions">
+                  <button class="btn btn-primary" (click)="enrollInTraining(training.id)">Enroll Now</button>
+                </div>
+              </div>
+              }
+            </div>
+            }
+          </div>
+          }
+        </div>
+      </div>
+      }
     </div>
 
     <!-- Quick Actions Panel -->
@@ -323,8 +277,14 @@
     <!-- Input Area -->
     <div class="input-area">
       <div class="input-container">
-        <input type="text" placeholder="Ask me about jobs, training, or career advice..." [(ngModel)]="userMessage" (keyup.enter)="sendMessage()" />
-        <button class="send-button" (click)="sendMessage()">
+        <input type="text" 
+               placeholder="Ask me about jobs, training, or career advice..." 
+               [(ngModel)]="userMessage" 
+               (keyup.enter)="sendMessage()" 
+               [disabled]="isLoading" />
+        <button class="send-button" 
+                (click)="sendMessage()" 
+                [disabled]="isLoading || !userMessage.trim()">
           <i class="fas fa-paper-plane"></i>
         </button>
       </div>
@@ -334,13 +294,14 @@
   <!-- Right Sidebar -->
   <div class="right-sidebar">
     <!-- Skills Radar Chart -->
+    @if (skillsChartData.labels.length > 0) {
     <div class="insights-card">
       <div class="card-header">
         <h3>Skills Overview</h3>
         <i class="fas fa-chart-radar"></i>
       </div>
       <div class="skills-radar">
-        <canvas id="skillsChart" width="200" height="200"></canvas>
+        <canvas #skillsChart width="200" height="200"></canvas>
       </div>
       <div class="skills-legend">
         <div class="legend-item">
@@ -353,46 +314,31 @@
         </div>
       </div>
     </div>
+    }
 
     <!-- Progress Tracker -->
+    @if (skillsProgress.length > 0) {
     <div class="insights-card">
       <div class="card-header">
         <h3>Recent Progress</h3>
         <i class="fas fa-trophy"></i>
       </div>
       <div class="progress-items">
+        @for (progress of skillsProgress; track progress.name) {
         <div class="progress-item">
           <div class="progress-header">
-            <span class="skill-name">SQL</span>
-            <span class="progress-change positive">+20%</span>
+            <span class="skill-name">{{ progress.name }}</span>
+            <span [class]="getProgressChangeClass(progress.change)">+{{ progress.change }}%</span>
           </div>
           <div class="progress-bar">
-            <div class="progress-fill" style="width: 85%"></div>
+            <div class="progress-fill" [style.width.%]="progress.current"></div>
           </div>
-          <p class="progress-note">Completed Advanced SQL Training</p>
+          <p class="progress-note">{{ progress.note }}</p>
         </div>
-        <div class="progress-item">
-          <div class="progress-header">
-            <span class="skill-name">UI/UX Design</span>
-            <span class="progress-change positive">+15%</span>
-          </div>
-          <div class="progress-bar">
-            <div class="progress-fill" style="width: 90%"></div>
-          </div>
-          <p class="progress-note">Portfolio project completed</p>
-        </div>
-        <div class="progress-item">
-          <div class="progress-header">
-            <span class="skill-name">JavaScript</span>
-            <span class="progress-change neutral">+5%</span>
-          </div>
-          <div class="progress-bar">
-            <div class="progress-fill" style="width: 70%"></div>
-          </div>
-          <p class="progress-note">Practice exercises completed</p>
-        </div>
+        }
       </div>
     </div>
+    }
 
     <!-- Upcoming Deadlines -->
     <div class="insights-card">
@@ -401,36 +347,18 @@
         <i class="fas fa-clock"></i>
       </div>
       <div class="deadlines-list">
-        <div class="deadline-item urgent">
+        @for (deadline of deadlines; track deadline.id) {
+        <div [class]="getDeadlineClass(deadline)">
           <div class="deadline-icon">
-            <i class="fas fa-briefcase"></i>
+            <i [class]="getDeadlineIcon(deadline.type)"></i>
           </div>
           <div class="deadline-content">
-            <h4>Data Analyst Application</h4>
-            <p class="deadline-time">Due in 2 days</p>
-            <p class="deadline-company">Microsoft Kenya</p>
+            <h4>{{ deadline.title }}</h4>
+            <p class="deadline-time">{{ formatDeadline(deadline.dueDate) }}</p>
+            <p class="deadline-company">{{ deadline.company }}</p>
           </div>
         </div>
-        <div class="deadline-item normal">
-          <div class="deadline-icon">
-            <i class="fas fa-graduation-cap"></i>
-          </div>
-          <div class="deadline-content">
-            <h4>Python Training Enrollment</h4>
-            <p class="deadline-time">Due in 5 days</p>
-            <p class="deadline-company">Coursera</p>
-          </div>
-        </div>
-        <div class="deadline-item normal">
-          <div class="deadline-icon">
-            <i class="fas fa-user-friends"></i>
-          </div>
-          <div class="deadline-content">
-            <h4>Portfolio Review Session</h4>
-            <p class="deadline-time">Next week</p>
-            <p class="deadline-company">Career Coach</p>
-          </div>
-        </div>
+        }
       </div>
     </div>
 
@@ -453,4 +381,5 @@
       </div>
     </div>
   </div>
+  }
 </div>

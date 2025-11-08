@@ -1,73 +1,7 @@
 <!-- ai-assistant.component.html -->
 <div class="ai-assistant-container">
   <!-- Sidebar Navigation -->
-  <nav class="sidebar">
-    <div class="sidebar-header">
-      <div class="logo">
-        <div class="logo-icon">
-          <i class="fas fa-graduation-cap"></i>
-        </div>
-        <span>Digital Skilling App</span>
-      </div>
-    </div>
-    
-    <div class="nav-section">
-      <div class="nav-title">Main</div>
-      <a href="#" class="nav-item" routerLink="/dashboard">
-        <i class="fas fa-th-large"></i>
-        <span>Dashboard</span>
-      </a>
-      <a href="#" class="nav-item" routerLink="/company-profile">
-        <i class="fas fa-building"></i>
-        <span>Company Profile</span>
-      </a>
-      <a href="#" class="nav-item" routerLink="/job-posts">
-        <i class="fas fa-briefcase"></i>
-        <span>Job Posts</span>
-        <span class="nav-badge">12</span>
-      </a>
-      <a href="#" class="nav-item active" routerLink="/ai-assistant">
-        <i class="fas fa-robot"></i>
-        <span>AI Recommendations</span>
-      </a>
-      <a href="#" class="nav-item" routerLink="/training">
-        <i class="fas fa-chalkboard-teacher"></i>
-        <span>Training Posts</span>
-      </a>
-      <a href="#" class="nav-item" routerLink="/candidates">
-        <i class="fas fa-users"></i>
-        <span>Candidate Matches</span>
-      </a>
-      <a href="#" class="nav-item" routerLink="/interviews">
-        <i class="fas fa-calendar-check"></i>
-        <span>Interviews</span>
-      </a>
-    </div>
-    
-    <div class="nav-section">
-      <div class="nav-title">Support</div>
-      <a href="#" class="nav-item" routerLink="/settings">
-        <i class="fas fa-cog"></i>
-        <span>Settings</span>
-      </a>
-      <a href="#" class="nav-item" routerLink="/help">
-        <i class="fas fa-question-circle"></i>
-        <span>Help & Support</span>
-      </a>
-    </div>
-    
-    <div class="sidebar-footer">
-      <div class="user-profile">
-        <div class="profile-avatar">
-          <i class="fas fa-building"></i>
-        </div>
-        <div class="profile-info">
-          <span class="company-name">TechCorp Inc.</span>
-          <span class="role">Employer</span>
-        </div>
-      </div>
-    </div>
-  </nav>
+ <app-sidebar [userType]="'employer'"></app-sidebar>
 
   <!-- Main Content -->
   <div class="main-content">

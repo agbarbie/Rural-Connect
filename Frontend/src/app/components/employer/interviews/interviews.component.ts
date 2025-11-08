@@ -2,7 +2,7 @@ import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
 import { FormsModule } from '@angular/forms';
-
+import { SidebarComponent } from '../../shared/sidebar/sidebar.component';
 interface Interview {
   id: string;
   candidateName: string;
@@ -31,7 +31,7 @@ interface DashboardStats {
 @Component({
   selector: 'app-interviews',
   standalone: true,
-  imports: [CommonModule, RouterModule, FormsModule],
+  imports: [CommonModule, RouterModule, FormsModule, SidebarComponent],
   templateUrl: './interviews.component.html',
   styleUrls: ['./interviews.component.css']
 })

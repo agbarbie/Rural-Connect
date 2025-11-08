@@ -1,1 +1,25 @@
-<p>sidebar works!</p>
+<nav class="sidebar">
+  <div class="sidebar-header">
+    <div class="logo">
+      <div class="logo-icon">
+        <i class="fas fa-graduation-cap"></i>
+      </div>
+      <span>Digital Skilling App</span>
+    </div>
+  </div>
+
+  <div class="nav-section" *ngFor="let section of navSections">
+    <div class="nav-title">{{ section.title }}</div>
+    <a 
+      *ngFor="let item of section.items" 
+      [routerLink]="item.route"
+      class="nav-item"
+      [class.active]="isActive(item.route)"
+      routerLinkActive="active"
+    >
+      <i [class]="item.icon"></i>
+      <span>{{ item.label }}</span>
+      <span class="nav-badge" *ngIf="item.badge">{{ item.badge }}</span>
+    </a>
+  </div>
+</nav>

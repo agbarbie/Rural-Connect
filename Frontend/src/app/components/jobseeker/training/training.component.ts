@@ -11,7 +11,7 @@ import {
   PaginatedResponse
 } from '../../../../../services/training.service';
 import { AuthService } from '../../../../../services/auth.service';
-
+import { SidebarComponent } from '../../shared/sidebar/sidebar.component';
 interface FilterOptions {
   duration: string[];
   level: string[];
@@ -23,7 +23,7 @@ interface FilterOptions {
 @Component({
   selector: 'app-training',
   templateUrl: './training.component.html',
-  imports: [CommonModule, FormsModule], // DatePipe and DecimalPipe are included in CommonModule
+  imports: [CommonModule, FormsModule, SidebarComponent], // DatePipe and DecimalPipe are included in CommonModule
   styleUrls: ['./training.component.css']
 })
 export class TrainingComponent implements OnInit, OnDestroy {

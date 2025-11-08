@@ -1,6 +1,6 @@
 import { Component, OnInit, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
-
+import { SidebarComponent } from '../../shared/sidebar/sidebar.component';
 interface CompanyInfo {
   name: string;
   about: string;
@@ -45,7 +45,7 @@ interface AIInsights {
 @Component({
   selector: 'app-company-profile',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, SidebarComponent],
   templateUrl: './company-profile.component.html',
   styleUrls: ['./company-profile.component.css']
 })

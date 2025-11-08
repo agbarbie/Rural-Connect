@@ -8,12 +8,12 @@ import { CvService, CVData, CV } from '../../../../../services/cv.service';
 import { AuthService } from '../../../../../services/auth.service';
 import { ProfileService } from '../../../../../services/profile.service';
 import { environment } from '../../../../environments/environments';
-
+import { SidebarComponent } from '../../shared/sidebar/sidebar.component';
 @Component({
   selector: 'app-cv-builder',
   templateUrl: './cv-builder.component.html',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, SidebarComponent],
   styleUrls: ['./cv-builder.component.css']
 })
 export class CvBuilderComponent implements OnInit, OnDestroy {

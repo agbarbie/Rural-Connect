@@ -4,11 +4,11 @@ import { FormsModule } from '@angular/forms';
 import { Router, RouterModule } from '@angular/router';
 import { Subscription } from 'rxjs';
 import { AuthService } from '../../../../../services/auth.service'; // Adjust path as needed
-
+import { SidebarComponent } from '../../shared/sidebar/sidebar.component';
 @Component({
   selector: 'app-dashboard',
   templateUrl: 'dashboard.component.html',
-  imports: [CommonModule, FormsModule, RouterModule],
+  imports: [CommonModule, FormsModule, RouterModule, SidebarComponent],
   standalone: true,
   styleUrls: ['dashboard.component.css']
 })

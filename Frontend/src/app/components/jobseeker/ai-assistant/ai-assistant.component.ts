@@ -2,6 +2,11 @@ import { Component, OnInit, AfterViewInit, ViewChild, ElementRef } from '@angula
 import { Router } from '@angular/router';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { SidebarComponent } from '../../shared/sidebar/sidebar.component';
+import { ProfileService, PortfolioData } from '../../../../../services/profile.service';
+import { AuthService } from '../../../../../services/auth.service';
+import { environment } from '../../../../environments/environments';
+
 interface JobRecommendation {
   id: string;
   title: string;
@@ -46,7 +51,7 @@ interface Deadline {
 @Component({
   selector: 'app-ai-assistant',
   templateUrl: './ai-assistant.component.html',
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, SidebarComponent],
   styleUrls: ['./ai-assistant.component.css']
 })
 export class AiAssistantComponent implements OnInit, AfterViewInit {
@@ -54,112 +59,23 @@ export class AiAssistantComponent implements OnInit, AfterViewInit {
 
   userMessage: string = '';
   isLoading: boolean = false;
+  portfolioData: PortfolioData | null = null;
   
-  // User data
+  // User data - now dynamically loaded
   userData = {
-    name: 'Barbara',
-    avatar: 'https://images.unsplash.com/photo-1494790108755-2616b612b786?w=60&h=60&fit=crop&crop=face',
-    topSkills: [
-      { name: 'UI/UX Design', level: 'high' },
-      { name: 'SQL', level: 'high' },
-      { name: 'Frontend', level: 'medium' }
-    ]
+    name: 'User', // Default fallback
+    avatar: 'assets/images/profile-placeholder.jpg',
+    topSkills: [] as Array<{ name: string; level: string }>
   };
 
   // Job recommendations
-  jobRecommendations: JobRecommendation[] = [
-    {
-      id: '1',
-      title: 'Data Analyst',
-      company: 'Microsoft Kenya',
-      logo: 'fab fa-microsoft',
-      salary: 'KSh 180,000 - 250,000',
-      skills: [
-        { name: 'SQL', status: 'matched' },
-        { name: 'Data Analysis', status: 'matched' },
-        { name: 'Python', status: 'partial' },
-        { name: 'R', status: 'missing' }
-      ],
-      applied: false,
-      saved: false
-    },
-    {
-      id: '2',
-      title: 'UI/UX Designer',
-      company: 'Google Africa',
-      logo: 'fab fa-google',
-      salary: 'KSh 200,000 - 300,000',
-      skills: [
-        { name: 'UI/UX Design', status: 'matched' },
-        { name: 'Figma', status: 'matched' },
-        { name: 'React', status: 'partial' },
-        { name: 'Angular', status: 'missing' }
-      ],
-      applied: false,
-      saved: false
-    },
-    {
-      id: '3',
-      title: 'Frontend Developer',
-      company: 'Safaricom PLC',
-      logo: 'fas fa-building',
-      salary: 'KSh 150,000 - 220,000',
-      skills: [
-        { name: 'HTML/CSS', status: 'matched' },
-        { name: 'JavaScript', status: 'matched' },
-        { name: 'React', status: 'partial' },
-        { name: 'Node.js', status: 'missing' }
-      ],
-      applied: false,
-      saved: false
-    }
-  ];
+  jobRecommendations: JobRecommendation[] = [];
 
   // Training recommendations
-  trainingRecommendations: TrainingRecommendation[] = [
-    {
-      id: '1',
-      title: 'Python for Data Analysis',
-      provider: 'Coursera • Google',
-      duration: '6 weeks',
-      level: 'Intermediate',
-      description: 'Complete your data analysis toolkit with Python. Perfect complement to your SQL skills.',
-      icon: 'fab fa-python',
-      enrolled: false
-    },
-    {
-      id: '2',
-      title: 'Angular for Frontend Developers',
-      provider: 'Udemy • Internal Platform',
-      duration: '4 weeks',
-      level: 'Intermediate',
-      description: 'Expand your frontend skills with Angular to qualify for full-stack positions.',
-      icon: 'fab fa-angular',
-      enrolled: false
-    }
-  ];
+  trainingRecommendations: TrainingRecommendation[] = [];
 
-  // Skills progress
-  skillsProgress: SkillProgress[] = [
-    {
-      name: 'SQL',
-      current: 85,
-      change: 20,
-      note: 'Completed Advanced SQL Training'
-    },
-    {
-      name: 'UI/UX Design',
-      current: 90,
-      change: 15,
-      note: 'Portfolio project completed'
-    },
-    {
-      name: 'JavaScript',
-      current: 70,
-      change: 5,
-      note: 'Practice exercises completed'
-    }
-  ];
+  // Skills progress - dynamically loaded
+  skillsProgress: SkillProgress[] = [];
 
   // Upcoming deadlines
   deadlines: Deadline[] = [
@@ -167,7 +83,7 @@ export class AiAssistantComponent implements OnInit, AfterViewInit {
       id: '1',
       title: 'Data Analyst Application',
       type: 'job',
-      dueDate: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000), // 2 days from now
+      dueDate: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000),
       company: 'Microsoft Kenya',
       urgent: true
     },
@@ -175,7 +91,7 @@ export class AiAssistantComponent implements OnInit, AfterViewInit {
       id: '2',
       title: 'Python Training Enrollment',
       type: 'training',
-      dueDate: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000), // 5 days from now
+      dueDate: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000),
       company: 'Coursera',
       urgent: false
     },
@@ -183,49 +99,368 @@ export class AiAssistantComponent implements OnInit, AfterViewInit {
       id: '3',
       title: 'Portfolio Review Session',
       type: 'meeting',
-      dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 1 week from now
+      dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
       company: 'Career Coach',
       urgent: false
     }
   ];
 
-  // Chart data for skills radar
+  // Chart data for skills radar - dynamically populated
   skillsChartData = {
-    labels: ['UI/UX', 'SQL', 'JavaScript', 'Python', 'React', 'Angular'],
-    userSkills: [90, 85, 70, 30, 45, 20],
-    marketDemand: [85, 80, 95, 85, 90, 75]
+    labels: [] as string[],
+    userSkills: [] as number[],
+    marketDemand: [] as number[]
   };
 
-  constructor(private router: Router) { }
+  constructor(
+    private router: Router,
+    private profileService: ProfileService,
+    private authService: AuthService
+  ) { }
 
   ngOnInit(): void {
-    // Initialize component
-    this.loadUserData();
+    this.loadUserProfile();
   }
 
   ngAfterViewInit(): void {
-    // Initialize skills radar chart
-    this.initializeSkillsChart();
+    // Initialize skills radar chart after data is loaded
+    setTimeout(() => {
+      this.initializeSkillsChart();
+    }, 500);
   }
 
-  loadUserData(): void {
-    // In a real app, this would load from a service
-    console.log('Loading user data...');
+  loadUserProfile(): void {
+    this.isLoading = true;
+    
+    console.log('=== LOADING USER PROFILE ===');
+    
+    // Try to get name from auth service first as fallback
+    const currentUser = this.authService.getCurrentUser();
+    console.log('Current user from auth:', currentUser);
+    
+    if (currentUser?.name) {
+      this.userData.name = currentUser.name;
+      console.log('Set name from auth service:', this.userData.name);
+    }
+    
+    this.profileService.getMyPortfolio().subscribe({
+      next: (response) => {
+        console.log('Portfolio API response:', response);
+        
+        if (response.success && response.data) {
+          this.portfolioData = response.data;
+          this.populateUserDataFromPortfolio(response.data);
+          this.generateRecommendations();
+          
+          console.log('Final userData after population:', this.userData);
+        } else {
+          console.error('No portfolio data found');
+          this.useDefaultData();
+        }
+        this.isLoading = false;
+      },
+      error: (error) => {
+        console.error('Error loading portfolio:', error);
+        this.useDefaultData();
+        this.isLoading = false;
+      }
+    });
+  }
+
+  private populateUserDataFromPortfolio(portfolio: PortfolioData): void {
+    const cvData = portfolio.cvData;
+    const personalInfo = cvData.personal_info || cvData.personal_info;
+
+    console.log('Portfolio data:', portfolio);
+    console.log('CV data:', cvData);
+    console.log('Personal info:', personalInfo);
+
+    // Set user basic info
+    if (personalInfo) {
+      // Try multiple field variations
+      this.userData.name = personalInfo.full_name || 
+                          personalInfo.full_name || 
+                          personalInfo.name || 
+                          'User';
+      
+      console.log('Extracted name:', this.userData.name);
+      
+      // Handle profile image
+      const profileImage = personalInfo.profile_image || 
+                          personalInfo.profile_image || 
+                          personalInfo.image;
+      if (profileImage) {
+        this.userData.avatar = this.getFullImageUrl(profileImage);
+      }
+    } else {
+      console.warn('No personal info found in portfolio');
+    }
+
+    // Extract top skills from CV
+    if (cvData.skills && cvData.skills.length > 0) {
+      // Sort by proficiency and take top 3
+      const sortedSkills = [...cvData.skills].sort((a, b) => {
+        const levelOrder = { 'Expert': 4, 'Advanced': 3, 'Intermediate': 2, 'Beginner': 1 };
+        const aLevel = levelOrder[a.proficiency_level as keyof typeof levelOrder] || 0;
+        const bLevel = levelOrder[b.proficiency_level as keyof typeof levelOrder] || 0;
+        return bLevel - aLevel;
+      });
+
+      this.userData.topSkills = sortedSkills.slice(0, 3).map(skill => ({
+        name: skill.skill_name,
+        level: this.mapSkillLevel(skill.proficiency_level)
+      }));
+
+      // Populate skills chart data
+      const topSkillsForChart = sortedSkills.slice(0, 6);
+      this.skillsChartData.labels = topSkillsForChart.map(s => s.skill_name);
+      this.skillsChartData.userSkills = topSkillsForChart.map(s => this.getProficiencyNumber(s.proficiency_level));
+      // Generate market demand (mock data based on skill relevance)
+      this.skillsChartData.marketDemand = topSkillsForChart.map(() => Math.floor(Math.random() * 30) + 70);
+
+      // Populate skills progress
+      this.skillsProgress = sortedSkills.slice(0, 3).map(skill => ({
+        name: skill.skill_name,
+        current: this.getProficiencyNumber(skill.proficiency_level),
+        change: Math.floor(Math.random() * 20) + 5, // Mock progress
+        note: `${skill.category || 'General'} skill`
+      }));
+    }
+  }
+
+  private generateRecommendations(): void {
+    if (!this.portfolioData) return;
+
+    const cvData = this.portfolioData.cvData;
+    const userSkills = cvData.skills?.map(s => s.skill_name.toLowerCase()) || [];
+
+    // Generate job recommendations based on user skills
+    this.jobRecommendations = this.getJobRecommendationsBasedOnSkills(userSkills);
+
+    // Generate training recommendations based on skill gaps
+    this.trainingRecommendations = this.getTrainingRecommendationsBasedOnGaps(userSkills);
+  }
+
+  private getJobRecommendationsBasedOnSkills(userSkills: string[]): JobRecommendation[] {
+    // Define job database with required skills
+    const jobDatabase = [
+      {
+        id: '1',
+        title: 'Data Analyst',
+        company: 'Microsoft Kenya',
+        logo: 'fab fa-microsoft',
+        salary: 'KSh 180,000 - 250,000',
+        requiredSkills: ['sql', 'data analysis', 'python', 'r', 'statistics']
+      },
+      {
+        id: '2',
+        title: 'UI/UX Designer',
+        company: 'Google Africa',
+        logo: 'fab fa-google',
+        salary: 'KSh 200,000 - 300,000',
+        requiredSkills: ['ui/ux', 'figma', 'design', 'react', 'angular', 'user experience']
+      },
+      {
+        id: '3',
+        title: 'Frontend Developer',
+        company: 'Safaricom PLC',
+        logo: 'fas fa-building',
+        salary: 'KSh 150,000 - 220,000',
+        requiredSkills: ['html', 'css', 'javascript', 'react', 'node.js', 'frontend']
+      },
+      {
+        id: '4',
+        title: 'Full Stack Developer',
+        company: 'Andela Kenya',
+        logo: 'fas fa-code',
+        salary: 'KSh 250,000 - 400,000',
+        requiredSkills: ['javascript', 'react', 'node.js', 'mongodb', 'express', 'fullstack']
+      },
+      {
+        id: '5',
+        title: 'Software Engineer',
+        company: 'Twiga Foods',
+        logo: 'fas fa-laptop-code',
+        salary: 'KSh 200,000 - 350,000',
+        requiredSkills: ['java', 'python', 'javascript', 'git', 'agile', 'software development']
+      }
+    ];
+
+    // Match jobs with user skills
+    const matchedJobs = jobDatabase.map(job => {
+      const skills = job.requiredSkills.map(skill => {
+        const hasSkill = userSkills.some(userSkill => 
+          userSkill.includes(skill) || skill.includes(userSkill)
+        );
+        
+        return {
+          name: this.capitalizeSkill(skill),
+          status: hasSkill ? 'matched' as const : 'missing' as const
+        };
+      }).slice(0, 4); // Take first 4 skills
+
+      const matchCount = skills.filter(s => s.status === 'matched').length;
+
+      return {
+        id: job.id,
+        title: job.title,
+        company: job.company,
+        logo: job.logo,
+        salary: job.salary,
+        skills: skills,
+        applied: false,
+        saved: false,
+        matchScore: matchCount
+      };
+    });
+
+    // Sort by match score and return top 3
+    return matchedJobs
+      .sort((a, b) => b.matchScore - a.matchScore)
+      .slice(0, 3);
+  }
+
+  private getTrainingRecommendationsBasedOnGaps(userSkills: string[]): TrainingRecommendation[] {
+    // Define training courses
+    const trainingDatabase = [
+      {
+        id: '1',
+        title: 'Python for Data Analysis',
+        provider: 'Coursera • Google',
+        duration: '6 weeks',
+        level: 'Intermediate',
+        description: 'Complete your data analysis toolkit with Python. Perfect complement to your SQL skills.',
+        icon: 'fab fa-python',
+        relatedSkills: ['python', 'data analysis']
+      },
+      {
+        id: '2',
+        title: 'Angular for Frontend Developers',
+        provider: 'Udemy • Internal Platform',
+        duration: '4 weeks',
+        level: 'Intermediate',
+        description: 'Expand your frontend skills with Angular to qualify for full-stack positions.',
+        icon: 'fab fa-angular',
+        relatedSkills: ['angular', 'frontend', 'typescript']
+      },
+      {
+        id: '3',
+        title: 'React Masterclass',
+        provider: 'Udemy • Meta',
+        duration: '8 weeks',
+        level: 'Beginner to Advanced',
+        description: 'Master React from fundamentals to advanced patterns and hooks.',
+        icon: 'fab fa-react',
+        relatedSkills: ['react', 'javascript', 'frontend']
+      },
+      {
+        id: '4',
+        title: 'Node.js Backend Development',
+        provider: 'Coursera • IBM',
+        duration: '6 weeks',
+        level: 'Intermediate',
+        description: 'Build scalable backend applications with Node.js and Express.',
+        icon: 'fab fa-node-js',
+        relatedSkills: ['node.js', 'backend', 'javascript']
+      }
+    ];
+
+    // Find training for skills user doesn't have
+    return trainingDatabase
+      .filter(training => {
+        const hasRelatedSkill = training.relatedSkills.some(skill =>
+          userSkills.some(userSkill => userSkill.includes(skill))
+        );
+        return !hasRelatedSkill; // Recommend if user doesn't have the skill
+      })
+      .slice(0, 2)
+      .map(training => ({
+        id: training.id,
+        title: training.title,
+        provider: training.provider,
+        duration: training.duration,
+        level: training.level,
+        description: training.description,
+        icon: training.icon,
+        enrolled: false
+      }));
+  }
+
+  private useDefaultData(): void {
+    this.userData = {
+      name: 'User',
+      avatar: 'assets/images/profile-placeholder.jpg',
+      topSkills: [
+        { name: 'General Skills', level: 'medium' }
+      ]
+    };
+  }
+
+  private getFullImageUrl(imagePath: string): string {
+    if (!imagePath) return 'assets/images/profile-placeholder.jpg';
+    
+    // If it's already a full URL, return as is
+    if (imagePath.startsWith('http')) {
+      return imagePath;
+    }
+    
+    // If it's a relative path, construct full URL
+    if (imagePath.startsWith('/uploads') || imagePath.startsWith('uploads')) {
+      const baseUrl = environment.apiUrl.replace('/api', '');
+      return `${baseUrl}${imagePath.startsWith('/') ? '' : '/'}${imagePath}`;
+    }
+    
+    return imagePath;
+  }
+
+    handleImageError(event: any): void {
+    console.log('Profile image load error, using fallback');
+    event.target.src = 'assets/images/profile-placeholder.jpg';
+  }
+
+  private mapSkillLevel(proficiency?: string): string {
+    if (!proficiency) return 'medium';
+    
+    switch(proficiency.toLowerCase()) {
+      case 'expert':
+      case 'advanced': return 'high';
+      case 'intermediate': return 'medium';
+      case 'beginner':
+      case 'basic': return 'low';
+      default: return 'medium';
+    }
+  }
+
+  private getProficiencyNumber(proficiency?: string): number {
+    if (!proficiency) return 50;
+    
+    switch(proficiency.toLowerCase()) {
+      case 'expert': return 95;
+      case 'advanced': return 80;
+      case 'intermediate': return 60;
+      case 'beginner': return 30;
+      case 'basic': return 20;
+      default: return 50;
+    }
+  }
+
+  private capitalizeSkill(skill: string): string {
+    return skill.split(' ')
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(' ');
   }
 
   initializeSkillsChart(): void {
-    if (!this.skillsChart) return;
+    if (!this.skillsChart || this.skillsChartData.labels.length === 0) return;
 
     const canvas = this.skillsChart.nativeElement;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    // Simple radar chart implementation
     const centerX = canvas.width / 2;
     const centerY = canvas.height / 2;
     const radius = Math.min(centerX, centerY) - 40;
 
-    // Clear canvas
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
     // Draw grid circles
@@ -237,7 +472,7 @@ export class AiAssistantComponent implements OnInit, AfterViewInit {
       ctx.stroke();
     }
 
-    // Draw axis lines
+    // Draw axis lines and labels
     const numPoints = this.skillsChartData.labels.length;
     const angleStep = (2 * Math.PI) / numPoints;
 
@@ -323,7 +558,7 @@ export class AiAssistantComponent implements OnInit, AfterViewInit {
       "Welcome back! I've been analyzing the job market for you."
     ],
     jobQueries: [
-      "Based on your SQL and UI/UX skills, I found some amazing opportunities! Let me show you the top matches.",
+      "Based on your skills, I found some amazing opportunities! Let me show you the top matches.",
       "Great question! I've identified several roles that align perfectly with your skillset. Here are my recommendations:",
       "I'm excited to share these job opportunities with you! They're specifically tailored to your expertise."
     ],
@@ -333,7 +568,7 @@ export class AiAssistantComponent implements OnInit, AfterViewInit {
       "Smart thinking! Upskilling is the best investment. Let me recommend some courses based on market trends."
     ],
     careerAdvice: [
-      "Your career path looks promising! With your UI/UX background and new SQL skills, you're positioned for some exciting transitions.",
+      "Your career path looks promising! With your background and skills, you're positioned for some exciting transitions.",
       "I see great potential in your profile. Let me outline a strategic path that could increase your earning potential significantly.",
       "You're on the right track! Your skill combination is quite valuable in today's market. Here's what I recommend:"
     ],
@@ -344,18 +579,17 @@ export class AiAssistantComponent implements OnInit, AfterViewInit {
     ],
     motivation: [
       "You're doing amazing! Every skill you learn opens new doors. Keep up the excellent work! 🚀",
-      "I'm impressed by your dedication to growth. Your recent SQL completion shows real commitment! 💪",
+      "I'm impressed by your dedication to growth. Your commitment shows real potential! 💪",
       "Remember, every expert was once a beginner. You're building something great! ✨"
     ]
   };
 
-  // Message handling
+  // Rest of the methods remain the same...
   sendMessage(): void {
     if (!this.userMessage.trim() || this.isLoading) return;
 
     const message = this.userMessage.trim();
     
-    // Add user message to conversation
     this.conversationMessages.push({
       type: 'user',
       content: message,
@@ -365,7 +599,6 @@ export class AiAssistantComponent implements OnInit, AfterViewInit {
     this.userMessage = '';
     this.isLoading = true;
 
-    // Simulate AI typing and response
     setTimeout(() => {
       this.processUserMessage(message);
       this.isLoading = false;
@@ -377,10 +610,9 @@ export class AiAssistantComponent implements OnInit, AfterViewInit {
     let aiResponse = '';
     let cards: any[] = [];
 
-    // Analyze message content and provide appropriate response
     if (lowerMessage.includes('job') || lowerMessage.includes('work') || lowerMessage.includes('position')) {
       aiResponse = this.getRandomResponse('jobQueries');
-      cards = this.jobRecommendations.slice(0, 2); // Show top 2 jobs
+      cards = this.jobRecommendations.slice(0, 2);
     } 
     else if (lowerMessage.includes('training') || lowerMessage.includes('course') || lowerMessage.includes('learn')) {
       aiResponse = this.getRandomResponse('trainingQueries');
@@ -399,18 +631,16 @@ export class AiAssistantComponent implements OnInit, AfterViewInit {
       aiResponse = this.getRandomResponse('greetings');
     }
     else {
-      // Default intelligent responses
       const defaultResponses = [
         "That's an interesting question! Based on your profile, I can see several ways to approach this. Let me share some insights.",
         "I understand what you're looking for. Your current skill set gives you some great options. Here's my analysis:",
         "Good point! Let me provide you with some data-driven recommendations based on your goals.",
-        "I can help with that! Your recent progress in SQL opens up many possibilities. Here are some suggestions:",
-        "Absolutely! With your UI/UX background, there are several strategic moves you could make. Let me explain:"
+        `I can help with that! Your skills in ${this.userData.topSkills[0]?.name || 'your area'} open up many possibilities. Here are some suggestions:`,
+        "Absolutely! With your background, there are several strategic moves you could make. Let me explain:"
       ];
       aiResponse = defaultResponses[Math.floor(Math.random() * defaultResponses.length)];
     }
 
-    // Add AI response to conversation
     this.conversationMessages.push({
       type: 'ai',
       content: aiResponse,
@@ -418,7 +648,6 @@ export class AiAssistantComponent implements OnInit, AfterViewInit {
       cards: cards
     });
 
-    // Scroll to bottom of conversation
     setTimeout(() => {
       this.scrollToBottom();
     }, 100);
@@ -436,34 +665,27 @@ export class AiAssistantComponent implements OnInit, AfterViewInit {
     }
   }
 
-  // Quick action handlers
   showJobs(): void {
-    console.log('Showing job recommendations');
-    // Scroll to jobs section or filter content
+    this.router.navigate(['/jobseeker/job-explorer']);
   }
 
   showTraining(): void {
-    console.log('Showing training recommendations');
-    // Scroll to training section or filter content
+    this.router.navigate(['/jobseeker/training']);
   }
 
   showInsights(): void {
     console.log('Showing career insights');
-    // Navigate to insights view or show modal
   }
 
   showSkillPlan(): void {
     console.log('Showing skill growth plan');
-    // Navigate to skill plan view or show modal
   }
 
-  // Job actions
   applyToJob(jobId: string): void {
     const job = this.jobRecommendations.find(j => j.id === jobId);
     if (job) {
       job.applied = true;
       console.log('Applied to job:', job.title);
-      // In real app, would call API to submit application
     }
   }
 
@@ -472,21 +694,17 @@ export class AiAssistantComponent implements OnInit, AfterViewInit {
     if (job) {
       job.saved = !job.saved;
       console.log('Job saved:', job.title);
-      // In real app, would call API to save job
     }
   }
 
-  // Training actions
   enrollInTraining(trainingId: string): void {
     const training = this.trainingRecommendations.find(t => t.id === trainingId);
     if (training) {
       training.enrolled = true;
       console.log('Enrolled in training:', training.title);
-      // In real app, would call API to enroll
     }
   }
 
-  // Utility methods for checking card types
   isJobCards(cards: any[]): boolean {
     return cards.length > 0 && cards[0].hasOwnProperty('company');
   }
@@ -529,35 +747,23 @@ export class AiAssistantComponent implements OnInit, AfterViewInit {
     }
   }
 
-  // Navigation methods
   navigateToJobs(): void {
-    this.router.navigate(['/job-explorer']);
+    this.router.navigate(['/jobseeker/job-explorer']);
   }
 
   navigateToTraining(): void {
-    this.router.navigate(['/training']);
+    this.router.navigate(['/jobseeker/training']);
   }
 
   navigateToProfile(): void {
-    this.router.navigate(['/profile']);
+    this.router.navigate(['/jobseeker/profile']);
   }
 
   navigateToDashboard(): void {
-    this.router.navigate(['/dashboard']);
+    this.router.navigate(['/jobseeker/dashboard']);
   }
 
-  // Premium features
   simulateSkillAddition(skill: string): void {
     console.log('Simulating addition of skill:', skill);
-    // This would show projected opportunities
-  }
-
-  // Real-time updates (would use WebSocket in real app)
-  simulateRealTimeUpdate(): void {
-    setInterval(() => {
-      // Simulate new job recommendations
-      // Update progress tracking
-      // Refresh deadlines
-    }, 30000); // Every 30 seconds
   }
 }

@@ -5,7 +5,7 @@ import { RouterModule, Router } from '@angular/router';
 import { ProfileService, PortfolioData, Skill, WorkExperience, Education, Certification, Project, Testimonial } from '../../../../../services/profile.service';
 import { AuthService } from '../../../../../services/auth.service';
 import { environment } from '../../../../environments/environments';
-
+import { SidebarComponent } from '../../shared/sidebar/sidebar.component';
 interface ProfileDisplay {
   fullName: string;
   title: string;
@@ -77,7 +77,7 @@ interface Section {
 @Component({
   selector: 'app-profile',
   standalone: true,
-  imports: [CommonModule, RouterModule],
+  imports: [CommonModule, RouterModule, SidebarComponent],
   templateUrl: './profile.component.html',
   styleUrls: ['./profile.component.css']
 })

@@ -5,7 +5,7 @@ import { RouterModule } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { Subject, takeUntil, finalize, interval, merge } from 'rxjs';
 import { JobService, Job, CreateJobRequest, JobStats } from '../../../../../services/job.service';
-
+import { SidebarComponent } from '../../shared/sidebar/sidebar.component';
 interface Notification {
   id: string;
   message: string;
@@ -17,7 +17,7 @@ interface Notification {
   templateUrl: './post-jobs.component.html',
   styleUrls: ['./post-jobs.component.css'],
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, RouterModule, FormsModule]
+  imports: [CommonModule, ReactiveFormsModule, RouterModule, FormsModule, SidebarComponent]
 })
 export class PostJobsComponent implements OnInit, OnDestroy {
   private destroy$ = new Subject<void>();

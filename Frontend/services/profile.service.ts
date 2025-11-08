@@ -19,6 +19,8 @@ export interface PortfolioData {
 
 export interface CVData {
   personal_info: {
+    name: string;
+    image: string | undefined;
     github: string | undefined;
     website: string | undefined;
     linkedIn: string | undefined;

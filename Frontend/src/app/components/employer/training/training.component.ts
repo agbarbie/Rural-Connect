@@ -14,7 +14,7 @@ import {
   TrainingOutcome,
   TrainingSearchParams 
 } from '../../../../../services/training.service';
-
+import { SidebarComponent } from '../../shared/sidebar/sidebar.component';
 interface NewTraining {
   title: string;
   description: string;
@@ -38,7 +38,7 @@ interface NewTraining {
 @Component({
   selector: 'app-training',
   templateUrl: './training.component.html',
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, SidebarComponent],
   styleUrls: ['./training.component.css']
 })
 export class TrainingComponent implements OnInit, OnDestroy {
