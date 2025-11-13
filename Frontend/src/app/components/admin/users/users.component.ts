@@ -1,7 +1,7 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-
+import { SidebarComponent } from '../../shared/sidebar/sidebar.component';
 export interface User {
   id: string;
   name: string;
@@ -27,7 +27,7 @@ export interface UserStats {
 @Component({
   selector: 'app-users',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, SidebarComponent],
   templateUrl: './users.component.html',
   styleUrls: ['./users.component.css']
 })

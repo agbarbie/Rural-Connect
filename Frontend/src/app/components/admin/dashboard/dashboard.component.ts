@@ -3,7 +3,7 @@ import { CommonModule } from '@angular/common';
 import { Router, RouterModule } from '@angular/router';
 import { Subscription } from 'rxjs';
 import { AuthService } from '../../../../../services/auth.service'; // Adjust path as needed
-
+import { SidebarComponent } from '../../shared/sidebar/sidebar.component';
 interface StatCard {
   title: string;
   value: string;
@@ -38,7 +38,7 @@ interface MaintenanceItem {
 @Component({
   selector: 'app-dashboard',
   standalone: true,
-  imports: [CommonModule, RouterModule],
+  imports: [CommonModule, RouterModule, SidebarComponent],
   templateUrl: './dashboard.component.html',
   styleUrls: ['./dashboard.component.css']
 })
