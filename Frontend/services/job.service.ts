@@ -901,6 +901,43 @@ export class JobService {
     );
   }
 
+  getNotifications(params: { read?: boolean; page?: number; limit?: number }): Observable<ApiResponse<any>> {
+  let httpParams = new HttpParams();
+  if (params.read !== undefined) {
+    httpParams = httpParams.set('read', params.read.toString());
+  }
+  if (params.page) httpParams = httpParams.set('page', params.page.toString());
+  if (params.limit) httpParams = httpParams.set('limit', params.limit.toString());
+  
+  return this.http.get<ApiResponse<any>>(
+    `${this.apiUrl}/notifications`,
+    { headers: this.getAuthHeaders(), params: httpParams }
+  );
+}
+
+markNotificationRead(notificationId: string): Observable<ApiResponse<void>> {
+  return this.http.put<ApiResponse<void>>(
+    `${this.apiUrl}/notifications/${notificationId}/read`,
+    {},
+    { headers: this.getAuthHeaders() }
+  );
+}
+
+markAllNotificationsRead(): Observable<ApiResponse<void>> {
+  return this.http.put<ApiResponse<void>>(
+    `${this.apiUrl}/notifications/mark-all-read`,
+    {},
+    { headers: this.getAuthHeaders() }
+  );
+}
+
+deleteNotification(notificationId: string): Observable<ApiResponse<void>> {
+  return this.http.delete<ApiResponse<void>>(
+    `${this.apiUrl}/notifications/${notificationId}`,
+    { headers: this.getAuthHeaders() }
+  );
+}
+
   /**
    * 🔥 NEW: Force refresh all jobs with latest data from backend
    */

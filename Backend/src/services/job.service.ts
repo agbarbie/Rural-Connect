@@ -1,8 +1,78 @@
 // src/services/job.service.ts
 import pool from '../db/db.config';
 import { Job, CreateJobRequest, UpdateJobRequest, JobQuery, JobWithCompany, JobStats, JobBookmark, JobView } from '../types/job.types';
+import { JobNotificationService } from './job-notification.service';
 
 export class JobService {
+  private notificationService: JobNotificationService;
+
+  constructor() {
+    this.notificationService = new JobNotificationService();
+  }
+
+  async updateApplicationStatus(
+    applicationId: string,
+    employerUserId: string,
+    newStatus: string
+  ): Promise<{ success: boolean; message: string; application?: any }> {
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+
+      // Verify ownership: Get employer_id from job
+      const appResult = await client.query(`
+        SELECT ja.*, j.employer_id, j.title, c.name as company_name, u.id as jobseeker_id, u.first_name, u.last_name
+        FROM job_applications ja
+        JOIN jobs j ON ja.job_id = j.id
+        LEFT JOIN companies c ON j.company_id = c.id
+        JOIN users u ON ja.user_id = u.id
+        WHERE ja.id = $1
+      `, [applicationId]);
+
+      if (appResult.rows.length === 0) {
+        return { success: false, message: 'Application not found' };
+      }
+
+      const app = appResult.rows[0];
+      const { employerId, title, company_name, jobseeker_id, first_name, last_name } = app;
+
+      // Check ownership
+      const employerCheck = await this.getEmployerAndCompany(employerUserId);
+      if (employerCheck.employerId !== employerId) {
+        return { success: false, message: 'Unauthorized to update this application' };
+      }
+
+      // Update status
+      const result = await client.query(
+        'UPDATE job_applications SET status = $1, updated_at = NOW() WHERE id = $2 RETURNING *',
+        [newStatus, applicationId]
+      );
+
+      const updatedApp = result.rows[0];
+
+      // Notify jobseeker about status change
+      await this.notificationService.notifyJobseekerAboutApplicationStatus(
+        jobseeker_id,
+        app.job_id,
+        title,
+        newStatus,
+        applicationId,
+        company_name
+      );
+
+      console.log(`✅ Application ${applicationId} status updated to ${newStatus} and jobseeker ${jobseeker_id} notified`);
+
+      await client.query('COMMIT');
+      return { success: true, message: 'Status updated successfully', application: updatedApp };
+    } catch (error) {
+      await client.query('ROLLBACK');
+      console.error('Error updating application status:', error);
+      return { success: false, message: 'Failed to update status' };
+    } finally {
+      client.release();
+    }
+  }
+
   /**
    * Get applications for a specific job (for employers)
    */
@@ -69,77 +139,72 @@ export class JobService {
   }
   
   /**
-   * Helper method to get employer ID from user ID and ensure company association
-   * @param userId The ID of the user
-   * @returns Object containing both employerId and companyId
+   * Helper method to get employer and company info
    */
-  private async getEmployerAndCompany(userId: string): Promise<{employerId: string, companyId: string}> {
+  private async getEmployerAndCompany(userId: string): Promise<{employerId: string, companyId: string, companyName: string}> {
     const client = await pool.connect();
     try {
-      // Get employer record by user_id
-      const employerResult = await client.query(
-        'SELECT id, company_id FROM employers WHERE user_id = $1',
-        [userId]
-      );
+      const employerResult = await client.query(`
+        SELECT e.id, e.company_id, c.name as company_name
+        FROM employers e
+        LEFT JOIN companies c ON e.company_id = c.id
+        WHERE e.user_id = $1
+      `, [userId]);
 
       if (employerResult.rows.length === 0) {
-        throw new Error('Employer profile not found for this user. Please complete your employer registration.');
+        throw new Error('Employer profile not found for this user');
       }
 
       const employer = employerResult.rows[0];
-      const employerId = employer.id;
       let companyId = employer.company_id;
+      let companyName = employer.company_name;
 
       if (!companyId) {
-        // Create a default company for this employer
         const defaultCompanyResult = await client.query(`
           INSERT INTO companies (name, description, industry, created_at, updated_at)
           VALUES ($1, $2, $3, $4, $5)
-          RETURNING id
+          RETURNING id, name
         `, [
           `Company - ${userId.substring(0, 8)}`,
-          'Please update your company profile with proper details',
+          'Please update your company profile',
           'Technology',
           new Date(),
           new Date()
         ]);
 
         companyId = defaultCompanyResult.rows[0].id;
+        companyName = defaultCompanyResult.rows[0].name;
 
-        // Update the employer with the new company_id
         await client.query(
           'UPDATE employers SET company_id = $1, updated_at = $2 WHERE id = $3',
-          [companyId, new Date(), employerId]
+          [companyId, new Date(), employer.id]
         );
-
-        console.log(`Created default company ${companyId} for employer ${employerId} (user: ${userId})`);
       }
 
-      return { employerId, companyId };
-    } catch (error) {
-      console.error('Error getting employer and company:', error);
-      throw error;
+      return { 
+        employerId: employer.id, 
+        companyId, 
+        companyName: companyName || 'Company' 
+      };
     } finally {
       client.release();
     }
   }
 
   /**
-   * Create a new job - CORRECTED: takes userId, not employerId
+   * Create job - WITH NOTIFICATIONS
    */
   async createJob(userId: string, jobData: CreateJobRequest): Promise<Job> {
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
 
-      // Get employer ID and company ID from user ID
-      const { employerId, companyId } = await this.getEmployerAndCompany(userId);
+      const { employerId, companyId, companyName } = await this.getEmployerAndCompany(userId);
 
-      // Process benefits to ensure it's a string[] or null
       let benefits: string[] | null = null;
       if (jobData.benefits) {
         if (typeof jobData.benefits === 'string') {
-            benefits = (jobData.benefits as string)
+          benefits = (jobData.benefits as string)
             .split(',')
             .map((item: string) => item.trim())
             .filter((item: string) => item.length > 0);
@@ -148,7 +213,6 @@ export class JobService {
         }
       }
 
-      // Insert the job using the correct employerId
       const insertQuery = `
         INSERT INTO jobs (
           employer_id, company_id, title, description, requirements, responsibilities,
@@ -161,40 +225,41 @@ export class JobService {
       `;
 
       const values = [
-        employerId, // Use the actual employer ID from database
-        companyId,
-        jobData.title,
-        jobData.description,
-        jobData.requirements || null,
-        jobData.responsibilities || null,
-        jobData.location,
-        jobData.employment_type,
-        jobData.work_arrangement,
-        jobData.salary_min || null,
-        jobData.salary_max || null,
-        jobData.currency || 'USD',
-        jobData.skills_required || [],
-        jobData.experience_level || null,
-        jobData.education_level || null,
-        benefits,
-        jobData.department || null,
+        employerId, companyId, jobData.title, jobData.description,
+        jobData.requirements || null, jobData.responsibilities || null,
+        jobData.location, jobData.employment_type, jobData.work_arrangement,
+        jobData.salary_min || null, jobData.salary_max || null,
+        jobData.currency || 'USD', jobData.skills_required || [],
+        jobData.experience_level || null, jobData.education_level || null,
+        benefits, jobData.department || null,
         jobData.application_deadline ? new Date(jobData.application_deadline) : null,
-        jobData.is_featured || false,
-        'Open',
-        0,
-        0,
-        new Date(),
-        new Date()
+        jobData.is_featured || false, 'Open', 0, 0,
+        new Date(), new Date()
       ];
 
       const result = await client.query(insertQuery, values);
       await client.query('COMMIT');
 
-      console.log(`Job created successfully - User: ${userId}, Employer: ${employerId}, Company: ${companyId}`);
-      return result.rows[0] as Job;
+      const newJob = result.rows[0] as Job;
+
+      console.log(`✅ Job created: ${newJob.id} - "${newJob.title}"`);
+
+      // 🔥 NOTIFY RELEVANT JOBSEEKERS
+      if (newJob.status === 'Open') {
+        this.notificationService.notifyJobseekersAboutNewJob(
+          newJob.id,
+          newJob.title,
+          companyName,
+          newJob.skills_required || [],
+          newJob.location,
+          newJob.employment_type
+        ).catch(err => console.error('❌ Failed to notify jobseekers:', err));
+      }
+
+      return newJob;
     } catch (error) {
       await client.query('ROLLBACK');
-      console.error('Error creating job:', error);
+      console.error('❌ Error creating job:', error);
       throw error;
     } finally {
       client.release();
@@ -431,45 +496,22 @@ export class JobService {
     }
   }
 
-  async getJobById(jobId: string): Promise<JobWithCompany | null> {
-    try {
-      const result = await pool.query(`
-        SELECT 
-          j.*,
-          c.name as company_name,
-          c.logo_url as company_logo,
-          c.industry as company_industry,
-          c.company_size,
-          c.website_url as company_website
-        FROM jobs j
-        LEFT JOIN companies c ON j.company_id = c.id
-        WHERE j.id = $1
-      `, [jobId]);
-
-      return result.rows.length > 0 ? result.rows[0] as JobWithCompany : null;
-    } catch (error) {
-      console.error('Error fetching job by ID:', error);
-      throw error;
-    }
-  }
-
   /**
-   * Update job - CORRECTED: takes userId and gets employerId internally
+   * Update job - WITH NOTIFICATIONS
    */
   async updateJob(jobId: string, userId: string, updateData: UpdateJobRequest): Promise<Job | null> {
     const client = await pool.connect();
     try {
-      // Get employer ID from user ID
-      const employerResult = await client.query(
-        'SELECT id FROM employers WHERE user_id = $1',
-        [userId]
-      );
+      await client.query('BEGIN');
 
-      if (employerResult.rows.length === 0) {
-        throw new Error('Employer profile not found for this user');
+      // Get old job data for comparison
+      const oldJobResult = await client.query('SELECT * FROM jobs WHERE id = $1', [jobId]);
+      if (oldJobResult.rows.length === 0) {
+        throw new Error('Job not found');
       }
+      const oldJob = oldJobResult.rows[0];
 
-      const employerId = employerResult.rows[0].id;
+      const { employerId } = await this.getEmployerAndCompany(userId);
 
       const ownershipCheck = await client.query(
         'SELECT id FROM jobs WHERE id = $1 AND employer_id = $2',
@@ -512,10 +554,7 @@ export class JobService {
           if (key === 'benefits' && typeof value === 'string') {
             updateFields.push(`${updatableFields[typedKey]} = $${paramCount}`);
             updateValues.push(
-              value
-                .split(',')
-                .map((item) => item.trim())
-                .filter((item) => item.length > 0)
+              value.split(',').map((item) => item.trim()).filter((item) => item.length > 0)
             );
           } else if (key === 'application_deadline' && value) {
             updateFields.push(`${updatableFields[typedKey]} = $${paramCount}`);
@@ -546,9 +585,54 @@ export class JobService {
       `;
 
       const result = await client.query(updateQuery, updateValues);
-      return result.rows[0] as Job;
+      await client.query('COMMIT');
+
+      const updatedJob = result.rows[0] as Job;
+
+      console.log(`✅ Job updated: ${updatedJob.id} - "${updatedJob.title}"`);
+
+      // 🔥 NOTIFY ABOUT STATUS CHANGES
+      if (oldJob.status !== updatedJob.status) {
+        if (updatedJob.status === 'Closed') {
+          this.notificationService.notifyJobseekersSavedJob(
+            jobId,
+            updatedJob.title,
+            'closed'
+          ).catch(err => console.error('❌ Failed to notify closure:', err));
+        } else if (updatedJob.status === 'Filled') {
+          this.notificationService.notifyJobseekersSavedJob(
+            jobId,
+            updatedJob.title,
+            'filled'
+          ).catch(err => console.error('❌ Failed to notify filled:', err));
+        } else if (updatedJob.status === 'Open' && oldJob.status !== 'Open') {
+          // Job reopened
+          this.notificationService.notifyJobseekersSavedJob(
+            jobId,
+            updatedJob.title,
+            'updated'
+          ).catch(err => console.error('❌ Failed to notify reopening:', err));
+        }
+      }
+
+      // 🔥 NOTIFY ABOUT SIGNIFICANT UPDATES (title, description, requirements)
+      const significantChanges = ['title', 'description', 'requirements', 'salary_min', 'salary_max'];
+      const hasSignificantChange = significantChanges.some(field => 
+        updateData[field as keyof UpdateJobRequest] !== undefined
+      );
+
+      if (hasSignificantChange && updatedJob.status === 'Open') {
+        this.notificationService.notifyJobseekersSavedJob(
+          jobId,
+          updatedJob.title,
+          'updated'
+        ).catch(err => console.error('❌ Failed to notify update:', err));
+      }
+
+      return updatedJob;
     } catch (error) {
-      console.error('Error updating job:', error);
+      await client.query('ROLLBACK');
+      console.error('❌ Error updating job:', error);
       throw error;
     } finally {
       client.release();
@@ -556,30 +640,62 @@ export class JobService {
   }
 
   /**
-   * Delete job - CORRECTED: takes userId and gets employerId internally
+   * Delete job - WITH NOTIFICATIONS
    */
   async deleteJob(jobId: string, userId: string): Promise<boolean> {
     try {
-      // Get employer ID from user ID
-      const employerResult = await pool.query(
-        'SELECT id FROM employers WHERE user_id = $1',
-        [userId]
-      );
-
-      if (employerResult.rows.length === 0) {
-        throw new Error('Employer profile not found for this user');
+      const job = await this.getJobById(jobId);
+      
+      if (!job) {
+        return false;
       }
 
-      const employerId = employerResult.rows[0].id;
+      const { employerId } = await this.getEmployerAndCompany(userId);
 
       const result = await pool.query(
         'DELETE FROM jobs WHERE id = $1 AND employer_id = $2 RETURNING id',
         [jobId, employerId]
       );
 
+      if (result.rows.length > 0) {
+        console.log(`✅ Job deleted: ${jobId} - "${job.title}"`);
+
+        // 🔥 NOTIFY ALL USERS WHO SAVED OR APPLIED
+        this.notificationService.notifyJobseekersSavedJob(
+          jobId,
+          job.title,
+          'deleted'
+        ).catch(err => console.error('❌ Failed to notify deletion:', err));
+      }
+
       return result.rows.length > 0;
     } catch (error) {
-      console.error('Error deleting job:', error);
+      console.error('❌ Error deleting job:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get job by ID
+   */
+  async getJobById(jobId: string): Promise<JobWithCompany | null> {
+    try {
+      const result = await pool.query(`
+        SELECT 
+          j.*,
+          c.name as company_name,
+          c.logo_url as company_logo,
+          c.industry as company_industry,
+          c.company_size,
+          c.website_url as company_website
+        FROM jobs j
+        LEFT JOIN companies c ON j.company_id = c.id
+        WHERE j.id = $1
+      `, [jobId]);
+
+      return result.rows.length > 0 ? result.rows[0] as JobWithCompany : null;
+    } catch (error) {
+      console.error('❌ Error fetching job by ID:', error);
       throw error;
     }
   }

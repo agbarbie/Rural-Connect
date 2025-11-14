@@ -80,60 +80,65 @@ export class PostJobsController {
     }
   }
 
-// Replace the createJob method in your PostJobsController with this:
+  /**
+   * Creates a new job posting
+   * @param req Authenticated request containing job data
+   * @param res Response object
+   * @param next Error handling middleware
+   */
+  async createJob(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const userId = req.user?.id;
+      const jobData = req.body as CreateJobRequest;
 
-async createJob(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
-  try {
-    const userId = req.user?.id;
-    const jobData = req.body as CreateJobRequest;
+      if (!userId) {
+        res.status(401).json({
+          success: false,
+          message: 'Unauthorized: User ID not found'
+        });
+        return;
+      }
 
-    if (!userId) {
-      res.status(401).json({
-        success: false,
-        message: 'Unauthorized: User ID not found'
+      if (req.user?.user_type !== 'employer') {
+        res.status(403).json({
+          success: false,
+          message: 'Forbidden: Only employers can create job postings'
+        });
+        return;
+      }
+
+      // Validate required fields
+      if (!jobData.title || !jobData.description || !jobData.location) {
+        res.status(400).json({
+          success: false,
+          message: 'Missing required fields: title, description, and location are required'
+        });
+        return;
+      }
+
+      // Create the job using the service method
+      const newJob = await this.jobService.createJob(userId, jobData);
+
+      res.status(201).json({
+        success: true,
+        message: 'Job created successfully',
+        data: newJob
       });
-      return;
+    } catch (error: any) {
+      console.error('Error in createJob controller:', error);
+      
+      if (error.message === 'Employer not found') {
+        res.status(404).json({
+          success: false,
+          message: 'Employer profile not found. Please complete your employer registration.'
+        });
+        return;
+      }
+      
+      next(error);
     }
-
-    if (req.user?.user_type !== 'employer') {
-      res.status(403).json({
-        success: false,
-        message: 'Forbidden: Only employers can create job postings'
-      });
-      return;
-    }
-
-    // Validate required fields
-    if (!jobData.title || !jobData.description || !jobData.location) {
-      res.status(400).json({
-        success: false,
-        message: 'Missing required fields: title, description, and location are required'
-      });
-      return;
-    }
-
-    // Create the job using the service method
-    const newJob = await this.jobService.createJob(userId, jobData);
-
-    res.status(201).json({
-      success: true,
-      message: 'Job created successfully',
-      data: newJob
-    });
-  } catch (error: any) {
-    console.error('Error in createJob controller:', error);
-    
-    if (error.message === 'Employer not found') {
-      res.status(404).json({
-        success: false,
-        message: 'Employer profile not found. Please complete your employer registration.'
-      });
-      return;
-    }
-    
-    next(error);
   }
-}
+
   /**
    * Retrieves all jobs posted by the authenticated employer
    * @param req Authenticated request containing query parameters
@@ -547,78 +552,77 @@ async createJob(req: AuthenticatedRequest, res: Response, next: NextFunction): P
    * @param res Response object
    * @param next Error handling middleware
    */
-// Fix your toggleJobStatus method in PostJobsController
-async toggleJobStatus(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
-  try {
-    const { jobId } = req.params;
-    const userId = req.user?.id;
+  async toggleJobStatus(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const { jobId } = req.params;
+      const userId = req.user?.id;
 
-    console.log(`toggleJobStatus - userId: ${userId}, jobId: ${jobId}, user_type: ${req.user?.user_type}`);
+      console.log(`toggleJobStatus - userId: ${userId}, jobId: ${jobId}, user_type: ${req.user?.user_type}`);
 
-    if (!userId) {
-      res.status(401).json({
-        success: false,
-        message: 'Unauthorized: User ID not found in token'
+      if (!userId) {
+        res.status(401).json({
+          success: false,
+          message: 'Unauthorized: User ID not found in token'
+        });
+        return;
+      }
+
+      if (!jobId) {
+        res.status(400).json({
+          success: false,
+          message: 'Job ID is required'
+        });
+        return;
+      }
+
+      // FIXED: Get employer_id from user_id first
+      const employerResult = await pool.query(
+        'SELECT id FROM employers WHERE user_id = $1',
+        [userId]
+      );
+
+      if (employerResult.rows.length === 0) {
+        res.status(404).json({
+          success: false,
+          message: 'Employer profile not found for this user'
+        });
+        return;
+      }
+
+      const employerId = employerResult.rows[0].id;
+
+      const job = await this.jobService.getJobById(jobId);
+      
+      if (!job) {
+        res.status(404).json({
+          success: false,
+          message: 'Job not found'
+        });
+        return;
+      }
+
+      // FIXED: Now compare employer_id with employer_id
+      if (job.employer_id !== employerId) {
+        console.log(`toggleJobStatus - Ownership check failed: job.employer_id=${job.employer_id}, employerId=${employerId}`);
+        res.status(403).json({
+          success: false,
+          message: `Forbidden: You can only modify your own job postings`
+        });
+        return;
+      }
+
+      const newStatus = job.status === 'Open' ? 'Paused' : 'Open';
+      const updatedJob = await this.jobService.updateJob(jobId, userId, { status: newStatus });
+
+      res.status(200).json({
+        success: true,
+        message: `Job ${newStatus.toLowerCase()} successfully`,
+        data: updatedJob
       });
-      return;
+    } catch (error) {
+      next(error);
     }
-
-    if (!jobId) {
-      res.status(400).json({
-        success: false,
-        message: 'Job ID is required'
-      });
-      return;
-    }
-
-    // FIXED: Get employer_id from user_id first
-    const employerResult = await pool.query(
-      'SELECT id FROM employers WHERE user_id = $1',
-      [userId]
-    );
-
-    if (employerResult.rows.length === 0) {
-      res.status(404).json({
-        success: false,
-        message: 'Employer profile not found for this user'
-      });
-      return;
-    }
-
-    const employerId = employerResult.rows[0].id;
-
-    const job = await this.jobService.getJobById(jobId);
-    
-    if (!job) {
-      res.status(404).json({
-        success: false,
-        message: 'Job not found'
-      });
-      return;
-    }
-
-    // FIXED: Now compare employer_id with employer_id
-    if (job.employer_id !== employerId) {
-      console.log(`toggleJobStatus - Ownership check failed: job.employer_id=${job.employer_id}, employerId=${employerId}`);
-      res.status(403).json({
-        success: false,
-        message: `Forbidden: You can only modify your own job postings`
-      });
-      return;
-    }
-
-    const newStatus = job.status === 'Open' ? 'Paused' : 'Open';
-    const updatedJob = await this.jobService.updateJob(jobId, userId, { status: newStatus });
-
-    res.status(200).json({
-      success: true,
-      message: `Job ${newStatus.toLowerCase()} successfully`,
-      data: updatedJob
-    });
-  } catch (error) {
-    next(error);
   }
-}
 
   /**
    * Marks a job as filled
@@ -673,93 +677,138 @@ async toggleJobStatus(req: AuthenticatedRequest, res: Response, next: NextFuncti
    * @param res Response object
    * @param next Error handling middleware
    */
-async duplicateJob(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
-  try {
-    const { jobId } = req.params;
-    const userId = req.user?.id;
+  async duplicateJob(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const { jobId } = req.params;
+      const userId = req.user?.id;
 
-    console.log(`duplicateJob - userId: ${userId}, jobId: ${jobId}, user_type: ${req.user?.user_type}`);
+      console.log(`duplicateJob - userId: ${userId}, jobId: ${jobId}, user_type: ${req.user?.user_type}`);
 
-    if (!userId) {
-      res.status(401).json({
-        success: false,
-        message: 'Unauthorized: User ID not found in token'
+      if (!userId) {
+        res.status(401).json({
+          success: false,
+          message: 'Unauthorized: User ID not found in token'
+        });
+        return;
+      }
+
+      if (!jobId) {
+        res.status(400).json({
+          success: false,
+          message: 'Job ID is required'
+        });
+        return;
+      }
+
+      // FIXED: Get employer_id from user_id first
+      const employerResult = await pool.query(
+        'SELECT id FROM employers WHERE user_id = $1',
+        [userId]
+      );
+
+      if (employerResult.rows.length === 0) {
+        res.status(404).json({
+          success: false,
+          message: 'Employer profile not found for this user'
+        });
+        return;
+      }
+
+      const employerId = employerResult.rows[0].id;
+
+      const originalJob = await this.jobService.getJobById(jobId);
+      
+      if (!originalJob) {
+        res.status(404).json({
+          success: false,
+          message: 'Original job not found'
+        });
+        return;
+      }
+
+      // FIXED: Now compare employer_id with employer_id
+      if (originalJob.employer_id !== employerId) {
+        console.log(`duplicateJob - Ownership check failed: job.employer_id=${originalJob.employer_id}, employerId=${employerId}`);
+        res.status(403).json({
+          success: false,
+          message: `Forbidden: You can only duplicate your own job postings`
+        });
+        return;
+      }
+
+      const duplicateJobData: CreateJobRequest = {
+        title: `${originalJob.title} (Copy)`,
+        description: originalJob.description,
+        requirements: originalJob.requirements,
+        responsibilities: originalJob.responsibilities,
+        location: originalJob.location,
+        employment_type: originalJob.employment_type,
+        work_arrangement: originalJob.work_arrangement,
+        salary_min: originalJob.salary_min,
+        salary_max: originalJob.salary_max,
+        currency: originalJob.currency,
+        skills_required: originalJob.skills_required,
+        experience_level: originalJob.experience_level,
+        education_level: originalJob.education_level,
+        benefits: originalJob.benefits,
+        department: originalJob.department,
+        is_featured: false
+      };
+
+      const duplicatedJob = await this.jobService.createJob(userId, duplicateJobData);
+
+      res.status(201).json({
+        success: true,
+        message: 'Job duplicated successfully',
+        data: duplicatedJob
       });
-      return;
+    } catch (error) {
+      next(error);
     }
-
-    if (!jobId) {
-      res.status(400).json({
-        success: false,
-        message: 'Job ID is required'
-      });
-      return;
-    }
-
-    // FIXED: Get employer_id from user_id first
-    const employerResult = await pool.query(
-      'SELECT id FROM employers WHERE user_id = $1',
-      [userId]
-    );
-
-    if (employerResult.rows.length === 0) {
-      res.status(404).json({
-        success: false,
-        message: 'Employer profile not found for this user'
-      });
-      return;
-    }
-
-    const employerId = employerResult.rows[0].id;
-
-    const originalJob = await this.jobService.getJobById(jobId);
-    
-    if (!originalJob) {
-      res.status(404).json({
-        success: false,
-        message: 'Original job not found'
-      });
-      return;
-    }
-
-    // FIXED: Now compare employer_id with employer_id
-    if (originalJob.employer_id !== employerId) {
-      console.log(`duplicateJob - Ownership check failed: job.employer_id=${originalJob.employer_id}, employerId=${employerId}`);
-      res.status(403).json({
-        success: false,
-        message: `Forbidden: You can only duplicate your own job postings`
-      });
-      return;
-    }
-
-    const duplicateJobData: CreateJobRequest = {
-      title: `${originalJob.title} (Copy)`,
-      description: originalJob.description,
-      requirements: originalJob.requirements,
-      responsibilities: originalJob.responsibilities,
-      location: originalJob.location,
-      employment_type: originalJob.employment_type,
-      work_arrangement: originalJob.work_arrangement,
-      salary_min: originalJob.salary_min,
-      salary_max: originalJob.salary_max,
-      currency: originalJob.currency,
-      skills_required: originalJob.skills_required,
-      experience_level: originalJob.experience_level,
-      education_level: originalJob.education_level,
-      benefits: originalJob.benefits,
-      department: originalJob.department,
-      is_featured: false
-    };
-
-    const duplicatedJob = await this.jobService.createJob(userId, duplicateJobData);
-
-    res.status(201).json({
-      success: true,
-      message: 'Job duplicated successfully',
-      data: duplicatedJob
-    });
-  } catch (error) {
-    next(error);
   }
-}
+
+  /**
+   * Updates the status of a job application and notifies the jobseeker
+   * @param req Authenticated request containing application ID and new status
+   * @param res Response object
+   * @param next Error handling middleware
+   */
+  async updateApplicationStatus(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const { applicationId } = req.params;
+      const { status } = req.body;
+      const userId = req.user?.id;
+
+      if (!userId) {
+        res.status(401).json({ success: false, message: 'Unauthorized: User ID not found' });
+        return;
+      }
+
+      if (!applicationId) {
+        res.status(400).json({ success: false, message: 'Application ID is required' });
+        return;
+      }
+
+      if (!status) {
+        res.status(400).json({ success: false, message: 'Status is required' });
+        return;
+      }
+
+      const validStatuses = ['pending', 'reviewed', 'shortlisted', 'rejected', 'accepted', 'withdrawn'];
+      if (!validStatuses.includes(status)) {
+        res.status(400).json({ success: false, message: `Invalid status. Must be one of: ${validStatuses.join(', ')}` });
+        return;
+      }
+
+      const result = await this.jobService.updateApplicationStatus(applicationId, userId, status);
+
+      if (result.success) {
+        res.status(200).json({ success: true, message: result.message, data: result.application });
+      } else {
+        res.status(400).json({ success: false, message: result.message });
+      }
+    } catch (error) {
+      next(error);
+    }
+  }
 }

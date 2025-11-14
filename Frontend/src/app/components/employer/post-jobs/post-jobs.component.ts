@@ -1,11 +1,12 @@
 import { Component, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ReactiveFormsModule, FormBuilder, FormGroup, Validators } from '@angular/forms';
-import { RouterModule } from '@angular/router';
+import { Router, RouterModule } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { Subject, takeUntil, finalize, interval, merge } from 'rxjs';
 import { JobService, Job, CreateJobRequest, JobStats } from '../../../../../services/job.service';
 import { SidebarComponent } from '../../shared/sidebar/sidebar.component';
+
 interface Notification {
   id: string;
   message: string;
@@ -60,7 +61,11 @@ export class PostJobsComponent implements OnInit, OnDestroy {
   };
   
   searchQuery: string = '';
-  notifications: Notification[] = [];
+  toasts: Notification[] = [];
+  jobNotifications: any[] = [];
+  unreadNotificationCount: number = 0;
+  showNotifications: boolean = false;
+  lastNotificationCheck: Date = new Date();
   showAddForm: boolean = false;
   showJobDetails: boolean = false;
   selectedJob: Job | null = null;
@@ -84,7 +89,8 @@ export class PostJobsComponent implements OnInit, OnDestroy {
 
   constructor(
     private fb: FormBuilder,
-    private jobService: JobService
+    private jobService: JobService,
+    private router: Router
   ) {
     this.jobForm = this.fb.group({
       title: ['', [Validators.required, Validators.minLength(3)]],
@@ -119,6 +125,24 @@ export class PostJobsComponent implements OnInit, OnDestroy {
     
     // 🔥 Start auto-refresh with shorter interval (20 seconds for better responsiveness)
     this.startAutoRefresh();
+
+    // ✅ NEW: Load notifications
+    this.loadNotifications();
+
+    // ✅ NEW: Auto-refresh notifications every 30 seconds
+    interval(30000)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe(() => {
+        console.log('🔔 Auto-refreshing notifications...');
+        this.loadNotifications();
+      });
+
+    // ✅ NEW: Request notification permission
+    if ('Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission().then(permission => {
+        console.log('🔔 Notification permission:', permission);
+      });
+    }
   }
 
   ngOnDestroy(): void {
@@ -620,12 +644,12 @@ export class PostJobsComponent implements OnInit, OnDestroy {
 
   addNotification(message: string, type: 'success' | 'error' | 'info'): void {
     const id = Date.now().toString();
-    this.notifications.push({ id, message, type });
-    setTimeout(() => this.dismissNotification(id), 5000);
+    this.toasts.push({ id, message, type });
+    setTimeout(() => this.dismissToast(id), 5000);
   }
 
-  dismissNotification(id: string): void {
-    this.notifications = this.notifications.filter(n => n.id !== id);
+  dismissToast(id: string): void {
+    this.toasts = this.toasts.filter(n => n.id !== id);
   }
 
   private markFormGroupTouched(): void {
@@ -664,5 +688,191 @@ export class PostJobsComponent implements OnInit, OnDestroy {
     if (diff < 60) return `${diff}s ago`;
     if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
     return `${Math.floor(diff / 3600)}h ago`;
+  }
+
+  /**
+   * ✅ NEW: Load notifications
+   */
+  loadNotifications(): void {
+    console.log('🔔 Loading job notifications...');
+    
+    this.jobService.getNotifications({ read: false })
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (response) => {
+          console.log('📦 Raw notification response:', response);
+          
+          if (response.success && response.data) {
+            this.jobNotifications = response.data.notifications || [];
+            this.unreadNotificationCount = this.jobNotifications.filter(n => !n.read).length;
+            
+            console.log('✅ Notifications loaded:', {
+              total: this.jobNotifications.length,
+              unread: this.unreadNotificationCount,
+              types: [...new Set(this.jobNotifications.map(n => n.type))]
+            });
+            
+            this.checkForNewNotifications();
+          }
+        },
+        error: (error) => {
+          console.error('❌ Error loading notifications:', error);
+        }
+      });
+  }
+
+  /**
+   * ✅ NEW: Check for new notifications
+   */
+  private checkForNewNotifications(): void {
+    const newNotifications = this.jobNotifications.filter(n => {
+      const notificationDate = new Date(n.created_at);
+      return notificationDate > this.lastNotificationCheck && !n.read;
+    });
+
+    if (newNotifications.length > 0) {
+      console.log('🔔 New notifications detected:', newNotifications.length);
+
+      const importantTypes = [
+        'application_received',
+        'application_shortlisted',
+        'interview_scheduled'
+      ];
+
+      const importantNotifications = newNotifications.filter(n =>
+        importantTypes.includes(n.type)
+      );
+
+      if (importantNotifications.length > 0 &&
+          'Notification' in window &&
+          Notification.permission === 'granted') {
+        importantNotifications.forEach(n => {
+          new Notification(n.title || this.getNotificationTitle(n.type), {
+            body: n.message,
+            icon: '/assets/logo.png',
+            badge: '/assets/logo.png',
+            tag: n.id
+          });
+        });
+      }
+    }
+
+    this.lastNotificationCheck = new Date();
+  }
+
+  /**
+   * ✅ NEW: Get notification icon
+   */
+  getNotificationIcon(type: string): string {
+    const iconMap: Record<string, string> = {
+      'application_received': 'fa-user-plus',
+      'application_reviewed': 'fa-eye',
+      'application_shortlisted': 'fa-star',
+      'application_accepted': 'fa-check-circle',
+      'application_rejected': 'fa-times-circle',
+      'job_updated': 'fa-edit',
+      'job_deleted': 'fa-trash-alt',
+      'interview_scheduled': 'fa-calendar'
+    };
+    
+    return iconMap[type] || 'fa-info-circle';
+  }
+
+  /**
+   * ✅ NEW: Get notification title
+   */
+  getNotificationTitle(type: string): string {
+    const titleMap: Record<string, string> = {
+      'application_received': '📨 New Application',
+      'application_reviewed': '👀 Application Reviewed',
+      'application_shortlisted': '⭐ Candidate Shortlisted',
+      'application_accepted': '✅ Application Accepted',
+      'application_rejected': '❌ Application Rejected',
+      'job_updated': '✏️ Job Updated',
+      'job_deleted': '🗑️ Job Deleted',
+      'interview_scheduled': '📅 Interview Scheduled'
+    };
+    
+    return titleMap[type] || 'Job Update';
+  }
+
+  /**
+   * ✅ NEW: Handle notification click
+   */
+  handleNotificationClick(notification: any): void {
+    console.log('📌 Notification clicked:', notification);
+    
+    if (!notification.read) {
+      this.markNotificationAsRead(notification.id);
+    }
+    
+    // Navigate based on notification type
+    switch (notification.type) {
+      case 'application_received':
+        if (notification.metadata?.job_id) {
+          this.router.navigate(['/employer/applications'], {
+            queryParams: { jobId: notification.metadata.job_id }
+          });
+        }
+        break;
+      
+      case 'job_updated':
+      case 'job_deleted':
+        this.loadJobPosts();
+        break;
+      
+      default:
+        console.log('No specific action for notification type:', notification.type);
+    }
+    
+    this.showNotifications = false;
+  }
+
+  /**
+   * ✅ NEW: Mark notification as read
+   */
+  markNotificationAsRead(notificationId: string): void {
+    console.log('✅ Marking notification as read:', notificationId);
+    
+    const notification = this.jobNotifications.find(n => n.id === notificationId);
+    if (notification && !notification.read) {
+      notification.read = true;
+      this.unreadNotificationCount = Math.max(0, this.unreadNotificationCount - 1);
+    }
+    
+    this.jobService.markNotificationRead(notificationId)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: () => {
+          console.log('✅ Notification marked as read on server');
+        },
+        error: (error) => {
+          console.error('❌ Error marking notification as read:', error);
+          if (notification) {
+            notification.read = false;
+            this.unreadNotificationCount++;
+          }
+        }
+      });
+  }
+
+  /**
+   * ✅ NEW: Toggle notifications dropdown
+   */
+  toggleNotifications(): void {
+    this.showNotifications = !this.showNotifications;
+    
+    if (this.showNotifications) {
+      this.lastNotificationCheck = new Date();
+      console.log('👀 Notifications panel opened');
+    }
+  }
+
+  /**
+   * ✅ NEW: View all notifications
+   */
+  viewAllNotifications(): void {
+    console.log('📋 Viewing all notifications');
+    this.router.navigate(['/employer/notifications']);
   }
 }

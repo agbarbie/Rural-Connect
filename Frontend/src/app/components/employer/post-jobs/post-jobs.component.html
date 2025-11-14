@@ -6,15 +6,15 @@
   </div>
 
   <!-- Notification System -->
-  <div class="notification-container" *ngIf="notifications.length > 0">
-    <div class="notification" *ngFor="let notification of notifications" [ngClass]="notification.type">
+  <div class="notification-container" *ngIf="toasts.length > 0">
+    <div class="notification" *ngFor="let notification of toasts" [ngClass]="notification.type">
       <i class="fas" [ngClass]="{
         'fa-check-circle': notification.type === 'success',
         'fa-exclamation-circle': notification.type === 'error',
         'fa-info-circle': notification.type === 'info'
       }"></i>
       <span>{{ notification.message }}</span>
-      <button class="btn-notification-close" (click)="dismissNotification(notification.id)">
+      <button class="btn-notification-close" (click)="dismissToast(notification.id)">
         <i class="fas fa-times"></i>
       </button>
     </div>
@@ -52,6 +52,92 @@
           <i class="fas fa-plus"></i>
           Create Job Post
         </button>
+      </div>
+    </div>
+
+    <!-- Notification Bell -->
+    <div class="notification-wrapper" *ngIf="!showAddForm">
+      <button class="notification-bell" (click)="toggleNotifications()">
+        <i class="fas fa-bell" [class.ringing]="unreadNotificationCount > 0"></i>
+        <span class="notification-badge" *ngIf="unreadNotificationCount > 0">
+          {{ unreadNotificationCount }}
+        </span>
+      </button>
+      
+      <!-- Notification Dropdown -->
+      <div class="notification-dropdown" *ngIf="showNotifications">
+        <div class="notification-header">
+          <h3>
+            <i class="fas fa-bell"></i>
+            Notifications
+            <span class="unread-count" *ngIf="unreadNotificationCount > 0">
+              ({{ unreadNotificationCount }} new)
+            </span>
+          </h3>
+          <button class="close-btn" (click)="toggleNotifications()">
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+        
+        <div class="notification-list">
+          <!-- Notification Items -->
+          <div class="notification-item"
+               *ngFor="let notification of jobNotifications"
+               [class.unread]="!notification.read"
+               (click)="handleNotificationClick(notification)">
+            
+            <!-- Notification Icon -->
+            <div class="notification-icon" [ngClass]="'icon-' + notification.type">
+              <i class="fas" [ngClass]="getNotificationIcon(notification.type)"></i>
+            </div>
+            
+            <!-- Notification Content -->
+            <div class="notification-content">
+              <h4 class="notification-title">
+                {{ notification.title || getNotificationTitle(notification.type) }}
+              </h4>
+              <p class="notification-message">{{ notification.message }}</p>
+              <span class="notification-time">
+                <i class="fas fa-clock"></i>
+                {{ notification.created_at | date:'short' }}
+              </span>
+            </div>
+            
+            <!-- Notification Actions -->
+            <div class="notification-actions">
+              <!-- Mark as Read -->
+              <button
+                *ngIf="!notification.read"
+                class="btn-notification-action btn-mark-read"
+                (click)="markNotificationAsRead(notification.id); $event.stopPropagation()"
+                title="Mark as Read">
+                <i class="fas fa-check"></i>
+              </button>
+              
+              <!-- View Details -->
+              <button
+                class="btn-notification-action btn-view"
+                title="View Details">
+                <i class="fas fa-eye"></i>
+              </button>
+            </div>
+          </div>
+          
+          <!-- Empty State -->
+          <div class="no-notifications" *ngIf="jobNotifications.length === 0">
+            <i class="fas fa-inbox"></i>
+            <p>No new notifications</p>
+            <small>You'll be notified about applications and job updates</small>
+          </div>
+        </div>
+        
+        <!-- Notification Footer -->
+        <div class="notification-footer" *ngIf="jobNotifications.length > 0">
+          <button class="btn-view-all" (click)="viewAllNotifications()">
+            <i class="fas fa-list"></i>
+            View All Notifications
+          </button>
+        </div>
       </div>
     </div>
 

@@ -17,6 +17,7 @@ import {
 
 export class JobseekerJobService {
   private db: Pool;
+  notificationService: any;
 
   constructor() {
     this.db = db;
@@ -462,28 +463,35 @@ async getSavedJobs(userId: string, filters: { page: number; limit: number }): Pr
 }
 
   // Apply to a job
-  async applyToJob(userId: string, jobId: string, applicationData: ApplicationData): Promise<ServiceResponse<JobApplication>> {
+async applyToJob(userId: string, jobId: string, applicationData: ApplicationData): Promise<ServiceResponse<JobApplication>> {
     const client = await this.db.connect();
-
     try {
       await client.query('BEGIN');
-
-      // Check if job exists and is open
+      
+      // Check if job exists and is open - also fetch employer_id and title for notification
       const jobCheck = await client.query(
-        "SELECT id, status FROM jobs WHERE id = $1 AND status = 'Open'",
+        "SELECT id, status, employer_id, title FROM jobs WHERE id = $1 AND status = 'Open'",
         [jobId]
       );
-
       if (jobCheck.rows.length === 0) {
         return { success: false, message: 'Job not found or not accepting applications' };
       }
+      const job = jobCheck.rows[0];
+
+      // Get applicant name for notification
+      const applicantResult = await client.query(
+        "SELECT first_name, last_name FROM users WHERE id = $1",
+        [userId]
+      );
+      const applicantName = applicantResult.rows.length > 0 
+        ? `${applicantResult.rows[0].first_name || ''} ${applicantResult.rows[0].last_name || ''}`.trim() || 'Job Seeker'
+        : 'Job Seeker';
 
       // Check if already applied
       const existingApplication = await client.query(
         'SELECT id FROM job_applications WHERE user_id = $1 AND job_id = $2',
         [userId, jobId]
       );
-
       if (existingApplication.rows.length > 0) {
         return { success: false, message: 'Already applied to this job' };
       }
@@ -494,7 +502,6 @@ async getSavedJobs(userId: string, filters: { page: number; limit: number }): Pr
           'SELECT id FROM resumes WHERE id = $1 AND user_id = $2',
           [applicationData.resumeId, userId]
         );
-
         if (resumeCheck.rows.length === 0) {
           return { success: false, message: 'Invalid resume ID' };
         }
@@ -503,7 +510,7 @@ async getSavedJobs(userId: string, filters: { page: number; limit: number }): Pr
       // Create application
       const result = await client.query(
         `INSERT INTO job_applications (
-          user_id, job_id, cover_letter, resume_id, portfolio_url, 
+          user_id, job_id, cover_letter, resume_id, portfolio_url,
           expected_salary, availability_date, status
         ) VALUES ($1, $2, $3, $4, $5, $6, $7, 'pending') RETURNING *`,
         [
@@ -517,9 +524,25 @@ async getSavedJobs(userId: string, filters: { page: number; limit: number }): Pr
         ]
       );
 
-      await client.query('COMMIT');
+      const newApplication = result.rows[0] as JobApplication;
 
-      return { success: true, data: result.rows[0] as JobApplication };
+      // FIXED: Notify employer about new application (non-blocking, but in transaction for consistency)
+      try {
+        await this.notificationService.notifyEmployerAboutApplication(
+          job.employer_id,
+          jobId,
+          job.title,
+          applicantName,
+          newApplication.id
+        );
+        console.log(`✅ Employer notified about application for job ${jobId} by ${applicantName}`);
+      } catch (notifyError) {
+        console.error('❌ Failed to notify employer (application still created):', notifyError);
+        // Don't rollback - notifications are non-critical
+      }
+
+      await client.query('COMMIT');
+      return { success: true, data: newApplication };
     } catch (error) {
       await client.query('ROLLBACK');
       console.error('Error applying to job:', error);

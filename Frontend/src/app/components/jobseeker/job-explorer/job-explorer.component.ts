@@ -2,7 +2,7 @@ import { Component, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
-import { Subject, takeUntil, finalize, forkJoin, catchError, of } from 'rxjs';
+import { Subject, takeUntil, finalize, forkJoin, catchError, of, interval } from 'rxjs';
 import { JobService, Job } from '../../../../../services/job.service';
 import { ProfileService } from '../../../../../services/profile.service';
 import { SidebarComponent } from '../../shared/sidebar/sidebar.component';
@@ -65,6 +65,12 @@ export class JobExplorerComponent implements OnInit, OnDestroy {
   totalPages: number = 1;
   totalJobs: number = 0;
 
+  // Notification properties
+  jobNotifications: any[] = [];
+  unreadNotificationCount: number = 0;
+  showNotifications: boolean = false;
+  lastNotificationCheck: Date = new Date();
+
   constructor(
     private jobService: JobService,
     private profileService: ProfileService,
@@ -82,6 +88,14 @@ export class JobExplorerComponent implements OnInit, OnDestroy {
     
     // Load stats with error handling
     this.loadJobseekerStats();
+
+    // Load notifications
+    this.loadNotifications();
+    
+    // Auto-refresh every 30 seconds
+    interval(30000)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe(() => this.loadNotifications());
   }
 
   ngOnDestroy(): void {
@@ -959,5 +973,108 @@ loadJobs(page: number = 1): void {
     
     this.ratingCache.set(jobId, rating);
     return rating;
+  }
+
+  loadNotifications(): void {
+    this.jobService.getNotifications({ read: false })
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (response) => {
+          if (response.success && response.data) {
+            this.jobNotifications = response.data.notifications || [];
+            this.unreadNotificationCount = this.jobNotifications.filter(n => !n.read).length;
+            this.checkForNewNotifications();
+          }
+        },
+        error: (error) => console.error('Error loading notifications:', error)
+      });
+  }
+
+  private checkForNewNotifications(): void {
+    const newNotifications = this.jobNotifications.filter(n => {
+      const notificationDate = new Date(n.created_at);
+      return notificationDate > this.lastNotificationCheck && !n.read;
+    });
+
+    if (newNotifications.length > 0 && 
+        'Notification' in window && 
+        Notification.permission === 'granted') {
+      newNotifications.forEach(n => {
+        new Notification(n.title, {
+          body: n.message,
+          icon: '/assets/logo.png'
+        });
+      });
+    }
+
+    this.lastNotificationCheck = new Date();
+  }
+
+  getNotificationIcon(type: string): string {
+    const iconMap: Record<string, string> = {
+      'new_job': 'fa-briefcase',
+      'application_reviewed': 'fa-eye',
+      'application_shortlisted': 'fa-star',
+      'application_accepted': 'fa-check-circle',
+      'application_rejected': 'fa-times-circle',
+      'job_updated': 'fa-edit',
+      'job_deleted': 'fa-trash',
+      'job_closed': 'fa-lock',
+      'job_filled': 'fa-user-check'
+    };
+    return iconMap[type] || 'fa-info-circle';
+  }
+
+  handleNotificationClick(notification: any): void {
+    if (!notification.read) {
+      this.markNotificationAsRead(notification.id);
+    }
+    
+    // Navigate based on type
+    switch (notification.type) {
+      case 'new_job':
+        if (notification.metadata?.job_id) {
+          // Navigate to job details
+          this.router.navigate(['/jobseeker/job-details', notification.metadata.job_id]);
+        }
+        break;
+      case 'application_reviewed':
+      case 'application_shortlisted':
+      case 'application_accepted':
+      case 'application_rejected':
+        // Navigate to applications
+        this.router.navigate(['/jobseeker/applications']);
+        break;
+    }
+    
+    this.showNotifications = false;
+  }
+
+  markNotificationAsRead(notificationId: string): void {
+    const notification = this.jobNotifications.find(n => n.id === notificationId);
+    if (notification && !notification.read) {
+      notification.read = true;
+      this.unreadNotificationCount = Math.max(0, this.unreadNotificationCount - 1);
+    }
+    
+    this.jobService.markNotificationRead(notificationId)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: () => console.log('Notification marked as read'),
+        error: (error) => {
+          console.error('Error marking notification:', error);
+          if (notification) {
+            notification.read = false;
+            this.unreadNotificationCount++;
+          }
+        }
+      });
+  }
+
+  toggleNotifications(): void {
+    this.showNotifications = !this.showNotifications;
+    if (this.showNotifications) {
+      this.lastNotificationCheck = new Date();
+    }
   }
 }

@@ -41,9 +41,70 @@
           [(ngModel)]="searchQuery"
           (keyup.enter)="onSearchSubmit()">
       </div>
-      <button class="notification-btn">
-        <i class="fas fa-bell"></i>
-      </button>
+      
+      <!-- Notification Wrapper (replaces the simple notification-btn) -->
+      <div class="notification-wrapper">
+        <button class="notification-bell" (click)="toggleNotifications()">
+          <i class="fas fa-bell" [class.ringing]="unreadNotificationCount > 0"></i>
+          <span class="notification-badge" *ngIf="unreadNotificationCount > 0">
+            {{ unreadNotificationCount }}
+          </span>
+        </button>
+        
+        <!-- Notification Dropdown -->
+        <div class="notification-dropdown" *ngIf="showNotifications">
+          <div class="notification-header">
+            <h3>
+              <i class="fas fa-bell"></i>
+              Notifications
+              <span class="unread-count" *ngIf="unreadNotificationCount > 0">
+                ({{ unreadNotificationCount }} new)
+              </span>
+            </h3>
+            <button class="close-btn" (click)="toggleNotifications()">
+              <i class="fas fa-times"></i>
+            </button>
+          </div>
+          
+          <div class="notification-list">
+            <div class="notification-item"
+                 *ngFor="let notification of jobNotifications"
+                 [class.unread]="!notification.read"
+                 (click)="handleNotificationClick(notification)">
+              
+              <div class="notification-icon" [ngClass]="'icon-' + notification.type">
+                <i class="fas" [ngClass]="getNotificationIcon(notification.type)"></i>
+              </div>
+              
+              <div class="notification-content">
+                <h4 class="notification-title">{{ notification.title || getNotificationIcon(notification.type) }}</h4>
+                <p class="notification-message">{{ notification.message }}</p>
+                <span class="notification-time">
+                  <i class="fas fa-clock"></i>
+                  {{ notification.created_at | date:'short' }}
+                </span>
+              </div>
+              
+              <div class="notification-actions">
+                <button
+                  *ngIf="!notification.read"
+                  class="btn-mark-read"
+                  (click)="markNotificationAsRead(notification.id); $event.stopPropagation()"
+                  title="Mark as Read">
+                  <i class="fas fa-check"></i>
+                </button>
+              </div>
+            </div>
+            
+            <div class="no-notifications" *ngIf="jobNotifications.length === 0">
+              <i class="fas fa-inbox"></i>
+              <p>No new notifications</p>
+              <small>You'll be notified about applications and job updates</small>
+            </div>
+          </div>
+        </div>
+      </div>
+      
       <button class="settings-btn">
         <i class="fas fa-cog"></i>
       </button>
