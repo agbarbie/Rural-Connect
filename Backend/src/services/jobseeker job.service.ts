@@ -14,13 +14,14 @@ import {
   PaginatedResult,
   RecommendationFilters
 } from '../types/jobseeker-job.types';
-
+import { JobNotificationService } from './job-notification.service';
 export class JobseekerJobService {
   private db: Pool;
   notificationService: any;
 
   constructor() {
     this.db = db;
+    this.notificationService = new JobNotificationService();
   }
 
   // Get all jobs with filters (public job explorer)

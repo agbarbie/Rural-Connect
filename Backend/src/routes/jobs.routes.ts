@@ -9,6 +9,7 @@ import {
    requireJobseeker,
    AuthenticatedRequest
 } from '../middleware/auth.middleware';
+import { JobNotificationService } from '../services/job-notification.service';
 
 const router = Router();
 
@@ -109,47 +110,76 @@ router.post('/employer/:jobId/duplicate', authenticateToken, requireEmployer, po
 router.get('/details/:jobId', optionalAuth, jobseekerJobController.getJobDetails);
 router.get('/', optionalAuth, jobseekerJobController.getAllJobs);
 
-// TEMP DEBUG: POST /api/jobs/debug/test-notification (protected)
-router.post('/debug/test-notification', authenticateToken, async (req, res) => {
+router.post('/test-job-application-notification', authenticateToken, async (req: any, res: any) => {
   try {
-    const authReq = req as AuthenticatedRequest;
-    const userId = authReq.user?.id;
-    if (!userId) {
-      return res.status(401).json({ success: false, message: 'Unauthorized' });
-    }
-
-    // Import service dynamically
-    const { JobNotificationService } = await import('../services/job-notification.service');
+    const userId = req.user.id;
+    const userType = req.user.user_type;
+    
     const notificationService = new JobNotificationService();
-
-    // Create test notification based on user type
-    let type, message, metadata;
-    if (authReq.user?.user_type === 'jobseeker') {
-      type = 'application_reviewed';
-      message = 'Your application for Frontend Developer has been reviewed!';
-      metadata = {
-        job_id: 'test-123',
-        job_title: 'Frontend Developer',
-        company_name: 'TechCorp',
-        application_id: 'test-app-456',
-        status: 'reviewed'
-      };
+    
+    if (userType === 'employer') {
+      // Create realistic job application notification
+      await notificationService.createNotification(
+        userId,
+        'application_received',
+        'John Smith applied for Senior Software Engineer position',
+        {
+          job_id: 'test-job-' + Date.now(),
+          job_title: 'Senior Software Engineer',
+          applicant_name: 'John Smith',
+          application_id: 'test-app-' + Date.now(),
+          action: 'new_application',
+          timestamp: new Date().toISOString()
+        }
+      );
+      
+      res.json({ 
+        success: true, 
+        message: '✅ Job application notification created for employer',
+        userId,
+        userType,
+        notificationType: 'application_received'
+      });
+    } else if (userType === 'jobseeker') {
+      // Create realistic application status notification
+      await notificationService.createNotification(
+        userId,
+        'application_shortlisted',
+        'Congratulations! You\'ve been shortlisted for Frontend Developer at TechCorp',
+        {
+          job_id: 'test-job-' + Date.now(),
+          job_title: 'Frontend Developer',
+          company_name: 'TechCorp',
+          application_id: 'test-app-' + Date.now(),
+          status: 'shortlisted',
+          action: 'status_change',
+          timestamp: new Date().toISOString()
+        }
+      );
+      
+      res.json({ 
+        success: true, 
+        message: '✅ Application status notification created for jobseeker',
+        userId,
+        userType,
+        notificationType: 'application_shortlisted'
+      });
     } else {
-      type = 'application_received';
-      message = 'Alice Test applied for Frontend Developer!';
-      metadata = {
-        job_id: 'test-123',
-        job_title: 'Frontend Developer',
-        applicant_name: 'Alice Test',
-        application_id: 'test-app-456'
-      };
+      res.json({ 
+        success: false, 
+        message: 'Unknown user type',
+        userId,
+        userType 
+      });
     }
-
-    await notificationService.createNotification(userId, type, message, metadata);
-    return res.json({ success: true, message: `Test ${type} notification created for user ${userId}` });
-  } catch (error) {
-    console.error('Debug notification error:', error);
-    return res.status(500).json({ success: false, message: 'Failed to create test notification' });
+  } catch (error: any) {
+    console.error('Test notification error:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: error.message 
+    });
   }
 });
+
+
 export default router;

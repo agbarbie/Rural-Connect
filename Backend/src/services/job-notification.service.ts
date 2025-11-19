@@ -364,34 +364,18 @@ async getNotifications(
   const { page = 1, limit = 10, read } = params;
   const offset = (page - 1) * limit;
 
-  console.log('🔔 Backend: Getting job notifications:', {
+  console.log('🔔 Backend: Getting ALL notifications:', {
     userId,
     page,
     limit,
     read: typeof read === 'string' ? read : read ? 'true' : 'false'
   });
 
-  // 🔥 Filter only job-related notification types
-  const jobNotificationTypes = [
-    'new_job',
-    'job_updated',
-    'job_deleted',
-    'job_closed',
-    'job_filled',
-    'application_received',
-    'application_reviewed',
-    'application_shortlisted',
-    'application_rejected',
-    'application_accepted',
-    'interview_scheduled',
-    'job_status_changed'
-  ];
+  let whereClause = 'WHERE user_id = $1';
+  const queryParams: any[] = [userId];
+  let paramIndex = 2;
 
-  let whereClause = 'WHERE user_id = $1 AND type = ANY($2)';
-  const queryParams: any[] = [userId, jobNotificationTypes];
-  let paramIndex = 3;
-
-  // 🟡 Optional: read filter
+  // Optional: read filter
   if (read !== undefined) {
     const readBool = (read === true || read === 'true');
     whereClause += ` AND read = $${paramIndex++}`;
@@ -399,14 +383,14 @@ async getNotifications(
     console.log('🔔 Read filter applied:', readBool);
   }
 
-  // 🆕 DEBUG → Count all notifications (NO filters)
+  // Debug: Count all notifications
   const totalDebugResult = await this.db.query(
     'SELECT COUNT(*) AS total_all FROM notifications WHERE user_id = $1',
     [userId]
   );
   console.log('🔍 DEBUG: Total notifications for user (no filters):', totalDebugResult.rows[0].total_all);
 
-  // Main filtered job notification query
+  // ✅ REMOVED TYPE FILTERING - Get ALL notifications
   const query = `
     SELECT
       id,
@@ -427,18 +411,19 @@ async getNotifications(
 
   queryParams.push(limit, offset);
 
-  console.log('🔍 Notification query params:', queryParams.slice(0, 3));
+  console.log('🔍 Notification query:', query);
+  console.log('🔍 Notification params:', queryParams);
 
   const result = await this.db.query(query, queryParams);
 
-  const totalCount =
-    result.rows.length > 0 ? parseInt(result.rows[0].total_count) : 0;
+  const totalCount = result.rows.length > 0 ? parseInt(result.rows[0].total_count) : 0;
 
-  console.log('✅ Job Notifications fetched:', {
+  console.log('✅ ALL Notifications fetched:', {
     count: result.rows.length,
     unread: result.rows.filter(r => !r.read).length,
     total: totalCount,
-    types: [...new Set(result.rows.map(r => r.type))]
+    types: [...new Set(result.rows.map(r => r.type))],
+    sample: result.rows[0] // Log first notification for debugging
   });
 
   return {

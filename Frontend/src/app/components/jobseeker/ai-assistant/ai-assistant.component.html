@@ -371,13 +371,41 @@
       <div class="simulator-content">
         <p>Explore career possibilities by adding new skills</p>
         <div class="simulator-input">
-          <select>
-            <option>Add Python skill</option>
-            <option>Add React skill</option>
-            <option>Add Node.js skill</option>
+          <select [(ngModel)]="selectedSkill">
+            <option value="">Select a skill...</option>
+            <option value="Python">Add Python skill</option>
+            <option value="React">Add React skill</option>
+            <option value="Node.js">Add Node.js skill</option>
           </select>
-          <button class="btn btn-small">Simulate</button>
+          <button class="btn btn-small" (click)="onSimulate()" [disabled]="!selectedSkill">Simulate</button>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Premium Modal -->
+  <div class="modal" *ngIf="showPremiumModal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>Unlock Premium Features</h3>
+        <i class="fas fa-crown" style="color: #f59e0b;"></i>
+      </div>
+      <div class="modal-body">
+        <p>Subscribe to Premium for <strong>₹499/month</strong> to access the full "What If" Simulator and explore unlimited career possibilities with {{ selectedSkill }}.</p>
+        <ul class="modal-benefits">
+          <li><i class="fas fa-check"></i> Unlimited skill simulations</li>
+          <li><i class="fas fa-check"></i> Detailed career path reports</li>
+          <li><i class="fas fa-check"></i> Salary projections & job matches</li>
+          <li><i class="fas fa-check"></i> Priority training access</li>
+        </ul>
+        <div class="modal-pricing">
+          <div class="price-highlight">₹499 <span>/month</span></div>
+          <p>7-day free trial, cancel anytime</p>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-primary" (click)="subscribeToPremium()">Subscribe Now</button>
+        <button class="btn btn-outline" (click)="closeModal()">Maybe Later</button>
       </div>
     </div>
   </div>

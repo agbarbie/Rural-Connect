@@ -1897,3 +1897,37 @@ body {
   background: #3b82f6;
   color: white;
 }
+.notification-type-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  margin-right: 8px;
+}
+
+.badge-job {
+  background-color: #3b82f6;
+  color: white;
+}
+
+.badge-training {
+  background-color: #10b981;
+  color: white;
+}
+
+.badge-application {
+  background-color: #f59e0b;
+  color: white;
+}
+
+.unread-dot {
+  width: 8px;
+  height: 8px;
+  background-color: #ef4444;
+  border-radius: 50%;
+  position: absolute;
+  top: 10px;
+  right: 10px;
+}

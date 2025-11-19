@@ -19,6 +19,9 @@ interface Notification {
   styleUrls: ['./job-explorer.component.css']
 })
 export class JobExplorerComponent implements OnInit, OnDestroy {
+getNotificationTitle(arg0: any): any {
+throw new Error('Method not implemented.');
+}
   private destroy$ = new Subject<void>();
 
   jobs: Job[] = [];
@@ -975,20 +978,19 @@ loadJobs(page: number = 1): void {
     return rating;
   }
 
-  loadNotifications(): void {
-    this.jobService.getNotifications({ read: false })
-      .pipe(takeUntil(this.destroy$))
-      .subscribe({
-        next: (response) => {
-          if (response.success && response.data) {
-            this.jobNotifications = response.data.notifications || [];
-            this.unreadNotificationCount = this.jobNotifications.filter(n => !n.read).length;
-            this.checkForNewNotifications();
-          }
-        },
-        error: (error) => console.error('Error loading notifications:', error)
-      });
-  }
+loadNotifications(): void {
+  this.jobService.getNotifications({ read: false })
+    .pipe(takeUntil(this.destroy$))
+    .subscribe({
+      next: (response) => {
+        if (response.success && response.data) {
+          const allNotifications = response.data.notifications || [];
+          this.jobNotifications = Array.isArray(allNotifications) ? allNotifications : [];
+          this.unreadNotificationCount = this.jobNotifications.filter(n => !n.read).length;
+        }
+      }
+    });
+}
 
   private checkForNewNotifications(): void {
     const newNotifications = this.jobNotifications.filter(n => {
@@ -1010,45 +1012,159 @@ loadJobs(page: number = 1): void {
     this.lastNotificationCheck = new Date();
   }
 
-  getNotificationIcon(type: string): string {
-    const iconMap: Record<string, string> = {
-      'new_job': 'fa-briefcase',
-      'application_reviewed': 'fa-eye',
-      'application_shortlisted': 'fa-star',
-      'application_accepted': 'fa-check-circle',
-      'application_rejected': 'fa-times-circle',
-      'job_updated': 'fa-edit',
-      'job_deleted': 'fa-trash',
-      'job_closed': 'fa-lock',
-      'job_filled': 'fa-user-check'
-    };
-    return iconMap[type] || 'fa-info-circle';
-  }
+getNotificationIcon(type: string): string {
+  const iconMap: Record<string, string> = {
+    // Job notifications (for employers)
+    'new_job': 'fa-briefcase',
+    'job_updated': 'fa-edit',
+    'job_deleted': 'fa-trash-alt',
+    'job_closed': 'fa-lock',
+    'job_filled': 'fa-user-check',
+    'application_received': 'fa-user-plus',  // ✅ EMPLOYER: New application
+    
+    // Application status (for jobseekers)
+    'application_reviewed': 'fa-eye',
+    'application_shortlisted': 'fa-star',
+    'application_accepted': 'fa-check-circle',
+    'application_rejected': 'fa-times-circle',
+    
+    // Training notifications
+    'training_enrollment': 'fa-graduation-cap',
+    'training_completed': 'fa-trophy',
+    'certificate_issued': 'fa-certificate',
+    'training_updated': 'fa-book',
+    
+    // Interview notifications
+    'interview_scheduled': 'fa-calendar',
+    
+    // Generic
+    'test': 'fa-flask',
+    'system': 'fa-cog'
+  };
+  
+  return iconMap[type] || 'fa-bell';  // ✅ Default icon instead of fa-info-circle
+}
 
-  handleNotificationClick(notification: any): void {
-    if (!notification.read) {
-      this.markNotificationAsRead(notification.id);
-    }
-    
-    // Navigate based on type
-    switch (notification.type) {
-      case 'new_job':
-        if (notification.metadata?.job_id) {
-          // Navigate to job details
-          this.router.navigate(['/jobseeker/job-details', notification.metadata.job_id]);
-        }
-        break;
-      case 'application_reviewed':
-      case 'application_shortlisted':
-      case 'application_accepted':
-      case 'application_rejected':
-        // Navigate to applications
-        this.router.navigate(['/jobseeker/applications']);
-        break;
-    }
-    
-    this.showNotifications = false;
+
+
+handleNotificationClick(notification: any): void {
+  console.log('📌 Notification clicked:', notification);
+  
+  if (!notification.read) {
+    this.markNotificationAsRead(notification.id);
   }
+  
+  // Route based on notification type and user role
+  switch (notification.type) {
+    // ===== EMPLOYER NOTIFICATIONS =====
+    case 'application_received':
+      if (notification.metadata?.job_id) {
+        // Navigate to applications page filtered by job
+        this.router.navigate(['/employer/applications'], {
+          queryParams: { jobId: notification.metadata.job_id }
+        });
+      }
+      break;
+    
+    // ===== JOBSEEKER NOTIFICATIONS =====
+    case 'new_job':
+      if (notification.metadata?.job_id) {
+        this.router.navigate(['/jobseeker/job-details', notification.metadata.job_id]);
+      }
+      break;
+    
+    case 'application_reviewed':
+    case 'application_shortlisted':
+    case 'application_accepted':
+    case 'application_rejected':
+      // Navigate to jobseeker's applications list
+      this.router.navigate(['/jobseeker/applications']);
+      break;
+    
+    case 'job_updated':
+    case 'job_deleted':
+    case 'job_closed':
+    case 'job_filled':
+      // Navigate to job explorer
+      this.router.navigate(['/jobseeker/job-explorer']);
+      break;
+    
+    // ===== TRAINING NOTIFICATIONS =====
+    case 'certificate_issued':
+    case 'training_completed':
+      this.router.navigate(['/jobseeker/certificates']);
+      break;
+    
+    case 'training_updated':
+    case 'training_enrollment':
+      if (notification.metadata?.training_id) {
+        this.router.navigate(['/jobseeker/training', notification.metadata.training_id]);
+      } else {
+        this.router.navigate(['/jobseeker/trainings']);
+      }
+      break;
+    
+    // ===== TEST/SYSTEM =====
+    case 'test':
+      console.log('Test notification - no navigation');
+      break;
+    
+    default:
+      console.log('No specific action for notification type:', notification.type);
+  }
+  
+  this.showNotifications = false;
+}
+isJobNotification(type: string): boolean {
+  // Job-related: includes application_received for employers
+  return [
+    'new_job', 
+    'job_updated', 
+    'job_deleted', 
+    'job_closed', 
+    'job_filled',
+    'application_received'  // ✅ ADDED: This IS a job notification for employers
+  ].includes(type);
+}
+
+isTrainingNotification(type: string): boolean {
+  return [
+    'training_enrollment', 
+    'training_completed', 
+    'certificate_issued', 
+    'training_updated'
+  ].includes(type);
+}
+
+isApplicationNotification(type: string): boolean {
+  // Application status updates for JOBSEEKERS
+  return [
+    'application_reviewed', 
+    'application_shortlisted', 
+    'application_accepted', 
+    'application_rejected'
+  ].includes(type);
+}
+
+getNotificationCategory(type: string): string {
+  if (this.isJobNotification(type)) return 'JOB';
+  if (this.isTrainingNotification(type)) return 'TRAINING';
+  if (this.isApplicationNotification(type)) return 'APPLICATION';
+  return 'SYSTEM';
+}
+
+
+getTimeSince(dateString: string): string {
+  const date = new Date(dateString);
+  const now = new Date();
+  const seconds = Math.floor((now.getTime() - date.getTime()) / 1000);
+  
+  if (seconds < 60) return 'Just now';
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
+  if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
+  if (seconds < 604800) return `${Math.floor(seconds / 86400)}d ago`;
+  return date.toLocaleDateString();
+}
 
   markNotificationAsRead(notificationId: string): void {
     const notification = this.jobNotifications.find(n => n.id === notificationId);

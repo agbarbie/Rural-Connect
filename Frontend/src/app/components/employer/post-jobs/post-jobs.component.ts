@@ -693,33 +693,19 @@ export class PostJobsComponent implements OnInit, OnDestroy {
   /**
    * ✅ NEW: Load notifications
    */
-  loadNotifications(): void {
-    console.log('🔔 Loading job notifications...');
-    
-    this.jobService.getNotifications({ read: false })
-      .pipe(takeUntil(this.destroy$))
-      .subscribe({
-        next: (response) => {
-          console.log('📦 Raw notification response:', response);
-          
-          if (response.success && response.data) {
-            this.jobNotifications = response.data.notifications || [];
-            this.unreadNotificationCount = this.jobNotifications.filter(n => !n.read).length;
-            
-            console.log('✅ Notifications loaded:', {
-              total: this.jobNotifications.length,
-              unread: this.unreadNotificationCount,
-              types: [...new Set(this.jobNotifications.map(n => n.type))]
-            });
-            
-            this.checkForNewNotifications();
-          }
-        },
-        error: (error) => {
-          console.error('❌ Error loading notifications:', error);
+loadNotifications(): void {
+  this.jobService.getNotifications({ read: false })
+    .pipe(takeUntil(this.destroy$))
+    .subscribe({
+      next: (response) => {
+        if (response.success && response.data) {
+          const allNotifications = response.data.notifications || [];
+          this.jobNotifications = Array.isArray(allNotifications) ? allNotifications : [];
+          this.unreadNotificationCount = this.jobNotifications.filter(n => !n.read).length;
         }
-      });
-  }
+      }
+    });
+}
 
   /**
    * ✅ NEW: Check for new notifications
@@ -763,71 +749,196 @@ export class PostJobsComponent implements OnInit, OnDestroy {
   /**
    * ✅ NEW: Get notification icon
    */
-  getNotificationIcon(type: string): string {
-    const iconMap: Record<string, string> = {
-      'application_received': 'fa-user-plus',
-      'application_reviewed': 'fa-eye',
-      'application_shortlisted': 'fa-star',
-      'application_accepted': 'fa-check-circle',
-      'application_rejected': 'fa-times-circle',
-      'job_updated': 'fa-edit',
-      'job_deleted': 'fa-trash-alt',
-      'interview_scheduled': 'fa-calendar'
-    };
+getNotificationIcon(type: string): string {
+  const iconMap: Record<string, string> = {
+    // Job notifications (for employers)
+    'new_job': 'fa-briefcase',
+    'job_updated': 'fa-edit',
+    'job_deleted': 'fa-trash-alt',
+    'job_closed': 'fa-lock',
+    'job_filled': 'fa-user-check',
+    'application_received': 'fa-user-plus',  // ✅ EMPLOYER: New application
     
-    return iconMap[type] || 'fa-info-circle';
-  }
+    // Application status (for jobseekers)
+    'application_reviewed': 'fa-eye',
+    'application_shortlisted': 'fa-star',
+    'application_accepted': 'fa-check-circle',
+    'application_rejected': 'fa-times-circle',
+    
+    // Training notifications
+    'training_enrollment': 'fa-graduation-cap',
+    'training_completed': 'fa-trophy',
+    'certificate_issued': 'fa-certificate',
+    'training_updated': 'fa-book',
+    
+    // Interview notifications
+    'interview_scheduled': 'fa-calendar',
+    
+    // Generic
+    'test': 'fa-flask',
+    'system': 'fa-cog'
+  };
+  
+  return iconMap[type] || 'fa-bell';  // ✅ Default icon instead of fa-info-circle
+}
 
-  /**
-   * ✅ NEW: Get notification title
-   */
-  getNotificationTitle(type: string): string {
-    const titleMap: Record<string, string> = {
-      'application_received': '📨 New Application',
-      'application_reviewed': '👀 Application Reviewed',
-      'application_shortlisted': '⭐ Candidate Shortlisted',
-      'application_accepted': '✅ Application Accepted',
-      'application_rejected': '❌ Application Rejected',
-      'job_updated': '✏️ Job Updated',
-      'job_deleted': '🗑️ Job Deleted',
-      'interview_scheduled': '📅 Interview Scheduled'
-    };
+/**
+ * ✅ FIXED: Get notification title - comprehensive mapping
+ */
+getNotificationTitle(type: string): string {
+  const titleMap: Record<string, string> = {
+    // Job notifications
+    'new_job': '💼 New Job Posted',
+    'job_updated': '✏️ Job Updated',
+    'job_deleted': '🗑️ Job Deleted',
+    'job_closed': '🔒 Job Closed',
+    'job_filled': '✅ Job Filled',
+    'application_received': '📨 New Application',  // ✅ For employers
     
-    return titleMap[type] || 'Job Update';
-  }
+    // Application status (for jobseekers)
+    'application_reviewed': '👀 Application Reviewed',
+    'application_shortlisted': '⭐ You\'re Shortlisted!',
+    'application_accepted': '✅ Application Accepted',
+    'application_rejected': '❌ Application Update',
+    
+    // Training notifications
+    'training_enrollment': '🎓 Training Enrollment',
+    'training_completed': '🏆 Training Completed',
+    'certificate_issued': '📜 Certificate Issued',
+    'training_updated': '📚 Training Updated',
+    
+    // Interview
+    'interview_scheduled': '📅 Interview Scheduled',
+    
+    // Generic
+    'test': '🧪 Test Notification',
+    'system': '⚙️ System Notification'
+  };
+  
+  return titleMap[type] || 'Notification';
+}
 
-  /**
-   * ✅ NEW: Handle notification click
-   */
-  handleNotificationClick(notification: any): void {
-    console.log('📌 Notification clicked:', notification);
-    
-    if (!notification.read) {
-      this.markNotificationAsRead(notification.id);
-    }
-    
-    // Navigate based on notification type
-    switch (notification.type) {
-      case 'application_received':
-        if (notification.metadata?.job_id) {
-          this.router.navigate(['/employer/applications'], {
-            queryParams: { jobId: notification.metadata.job_id }
-          });
-        }
-        break;
-      
-      case 'job_updated':
-      case 'job_deleted':
-        this.loadJobPosts();
-        break;
-      
-      default:
-        console.log('No specific action for notification type:', notification.type);
-    }
-    
-    this.showNotifications = false;
+/**
+ * ✅ FIXED: Handle notification click with proper routing
+ */
+handleNotificationClick(notification: any): void {
+  console.log('📌 Notification clicked:', notification);
+  
+  if (!notification.read) {
+    this.markNotificationAsRead(notification.id);
   }
+  
+  // Route based on notification type and user role
+  switch (notification.type) {
+    // ===== EMPLOYER NOTIFICATIONS =====
+    case 'application_received':
+      if (notification.metadata?.job_id) {
+        // Navigate to applications page filtered by job
+        this.router.navigate(['/employer/applications'], {
+          queryParams: { jobId: notification.metadata.job_id }
+        });
+      }
+      break;
+    
+    // ===== JOBSEEKER NOTIFICATIONS =====
+    case 'new_job':
+      if (notification.metadata?.job_id) {
+        this.router.navigate(['/jobseeker/job-details', notification.metadata.job_id]);
+      }
+      break;
+    
+    case 'application_reviewed':
+    case 'application_shortlisted':
+    case 'application_accepted':
+    case 'application_rejected':
+      // Navigate to jobseeker's applications list
+      this.router.navigate(['/jobseeker/applications']);
+      break;
+    
+    case 'job_updated':
+    case 'job_deleted':
+    case 'job_closed':
+    case 'job_filled':
+      // Navigate to job explorer
+      this.router.navigate(['/jobseeker/job-explorer']);
+      break;
+    
+    // ===== TRAINING NOTIFICATIONS =====
+    case 'certificate_issued':
+    case 'training_completed':
+      this.router.navigate(['/jobseeker/certificates']);
+      break;
+    
+    case 'training_updated':
+    case 'training_enrollment':
+      if (notification.metadata?.training_id) {
+        this.router.navigate(['/jobseeker/training', notification.metadata.training_id]);
+      } else {
+        this.router.navigate(['/jobseeker/trainings']);
+      }
+      break;
+    
+    // ===== TEST/SYSTEM =====
+    case 'test':
+      console.log('Test notification - no navigation');
+      break;
+    
+    default:
+      console.log('No specific action for notification type:', notification.type);
+  }
+  
+  this.showNotifications = false;
+}
+isJobNotification(type: string): boolean {
+  // Job-related: includes application_received for employers
+  return [
+    'new_job', 
+    'job_updated', 
+    'job_deleted', 
+    'job_closed', 
+    'job_filled',
+    'application_received'  // ✅ ADDED: This IS a job notification for employers
+  ].includes(type);
+}
 
+isTrainingNotification(type: string): boolean {
+  return [
+    'training_enrollment', 
+    'training_completed', 
+    'certificate_issued', 
+    'training_updated'
+  ].includes(type);
+}
+
+isApplicationNotification(type: string): boolean {
+  // Application status updates for JOBSEEKERS
+  return [
+    'application_reviewed', 
+    'application_shortlisted', 
+    'application_accepted', 
+    'application_rejected'
+  ].includes(type);
+}
+
+
+getNotificationCategory(type: string): string {
+  if (this.isJobNotification(type)) return 'JOB';
+  if (this.isTrainingNotification(type)) return 'TRAINING';
+  if (this.isApplicationNotification(type)) return 'APPLICATION';
+  return 'SYSTEM';
+}
+
+getTimeSince(dateString: string): string {
+  const date = new Date(dateString);
+  const now = new Date();
+  const seconds = Math.floor((now.getTime() - date.getTime()) / 1000);
+  
+  if (seconds < 60) return 'Just now';
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
+  if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
+  if (seconds < 604800) return `${Math.floor(seconds / 86400)}d ago`;
+  return date.toLocaleDateString();
+}
   /**
    * ✅ NEW: Mark notification as read
    */

@@ -72,17 +72,23 @@
                  [class.unread]="!notification.read"
                  (click)="handleNotificationClick(notification)">
               
+              <!-- Type Badge -->
+              <span class="notification-type-badge" [ngClass]="{
+                'badge-job': isJobNotification(notification.type),
+                'badge-training': isTrainingNotification(notification.type),
+                'badge-application': isApplicationNotification(notification.type)
+              }">
+                {{ getNotificationCategory(notification.type) }}
+              </span>
+              
               <div class="notification-icon" [ngClass]="'icon-' + notification.type">
                 <i class="fas" [ngClass]="getNotificationIcon(notification.type)"></i>
               </div>
               
               <div class="notification-content">
-                <h4 class="notification-title">{{ notification.title || getNotificationIcon(notification.type) }}</h4>
+                <h4 class="notification-title">{{ notification.title || getNotificationTitle(notification.type) }}</h4>
                 <p class="notification-message">{{ notification.message }}</p>
-                <span class="notification-time">
-                  <i class="fas fa-clock"></i>
-                  {{ notification.created_at | date:'short' }}
-                </span>
+                <small>{{ getTimeSince(notification.created_at) }}</small>
               </div>
               
               <div class="notification-actions">
@@ -94,6 +100,9 @@
                   <i class="fas fa-check"></i>
                 </button>
               </div>
+
+              <!-- Unread Indicator -->
+              <span *ngIf="!notification.read" class="unread-dot"></span>
             </div>
             
             <div class="no-notifications" *ngIf="jobNotifications.length === 0">

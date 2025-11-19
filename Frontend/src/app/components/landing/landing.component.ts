@@ -56,6 +56,7 @@ export class LandingComponent implements OnInit {
   activeTab: string = 'jobs';
   isMenuOpen: boolean = false;
   currentTestimonial: number = 0;
+  simulatedSkills: string[] = [];
 
   candidates: Candidate[] = [
     {
@@ -253,5 +254,36 @@ export class LandingComponent implements OnInit {
 
   enrollInTraining(training: TrainingProgram): void {
     console.log('Enrolling in training:', training.title);
+  }
+
+  addSkill(skill: string): void {
+    if (!this.simulatedSkills.includes(skill)) {
+      this.simulatedSkills.push(skill);
+    }
+    console.log('Added skill for simulation:', skill);
+  }
+
+  getCareerForSkill(skill: string): string {
+    const careers: { [key: string]: string } = {
+      'Python': 'Data Scientist roles',
+      'React': 'Frontend Developer positions',
+      'Node.js': 'Full-Stack Developer opportunities'
+    };
+    return careers[skill] || 'New career paths';
+  }
+
+  getSalaryForSkill(skill: string): string {
+    const salaries: { [key: string]: string } = {
+      'Python': '₹50,000 - ₹1,20,000/month',
+      'React': '₹40,000 - ₹90,000/month',
+      'Node.js': '₹45,000 - ₹1,00,000/month'
+    };
+    return salaries[skill] || '₹30,000+/month';
+  }
+
+  subscribeToPremium(): void {
+    console.log('Navigating to premium subscription...');
+    // In a real app, this would redirect to a subscription page
+    window.location.href = '../premium/subscribe';
   }
 }

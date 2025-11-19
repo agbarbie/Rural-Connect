@@ -58,7 +58,9 @@ export class AiAssistantComponent implements OnInit, AfterViewInit {
   @ViewChild('skillsChart', { static: false }) skillsChart!: ElementRef<HTMLCanvasElement>;
 
   userMessage: string = '';
+  selectedSkill: string = '';
   isLoading: boolean = false;
+  showPremiumModal: boolean = false;
   portfolioData: PortfolioData | null = null;
   
   // User data - now dynamically loaded
@@ -761,6 +763,26 @@ export class AiAssistantComponent implements OnInit, AfterViewInit {
 
   navigateToDashboard(): void {
     this.router.navigate(['/jobseeker/dashboard']);
+  }
+
+  onSimulate(): void {
+    if (this.selectedSkill) {
+      this.showPremiumModal = true;
+      console.log('Simulating skill addition for:', this.selectedSkill);
+    }
+  }
+
+  subscribeToPremium(): void {
+    this.closeModal();
+    console.log('Navigating to premium subscription for skill:', this.selectedSkill);
+    // Redirect to subscription page
+    window.location.href = '/premium/subscribe';
+    // Or use router: this.router.navigate(['/premium/subscribe']);
+  }
+
+  closeModal(): void {
+    this.showPremiumModal = false;
+    this.selectedSkill = '';
   }
 
   simulateSkillAddition(skill: string): void {

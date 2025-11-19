@@ -347,6 +347,177 @@ body {
 .progress[style*="width: 6%"] {
   background: #9c27b0;
 }
+
+.premium-simulator {
+  padding: 60px 0;
+  background: linear-gradient(135deg, #f0f9ff 0%, #f0fdf4 100%);
+}
+
+.simulator-content {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 3rem;
+  align-items: start;
+}
+
+.simulator-description h3 {
+  font-size: 1.8rem;
+  color: #1e293b;
+  margin-bottom: 1rem;
+}
+
+.simulator-description p {
+  color: #64748b;
+  margin-bottom: 1.5rem;
+  line-height: 1.6;
+}
+
+.premium-benefits {
+  list-style: none;
+  margin-bottom: 2rem;
+}
+
+.premium-benefits li {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+  color: #475569;
+}
+
+.premium-benefits i {
+  color: #22c55e;
+  font-size: 1rem;
+}
+
+.subscription-pricing {
+  text-align: center;
+  background: white;
+  padding: 1.5rem;
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+.price-box {
+  display: flex;
+  justify-content: center;
+  align-items: baseline;
+  gap: 0.25rem;
+  margin-bottom: 1rem;
+}
+
+.price {
+  font-size: 2.5rem;
+  font-weight: 800;
+  color: #22c55e;
+}
+
+.price-period {
+  font-size: 1rem;
+  color: #64748b;
+}
+
+.subscribe-btn {
+  width: 100%;
+  padding: 0.75rem;
+  font-size: 1rem;
+}
+
+.trial-note {
+  font-size: 0.85rem;
+  color: #64748b;
+  margin-top: 0.5rem;
+}
+
+.simulator-demo {
+  display: flex;
+  justify-content: center;
+}
+
+.demo-card {
+  background: white;
+  padding: 2rem;
+  border-radius: 12px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.1);
+  text-align: center;
+  max-width: 100%;
+  width: 100%;
+}
+
+.demo-card h4 {
+  font-size: 1.3rem;
+  color: #1e293b;
+  margin-bottom: 1rem;
+}
+
+.demo-card p {
+  color: #64748b;
+  margin-bottom: 1.5rem;
+}
+
+.skill-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
+}
+
+.skill-btn {
+  background: #f1f5f9;
+  border: none;
+  color: #475569;
+  padding: 0.75rem;
+  border-radius: 8px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.skill-btn:hover {
+  background: #e2e8f0;
+  color: #22c55e;
+}
+
+.simulated-results {
+  text-align: left;
+  background: #f8fafc;
+  padding: 1rem;
+  border-radius: 8px;
+  margin-bottom: 1rem;
+}
+
+.simulated-results h5 {
+  font-size: 1rem;
+  color: #1e293b;
+  margin-bottom: 0.5rem;
+}
+
+.simulated-results ul {
+  list-style: none;
+}
+
+.simulated-results li {
+  color: #64748b;
+  font-size: 0.9rem;
+  margin-bottom: 0.25rem;
+}
+
+.premium-lock {
+  color: #f97316;
+  font-size: 0.85rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem;
+}
+
+.premium-lock i {
+  font-size: 0.75rem;
+}
 .hero {
   background: linear-gradient(135deg, #e0f2fe 0%, #f0fdf4 50%, #fef3c7 100%);
   padding: 80px 0 60px;
@@ -1262,6 +1433,25 @@ body {
   .footer-links {
     grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
   }
+
+  .simulator-content {
+    grid-template-columns: 1fr;
+    gap: 2rem;
+  }
+
+  .subscription-pricing {
+    text-align: center;
+  }
+
+  .skill-buttons {
+    flex-direction: row;
+    justify-content: center;
+  }
+
+  .skill-btn {
+    flex: 1;
+    max-width: 120px;
+  }
 }
 @media (max-width: 1024px) {
   .job-vacancies {
@@ -1521,6 +1711,22 @@ body {
     gap: 0.75rem;
     text-align: center;
   }
+
+  .premium-simulator {
+    padding: 40px 0;
+  }
+
+  .demo-card {
+    padding: 1.5rem;
+  }
+
+  .skill-buttons {
+    flex-direction: column;
+  }
+
+  .skill-btn {
+    max-width: none;
+  }
 }
 
 @media (max-width: 480px) {
@@ -1587,6 +1793,14 @@ body {
   .btn-primary, .btn-secondary, .btn-outline, .apply-btn, .enroll-btn, .btn-resume {
     padding: 0.5rem 1rem;
     font-size: 0.85rem;
+  }
+
+  .price {
+    font-size: 2rem;
+  }
+
+  .subscribe-btn {
+    font-size: 0.9rem;
   }
 }
 @media (max-width: 768px) {
