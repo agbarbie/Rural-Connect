@@ -150,14 +150,18 @@ export interface AnalyticsData {
 
 // Interface for profile completion response
 export interface CompletedSection {
+fields: any;
   name: string;
   completed: boolean;
   weight: number;
 }
 
 export interface ProfileCompletionResponse {
-  sections: CompletedSection[];
-  percentage: number;
+  data: ProfileCompletionResponse;
+  completion: number;
+  missingFields: string[];
+  completedSections: CompletedSection[];
+  recommendations: string[];
 }
 
 // API Response interfaces
@@ -192,11 +196,19 @@ export interface ImageUploadResponse {
   imageUrl?: string;
 }
 
+// Profile response
+export interface ProfileResponse {
+  success: boolean;
+  message: string;
+  data?: any;
+}
+
 @Injectable({
   providedIn: 'root'
 })
 export class ProfileService {
-  private apiUrl = `${environment.apiUrl}/portfolio`;
+  private portfolioUrl = `${environment.apiUrl}/portfolio`;
+  private profileUrl = `${environment.apiUrl}/profile`;
 
   constructor(private http: HttpClient) {}
 
@@ -218,7 +230,7 @@ export class ProfileService {
    * Get current user's portfolio (authenticated)
    */
   getMyPortfolio(): Observable<PortfolioResponse> {
-    return this.http.get<PortfolioResponse>(`${this.apiUrl}/my-portfolio`, {
+    return this.http.get<PortfolioResponse>(`${this.portfolioUrl}/my-portfolio`, {
       headers: this.getHeaders()
     });
   }
@@ -227,14 +239,14 @@ export class ProfileService {
    * Get public portfolio by user ID or email
    */
   getPublicPortfolio(identifier: string): Observable<PortfolioResponse> {
-    return this.http.get<PortfolioResponse>(`${this.apiUrl}/public/${identifier}`);
+    return this.http.get<PortfolioResponse>(`${this.portfolioUrl}/public/${identifier}`);
   }
 
   /**
    * Get portfolio settings
    */
   getPortfolioSettings(): Observable<SettingsResponse> {
-    return this.http.get<SettingsResponse>(`${this.apiUrl}/settings`, {
+    return this.http.get<SettingsResponse>(`${this.portfolioUrl}/settings`, {
       headers: this.getHeaders()
     });
   }
@@ -244,7 +256,7 @@ export class ProfileService {
    */
   updatePortfolioSettings(settings: Partial<PortfolioSettings>): Observable<SettingsResponse> {
     return this.http.put<SettingsResponse>(
-      `${this.apiUrl}/settings`,
+      `${this.portfolioUrl}/settings`,
       settings,
       { headers: this.getHeaders() }
     );
@@ -261,7 +273,7 @@ export class ProfileService {
    * Get portfolio analytics
    */
   getAnalytics(startDate?: string, endDate?: string): Observable<AnalyticsResponse> {
-    let url = `${this.apiUrl}/analytics`;
+    let url = `${this.portfolioUrl}/analytics`;
     
     if (startDate && endDate) {
       url += `?startDate=${startDate}&endDate=${endDate}`;
@@ -276,7 +288,7 @@ export class ProfileService {
    * Download portfolio as PDF
    */
   downloadPortfolioPDF(): Observable<Blob> {
-    return this.http.get(`${this.apiUrl}/pdf`, {
+    return this.http.get(`${this.portfolioUrl}/pdf`, {
       headers: this.getHeaders(),
       responseType: 'blob'
     });
@@ -293,7 +305,7 @@ export class ProfileService {
     date?: string;
   }): Observable<TestimonialResponse> {
     return this.http.post<TestimonialResponse>(
-      `${this.apiUrl}/testimonials`,
+      `${this.portfolioUrl}/testimonials`,
       testimonial,
       { headers: this.getHeaders() }
     );
@@ -303,7 +315,7 @@ export class ProfileService {
    * Delete testimonial
    */
   deleteTestimonial(testimonialId: number): Observable<any> {
-    return this.http.delete(`${this.apiUrl}/testimonials/${testimonialId}`, {
+    return this.http.delete(`${this.portfolioUrl}/testimonials/${testimonialId}`, {
       headers: this.getHeaders()
     });
   }
@@ -325,6 +337,24 @@ export class ProfileService {
         throw new Error('Failed to generate shareable URL');
       })
     );
+  }
+
+  /**
+   * Get current user's profile
+   */
+  getMyProfile(): Observable<ProfileResponse> {
+    return this.http.get<ProfileResponse>(`${this.profileUrl}`, {
+      headers: this.getHeaders()
+    });
+  }
+
+  /**
+   * Update current user's profile
+   */
+  updateProfile(updates: any): Observable<ProfileResponse> {
+    return this.http.patch<ProfileResponse>(`${this.profileUrl}`, updates, {
+      headers: this.getHeaders()
+    });
   }
 
   /**
@@ -367,6 +397,47 @@ export class ProfileService {
       { profile_image: imageUrl },
       { headers: this.getHeaders() }
     );
+  }
+
+  /**
+   * Get detailed profile completion
+   */
+  getDetailedProfileCompletion(): Observable<ProfileCompletionResponse> {
+    return this.http.get<ProfileCompletionResponse>(`${this.profileUrl}/completion`, {
+      headers: this.getHeaders()
+    });
+  }
+
+  /**
+   * Calculate completion percentage (client-side helper)
+   */
+  calculateCompletionPercentage(sections: CompletedSection[]): number {
+    let total = 0;
+    sections.forEach(section => {
+      if (section.completed) {
+        total += section.weight;
+      }
+    });
+    return Math.round(total);
+  }
+
+  /**
+   * Get completion status color
+   */
+  getCompletionColor(percentage: number): string {
+    if (percentage >= 80) return '#10b981'; // Green
+    if (percentage >= 50) return '#f59e0b'; // Orange
+    return '#ef4444'; // Red
+  }
+
+  /**
+   * Get completion status message
+   */
+  getCompletionMessage(percentage: number): string {
+    if (percentage >= 90) return 'Excellent! Your profile is complete.';
+    if (percentage >= 70) return 'Great progress! Almost there.';
+    if (percentage >= 50) return 'Good start! Add more details.';
+    return 'Getting started. Complete your profile.';
   }
 
   /**
@@ -417,41 +488,4 @@ export class ProfileService {
 
     return categorized;
   }
-  getDetailedProfileCompletion(): Observable<ProfileCompletionResponse> {
-  return this.http.get<ProfileCompletionResponse>(`${this.apiUrl}/completion`, {
-    headers: this.getHeaders()
-  });
-}
-
-/**
- * Calculate completion percentage (client-side helper)
- */
-calculateCompletionPercentage(sections: CompletedSection[]): number {
-  let total = 0;
-  sections.forEach(section => {
-    if (section.completed) {
-      total += section.weight;
-    }
-  });
-  return Math.round(total);
-}
-
-/**
- * Get completion status color
- */
-getCompletionColor(percentage: number): string {
-  if (percentage >= 80) return '#10b981'; // Green
-  if (percentage >= 50) return '#f59e0b'; // Orange
-  return '#ef4444'; // Red
-}
-
-/**
- * Get completion status message
- */
-getCompletionMessage(percentage: number): string {
-  if (percentage >= 90) return 'Excellent! Your profile is complete.';
-  if (percentage >= 70) return 'Great progress! Almost there.';
-  if (percentage >= 50) return 'Good start! Add more details.';
-  return 'Getting started. Complete your profile.';
-}
 }

@@ -7,6 +7,7 @@ import trainingRoutes from './routes/Training.routes';
 import cvBuilderRoutes from './routes/cv-builder.routes';
 import portfolioRoutes from './routes/portfolio.routes';
 import profileRoutes from './routes/profile.routes';
+import geminiRoutes from './routes/gemini.routes';
 import pool from './db/db.config';
 import path from 'path';
 
@@ -166,9 +167,10 @@ app.use((req: Request, res: Response, next: NextFunction) => {
   next();
 });
 
-// Add after middleware section, before route registration
+// Static file serving
 app.use('/uploads/cvs', express.static(path.join(__dirname, '../uploads/cvs')));
 app.use('/uploads/profile-images', express.static(path.join(__dirname, '../uploads/profile-images')));
+app.use('/uploads/certificates', express.static(path.join(__dirname, '../uploads/certificates')));
 
 // Debug route registration
 console.log('Registering routes:');
@@ -178,6 +180,7 @@ console.log('- Training routes: /api/trainings/*');
 console.log('- CV Builder routes: /api/cv/*');
 console.log('- Portfolio routes: /api/portfolio/*');
 console.log('- Profile routes: /api/profile/*');
+console.log('- Gemini AI routes: /api/gemini/*');
 
 // API Routes
 app.use('/api/auth', authRoutes);
@@ -186,8 +189,7 @@ app.use('/api/trainings', trainingRoutes);
 app.use('/api/cv', cvBuilderRoutes);
 app.use('/api/portfolio', portfolioRoutes);
 app.use('/api/profile', profileRoutes);
-app.use('/uploads/certificates', express.static(path.join(__dirname, '../uploads/certificates')));
-
+app.use('/api/gemini', geminiRoutes);
 
 // Root route
 app.get('/', (req: Request, res: Response) => {
@@ -202,6 +204,7 @@ app.get('/', (req: Request, res: Response) => {
       cv: '/api/cv',
       portfolio: '/api/portfolio',
       profile: '/api/profile',
+      gemini: '/api/gemini',
       health: '/health',
       database_health: '/health/db'
     },
@@ -358,6 +361,7 @@ app.get('/api', (req: Request, res: Response) => {
         base: '/api/profile',
         routes: [
           'GET /api/profile - Get current user profile',
+          'PATCH /api/profile - Update current user profile',
           'GET /api/profile/cv/:cvId - Get profile by specific CV ID',
           'GET /api/profile/completion - Get profile completion status',
           'PUT /api/profile/picture - Update profile picture',
@@ -365,6 +369,27 @@ app.get('/api', (req: Request, res: Response) => {
           'GET /api/profile/shared/:token - Get shared profile (public access)'
         ],
         authentication: 'Required for most routes - Jobseeker role only'
+      },
+      gemini: {
+        base: '/api/gemini',
+        routes: [
+          'GET /api/gemini/recommendations - Get initial career recommendations',
+          'POST /api/gemini/chat - Send chat message to Gemini AI',
+          'GET /api/gemini/jobs - Get job recommendations with filters',
+          'GET /api/gemini/skill-gaps - Get skill gap analysis',
+          'GET /api/gemini/career-path - Get career path recommendations',
+          'POST /api/gemini/simulate-skill - Simulate adding a skill',
+          'POST /api/gemini/feedback - Submit feedback on AI recommendations'
+        ],
+        authentication: 'Required - Jobseeker role only',
+        features: [
+          'AI-powered career recommendations',
+          'Personalized job matching',
+          'Skill gap analysis',
+          'Career path guidance',
+          'Conversational AI assistant',
+          'What-if skill simulation'
+        ]
       }
     },
     authentication: {
@@ -372,7 +397,7 @@ app.get('/api', (req: Request, res: Response) => {
       header: 'Authorization: Bearer <token>',
       note: 'Include JWT token for protected routes',
       user_types: {
-        jobseeker: 'Can manage CV, portfolio, enroll in trainings, apply for jobs',
+        jobseeker: 'Can manage CV, portfolio, enroll in trainings, apply for jobs, use AI assistant',
         employer: 'Can create jobs and trainings, manage applications',
         admin: 'Full system access'
       }
@@ -380,8 +405,8 @@ app.get('/api', (req: Request, res: Response) => {
   });
 });
 
-// 404 handler
-app.use('*', (req: Request, res: Response) => {
+// 404 handler - Updated to app.all for Express v5 compatibility
+app.all('*', (req: Request, res: Response) => {
   console.log(`404 - Route not found: ${req.method} ${req.originalUrl}`);
   res.status(404).json({
     success: false,
@@ -393,6 +418,7 @@ app.use('*', (req: Request, res: Response) => {
       '/api/cv/*',
       '/api/portfolio/*',
       '/api/profile/*',
+      '/api/gemini/*',
       '/health',
       '/health/db',
       '/api'
@@ -534,10 +560,12 @@ app.listen(PORT, () => {
   console.log(`   • CV Builder: http://localhost:${PORT}/api/cv`);
   console.log(`   • Portfolio: http://localhost:${PORT}/api/portfolio`);
   console.log(`   • Profile: http://localhost:${PORT}/api/profile`);
+  console.log(`   • Gemini AI: http://localhost:${PORT}/api/gemini`);
   console.log(`\n🎓 Features:`);
   console.log(`   • Jobseekers: CV building, portfolio management, job applications, training enrollment`);
   console.log(`   • Employers: Job postings, training creation, applicant management`);
   console.log(`   • Portfolio: Public/private portfolios with analytics and PDF export`);
+  console.log(`   • AI Assistant: Personalized career guidance powered by Gemini AI`);
   console.log(`\n🔐 Remember to include 'Authorization: Bearer <token>' header for protected routes`);
 });
 

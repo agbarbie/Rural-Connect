@@ -4,7 +4,9 @@ import { FormsModule } from '@angular/forms';
 import { Router, RouterModule } from '@angular/router';
 import { Subscription } from 'rxjs';
 import { AuthService } from '../../../../../services/auth.service'; // Adjust path as needed
+import { ProfileService, ProfileCompletionResponse } from '../../../../../services/profile.service'; // Adjust path as needed
 import { SidebarComponent } from '../../shared/sidebar/sidebar.component';
+
 @Component({
   selector: 'app-dashboard',
   templateUrl: 'dashboard.component.html',
@@ -300,11 +302,16 @@ export class DashboardComponent implements OnInit, OnDestroy {
     description: ''
   };
 
+  // Profile Completion Modal
+  showCompletionModal: boolean = false;
+  profileCompletion: number = 0;
+
   private authSubscription: Subscription | null = null;
 
   constructor(
     private router: Router,
-    private authService: AuthService
+    private authService: AuthService,
+    private profileService: ProfileService
   ) { }
 
   ngOnInit(): void {
@@ -315,12 +322,41 @@ export class DashboardComponent implements OnInit, OnDestroy {
         this.userName = user.name || 'Job Seeker'; // Fallback
       }
     });
+
+    // Load profile completion for new users
+    this.loadProfileCompletion();
   }
 
   ngOnDestroy(): void {
     if (this.authSubscription) {
       this.authSubscription.unsubscribe();
     }
+  }
+
+  private loadProfileCompletion(): void {
+    this.profileService.getDetailedProfileCompletion().subscribe({
+      next: (response) => {
+        if (response && response.data) {
+          this.profileCompletion = response.data.completion || 0;
+          // Show modal if profile is incomplete (less than 80%)
+          if (this.profileCompletion < 80) {
+            this.showCompletionModal = true;
+          }
+        }
+      },
+      error: (error) => {
+        console.error('Error loading profile completion:', error);
+      }
+    });
+  }
+
+  closeCompletionModal(): void {
+    this.showCompletionModal = false;
+  }
+
+  goToProfile(): void {
+    this.closeCompletionModal();
+    this.router.navigate(['/profile']);
   }
 
   onSearch(event: any): void {

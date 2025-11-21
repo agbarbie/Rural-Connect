@@ -1,624 +1,405 @@
+<!-- profile.component.html - Cleaner, Focused UI -->
 <div class="app-container">
-  <!-- Sidebar -->
- <app-sidebar [userType]="'jobseeker'"></app-sidebar>
+  <app-sidebar [userType]="'jobseeker'"></app-sidebar>
 
-  <!-- Main Content -->
   <div class="main-content">
-    <!-- Loading State -->
     @if (isLoading) {
     <div class="loading-container">
       <div class="spinner"></div>
-      <p>Loading your portfolio...</p>
+      <p>Loading your profile...</p>
     </div>
-    } @if (!isLoading) {
+    } @else {
     <div class="profile-container">
-      <!-- Profile Header -->
+      
+      <!-- Compact Profile Header -->
       <div class="profile-header">
-        <div class="header-content">
+        <div class="header-left">
+          <div class="profile-image-wrapper">
+            <img
+              [src]="profile.profileImage"
+              [alt]="profile.fullName"
+              class="profile-image"
+              (error)="handleImageError($event)"
+            />
+            <button class="upload-btn" (click)="triggerImageUpload()" title="Change Photo">
+              <i class="fas fa-camera"></i>
+            </button>
+            <input
+              #fileInput
+              type="file"
+              accept="image/*"
+              (change)="handleImageUpload($event)"
+              style="display: none;"
+            />
+          </div>
           <div class="profile-info">
-            <div class="profile-image-container">
-              <img
-                [src]="profile.profileImage"
-                [alt]="profile.fullName"
-                class="profile-image"
-                (error)="handleImageError($event)"
-              />
-              <div
-                class="profile-status"
-                [class.public]="isPublic"
-                [class.private]="!isPublic"
-              >
-                <i [class]="isPublic ? 'fas fa-globe' : 'fas fa-lock'"></i>
-              </div>
-              <button class="upload-btn" (click)="triggerImageUpload()" title="Upload Profile Picture">
-                <i class="fas fa-camera"></i>
-              </button>
-              <span class="upload-label">Upload Photo</span>
-              <input
-                #fileInput
-                type="file"
-                accept="image/*"
-                capture="environment"
-                (change)="handleImageUpload($event)"
-                style="display: none;"
-              />
-            </div>
-            <div class="basic-info">
-              <h1 class="profile-name">{{ profile.fullName }}</h1>
-              <p class="profile-title">{{ profile.title }}</p>
-              <div
-                class="completion-badge"
-                [style.color]="profileCompletionColor"
-              >
-                <i class="fas fa-check-circle"></i>
-                <span>{{ profile.profileCompletion }}% Complete</span>
-              </div>
-              <div class="location-contact">
-                @if (profile.location) {
-                <div class="location">
-                  <i class="fas fa-map-marker-alt"></i>
-                  <span>{{ profile.location }}</span>
-                </div>
-                }
-                <div class="contact-info">
-                  <span class="email">{{ profile.email }}</span>
-                  @if (profile.phone) {
-                  <span class="phone">{{ profile.phone }}</span>
-                  }
-                </div>
-              </div>
-              @if (viewCount > 0) {
-              <div class="view-count">
-                <i class="fas fa-eye"></i>
-                <span>{{ viewCount }} profile views</span>
-              </div>
-              }
-            </div>
-          </div>
-          <div class="header-actions">
-            <button
-              class="btn btn-icon-label"
-              (click)="togglePortfolioVisibility()"
-              [title]="isPublic ? 'Make Private' : 'Make Public'"
-            >
-              <i [class]="isPublic ? 'fas fa-lock-open' : 'fas fa-lock'"></i>
-              <span>{{ isPublic ? "Public" : "Private" }}</span>
-            </button>
-
-            <button class="btn btn-secondary" (click)="shareProfile()">
-              <i class="fas fa-share-alt"></i>
-              Share Profile
-            </button>
-            <button class="btn btn-primary" (click)="editProfile()">
-              <i class="fas fa-edit"></i>
-              Edit Profile
-            </button>
-          </div>
-        </div>
-
-        <!-- Quick Stats -->
-        <div class="quick-stats">
-          <div class="stat-item">
-            <i class="fas fa-briefcase"></i>
-            <span class="stat-value">{{ experiences.length }}</span>
-            <span class="stat-label">Work Experience</span>
-          </div>
-          <div class="stat-item">
-            <i class="fas fa-code"></i>
-            <span class="stat-value">{{ projects.length }}</span>
-            <span class="stat-label">Projects</span>
-          </div>
-          <div class="stat-item">
-            <i class="fas fa-certificate"></i>
-            <span class="stat-value">{{ certifications.length }}</span>
-            <span class="stat-label">Certifications</span>
-          </div>
-          <div class="stat-item">
-            <i class="fas fa-cogs"></i>
-            <span class="stat-value">{{
-              technicalSkills.length + softSkills.length
-            }}</span>
-            <span class="stat-label">Skills</span>
-          </div>
-        </div>
-      </div>
-
-      <!-- Profile Completion Section -->
-<!-- Profile Completion Section -->
-<div class="profile-completion-section">
-  <div class="completion-header" [class]="getCompletionColor(profile.profileCompletion)">
-    <div class="header-left">
-      <h2 class="completion-title">
-        <i class="fas fa-chart-line"></i>
-        Profile Completion
-      </h2>
-      <p class="completion-subtitle">
-        @if (profile.profileCompletion === 100) {
-        <span>🎉 Perfect! Your profile is 100% complete.</span>
-        } @else if (profile.profileCompletion >= 80) {
-        <span>Almost there! Just a few more details to go.</span>
-        } @else if (profile.profileCompletion >= 50) {
-        <span>Good progress! Keep adding details to stand out.</span>
-        } @else {
-        <span>⚠️ Your profile needs attention. Complete it to attract employers.</span>
-        }
-      </p>
-    </div>
-    <div class="completion-percentage">
-      <div class="percentage-value">{{ profile.profileCompletion }}%</div>
-      <div class="percentage-label">Complete</div>
-    </div>
-  </div>
-  <div class="progress-bar-container">
-    <div class="progress-bar">
-      <div 
-        class="progress-fill"
-        [style.width.%]="profile.profileCompletion"
-        [class.progress-incomplete]="profile.profileCompletion < 100"
-        [class.progress-complete]="profile.profileCompletion === 100"
-      ></div>
-    </div>
-  </div>
-</div>
-
-      <!-- Sections Checklist -->
-      <div class="sections-checklist">
-        <h3 class="sections-title">
-          <i class="fas fa-list-check"></i>
-          Profile Sections
-        </h3>
-        <div class="sections-list">
-          @for (section of completedSections; track section.name) {
-          <div class="section-item" [class.completed]="section.completed">
-            <div class="section-header">
-              <div class="section-left">
-                <i [class]="section.completed ? 'fas fa-check-circle text-green-500' : 'far fa-circle text-gray-300'"></i>
-                <div class="section-info">
-                  <div class="section-name">{{ section.name }}</div>
-                  @if (section.fields) {
-                  <div class="section-fields">{{ getCompletedFieldsCount(section) }}/{{ getTotalFields(section) }} fields completed</div>
-                  }
-                </div>
-              </div>
-              <div class="section-weight">{{ section.weight }}%</div>
-            </div>
-            @if (section.fields && !section.completed) {
-            <div class="section-details">
-              @for (field of getIncompleteFields(section); track field.field) {
-              <div class="field-item">
-                <span class="field-bullet"></span>
-                <span class="field-name">{{ field.field }}</span>
-                @if (field.required) {
-                <span class="field-required">(Required)</span>
-                }
-              </div>
-              }
-            </div>
+            <h1 class="profile-name">{{ profile.fullName }}</h1>
+            <p class="profile-email">{{ profile.email }}</p>
+            @if (profile.phone) {
+            <p class="profile-phone">
+              <i class="fas fa-phone"></i> {{ profile.phone }}
+            </p>
+            }
+            @if (profile.location) {
+            <p class="profile-location">
+              <i class="fas fa-map-marker-alt"></i> {{ profile.location }}
+            </p>
             }
           </div>
+        </div>
+
+        <div class="header-actions">
+          @if (!isEditMode) {
+          <button class="btn btn-primary" (click)="toggleEditMode()">
+            <i class="fas fa-edit"></i>
+            Edit Profile
+          </button>
+          <button class="btn btn-share" (click)="shareProfile()">
+            <i class="fas fa-share-alt"></i>
+            Share
+          </button>
+          } @else {
+          <button class="btn btn-success" (click)="saveProfile()">
+            <i class="fas fa-save"></i>
+            Save Changes
+          </button>
+          <button class="btn btn-cancel" (click)="cancelEdit()">
+            <i class="fas fa-times"></i>
+            Cancel
+          </button>
           }
         </div>
       </div>
 
-      @if (missingFields.length > 0) {
-      <div class="missing-fields-alert">
-        <div class="alert-icon">
-          <i class="fas fa-exclamation-triangle text-yellow-600"></i>
+      <!-- Profile Completion Card -->
+      <div class="completion-card" [class.complete]="profile.profileCompletion === 100">
+        <div class="completion-content">
+          <div class="completion-icon">
+            @if (profile.profileCompletion === 100) {
+            <i class="fas fa-check-circle"></i>
+            } @else {
+            <i class="fas fa-exclamation-circle"></i>
+            }
+          </div>
+          <div class="completion-info">
+            <h3>Profile Completion</h3>
+            <p class="completion-message">
+              @if (profile.profileCompletion === 100) {
+              🎉 Perfect! Your profile is 100% complete and ready to impress employers.
+              } @else if (profile.profileCompletion >= 80) {
+              Almost there! Just {{ 100 - profile.profileCompletion }}% more to go.
+              } @else if (profile.profileCompletion >= 50) {
+              You're halfway there! Complete your profile to stand out.
+              } @else {
+              ⚠️ Your profile needs attention. Complete it to attract employers.
+              }
+            </p>
+          </div>
+          <div class="completion-percentage">
+            <span class="percentage-number">{{ profile.profileCompletion }}%</span>
+          </div>
         </div>
-        <div class="alert-content">
-          <h4 class="alert-title">Complete These to Improve Your Profile</h4>
-          <ul class="alert-list">
+        <div class="progress-bar">
+          <div 
+            class="progress-fill" 
+            [style.width.%]="profile.profileCompletion"
+            [class.complete]="profile.profileCompletion === 100"
+          ></div>
+        </div>
+
+        <!-- Missing Fields -->
+        @if (missingFields.length > 0) {
+        <div class="missing-fields">
+          <h4><i class="fas fa-list-check"></i> Complete These Fields:</h4>
+          <div class="fields-grid">
             @for (field of missingFields; track field) {
-            <li class="alert-item">
-              <span class="alert-bullet"></span>
-              {{ field }}
-            </li>
+            <span class="field-tag">{{ field }}</span>
             }
-          </ul>
+          </div>
         </div>
-      </div>
-      }
-
-      @if (completionRecommendations.length > 0) {
-      <div class="recommendations-section">
-        <h3 class="recommendations-title">
-          <i class="fas fa-lightbulb"></i>
-          Recommendations
-        </h3>
-        <ul class="recommendations-list">
-          @for (rec of completionRecommendations; track $index) {
-          <li class="recommendation-item">
-            • {{ rec }}
-          </li>
-          }
-        </ul>
-      </div>
-      }
-
-      <div class="completion-actions">
-        <button class="btn btn-primary" (click)="editProfile()">
-          <i class="fas fa-edit"></i>
-          Complete Your Profile
-        </button>
+        }
       </div>
 
-      <div class="profile-body">
-        <div class="profile-grid">
-          <!-- Left Column -->
-          <div class="left-column">
-            <!-- About Section -->
-            @if (profile.about) {
-            <div class="profile-section">
-              <h2 class="section-title">
-                <i class="fas fa-user-circle"></i>
-                About
-              </h2>
-              <div class="section-content">
-                <p class="about-text">{{ profile.about }}</p>
+      <!-- Profile Content -->
+      <div class="profile-content">
+
+        <!-- EDIT MODE FORMS -->
+        @if (isEditMode) {
+        <div class="edit-section">
+          <h2 class="section-heading">
+            <i class="fas fa-user-edit"></i>
+            Edit Your Information
+          </h2>
+
+          <!-- Basic Info -->
+          <div class="form-card">
+            <h3 class="form-section-title">Contact Information</h3>
+            <div class="form-grid">
+              <div class="form-group">
+                <label>Phone Number *</label>
+                <input type="tel" [(ngModel)]="profile.phone" placeholder="e.g., +254 700 000000" />
+              </div>
+              <div class="form-group">
+                <label>Location *</label>
+                <input type="text" [(ngModel)]="profile.location" placeholder="e.g., Nairobi, Kenya" />
+              </div>
+            </div>
+          </div>
+
+          <!-- Professional Summary -->
+          <div class="form-card">
+            <h3 class="form-section-title">Professional Summary</h3>
+            <div class="form-group">
+              <textarea 
+                [(ngModel)]="profile.about" 
+                placeholder="Tell employers about your professional background, experience, and career goals..."
+                rows="5"
+              ></textarea>
+              <span class="help-text">Tip: A strong summary helps you stand out to employers</span>
+            </div>
+          </div>
+
+          <!-- Skills -->
+          <div class="form-card">
+            <h3 class="form-section-title">Skills</h3>
+            <div class="form-group full-width">
+              <label>Select Your Skills</label>
+              <div class="skills-checkboxes">
+                <div class="skills-group">
+                  <h5>Technical Skills</h5>
+                  <div class="checkbox-grid">
+                    @for (skill of availableTechnicalSkills; track skill) {
+                    <label class="checkbox-label">
+                      <input 
+                        type="checkbox" 
+                        [checked]="profile.selectedSkills.includes(skill)"
+                        (change)="toggleSkill(skill, $event)"
+                      />
+                      <span class="checkmark"></span>
+                      {{ skill }}
+                    </label>
+                    }
+                  </div>
+                </div>
+                <div class="skills-group">
+                  <h5>Soft Skills</h5>
+                  <div class="checkbox-grid">
+                    @for (skill of availableSoftSkills; track skill) {
+                    <label class="checkbox-label">
+                      <input 
+                        type="checkbox" 
+                        [checked]="profile.selectedSkills.includes(skill)"
+                        (change)="toggleSkill(skill, $event)"
+                      />
+                      <span class="checkmark"></span>
+                      {{ skill }}
+                    </label>
+                    }
+                  </div>
+                </div>
+              </div>
+              <div class="custom-skill-input">
+                <input 
+                  type="text" 
+                  [(ngModel)]="newSkill" 
+                  placeholder="Add custom skill (e.g., Blockchain)" 
+                  (keyup.enter)="addCustomSkill()"
+                />
+                <button (click)="addCustomSkill()">
+                  <i class="fas fa-plus"></i> Add
+                </button>
+              </div>
+              <span class="help-text">Add at least 3 relevant skills. Selected: {{ profile.selectedSkills.length }}</span>
+            </div>
+          </div>
+
+          <!-- Social Links -->
+          <div class="form-card">
+            <h3 class="form-section-title">Professional Links</h3>
+            <div class="form-group">
+              <label>LinkedIn URL</label>
+              <input type="url" [(ngModel)]="profile.socialLinksInput.linkedin" placeholder="https://linkedin.com/in/yourprofile" />
+            </div>
+            <div class="form-group">
+              <label>GitHub URL</label>
+              <input type="url" [(ngModel)]="profile.socialLinksInput.github" placeholder="https://github.com/yourusername" />
+            </div>
+            <div class="form-group">
+              <label>Portfolio/Website URL</label>
+              <input type="url" [(ngModel)]="profile.socialLinksInput.website" placeholder="https://yourwebsite.com" />
+            </div>
+          </div>
+
+          <!-- Career Preferences -->
+          <div class="form-card">
+            <h3 class="form-section-title">Career Preferences</h3>
+            <div class="form-grid">
+              <div class="form-group">
+                <label>Years of Experience</label>
+                <input type="number" [(ngModel)]="profile.yearsOfExperience" min="0" placeholder="0" />
+              </div>
+              <div class="form-group">
+                <label>Current Position</label>
+                <input type="text" [(ngModel)]="profile.currentPosition" placeholder="e.g., Senior Developer" />
+              </div>
+              <div class="form-group full-width">
+                <label>Availability Status</label>
+                <select [(ngModel)]="profile.availabilityStatus">
+                  <option value="open_to_opportunities">Open to Opportunities</option>
+                  <option value="actively_seeking">Actively Seeking</option>
+                  <option value="not_seeking">Not Currently Seeking</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label>Preferred Job Types (one per line)</label>
+              <textarea 
+                [(ngModel)]="profile.preferredJobTypes" 
+                placeholder="Full-time&#10;Remote&#10;Contract"
+                rows="3"
+              ></textarea>
+            </div>
+
+            <div class="form-grid">
+              <div class="form-group">
+                <label>Salary Expectation (Min)</label>
+                <input type="number" [(ngModel)]="profile.salaryMin" placeholder="e.g., 50000" />
+              </div>
+              <div class="form-group">
+                <label>Salary Expectation (Max)</label>
+                <input type="number" [(ngModel)]="profile.salaryMax" placeholder="e.g., 80000" />
+              </div>
+            </div>
+          </div>
+        </div>
+        }
+
+        <!-- VIEW MODE -->
+        @if (!isEditMode) {
+        
+        <!-- About Section -->
+        @if (profile.about) {
+        <div class="content-card">
+          <h2 class="card-title">
+            <i class="fas fa-user-circle"></i>
+            About Me
+          </h2>
+          <p class="about-text">{{ profile.about }}</p>
+        </div>
+        }
+
+        <!-- Skills -->
+        @if (technicalSkills.length > 0 || softSkills.length > 0 || otherSkills.length > 0) {
+        <div class="content-card">
+          <h2 class="card-title">
+            <i class="fas fa-cogs"></i>
+            Skills
+          </h2>
+          <div class="skills-wrapper">
+            @if (technicalSkills.length > 0) {
+            <div class="skills-section">
+              <h4>Technical Skills</h4>
+              <div class="skills-tags">
+                @for (skill of technicalSkills; track skill.name) {
+                <span class="skill-tag technical">{{ skill.name }}</span>
+                }
               </div>
             </div>
             }
-
-            <!-- Skills Section -->
-            @if (technicalSkills.length > 0 || softSkills.length > 0) {
-            <div class="profile-section">
-              <h2 class="section-title">
-                <i class="fas fa-cogs"></i>
-                Skills & Expertise
-              </h2>
-              <div class="section-content">
-                <div class="skills-container">
-                  @if (technicalSkills.length > 0) {
-                  <div class="skills-group">
-                    <h3 class="skills-group-title">Technical Skills</h3>
-                    <div class="skills-tags">
-                      @for (skill of technicalSkills; track skill.name) {
-                      <div
-                        class="skill-tag technical"
-                        [title]="skill.level || skill.category || ''"
-                      >
-                        <span class="skill-name">{{ skill.name }}</span>
-                        @if (skill.level) {
-                        <span
-                          class="skill-level"
-                          [style.background-color]="getSkillColor(skill.level)"
-                        >
-                          {{ skill.level }}
-                        </span>
-                        }
-                      </div>
-                      }
-                    </div>
-                  </div>
-                  } @if (softSkills.length > 0) {
-                  <div class="skills-group">
-                    <h3 class="skills-group-title">Soft Skills</h3>
-                    <div class="skills-tags">
-                      @for (skill of softSkills; track skill.name) {
-                      <div class="skill-tag soft">
-                        <span class="skill-name">{{ skill.name }}</span>
-                      </div>
-                      }
-                    </div>
-                  </div>
-                  }
-                </div>
+            @if (softSkills.length > 0) {
+            <div class="skills-section">
+              <h4>Soft Skills</h4>
+              <div class="skills-tags">
+                @for (skill of softSkills; track skill.name) {
+                <span class="skill-tag soft">{{ skill.name }}</span>
+                }
               </div>
             </div>
             }
-
-            <!-- Certifications Section -->
-            @if (certifications.length > 0) {
-            <div class="profile-section">
-              <h2 class="section-title">
-                <i class="fas fa-certificate"></i>
-                Certifications & Training
-              </h2>
-              <div class="section-content">
-                <div class="certifications-list">
-                  @for (cert of certifications; track cert.degree) {
-                  <div class="certification-item">
-                    <div class="cert-info">
-                      <h4 class="cert-title">{{ cert.degree }}</h4>
-                      <p class="cert-organization">{{ cert.institution }}</p>
-                      <p class="cert-date">
-                        Completed: {{ formatDate(cert.graduationDate) }}
-                      </p>
-                    </div>
-                    <div class="cert-actions">
-                      @if (cert.coursework && cert.coursework.length > 0) {
-                      <button
-                        class="btn-icon"
-                        (click)="viewCertificate(cert)"
-                        title="View Certificate"
-                      >
-                        <i class="fas fa-eye"></i>
-                      </button>
-                      }
-                    </div>
-                  </div>
-                  }
-                </div>
-              </div>
-            </div>
-            }
-
-            <!-- Social Links & Contact -->
-            @if (socialLinks.length > 0) {
-            <div class="profile-section">
-              <h2 class="section-title">
-                <i class="fas fa-link"></i>
-                Contact & Social Links
-              </h2>
-              <div class="section-content">
-                <div class="social-links">
-                  @for (link of socialLinks; track link.platform) {
-                  <a
-                    [href]="link.url"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    class="social-link"
-                  >
-                    <i [class]="link.icon"></i>
-                    <span>{{ link.platform }}</span>
-                    <i class="fas fa-external-link-alt"></i>
-                  </a>
-                  }
-                </div>
+            @if (otherSkills.length > 0) {
+            <div class="skills-section">
+              <h4>Other Skills</h4>
+              <div class="skills-tags">
+                @for (skill of otherSkills; track skill.name) {
+                <span class="skill-tag other">{{ skill.name }}</span>
+                }
               </div>
             </div>
             }
           </div>
+        </div>
+        }
 
-          <!-- Right Column -->
-          <div class="right-column">
-            <!-- Experience Timeline -->
-            @if (experiences.length > 0) {
-            <div class="profile-section">
-              <h2 class="section-title">
-                <i class="fas fa-briefcase"></i>
-                Work Experience
-              </h2>
-              <div class="section-content">
-                <div class="timeline">
-                  @for (exp of experiences; track exp.title + exp.company; let
-                  isLast = $last) {
-                  <div class="timeline-item">
-                    <div class="timeline-marker"></div>
-                    <div class="timeline-content">
-                      <div class="experience-header">
-                        <div class="exp-main-info">
-                          <h3 class="exp-title">{{ exp.title }}</h3>
-                          <p class="exp-company">
-                            @if (exp.companyLogo) {
-                            <img
-                              [src]="exp.companyLogo"
-                              [alt]="exp.company"
-                              class="company-logo"
-                            />
-                            }
-                            {{ exp.company }}
-                          </p>
-                          <p class="exp-duration">
-                            {{ exp.duration }} ({{
-                              formatDate(exp.startDate)
-                            }}
-                            -
-                            {{
-                              exp.endDate === "Present"
-                                ? "Present"
-                                : formatDate(exp.endDate)
-                            }})
-                          </p>
-                        </div>
-                      </div>
+        <!-- Social Links -->
+        @if (socialLinks.length > 0) {
+        <div class="content-card">
+          <h2 class="card-title">
+            <i class="fas fa-link"></i>
+            Connect With Me
+          </h2>
+          <div class="social-links">
+            @for (link of socialLinks; track link.platform) {
+            <a [href]="link.url" target="_blank" class="social-link">
+              <i [class]="link.icon"></i>
+              <span>{{ link.platform }}</span>
+              <i class="fas fa-external-link-alt"></i>
+            </a>
+            }
+          </div>
+        </div>
+        }
 
-                      @if (exp.responsibilities.length > 0 ||
-                      exp.achievements.length > 0) {
-                      <div class="exp-details">
-                        @if (exp.responsibilities.length > 0) {
-                        <div class="exp-responsibilities">
-                          <h4>Key Responsibilities</h4>
-                          <ul>
-                            @for (resp of exp.responsibilities; track resp) {
-                            <li>{{ resp }}</li>
-                            }
-                          </ul>
-                        </div>
-                        } @if (exp.achievements.length > 0) {
-                        <div class="exp-achievements">
-                          <h4>Key Achievements</h4>
-                          <ul>
-                            @for (achievement of exp.achievements; track
-                            achievement) {
-                            <li>{{ achievement }}</li>
-                            }
-                          </ul>
-                        </div>
-                        }
-                      </div>
-                      }
-                    </div>
-                    @if (!isLast) {
-                    <div class="timeline-line"></div>
-                    }
-                  </div>
-                  }
-                </div>
-              </div>
+        <!-- Career Preferences -->
+        @if (profile.yearsOfExperience > 0 || profile.currentPosition) {
+        <div class="content-card">
+          <h2 class="card-title">
+            <i class="fas fa-briefcase"></i>
+            Career Information
+          </h2>
+          <div class="info-grid">
+            @if (profile.yearsOfExperience > 0) {
+            <div class="info-item">
+              <span class="info-label">Experience</span>
+              <span class="info-value">{{ profile.yearsOfExperience }} years</span>
             </div>
             }
-
-            <!-- Education Section -->
-            @if (education.length > 0) {
-            <div class="profile-section">
-              <h2 class="section-title">
-                <i class="fas fa-graduation-cap"></i>
-                Education
-              </h2>
-              <div class="section-content">
-                <div class="education-list">
-                  @for (edu of education; track edu.degree + edu.institution) {
-                  <div class="education-item">
-                    <h3 class="edu-degree">{{ edu.degree }}</h3>
-                    <p class="edu-institution">{{ edu.institution }}</p>
-                    <p class="edu-date">
-                      Graduated: {{ formatDate(edu.graduationDate) }}
-                    </p>
-                    @if (edu.gpa) {
-                    <p class="edu-gpa">GPA: {{ edu.gpa }}</p>
-                    } @if (edu.coursework && edu.coursework.length > 0) {
-                    <div class="edu-coursework">
-                      <h4>Relevant Coursework:</h4>
-                      <div class="coursework-tags">
-                        @for (course of edu.coursework; track course) {
-                        <span class="coursework-tag">{{ course }}</span>
-                        }
-                      </div>
-                    </div>
-                    }
-                  </div>
-                  }
-                </div>
-              </div>
+            @if (profile.currentPosition) {
+            <div class="info-item">
+              <span class="info-label">Current Position</span>
+              <span class="info-value">{{ profile.currentPosition }}</span>
             </div>
             }
-
-            <!-- Projects Showcase -->
-            @if (projects.length > 0) {
-            <div class="profile-section">
-              <h2 class="section-title">
-                <i class="fas fa-code"></i>
-                Featured Projects
-              </h2>
-              <div class="section-content">
-                <div class="projects-grid">
-                  @for (project of projects; track project.title) {
-                  <div class="project-card">
-                    @if (project.imageUrl) {
-                    <div class="project-image">
-                      <img [src]="project.imageUrl" [alt]="project.title" />
-                      <div class="project-overlay">
-                        <div class="project-links">
-                          @if (project.githubUrl) {
-                          <a
-                            [href]="project.githubUrl"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            class="project-link"
-                            title="View on GitHub"
-                          >
-                            <i class="fab fa-github"></i>
-                          </a>
-                          } @if (project.liveUrl) {
-                          <a
-                            [href]="project.liveUrl"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            class="project-link"
-                            title="View Live Demo"
-                          >
-                            <i class="fas fa-external-link-alt"></i>
-                          </a>
-                          }
-                        </div>
-                      </div>
-                    </div>
-                    }
-                    <div class="project-info">
-                      <h3 class="project-title">{{ project.title }}</h3>
-                      @if (project.description) {
-                      <p class="project-description">
-                        {{ project.description }}
-                      </p>
-                      } @if (project.technologies.length > 0) {
-                      <div class="project-technologies">
-                        @for (tech of project.technologies; track tech) {
-                        <span class="tech-tag">{{ tech }}</span>
-                        }
-                      </div>
-                      } @if (!project.imageUrl) {
-                      <div class="project-links-inline">
-                        @if (project.githubUrl) {
-                        <a
-                          [href]="project.githubUrl"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                        >
-                          <i class="fab fa-github"></i> GitHub
-                        </a>
-                        } @if (project.liveUrl) {
-                        <a
-                          [href]="project.liveUrl"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                        >
-                          <i class="fas fa-external-link-alt"></i> Live Demo
-                        </a>
-                        }
-                      </div>
-                      }
-                    </div>
-                  </div>
-                  }
-                </div>
-              </div>
+            <div class="info-item">
+              <span class="info-label">Availability</span>
+              <span class="info-value">{{ profile.availabilityStatus }}</span>
             </div>
-            }
-
-            <!-- Recommendations -->
-            @if (recommendations.length > 0) {
-            <div class="profile-section">
-              <h2 class="section-title">
-                <i class="fas fa-quote-left"></i>
-                Recommendations & Testimonials
-              </h2>
-              <div class="section-content">
-                <div class="recommendations-list">
-                  @for (rec of recommendations; track rec.id) {
-                  <div class="recommendation-item">
-                    <div class="rec-content">
-                      <p class="rec-text">"{{ rec.content }}"</p>
-                    </div>
-                    <div class="rec-author">
-                      <div class="author-info">
-                        <h4 class="author-name">{{ rec.author }}</h4>
-                        @if (rec.position) {
-                        <p class="author-position">
-                          {{ rec.position }}
-                          @if (rec.company) {
-                          <span> at {{ rec.company }}</span>
-                          }
-                        </p>
-                        }
-                        <p class="rec-date">{{ formatDate(rec.created_at) }}</p>
-                      </div>
-                    </div>
-                  </div>
-                  }
-                </div>
-              </div>
-            </div>
-            }
-
-            <!-- Empty State -->
-            @if (recommendations.length === 0 && projects.length === 0 &&
-            experiences.length === 0 && education.length === 0) {
-            <div class="empty-state">
-              <i class="fas fa-folder-open"></i>
-              <h3>Your portfolio is empty</h3>
-              <p>
-                Start building your professional portfolio by adding your CV
-                information in the CV Builder.
-              </p>
-              <button class="btn btn-primary" (click)="editProfile()">
-                <i class="fas fa-plus"></i>
-                Get Started
-              </button>
+            @if (profile.salaryMin || profile.salaryMax) {
+            <div class="info-item">
+              <span class="info-label">Salary Range</span>
+              <span class="info-value">
+                ${{ profile.salaryMin || 'Negotiable' }} - ${{ profile.salaryMax || 'Negotiable' }}
+              </span>
             </div>
             }
           </div>
         </div>
+        }
+
+        <!-- Empty State -->
+        @if (!profile.about && technicalSkills.length === 0 && softSkills.length === 0 && otherSkills.length === 0 && socialLinks.length === 0) {
+        <div class="empty-state">
+          <i class="fas fa-user-circle"></i>
+          <h3>Complete Your Profile</h3>
+          <p>Add your information to make your profile stand out to employers</p>
+          <button class="btn btn-primary" (click)="toggleEditMode()">
+            <i class="fas fa-edit"></i>
+            Get Started
+          </button>
+        </div>
+        }
+
+        }
       </div>
     </div>
     }

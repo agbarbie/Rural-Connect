@@ -4,26 +4,27 @@
   <app-sidebar [userType]="'jobseeker'"></app-sidebar>
 
   <!-- Loading State -->
-  @if (isLoading) {
+  @if (isInitializing) {
   <div class="loading-container">
     <div class="spinner"></div>
-    <p>Loading your profile and recommendations...</p>
+    <p>Analyzing your profile with AI...</p>
+    <p class="loading-subtext">Getting personalized recommendations</p>
   </div>
   }
 
   <!-- Main Content Area -->
-  @if (!isLoading) {
+  @if (!isInitializing) {
   <div class="main-content">
     <!-- Header Section -->
     <div class="header-section">
       <div class="greeting-container">
         <div class="greeting-text">
-          <h1>👋 Hi {{ userData.name || 'there' }}, I've analyzed your latest skills and activity!</h1>
-          <p>Based on your {{ userData.topSkills.length > 0 ? 'skills in ' + userData.topSkills[0].name : 'profile' }}, I have some exciting opportunities for you.</p>
+          <h1>👋 Hi {{ userData.name || 'there' }}, I've analyzed your profile with AI!</h1>
+          <p>Based on your {{ userData.topSkills.length > 0 ? 'skills in ' + userData.topSkills[0].name : 'profile' }}, I have personalized recommendations for you.</p>
         </div>
         <div class="profile-snapshot">
           <div class="profile-avatar">
-            <img [src]="userData.avatar" [alt]="userData.name" (error)="userData.avatar = 'assets/images/profile-placeholder.jpg'" />
+            <img [src]="userData.avatar" [alt]="userData.name" (error)="handleImageError($event)" />
           </div>
           <div class="top-skills">
             @if (userData.topSkills.length > 0) {
@@ -40,144 +41,20 @@
 
     <!-- Conversation Area -->
     <div class="conversation-area">
-      <!-- Initial AI Message with Job Recommendations -->
-      @if (jobRecommendations.length > 0) {
+      <!-- Show initial recommendations if available -->
+      @if (conversationMessages.length === 0 && jobRecommendations.length === 0) {
       <div class="message ai-message">
         <div class="message-avatar">
           <i class="fas fa-robot"></i>
         </div>
         <div class="message-content">
           <div class="message-text">
-            Great job on building your profile! 🎉 I've found {{ jobRecommendations.length }} exciting opportunities that match your skillset.
-          </div>
-          <div class="recommendation-cards">
-            <div class="card-section-title">🎯 Job Matches for You ({{ jobRecommendations.length }} found)</div>
-            <div class="job-cards">
-              @for (job of jobRecommendations; track job.id) {
-              <div class="job-card">
-                <div class="job-header">
-                  <div class="company-logo">
-                    <i [class]="job.logo"></i>
-                  </div>
-                  <div class="job-info">
-                    <h3>{{ job.title }}</h3>
-                    <p>{{ job.company }}</p>
-                    <span class="salary">{{ job.salary }}</span>
-                  </div>
-                </div>
-                <div class="skills-match">
-                  @for (skill of job.skills; track skill.name) {
-                  <span class="skill-tag" [class]="skill.status">{{ skill.name }}</span>
-                  }
-                </div>
-                <div class="job-actions">
-                  <button class="btn btn-primary" 
-                          [class.applied]="job.applied"
-                          (click)="applyToJob(job.id)"
-                          [disabled]="job.applied">
-                    {{ job.applied ? 'Applied' : 'Apply Now' }}
-                  </button>
-                  <button class="btn btn-outline" 
-                          [class.saved]="job.saved"
-                          (click)="saveJob(job.id)">
-                    {{ job.saved ? 'Saved' : 'Save' }}
-                  </button>
-                </div>
-              </div>
-              }
-            </div>
-          </div>
-        </div>
-      </div>
-      }
-
-      <!-- Training Recommendations -->
-      @if (trainingRecommendations.length > 0) {
-      <div class="message ai-message">
-        <div class="message-avatar">
-          <i class="fas fa-robot"></i>
-        </div>
-        <div class="message-content">
-          <div class="message-text">
-            📚 Based on your current skills, here are some training recommendations to expand your capabilities:
-          </div>
-          <div class="recommendation-cards">
-            <div class="training-cards">
-              @for (training of trainingRecommendations; track training.id) {
-              <div class="training-card">
-                <div class="training-header">
-                  <div class="training-icon">
-                    <i [class]="training.icon"></i>
-                  </div>
-                  <div class="training-info">
-                    <h3>{{ training.title }}</h3>
-                    <p>{{ training.provider }}</p>
-                    <div class="training-meta">
-                      <span class="duration">{{ training.duration }}</span>
-                      <span class="level">{{ training.level }}</span>
-                    </div>
-                  </div>
-                </div>
-                <div class="training-description">
-                  {{ training.description }}
-                </div>
-                <div class="training-actions">
-                  <button class="btn btn-primary" 
-                          [class.enrolled]="training.enrolled"
-                          (click)="enrollInTraining(training.id)"
-                          [disabled]="training.enrolled">
-                    {{ training.enrolled ? 'Enrolled' : 'Enroll Now' }}
-                  </button>
-                  <button class="btn btn-outline">Learn More</button>
-                </div>
-              </div>
-              }
-            </div>
-          </div>
-        </div>
-      </div>
-      }
-
-      <!-- Career Path Guidance -->
-      @if (userData.topSkills.length > 0) {
-      <div class="message ai-message">
-        <div class="message-avatar">
-          <i class="fas fa-robot"></i>
-        </div>
-        <div class="message-content">
-          <div class="message-text">
-            🚀 With your skills in {{ userData.topSkills[0].name }}{{ userData.topSkills.length > 1 ? ' and ' + userData.topSkills[1].name : '' }}, consider expanding into complementary areas to grow your career. This path could increase your salary potential by 40-60%.
-          </div>
-          <div class="career-path-card">
-            <div class="path-timeline">
-              <div class="path-step current">
-                <div class="step-icon">
-                  <i class="fas fa-check"></i>
-                </div>
-                <div class="step-content">
-<h4>Current: {{ userData.topSkills.length > 0 ? userData.topSkills[0].name : 'Building Skills' }}</h4>
-                  <p>Strong foundation established</p>
-                </div>
-              </div>
-              <div class="path-arrow">→</div>
-              <div class="path-step next">
-                <div class="step-icon">
-                  <i class="fas fa-play"></i>
-                </div>
-                <div class="step-content">
-                  <h4>Next: Expand Skills</h4>
-                  <p>Add complementary skills</p>
-                </div>
-              </div>
-              <div class="path-arrow">→</div>
-              <div class="path-step future">
-                <div class="step-icon">
-                  <i class="fas fa-star"></i>
-                </div>
-                <div class="step-content">
-                  <h4>Goal: Advanced Role</h4>
-                  <p>Achieve senior position</p>
-                </div>
+            <div class="typing-indicator">
+              <span>AI is analyzing your profile</span>
+              <div class="typing-dots">
+                <span class="dot"></span>
+                <span class="dot"></span>
+                <span class="dot"></span>
               </div>
             </div>
           </div>
@@ -196,11 +73,12 @@
           }
         </div>
         <div class="message-content">
-          <div class="message-text">{{ msg.content }}</div>
+          <div class="message-text" [innerHTML]="msg.content"></div>
           
           @if (msg.cards && msg.cards.length > 0) {
           <div class="recommendation-cards">
             @if (isJobCards(msg.cards)) {
+            <div class="card-section-title">🎯 Recommended Jobs</div>
             <div class="job-cards">
               @for (job of msg.cards; track job.id) {
               <div class="job-card">
@@ -212,6 +90,9 @@
                     <h3>{{ job.title }}</h3>
                     <p>{{ job.company }}</p>
                     <span class="salary">{{ job.salary }}</span>
+                    @if (job.matchScore) {
+                    <span class="match-score">{{ job.matchScore }}% Match</span>
+                    }
                   </div>
                 </div>
                 <div class="skills-match">
@@ -220,13 +101,24 @@
                   }
                 </div>
                 <div class="job-actions">
-                  <button class="btn btn-primary" (click)="applyToJob(job.id)">Apply Now</button>
-                  <button class="btn btn-outline" (click)="saveJob(job.id)">Save</button>
+                  <button class="btn btn-primary" 
+                          [class.applied]="job.applied"
+                          (click)="applyToJob(job.id)"
+                          [disabled]="job.applied">
+                    {{ job.applied ? '✓ Applied' : 'Apply Now' }}
+                  </button>
+                  <button class="btn btn-outline" 
+                          [class.saved]="job.saved"
+                          (click)="saveJob(job.id)">
+                    <i [class]="job.saved ? 'fas fa-bookmark' : 'far fa-bookmark'"></i>
+                    {{ job.saved ? 'Saved' : 'Save' }}
+                  </button>
                 </div>
               </div>
               }
             </div>
             } @else if (isTrainingCards(msg.cards)) {
+            <div class="card-section-title">📚 Recommended Training</div>
             <div class="training-cards">
               @for (training of msg.cards; track training.id) {
               <div class="training-card">
@@ -237,11 +129,21 @@
                   <div class="training-info">
                     <h3>{{ training.title }}</h3>
                     <p>{{ training.provider }}</p>
+                    <div class="training-meta">
+                      <span class="duration"><i class="far fa-clock"></i> {{ training.duration }}</span>
+                      <span class="level"><i class="fas fa-signal"></i> {{ training.level }}</span>
+                    </div>
                   </div>
                 </div>
                 <div class="training-description">{{ training.description }}</div>
                 <div class="training-actions">
-                  <button class="btn btn-primary" (click)="enrollInTraining(training.id)">Enroll Now</button>
+                  <button class="btn btn-primary" 
+                          [class.enrolled]="training.enrolled"
+                          (click)="enrollInTraining(training.id)"
+                          [disabled]="training.enrolled">
+                    {{ training.enrolled ? '✓ Enrolled' : 'Enroll Now' }}
+                  </button>
+                  <button class="btn btn-outline">Learn More</button>
                 </div>
               </div>
               }
@@ -252,17 +154,36 @@
         </div>
       </div>
       }
+
+      <!-- Typing indicator when AI is responding -->
+      @if (isLoading) {
+      <div class="message ai-message">
+        <div class="message-avatar">
+          <i class="fas fa-robot"></i>
+        </div>
+        <div class="message-content">
+          <div class="typing-indicator">
+            <span>AI is thinking</span>
+            <div class="typing-dots">
+              <span class="dot"></span>
+              <span class="dot"></span>
+              <span class="dot"></span>
+            </div>
+          </div>
+        </div>
+      </div>
+      }
     </div>
 
     <!-- Quick Actions Panel -->
     <div class="quick-actions">
       <button class="action-chip" (click)="showJobs()">
         <i class="fas fa-briefcase"></i>
-        View Jobs
+        Browse All Jobs
       </button>
       <button class="action-chip" (click)="showTraining()">
         <i class="fas fa-graduation-cap"></i>
-        Recommended Training
+        Training Courses
       </button>
       <button class="action-chip" (click)="showInsights()">
         <i class="fas fa-chart-line"></i>
@@ -278,14 +199,30 @@
     <div class="input-area">
       <div class="input-container">
         <input type="text" 
-               placeholder="Ask me about jobs, training, or career advice..." 
+               placeholder="Ask me about jobs, training, career advice, or skill recommendations..." 
                [(ngModel)]="userMessage" 
                (keyup.enter)="sendMessage()" 
-               [disabled]="isLoading" />
+               [disabled]="isLoading"
+               autofocus />
         <button class="send-button" 
                 (click)="sendMessage()" 
                 [disabled]="isLoading || !userMessage.trim()">
+          @if (isLoading) {
+          <i class="fas fa-circle-notch fa-spin"></i>
+          } @else {
           <i class="fas fa-paper-plane"></i>
+          }
+        </button>
+      </div>
+      <div class="input-suggestions">
+        <button class="suggestion-chip" (click)="userMessage = 'What jobs match my skills?'; sendMessage()">
+          What jobs match my skills?
+        </button>
+        <button class="suggestion-chip" (click)="userMessage = 'How can I improve my profile?'; sendMessage()">
+          How can I improve my profile?
+        </button>
+        <button class="suggestion-chip" (click)="userMessage = 'What skills should I learn next?'; sendMessage()">
+          What skills should I learn next?
         </button>
       </div>
     </div>
@@ -297,7 +234,7 @@
     @if (skillsChartData.labels.length > 0) {
     <div class="insights-card">
       <div class="card-header">
-        <h3>Skills Overview</h3>
+        <h3>Skills Analysis</h3>
         <i class="fas fa-chart-radar"></i>
       </div>
       <div class="skills-radar">
@@ -320,7 +257,7 @@
     @if (skillsProgress.length > 0) {
     <div class="insights-card">
       <div class="card-header">
-        <h3>Recent Progress</h3>
+        <h3>Skill Progress</h3>
         <i class="fas fa-trophy"></i>
       </div>
       <div class="progress-items">
@@ -328,7 +265,9 @@
         <div class="progress-item">
           <div class="progress-header">
             <span class="skill-name">{{ progress.name }}</span>
-            <span [class]="getProgressChangeClass(progress.change)">+{{ progress.change }}%</span>
+            <span [class]="getProgressChangeClass(progress.change)">
+              <i class="fas fa-arrow-up"></i> +{{ progress.change }}%
+            </span>
           </div>
           <div class="progress-bar">
             <div class="progress-fill" [style.width.%]="progress.current"></div>
@@ -340,25 +279,25 @@
     </div>
     }
 
-    <!-- Upcoming Deadlines -->
-    <div class="insights-card">
+    <!-- AI Tips -->
+    <div class="insights-card ai-tips-card">
       <div class="card-header">
-        <h3>Upcoming Deadlines</h3>
-        <i class="fas fa-clock"></i>
+        <h3>AI Tips</h3>
+        <i class="fas fa-lightbulb"></i>
       </div>
-      <div class="deadlines-list">
-        @for (deadline of deadlines; track deadline.id) {
-        <div [class]="getDeadlineClass(deadline)">
-          <div class="deadline-icon">
-            <i [class]="getDeadlineIcon(deadline.type)"></i>
-          </div>
-          <div class="deadline-content">
-            <h4>{{ deadline.title }}</h4>
-            <p class="deadline-time">{{ formatDeadline(deadline.dueDate) }}</p>
-            <p class="deadline-company">{{ deadline.company }}</p>
-          </div>
+      <div class="ai-tips">
+        <div class="tip-item">
+          <i class="fas fa-check-circle"></i>
+          <p>Ask specific questions for better recommendations</p>
         </div>
-        }
+        <div class="tip-item">
+          <i class="fas fa-check-circle"></i>
+          <p>Update your profile regularly for accurate matches</p>
+        </div>
+        <div class="tip-item">
+          <i class="fas fa-check-circle"></i>
+          <p>Explore suggested training to close skill gaps</p>
+        </div>
       </div>
     </div>
 
@@ -369,45 +308,60 @@
         <span class="premium-badge">Premium</span>
       </div>
       <div class="simulator-content">
-        <p>Explore career possibilities by adding new skills</p>
+        <p>Explore how new skills impact your career</p>
         <div class="simulator-input">
           <select [(ngModel)]="selectedSkill">
             <option value="">Select a skill...</option>
-            <option value="Python">Add Python skill</option>
-            <option value="React">Add React skill</option>
-            <option value="Node.js">Add Node.js skill</option>
+            <option value="Python">Python</option>
+            <option value="React">React</option>
+            <option value="Node.js">Node.js</option>
+            <option value="Machine Learning">Machine Learning</option>
+            <option value="AWS">AWS</option>
+            <option value="Docker">Docker</option>
           </select>
-          <button class="btn btn-small" (click)="onSimulate()" [disabled]="!selectedSkill">Simulate</button>
+          <button class="btn btn-small" (click)="onSimulate()" [disabled]="!selectedSkill">
+            Simulate
+          </button>
         </div>
       </div>
     </div>
   </div>
 
   <!-- Premium Modal -->
-  <div class="modal" *ngIf="showPremiumModal">
-    <div class="modal-content">
+  @if (showPremiumModal) {
+  <div class="modal" (click)="closeModal()">
+    <div class="modal-content" (click)="$event.stopPropagation()">
       <div class="modal-header">
         <h3>Unlock Premium Features</h3>
-        <i class="fas fa-crown" style="color: #f59e0b;"></i>
+        <button class="modal-close" (click)="closeModal()">
+          <i class="fas fa-times"></i>
+        </button>
       </div>
       <div class="modal-body">
-        <p>Subscribe to Premium for <strong>₹499/month</strong> to access the full "What If" Simulator and explore unlimited career possibilities with {{ selectedSkill }}.</p>
+        <div class="premium-icon">
+          <i class="fas fa-crown"></i>
+        </div>
+        <p>Subscribe to <strong>Premium</strong> for <strong>₹499/month</strong> to access the "What If" Simulator and explore unlimited career possibilities with {{ selectedSkill }}.</p>
         <ul class="modal-benefits">
           <li><i class="fas fa-check"></i> Unlimited skill simulations</li>
           <li><i class="fas fa-check"></i> Detailed career path reports</li>
-          <li><i class="fas fa-check"></i> Salary projections & job matches</li>
-          <li><i class="fas fa-check"></i> Priority training access</li>
+          <li><i class="fas fa-check"></i> AI-powered salary projections</li>
+          <li><i class="fas fa-check"></i> Priority job matching</li>
+          <li><i class="fas fa-check"></i> Exclusive training resources</li>
         </ul>
         <div class="modal-pricing">
           <div class="price-highlight">₹499 <span>/month</span></div>
-          <p>7-day free trial, cancel anytime</p>
+          <p>7-day free trial • Cancel anytime</p>
         </div>
       </div>
       <div class="modal-actions">
-        <button class="btn btn-primary" (click)="subscribeToPremium()">Subscribe Now</button>
+        <button class="btn btn-primary" (click)="subscribeToPremium()">
+          <i class="fas fa-crown"></i> Start Free Trial
+        </button>
         <button class="btn btn-outline" (click)="closeModal()">Maybe Later</button>
       </div>
     </div>
   </div>
+  }
   }
 </div>

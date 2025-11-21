@@ -1,11 +1,12 @@
-// profile.component.ts
 import { Component, OnInit, ViewChild, ElementRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { FormsModule } from '@angular/forms';
 import { RouterModule, Router } from '@angular/router';
-import { ProfileService, PortfolioData, Skill, WorkExperience, Education, Certification, Project, Testimonial } from '../../../../../services/profile.service';
+import { ProfileService, PortfolioData, Skill, WorkExperience, Education, Certification, Project, Testimonial, ProfileCompletionResponse, CompletedSection, ProfileResponse } from '../../../../../services/profile.service';
 import { AuthService } from '../../../../../services/auth.service';
 import { environment } from '../../../../environments/environments';
 import { SidebarComponent } from '../../shared/sidebar/sidebar.component';
+
 interface ProfileDisplay {
   fullName: string;
   title: string;
@@ -18,11 +19,20 @@ interface ProfileDisplay {
   linkedIn?: string;
   website?: string;
   github?: string;
+  yearsOfExperience: number;
+  currentPosition: string;
+  availabilityStatus: string;
+  preferredJobTypes: string;
+  preferredLocations: string;
+  salaryMin: number | null;
+  salaryMax: number | null;
+  selectedSkills: string[]; // Array for selected skills
+  socialLinksInput: { linkedin: string; github: string; website: string; };
 }
 
 interface SkillDisplay {
   name: string;
-  type: 'technical' | 'soft';
+  type: 'technical' | 'soft' | 'other';
   level?: string;
   category?: string;
 }
@@ -62,38 +72,45 @@ interface SocialLink {
 }
 
 interface Field {
-  field: string;
-  completed: boolean;
-  required: boolean;
-}
-
-interface Section {
-  name: string;
-  completed: boolean;
-  weight: number;
-  fields: Field[];  // Now always present
+  field: any;
+  key: string;
+  label?: string;
+  value?: any;
+  required?: boolean;
 }
 
 @Component({
   selector: 'app-profile',
   standalone: true,
-  imports: [CommonModule, RouterModule, SidebarComponent],
+  imports: [CommonModule, FormsModule, RouterModule, SidebarComponent],
   templateUrl: './profile.component.html',
   styleUrls: ['./profile.component.css']
 })
 export class ProfileComponent implements OnInit {
-  profileData: any;
-  copyLinkDirect(_t96: HTMLInputElement) {
-    throw new Error('Method not implemented.');
-  }
-  hideToast() {
-    throw new Error('Method not implemented.');
-  }
-
   isLoading = true;
+  isEditMode = false;
   portfolioData: PortfolioData | null = null;
   shareableUrl: string = '';
   isPublic: boolean = false;
+
+  // Predefined available skills
+  availableTechnicalSkills: string[] = [
+    'JavaScript', 'Python', 'Java', 'C++', 'React', 'Angular', 'Vue.js', 'Node.js',
+    'SQL', 'MongoDB', 'AWS', 'Docker', 'Git', 'HTML', 'CSS', 'TypeScript',
+    'PHP', 'Ruby', 'Go', 'Rust', 'Swift', 'Kotlin', 'C#', '.NET',
+    'PostgreSQL', 'MySQL', 'Redis', 'Firebase', 'GraphQL', 'REST API',
+    'Kubernetes', 'Jenkins', 'CI/CD', 'Agile', 'Scrum', 'DevOps'
+  ];
+
+  availableSoftSkills: string[] = [
+    'Communication', 'Leadership', 'Teamwork', 'Problem Solving', 'Time Management',
+    'Adaptability', 'Critical Thinking', 'Creativity', 'Emotional Intelligence',
+    'Public Speaking', 'Negotiation', 'Conflict Resolution', 'Project Management',
+    'Customer Service', 'Analytical Thinking', 'Attention to Detail',
+    'Organization', 'Resilience', 'Empathy', 'Networking'
+  ];
+
+  newSkill: string = '';
 
   // Profile Data
   profile: ProfileDisplay = {
@@ -104,11 +121,24 @@ export class ProfileComponent implements OnInit {
     phone: '',
     profileCompletion: 0,
     profileImage: 'assets/images/profile-placeholder.jpg',
-    about: ''
+    about: '',
+    linkedIn: '',
+    website: '',
+    github: '',
+    yearsOfExperience: 0,
+    currentPosition: '',
+    availabilityStatus: 'open_to_opportunities',
+    preferredJobTypes: '',
+    preferredLocations: '',
+    salaryMin: null,
+    salaryMax: null,
+    selectedSkills: [],
+    socialLinksInput: { linkedin: '', github: '', website: '' }
   };
 
   technicalSkills: SkillDisplay[] = [];
   softSkills: SkillDisplay[] = [];
+  otherSkills: SkillDisplay[] = [];
   certifications: EducationDisplay[] = [];
   experiences: ExperienceDisplay[] = [];
   education: EducationDisplay[] = [];
@@ -119,8 +149,8 @@ export class ProfileComponent implements OnInit {
   showToast: boolean = false;
   private toastTimeout: any;
 
-  // Completion Data
-  completedSections: Section[] = [];
+  // Completion Data - now from backend
+  completedSections: CompletedSection[] = [];
   missingFields: string[] = [];
   completionRecommendations: string[] = [];
 
@@ -133,7 +163,129 @@ export class ProfileComponent implements OnInit {
   ) {}
 
   ngOnInit(): void {
+    this.loadProfileData();
+    this.loadProfileCompletion();
+    // Load portfolio data if needed
     this.loadPortfolioData();
+  }
+
+  // Load profile data from backend
+  private loadProfileData(): void {
+    this.profileService.getMyProfile().subscribe({
+      next: (response: ProfileResponse) => {
+        if (response.success && response.data) {
+          const data = response.data;
+          this.profile.fullName = data.name || '';
+          this.profile.email = data.email || '';
+          this.profile.phone = data.phone || '';
+          this.profile.location = data.location || '';
+          this.profile.about = data.bio || '';
+          this.profile.linkedIn = data.linkedin_url || '';
+          this.profile.website = data.website_url || '';
+          this.profile.github = data.github_url || '';
+          this.profile.yearsOfExperience = data.years_of_experience || 0;
+          this.profile.currentPosition = data.current_position || '';
+          this.profile.availabilityStatus = data.availability_status || 'open_to_opportunities';
+          // Parse JSONB/JSON fields
+          this.profile.preferredJobTypes = this.parseJsonField(data.preferred_job_types, '\n');
+          this.profile.preferredLocations = this.parseJsonField(data.preferred_locations, '\n');
+         
+          this.profile.salaryMin = data.salary_expectation_min || null;
+          this.profile.salaryMax = data.salary_expectation_max || null;
+          // Skills
+          let skills: string[] = this.parseJsonArrayField(data.skills);
+          this.profile.selectedSkills = skills;
+          this.populateSkills(skills);
+          // Social links input
+          this.profile.socialLinksInput = {
+            linkedin: this.profile.linkedIn || '',
+            github: this.profile.github || '',
+            website: this.profile.website || ''
+          };
+          this.buildSocialLinks();
+        }
+      },
+      error: (error) => {
+        console.error('Error loading profile data:', error);
+      }
+    });
+  }
+
+  // Helper to parse JSON array fields
+  private parseJsonArrayField(field: any): string[] {
+    if (!field) return [];
+    try {
+      if (typeof field === 'string') {
+        return JSON.parse(field);
+      }
+      if (Array.isArray(field)) {
+        return field;
+      }
+      return [];
+    } catch {
+      return [];
+    }
+  }
+
+  // Helper to parse JSON field and join with separator
+  private parseJsonField(field: any, separator: string = ', '): string {
+    const arr = this.parseJsonArrayField(field);
+    return arr.join(separator);
+  }
+
+  // Populate skills from array with proper categorization
+  private populateSkills(skills: string[]): void {
+    this.technicalSkills = skills
+      .filter(s => this.availableTechnicalSkills.includes(s.trim()))
+      .map(s => ({
+        name: s.trim(),
+        type: 'technical' as const,
+        category: 'Technical'
+      }));
+
+    this.softSkills = skills
+      .filter(s => this.availableSoftSkills.includes(s.trim()))
+      .map(s => ({
+        name: s.trim(),
+        type: 'soft' as const,
+        category: 'Soft'
+      }));
+
+    this.otherSkills = skills
+      .filter(s => !this.availableTechnicalSkills.includes(s.trim()) && !this.availableSoftSkills.includes(s.trim()))
+      .map(s => ({
+        name: s.trim(),
+        type: 'other' as const,
+        category: 'Other'
+      }));
+  }
+
+  // Load profile completion independently
+  private loadProfileCompletion(): void {
+    this.profileService.getDetailedProfileCompletion().subscribe({
+      next: (response) => {
+        if (response && response.data) {
+          this.completedSections = response.data.completedSections || [];
+          this.missingFields = response.data.missingFields || [];
+          this.completionRecommendations = response.data.recommendations || [];
+          this.profile.profileCompletion = response.data.completion || 0;
+         
+          console.log('Profile completion updated:', this.profile.profileCompletion);
+
+          // Frontend fix: Remove 'skills' from missingFields if selectedSkills is filled
+          if (this.profile.selectedSkills && this.profile.selectedSkills.length > 0) {
+            this.missingFields = this.missingFields.filter(f => f.toLowerCase().trim() !== 'skills');
+            // Optionally adjust completion percentage if skills was the only missing field
+            if (this.missingFields.length === 0) {
+              this.profile.profileCompletion = 100;
+            }
+          }
+        }
+      },
+      error: (error) => {
+        console.error('Error loading profile completion:', error);
+      }
+    });
   }
 
   private loadPortfolioData(): void {
@@ -143,90 +295,45 @@ export class ProfileComponent implements OnInit {
       next: (response) => {
         if (response.success && response.data) {
           this.portfolioData = response.data;
-          this.populateProfileFromPortfolio(response.data);
+          this.populatePortfolioFromData(response.data); // Renamed to avoid confusion
           this.loadShareableUrl();
         } else {
           console.error('No portfolio data found');
-          this.showNoPortfolioMessage();
+          // Don't show message, as profile can exist without portfolio
         }
         this.isLoading = false;
       },
       error: (error) => {
         console.error('Error loading portfolio:', error);
         if (error.status === 404 || error.error?.message?.includes('No CV found')) {
-          this.showNoPortfolioMessage();
+          // No portfolio, but profile can still be edited
         }
         this.isLoading = false;
       }
     });
   }
 
-  private showNoPortfolioMessage(): void {
-    alert('No portfolio found. Please create a CV in the CV Builder first.');
-    this.redirectToCVBuilder();
-  }
-
-  private populateProfileFromPortfolio(portfolio: PortfolioData): void {
+  private populatePortfolioFromData(portfolio: PortfolioData): void {
     const cvData = portfolio.cvData;
-    const personalInfo = cvData.personal_info || cvData.personal_info;
+    const personalInfo = cvData.personal_info || {};
 
-    // Personal Information
-    if (personalInfo) {
-      // PROFILE IMAGE - Get from CV data with proper URL handling
-      const profileImage = personalInfo.profile_image || personalInfo.profile_image;
-      if (profileImage) {
-        this.profile.profileImage = this.getFullImageUrl(profileImage);
-      } else {
-        this.profile.profileImage = 'assets/images/profile-placeholder.jpg';
-      }
-      
-      this.profile.fullName = personalInfo.full_name || personalInfo.full_name || '';
-      this.profile.email = personalInfo.email || '';
-      this.profile.phone = personalInfo.phone || '';
-      this.profile.location = personalInfo.address || '';
-      this.profile.about = personalInfo.professional_summary || personalInfo.professional_summary || '';
-      this.profile.linkedIn = personalInfo.linkedin_url || personalInfo.linkedIn;
-      this.profile.website = personalInfo.website_url || personalInfo.website;
-      this.profile.github = personalInfo.github_url || personalInfo.github;
-
-      // Extract title from first work experience if available
-      const workExp = cvData.work_experience || cvData.work_experience || [];
-      if (workExp.length > 0) {
-        this.profile.title = workExp[0].position;
-      }
-
-      // Build social links
-      this.buildSocialLinks(personalInfo);
+    // Override profile with CV data where applicable (e.g., title from experience)
+    const workExp = cvData.work_experience || [];
+    if (workExp.length > 0) {
+      this.profile.title = workExp[0].position;
     }
 
-    // Skills - categorize by type
-    if (cvData.skills && cvData.skills.length > 0) {
-      const technicalCategories = ['Technical', 'Programming', 'Software', 'Tools', 'Languages'];
-      
-      this.technicalSkills = cvData.skills
-        .filter(skill => 
-          technicalCategories.some(cat => 
-            skill.category?.toLowerCase().includes(cat.toLowerCase())
-          )
-        )
-        .map(skill => ({
-          name: skill.skill_name,
-          type: 'technical' as const,
-          level: skill.proficiency_level,
-          category: skill.category
-        }));
+    // Populate CV-based sections (non-editable here)
+    if (personalInfo.profile_image) {
+      this.profile.profileImage = this.getFullImageUrl(personalInfo.profile_image);
+    }
 
-      this.softSkills = cvData.skills
-        .filter(skill => 
-          !technicalCategories.some(cat => 
-            skill.category?.toLowerCase().includes(cat.toLowerCase())
-          )
-        )
-        .map(skill => ({
-          name: skill.skill_name,
-          type: 'soft' as const,
-          category: skill.category
-        }));
+    // Skills from CV if profile skills empty
+    if (this.technicalSkills.length === 0 && this.softSkills.length === 0 && this.otherSkills.length === 0 && cvData.skills) {
+      const cvSkills: Skill[] = cvData.skills;
+      const allSkills = cvSkills.map(s => s.skill_name);
+      this.profile.selectedSkills = allSkills;
+      this.populateSkills(allSkills);
     }
 
     // Education
@@ -293,10 +400,108 @@ export class ProfileComponent implements OnInit {
 
     // Portfolio settings
     this.isPublic = portfolio.settings?.is_public || false;
+  }
 
-    // Initialize completion data and calculate percentage based on fields
-    this.initializeCompletionData();
-    this.profile.profileCompletion = this.calculateCompletionPercentage();
+  // Toggle edit mode
+  toggleEditMode(): void {
+    this.isEditMode = !this.isEditMode;
+    if (!this.isEditMode) {
+      // On exit, save if changes made, but for simplicity, save on explicit save
+    }
+  }
+
+  // Toggle skill selection
+  toggleSkill(skill: string, event: any): void {
+    if (event.target.checked) {
+      if (!this.profile.selectedSkills.includes(skill)) {
+        this.profile.selectedSkills.push(skill);
+      }
+    } else {
+      this.profile.selectedSkills = this.profile.selectedSkills.filter(s => s !== skill);
+    }
+    // Re-populate to update categories
+    this.populateSkills(this.profile.selectedSkills);
+  }
+
+  // Add custom skill
+  addCustomSkill(): void {
+    if (this.newSkill.trim()) {
+      const skill = this.newSkill.trim();
+      if (!this.profile.selectedSkills.includes(skill)) {
+        this.profile.selectedSkills.push(skill);
+      }
+      this.newSkill = '';
+      // Re-populate to update categories
+      this.populateSkills(this.profile.selectedSkills);
+    }
+  }
+
+  // Save profile with completion refresh
+  saveProfile(): void {
+    const updates: any = {};
+    // Basic info
+    if (this.profile.phone !== undefined) updates.phone = this.profile.phone || null;
+    if (this.profile.location !== undefined) updates.location = this.profile.location || null;
+    // Summary
+    if (this.profile.about !== undefined) updates.bio = this.profile.about || null;
+    // Skills - handle as array
+    const skillsArray = this.profile.selectedSkills || [];
+    updates.skills = JSON.stringify(skillsArray);
+    // Social links
+    updates.linkedin_url = this.profile.socialLinksInput.linkedin || null;
+    updates.github_url = this.profile.socialLinksInput.github || null;
+    updates.website_url = this.profile.socialLinksInput.website || null;
+    // Career preferences
+    updates.years_of_experience = this.profile.yearsOfExperience || null;
+    updates.current_position = this.profile.currentPosition || null;
+    updates.availability_status = this.profile.availabilityStatus || null;
+    // Parse job types from textarea (newline separated)
+    const jobTypes = this.profile.preferredJobTypes
+      .split('\n')
+      .map(t => t.trim())
+      .filter(t => t);
+    updates.preferred_job_types = JSON.stringify(jobTypes);
+    // Parse locations from textarea (newline separated)
+    const locations = this.profile.preferredLocations
+      .split('\n')
+      .map(l => l.trim())
+      .filter(l => l);
+    updates.preferred_locations = JSON.stringify(locations);
+    updates.salary_expectation_min = this.profile.salaryMin || null;
+    updates.salary_expectation_max = this.profile.salaryMax || null;
+    if (Object.keys(updates).length > 0) {
+      this.profileService.updateProfile(updates).subscribe({
+        next: (response) => {
+          if (response.success) {
+            alert('Profile updated successfully!');
+            this.toggleEditMode();
+           
+            // Reload both profile data and completion
+            this.loadProfileData();
+            this.loadProfileCompletion();
+           
+            // Update display
+            this.buildSocialLinks();
+            this.populateSkills(skillsArray);
+          } else {
+            alert('Failed to update profile.');
+          }
+        },
+        error: (error) => {
+          console.error('Error saving profile:', error);
+          alert('Error updating profile. Please try again.');
+        }
+      });
+    } else {
+      alert('No changes to save.');
+      this.toggleEditMode();
+    }
+  }
+
+  // Cancel edit
+  cancelEdit(): void {
+    this.loadProfileData(); // Reload original data
+    this.toggleEditMode();
   }
 
   // Add helper method to get full image URL
@@ -323,122 +528,49 @@ export class ProfileComponent implements OnInit {
     event.target.src = 'assets/images/profile-placeholder.jpg';
   }
 
-  private initializeCompletionData(): void {
-    // Basic Information with multiple fields
-    const basicFields: Field[] = [
-      { field: 'Full Name', completed: !!this.profile.fullName, required: true },
-      { field: 'Email', completed: !!this.profile.email, required: true },
-      { field: 'Phone Number', completed: !!this.profile.phone, required: true },
-      { field: 'Profile Picture', completed: !!this.profile.profileImage && this.profile.profileImage !== 'assets/images/profile-placeholder.jpg', required: false },
-      { field: 'Location', completed: !!this.profile.location, required: false }
-    ];
-
-    this.completedSections = [
-      {
-        name: 'Basic Information',
-        completed: basicFields.every(f => f.completed),
-        weight: 20,
-        fields: basicFields
-      },
-      {
-        name: 'Professional Summary',
-        completed: !!this.profile.about && this.profile.about.trim().length > 0,
-        weight: 15,
-        fields: [{ field: 'Professional Summary', completed: !!this.profile.about && this.profile.about.trim().length > 0, required: true }]
-      },
-      {
-        name: 'Skills',
-        completed: (this.technicalSkills.length + this.softSkills.length) > 0,
-        weight: 15,
-        fields: [{ field: 'Skills Section', completed: (this.technicalSkills.length + this.softSkills.length) > 0, required: true }]
-      },
-      {
-        name: 'Work Experience',
-        completed: this.experiences.length > 0,
-        weight: 20,
-        fields: [{ field: 'Work Experience Section', completed: this.experiences.length > 0, required: true }]
-      },
-      {
-        name: 'Education',
-        completed: this.education.length > 0,
-        weight: 15,
-        fields: [{ field: 'Education Section', completed: this.education.length > 0, required: true }]
-      },
-      {
-        name: 'Certifications',
-        completed: this.certifications.length > 0,
-        weight: 5,
-        fields: [{ field: 'Certifications Section', completed: this.certifications.length > 0, required: true }]
-      },
-      {
-        name: 'Projects',
-        completed: this.projects.length > 0,
-        weight: 5,
-        fields: [{ field: 'Projects Section', completed: this.projects.length > 0, required: true }]
-      },
-      {
-        name: 'Social Links',
-        completed: this.socialLinks.length > 0,
-        weight: 5,
-        fields: [{ field: 'Social Links Section', completed: this.socialLinks.length > 0, required: false }]
-      }
-    ];
-
-    // Missing fields: collect incomplete field names from all sections
-    this.missingFields = this.completedSections
-      .flatMap(section => section.fields.filter(f => !f.completed).map(f => f.field))
-      .filter((field, index, self) => self.indexOf(field) === index);  // Unique
-
-    // Simple recommendations based on missing fields
-    this.completionRecommendations = [
-      '🎯 Almost there! Add more details to reach 100% completion and stand out to employers',
-      ...(this.missingFields.includes('Professional Summary') ? ['Add a compelling professional summary to introduce yourself to employers'] : []),
-      ...(this.missingFields.includes('Certifications Section') ? ['Consider adding professional certifications to strengthen your profile'] : [])
-    ].slice(0, 3); // Limit to 3
+  getCompletedFieldsCount(section: CompletedSection): number {
+    // Since backend sections may not have fields array, fallback to simple count
+    return section.completed ? 1 : 0;
   }
 
-  private calculateCompletionPercentage(): number {
-    let totalFilled = 0;
-    let totalFields = 0;
-
-    this.completedSections.forEach(section => {
-      const filled = this.getCompletedFieldsCount(section);
-      const total = this.getTotalFields(section);
-      totalFilled += filled;
-      totalFields += total;
-    });
-
-    return totalFields > 0 ? Math.round((totalFilled / totalFields) * 100) : 0;
+  getTotalFields(section: CompletedSection): number {
+    return 1; // Simplified for backend sections without fields
   }
 
-  getCompletedFieldsCount(section: Section): number {
-    return section.fields.filter(f => f.completed).length;
+  getIncompleteFields(section: CompletedSection): Field[] {
+    // Simplified, return empty if no fields detail
+    return [];
   }
 
-  getTotalFields(section: Section): number {
-    return section.fields.length;
-  }
-
-  getIncompleteFields(section: Section): Field[] {
-    return section.fields.filter(f => !f.completed);
+  // Build social links for display
+  private buildSocialLinks(): void {
+    this.socialLinks = [];
+    if (this.profile.linkedIn) {
+      this.socialLinks.push({
+        platform: 'LinkedIn',
+        url: this.profile.linkedIn,
+        icon: 'fab fa-linkedin'
+      });
+    }
+    if (this.profile.github) {
+      this.socialLinks.push({
+        platform: 'GitHub',
+        url: this.profile.github,
+        icon: 'fab fa-github'
+      });
+    }
+    if (this.profile.website) {
+      this.socialLinks.push({
+        platform: 'Website',
+        url: this.profile.website,
+        icon: 'fas fa-globe'
+      });
+    }
   }
 
   // NEW: Check if profile is complete (you can adjust the threshold as needed)
   isProfileComplete(): boolean {
     return this.profile.profileCompletion >= 80; // 80% or higher considered complete
-  }
-
-
-  // NEW: Complete Profile Action - Navigate to CV Manager
-  completeProfile(): void {
-    console.log('Navigating to CV Manager to complete profile...');
-    this.router.navigate(['jobseeker/cv-manager']); // Changed from cv-builder to match your routing
-  }
-
-  // NEW: Redirect to CV Manager
-  private redirectToCVBuilder(): void {
-    console.log('Redirecting to CV Manager to complete profile...');
-    this.router.navigate(['jobseeker/cv-manager']); // Changed from cv-builder to match your routing
   }
 
   // Image Upload Methods
@@ -469,8 +601,8 @@ export class ProfileComponent implements OnInit {
       next: (response) => {
         if (response.success) {
           this.profile.profileImage = response.imageUrl ?? 'assets/images/profile-placeholder.jpg'; // Update with server URL or fallback
-          this.initializeCompletionData(); // Recompute completion
-          this.profile.profileCompletion = this.calculateCompletionPercentage();
+          // Reload completion after update
+          this.loadProfileCompletion();
           alert('Profile image updated successfully!');
         }
         this.isLoading = false;
@@ -481,34 +613,6 @@ export class ProfileComponent implements OnInit {
         this.isLoading = false;
       }
     });
-  }
-
-  private buildSocialLinks(personalInfo: any): void {
-    this.socialLinks = [];
-
-    if (personalInfo.linkedin_url || personalInfo.linkedIn) {
-      this.socialLinks.push({
-        platform: 'LinkedIn',
-        url: personalInfo.linkedin_url || personalInfo.linkedIn,
-        icon: 'fab fa-linkedin'
-      });
-    }
-
-    if (personalInfo.github_url || personalInfo.github) {
-      this.socialLinks.push({
-        platform: 'GitHub',
-        url: personalInfo.github_url || personalInfo.github,
-        icon: 'fab fa-github'
-      });
-    }
-
-    if (personalInfo.website_url || personalInfo.website) {
-      this.socialLinks.push({
-        platform: 'Website',
-        url: personalInfo.website_url || personalInfo.website,
-        icon: 'fas fa-globe'
-      });
-    }
   }
 
   private calculateDuration(startDate: string, endDate: string | undefined, isCurrent: boolean): string {
@@ -541,10 +645,14 @@ export class ProfileComponent implements OnInit {
     });
   }
 
-  // Action Methods
+  // Action Methods - Updated to toggle edit mode
   editProfile(): void {
-    console.log('Navigating to CV Builder for profile editing...');
-    this.router.navigate(['jobseeker/cv-builder']);
+    this.toggleEditMode();
+  }
+
+  // Updated to save
+  completeProfile(): void {
+    this.saveProfile();
   }
 
   shareProfile(): void {
@@ -796,7 +904,7 @@ export class ProfileComponent implements OnInit {
   getSkillsByCategory(): Map<string, SkillDisplay[]> {
     const categorized = new Map<string, SkillDisplay[]>();
     
-    [...this.technicalSkills, ...this.softSkills].forEach(skill => {
+    [...this.technicalSkills, ...this.softSkills, ...this.otherSkills].forEach(skill => {
       const category = skill.category || 'General';
       if (!categorized.has(category)) {
         categorized.set(category, []);
@@ -817,15 +925,22 @@ export class ProfileComponent implements OnInit {
     return '#ef4444';
   }
 
-getCompletionColor(percentage: number): string {
-  // Red until 100% complete, then green
-  if (percentage === 100) return 'completion-green';
-  return 'completion-red';
-}
+  getCompletionColor(percentage: number): string {
+    // Red until 100% complete, then green
+    if (percentage === 100) return 'completion-green';
+    return 'completion-red';
+  }
 
-getProgressColor(percentage: number): string {
-  // Red until 100% complete
-  if (percentage === 100) return '#10b981'; // Green when complete
-  return '#ef4444'; // Red when incomplete
-}
+  getProgressColor(percentage: number): string {
+    // Red until 100% complete
+    if (percentage === 100) return '#10b981'; // Green when complete
+    return '#ef4444'; // Red when incomplete
+  }
+
+  copyLinkDirect(_t96: HTMLInputElement) {
+    throw new Error('Method not implemented.');
+  }
+  hideToast() {
+    throw new Error('Method not implemented.');
+  }
 }

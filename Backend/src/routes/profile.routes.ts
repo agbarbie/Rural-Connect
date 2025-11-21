@@ -19,6 +19,18 @@ router.get(
 );
 
 /**
+ * @route   PATCH /api/profile
+ * @desc    Update current user's profile
+ * @access  Private (Jobseeker)
+ */
+router.patch(
+  "/",
+  authenticate,
+  authorize("jobseeker"),
+  profileController.updateMyProfile.bind(profileController)
+);
+
+/**
  * @route   GET /api/profile/cv/:cvId
  * @desc    Get profile by specific CV ID
  * @access  Private (Jobseeker)

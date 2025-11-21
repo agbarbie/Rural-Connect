@@ -1,4 +1,4 @@
-// src/controllers/profile.controller.ts
+// src/controllers/profile.controller.ts - Fixed version
 import { Request, Response } from 'express';
 import pool from '../db/db.config';
 import crypto from 'crypto';
@@ -55,6 +55,132 @@ class ProfileController {
       res.status(500).json({ success: false, message: 'Server error' });
     }
   }
+
+  /**
+   * @desc Update current user's profile
+   * @route PATCH /api/profile
+   */
+/**
+ * @desc Update current user's profile
+ * @route PATCH /api/profile
+ */
+async updateMyProfile(req: Request, res: Response): Promise<void> {
+  try {
+    const userId = (req as any).user?.id;
+    if (!userId) {
+      res.status(401).json({ success: false, message: 'Unauthorized' });
+      return;
+    }
+
+    const updates = req.body;
+    console.log('Received updates:', JSON.stringify(updates, null, 2));
+
+    const allowedFields = [
+      'bio', 'skills', 'phone', 'location', 'portfolio_url',
+      'linkedin_url', 'github_url', 'years_of_experience',
+      'current_position', 'availability_status', 'preferred_job_types',
+      'preferred_locations', 'salary_expectation_min', 'salary_expectation_max'
+    ];
+    
+    const updateFields: any = {};
+    const arrayFields = ['skills', 'preferred_job_types', 'preferred_locations'];
+
+    for (const field of allowedFields) {
+      if (updates[field] !== undefined) {
+        if (arrayFields.includes(field)) {
+          try {
+            let arr: string[] = [];
+            
+            // Handle different input formats
+            if (Array.isArray(updates[field])) {
+              arr = updates[field];
+            } else if (typeof updates[field] === 'string') {
+              // Try parsing as JSON first
+              try {
+                const parsed = JSON.parse(updates[field]);
+                arr = Array.isArray(parsed) ? parsed : [];
+              } catch {
+                // If not JSON, split by comma/newline
+                arr = updates[field]
+                  .split(/[,\n]+/)
+                  .map((item: string) => item.trim())
+                  .filter((item: string) => item.length > 0);
+              }
+            }
+
+            // Clean and validate array items
+            arr = arr.map(item => String(item).trim()).filter(item => item.length > 0);
+
+            console.log(`Processed ${field}:`, arr);
+
+            // Store as JSON string (easier and more reliable than PG array format)
+            updateFields[field] = JSON.stringify(arr);
+          } catch (e) {
+            console.error(`Error processing array field ${field}:`, e);
+            updateFields[field] = '[]'; // Default to empty array JSON
+          }
+        } else {
+          updateFields[field] = updates[field];
+        }
+      }
+    }
+
+    // Map website_url to portfolio_url if sent
+    if (updates.website_url !== undefined) {
+      updateFields.portfolio_url = updates.website_url;
+    }
+
+    console.log('Final updateFields:', JSON.stringify(updateFields, null, 2));
+
+    if (Object.keys(updateFields).length === 0) {
+      res.status(400).json({ success: false, message: 'No valid fields to update' });
+      return;
+    }
+
+    const checkQuery = `SELECT id FROM jobseeker_profiles WHERE user_id = $1`;
+    const { rows: existing } = await pool.query(checkQuery, [userId]);
+
+    let query: string;
+    let values: any[];
+
+    if (existing.length === 0) {
+      // INSERT
+      const columns = Object.keys(updateFields).join(', ');
+      const placeholders = Object.keys(updateFields).map((_, i) => `$${i + 2}`).join(', ');
+      query = `
+        INSERT INTO jobseeker_profiles (user_id, ${columns})
+        VALUES ($1, ${placeholders})
+        RETURNING *
+      `;
+      values = [userId, ...Object.values(updateFields)];
+      
+      console.log('Executing INSERT query');
+      const { rows } = await pool.query(query, values);
+      res.status(201).json({ success: true, message: 'Profile created', data: rows[0] });
+    } else {
+      // UPDATE
+      const setClause = Object.keys(updateFields).map((field, i) => `${field} = $${i + 2}`).join(', ');
+      query = `
+        UPDATE jobseeker_profiles
+        SET ${setClause}, updated_at = NOW()
+        WHERE user_id = $1
+        RETURNING *
+      `;
+      values = [userId, ...Object.values(updateFields)];
+      
+      console.log('Executing UPDATE query');
+      const { rows } = await pool.query(query, values);
+      res.status(200).json({ success: true, message: 'Profile updated', data: rows[0] });
+    }
+  } catch (error) {
+    console.error('Error in updateMyProfile:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Server error',
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+}
 
   /**
    * @desc Get profile by CV ID
@@ -133,158 +259,166 @@ class ProfileController {
    * @desc Get detailed profile completion status
    * @route GET /api/profile/completion
    */
-  async getProfileCompletion(req: Request, res: Response): Promise<void> {
-    try {
-      const userId = (req as any).user?.id;
-      if (!userId) {
-        res.status(401).json({ success: false, message: 'Unauthorized' });
-        return;
-      }
-
-      // --- Fetch User + Profile
-      const userQuery = `
-        SELECT u.id, u.name, u.email, u.profile_picture,
-               p.id as profile_id, p.bio, p.skills, p.phone, p.location,
-               p.website_url, p.linkedin_url, p.github_url
-        FROM users u
-        LEFT JOIN jobseeker_profiles p ON u.id = p.user_id
-        WHERE u.id = $1
-      `;
-      const { rows: userRows } = await pool.query(userQuery, [userId]);
-
-      if (!userRows.length) {
-        res.status(404).json({ success: false, message: 'User not found' });
-        return;
-      }
-
-      const user = userRows[0];
-
-      // --- Fetch latest CV
-      const cvQuery = `
-        SELECT id, personal_info, skills, work_experience, education, certifications, projects
-        FROM cvs WHERE user_id = $1
-        ORDER BY updated_at DESC LIMIT 1
-      `;
-      const { rows: cvRows } = await pool.query(cvQuery, [userId]);
-      const latestCV = cvRows[0] || null;
-
-      // --- Begin Section Calculations
-      const sections: CompletedSection[] = [];
-      const missingFields: string[] = [];
-      const recommendations: string[] = [];
-
-      // Basic Info
-      const basicFields: FieldStatus[] = [
-        { field: 'Full Name', completed: !!user.name, required: true },
-        { field: 'Email', completed: !!user.email, required: true },
-        { field: 'Phone Number', completed: !!user.phone, required: true },
-        { field: 'Profile Picture', completed: !!user.profile_picture, required: false },
-        { field: 'Location', completed: !!user.location, required: false },
-      ];
-      const missingBasic = basicFields.filter(f => f.required && !f.completed);
-      missingBasic.forEach(f => missingFields.push(f.field));
-      sections.push({
-        name: 'Basic Information',
-        completed: missingBasic.length === 0,
-        weight: 20,
-        fields: basicFields,
-      });
-
-      // Summary
-      const hasSummary = !!user.bio || !!latestCV?.personal_info?.professional_summary;
-      if (!hasSummary) {
-        missingFields.push('Professional Summary');
-        recommendations.push('Add a professional summary to attract employers.');
-      }
-      sections.push({
-        name: 'Professional Summary',
-        completed: hasSummary,
-        weight: 15,
-      });
-
-      // Skills
-      let skillsCount = 0;
-      try {
-        if (user.skills) {
-          const parsed = JSON.parse(user.skills);
-          skillsCount = Array.isArray(parsed) ? parsed.length : 0;
-        } else if (latestCV?.skills) {
-          skillsCount = Array.isArray(latestCV.skills) ? latestCV.skills.length : 0;
-        }
-      } catch {
-        skillsCount = 0;
-      }
-      const hasSkills = skillsCount >= 3;
-      if (!hasSkills) {
-        missingFields.push('Skills');
-        recommendations.push('Add at least 3 relevant skills.');
-      }
-      sections.push({ name: 'Skills', completed: hasSkills, weight: 15 });
-
-      // Experience
-      const expCount = Array.isArray(latestCV?.work_experience) ? latestCV.work_experience.length : 0;
-      const hasExp = expCount > 0;
-      if (!hasExp) {
-        missingFields.push('Work Experience');
-        recommendations.push('Add your work experience.');
-      }
-      sections.push({ name: 'Work Experience', completed: hasExp, weight: 20 });
-
-      // Education
-      const eduCount = Array.isArray(latestCV?.education) ? latestCV.education.length : 0;
-      const hasEdu = eduCount > 0;
-      if (!hasEdu) {
-        missingFields.push('Education');
-        recommendations.push('Add your education background.');
-      }
-      sections.push({ name: 'Education', completed: hasEdu, weight: 15 });
-
-      // Certifications
-      const certCount = Array.isArray(latestCV?.certifications) ? latestCV.certifications.length : 0;
-      const hasCerts = certCount > 0;
-      if (!hasCerts) recommendations.push('Add professional certifications.');
-      sections.push({ name: 'Certifications', completed: hasCerts, weight: 5 });
-
-      // Projects
-      const projCount = Array.isArray(latestCV?.projects) ? latestCV.projects.length : 0;
-      const hasProjects = projCount > 0;
-      if (!hasProjects) recommendations.push('Showcase your projects.');
-      sections.push({ name: 'Projects', completed: hasProjects, weight: 5 });
-
-      // Social Links
-      const socials = [user.linkedin_url, user.github_url, user.website_url].filter(Boolean).length;
-      const hasSocials = socials >= 1;
-      if (!hasSocials) recommendations.push('Add your LinkedIn, GitHub, or Portfolio.');
-      sections.push({ name: 'Social Links', completed: hasSocials, weight: 5 });
-
-      // Calculate completion
-      const totalCompletion = sections.reduce(
-        (sum, s) => sum + (s.completed ? s.weight : 0),
-        0
-      );
-
-      const result: ProfileCompletionResult = {
-        completion: Math.round(totalCompletion),
-        missingFields,
-        completedSections: sections,
-        recommendations,
-      };
-
-      // Add status summary message
-      if (totalCompletion < 50) {
-        result.recommendations.unshift('🎯 Focus on completing Basic Info and Experience first.');
-      } else if (totalCompletion < 80) {
-        result.recommendations.unshift('💡 Add more details to reach 80% completion.');
-      } else {
-        result.recommendations.unshift('🎉 Excellent! Your profile is highly complete.');
-      }
-
-      res.status(200).json({ success: true, data: result });
-    } catch (error) {
-      console.error('Error in getProfileCompletion:', error);
-      res.status(500).json({ success: false, message: 'Server error' });
+/**
+ * @desc Get detailed profile completion status
+ * @route GET /api/profile/completion
+ */
+async getProfileCompletion(req: Request, res: Response): Promise<void> {
+  try {
+    const userId = (req as any).user?.id;
+    if (!userId) {
+      res.status(401).json({ success: false, message: 'Unauthorized' });
+      return;
     }
+
+    // Fetch User + Profile
+    const userQuery = `
+      SELECT u.id, u.name, u.email, u.profile_picture,
+             p.id as profile_id, p.bio, p.skills, p.phone, p.location,
+             p.portfolio_url as website_url, p.linkedin_url, p.github_url,
+             p.years_of_experience, p.current_position, p.availability_status,
+             p.preferred_job_types, p.preferred_locations,
+             p.salary_expectation_min, p.salary_expectation_max
+      FROM users u
+      LEFT JOIN jobseeker_profiles p ON u.id = p.user_id
+      WHERE u.id = $1
+    `;
+    const { rows: userRows } = await pool.query(userQuery, [userId]);
+
+    if (!userRows.length) {
+      res.status(404).json({ success: false, message: 'User not found' });
+      return;
+    }
+
+    const user = userRows[0];
+
+    // Parse skills from JSONB or JSON string
+    let skillsCount = 0;
+    try {
+      if (user.skills) {
+        let parsed;
+        if (typeof user.skills === 'string') {
+          parsed = JSON.parse(user.skills);
+        } else {
+          parsed = user.skills;
+        }
+        skillsCount = Array.isArray(parsed) ? parsed.length : 0;
+      }
+    } catch {
+      skillsCount = 0;
+    }
+
+    // Parse social links count
+    let socialLinksCount = 0;
+    if (user.linkedin_url) socialLinksCount++;
+    if (user.github_url) socialLinksCount++;
+    if (user.website_url) socialLinksCount++;
+
+    // Section Calculations
+    const sections: CompletedSection[] = [];
+    const missingFields: string[] = [];
+    const recommendations: string[] = [];
+
+    // 1. Basic Information (30%)
+    const basicFields = [
+      { field: 'Full Name', completed: !!user.name, required: true },
+      { field: 'Email', completed: !!user.email, required: true },
+      { field: 'Phone Number', completed: !!user.phone, required: true },
+      { field: 'Profile Picture', completed: !!user.profile_picture, required: false },
+      { field: 'Location', completed: !!user.location, required: true },
+    ];
+    const missingBasic = basicFields.filter(f => f.required && !f.completed);
+    missingBasic.forEach(f => missingFields.push(f.field));
+    
+    sections.push({
+      name: 'Basic Information',
+      completed: missingBasic.length === 0,
+      weight: 30,
+      fields: basicFields,
+    });
+
+    // 2. Professional Summary (20%)
+    const hasSummary = !!user.bio && user.bio.length >= 50;
+    if (!hasSummary) {
+      missingFields.push('Professional Summary');
+      recommendations.push('Add a compelling professional summary (at least 50 characters).');
+    }
+    sections.push({
+      name: 'Professional Summary',
+      completed: hasSummary,
+      weight: 20,
+    });
+
+    // 3. Skills (25%)
+    const hasSkills = skillsCount >= 3;
+    if (!hasSkills) {
+      missingFields.push('Skills');
+      recommendations.push(`Add ${hasSkills ? 'more' : 'at least 3'} relevant skills to your profile.`);
+    }
+    sections.push({ 
+      name: 'Skills', 
+      completed: hasSkills, 
+      weight: 25 
+    });
+
+    // 4. Social Links (15%)
+    const hasSocialLinks = socialLinksCount >= 1;
+    if (!hasSocialLinks) {
+      missingFields.push('Social Links');
+      recommendations.push('Add at least one professional link (LinkedIn, GitHub, or Portfolio).');
+    }
+    sections.push({ 
+      name: 'Social Links', 
+      completed: hasSocialLinks, 
+      weight: 15 
+    });
+
+    // 5. Career Preferences (10%)
+    const hasCareerPrefs = !!(
+      user.years_of_experience || 
+      user.current_position || 
+      user.availability_status
+    );
+    if (!hasCareerPrefs) {
+      missingFields.push('Career Preferences');
+      recommendations.push('Add your career preferences and work experience details.');
+    }
+    sections.push({ 
+      name: 'Career Preferences', 
+      completed: hasCareerPrefs, 
+      weight: 10 
+    });
+
+    // Calculate total completion
+    const totalCompletion = sections.reduce(
+      (sum, s) => sum + (s.completed ? s.weight : 0),
+      0
+    );
+
+    const result = {
+      completion: Math.round(totalCompletion),
+      missingFields,
+      completedSections: sections,
+      recommendations,
+    };
+
+    // Add personalized status message
+    if (totalCompletion === 100) {
+      result.recommendations.unshift('🎉 Perfect! Your profile is complete and ready to impress employers.');
+    } else if (totalCompletion >= 80) {
+      result.recommendations.unshift('💪 Almost there! Just a few more details to reach 100%.');
+    } else if (totalCompletion >= 50) {
+      result.recommendations.unshift('📈 Good progress! Add more details to stand out to employers.');
+    } else {
+      result.recommendations.unshift('⚠️ Your profile needs attention. Complete it to attract more opportunities.');
+    }
+
+    res.status(200).json({ success: true, data: result });
+  } catch (error) {
+    console.error('Error in getProfileCompletion:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
   }
+}
 
   /**
    * @desc Generate shareable profile link
