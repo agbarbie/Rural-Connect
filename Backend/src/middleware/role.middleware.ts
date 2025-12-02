@@ -14,20 +14,20 @@ export const authorizeRoles = (...roles: string[]) => {
         message: 'Authentication required'
       });
     }
-
     if (!roles.includes(req.user.user_type)) {
       return res.status(403).json({
         success: false,
         message: 'Insufficient permissions'
       });
     }
-
     return next();
   };
 };
 
 // Export as 'authorize' to match routes import
 export const authorize = authorizeRoles;
+
+export const requireRole = authorizeRoles;
 
 export const isJobseeker = (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   if (!req.user) {
@@ -36,7 +36,6 @@ export const isJobseeker = (req: AuthenticatedRequest, res: Response, next: Next
       message: 'Authentication required'
     });
   }
-
   if (req.user.user_type !== 'jobseeker') {
     return res.status(403).json({
       success: false,

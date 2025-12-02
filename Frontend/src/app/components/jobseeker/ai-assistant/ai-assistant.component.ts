@@ -14,6 +14,8 @@ interface JobRecommendation {
   company: string;
   logo: string;
   salary: string;
+  location?: string;
+  description?: string;
   skills: Array<{
     name: string;
     status: 'matched' | 'partial' | 'missing';
@@ -66,27 +68,25 @@ interface ChatMessage {
 })
 export class AiAssistantComponent implements OnInit, AfterViewInit {
   @ViewChild('skillsChart', { static: false }) skillsChart!: ElementRef<HTMLCanvasElement>;
-
   userMessage: string = '';
   selectedSkill: string = '';
   isLoading: boolean = false;
   isInitializing: boolean = true;
+  isLoadingInsights: boolean = false;
   showPremiumModal: boolean = false;
   portfolioData: PortfolioData | null = null;
+  lastInitTime: string | null = null;
   
   userData = {
     name: 'User',
     avatar: 'assets/images/profile-placeholder.jpg',
     topSkills: [] as Array<{ name: string; level: string }>
   };
-
   jobRecommendations: JobRecommendation[] = [];
   trainingRecommendations: TrainingRecommendation[] = [];
   skillsProgress: SkillProgress[] = [];
   conversationMessages: ChatMessage[] = [];
-
   deadlines: Deadline[] = [];
-
   skillsChartData = {
     labels: [] as string[],
     userSkills: [] as number[],
@@ -118,40 +118,76 @@ export class AiAssistantComponent implements OnInit, AfterViewInit {
       this.userData.name = currentUser.name;
     }
     
+    // Optionally cache profile in localStorage for faster subsequent loads
+    const cachedProfile = localStorage.getItem('cached_portfolio');
+    if (cachedProfile) {
+      try {
+        const parsed = JSON.parse(cachedProfile);
+        this.portfolioData = parsed;
+        this.populateUserDataFromPortfolio(parsed);
+        // Proceed to check for updates
+        this.checkForProfileUpdates();
+        return;
+      } catch (e) {
+        console.warn('Cached profile invalid, loading fresh');
+      }
+    }
+    
     this.profileService.getMyPortfolio().subscribe({
       next: (response) => {
         if (response.success && response.data) {
           this.portfolioData = response.data;
+          // Cache the profile
+          localStorage.setItem('cached_portfolio', JSON.stringify(response.data));
           this.populateUserDataFromPortfolio(response.data);
-          
-          // Initialize Gemini recommendations
-          this.initializeGeminiRecommendations();
+          this.checkForProfileUpdates();
         } else {
           this.useDefaultData();
-          this.isInitializing = false;
+          this.finishInitialization();
         }
       },
       error: (error) => {
         console.error('Error loading portfolio:', error);
         this.useDefaultData();
-        this.isInitializing = false;
+        this.finishInitialization();
       }
     });
   }
 
-  private async initializeGeminiRecommendations(): Promise<void> {
+  private checkForProfileUpdates(): void {
+    // Assume portfolio.cvData.updated_at exists; adjust if different
+    const profileUpdatedAt = this.portfolioData?.cvData?.updated_at || this.portfolioData?.updatedAt || new Date().toISOString();
+    this.lastInitTime = localStorage.getItem('ai_assistant_last_init');
+
+    if (!this.lastInitTime || new Date(profileUpdatedAt) > new Date(this.lastInitTime)) {
+      // Profile updated or first time, load insights in background
+      this.loadInsightsInBackground(profileUpdatedAt);
+    } else {
+      // Use cached insights if available, or skip
+      this.loadCachedInsights();
+    }
+    
+    this.finishInitialization();
+  }
+
+  private async loadInsightsInBackground(updatedAt?: string): Promise<void> {
+    this.isLoadingInsights = true;
     try {
       // Get initial career recommendations from Gemini
       const response = await this.geminiService.getInitialRecommendations().toPromise();
       
       if (response?.success) {
+        // Clear previous recommendations
+        this.jobRecommendations = [];
+        this.trainingRecommendations = [];
+        this.conversationMessages = [];
+
         // Map Gemini job recommendations to frontend format
         if (response.recommendations?.matchedJobs) {
-          this.jobRecommendations = response.recommendations.matchedJobs.map(job => 
+          this.jobRecommendations = response.recommendations.matchedJobs.map(job =>
             this.mapGeminiJobToFrontend(job)
           );
         }
-
         // Generate training recommendations based on skill gaps
         if (response.recommendations?.skillGaps) {
           this.trainingRecommendations = this.generateTrainingFromSkillGaps(
@@ -159,24 +195,64 @@ export class AiAssistantComponent implements OnInit, AfterViewInit {
             response.recommendations.learningPaths || []
           );
         }
-
-        // Add initial AI message with recommendations
+        // Add initial AI message with recommendations - Updated text for better engagement
         if (response.message) {
           this.conversationMessages.push({
             type: 'ai',
-            content: response.message,
+            content: response.message + '<br><br><strong>Ready to dive deeper?</strong> Ask me about specific roles, salary insights, or skill upgrades!',
             timestamp: new Date(),
             recommendations: response.recommendations
           });
         }
+
+        // Update last init time
+        if (updatedAt) {
+          localStorage.setItem('ai_assistant_last_init', updatedAt);
+        }
+
+        // Cache insights
+        localStorage.setItem('cached_insights', JSON.stringify({
+          jobRecommendations: this.jobRecommendations,
+          trainingRecommendations: this.trainingRecommendations,
+          conversationMessages: this.conversationMessages
+        }));
       }
     } catch (error) {
       console.error('Error getting Gemini recommendations:', error);
       // Fallback to static recommendations if Gemini fails
       this.generateStaticRecommendations();
     } finally {
-      this.isInitializing = false;
+      this.isLoadingInsights = false;
     }
+  }
+
+  private loadCachedInsights(): void {
+    const cachedInsights = localStorage.getItem('cached_insights');
+    if (cachedInsights) {
+      try {
+        const parsed = JSON.parse(cachedInsights);
+        this.jobRecommendations = parsed.jobRecommendations || [];
+        this.trainingRecommendations = parsed.trainingRecommendations || [];
+        this.conversationMessages = parsed.conversationMessages || [];
+      } catch (e) {
+        console.warn('Cached insights invalid, skipping');
+      }
+    }
+  }
+
+  private finishInitialization(): void {
+    this.isInitializing = false;
+  }
+
+  refreshInsights(): void {
+    if (this.isLoading || this.isLoadingInsights) return;
+    // Force refresh by clearing cache and reloading
+    localStorage.removeItem('ai_assistant_last_init');
+    localStorage.removeItem('cached_insights');
+    this.conversationMessages = [];
+    this.jobRecommendations = [];
+    this.trainingRecommendations = [];
+    this.loadInsightsInBackground(new Date().toISOString());
   }
 
   private mapGeminiJobToFrontend(geminiJob: any): JobRecommendation {
@@ -189,6 +265,8 @@ export class AiAssistantComponent implements OnInit, AfterViewInit {
       company: geminiJob.company,
       logo: this.getCompanyIcon(geminiJob.company),
       salary: this.formatSalary(geminiJob.salary_min, geminiJob.salary_max),
+      location: geminiJob.location || 'Nairobi, KE',
+      description: geminiJob.description || 'A dynamic role where you can apply your skills to real-world challenges.',
       skills: requiredSkills.slice(0, 4).map((skill: string) => ({
         name: this.capitalizeSkill(skill),
         status: this.getSkillMatchStatus(skill, userSkills)
@@ -202,7 +280,7 @@ export class AiAssistantComponent implements OnInit, AfterViewInit {
   private getSkillMatchStatus(skill: string, userSkills: string[]): 'matched' | 'partial' | 'missing' {
     const skillLower = skill.toLowerCase();
     const hasExactMatch = userSkills.some(us => us === skillLower);
-    const hasPartialMatch = userSkills.some(us => 
+    const hasPartialMatch = userSkills.some(us =>
       us.includes(skillLower) || skillLower.includes(us)
     );
     
@@ -241,11 +319,11 @@ export class AiAssistantComponent implements OnInit, AfterViewInit {
   ): TrainingRecommendation[] {
     return skillGaps.slice(0, 3).map((skill, idx) => ({
       id: `training-${idx}`,
-      title: `Master ${this.capitalizeSkill(skill)}`,
+      title: `Master ${this.capitalizeSkill(skill)} Fundamentals`,
       provider: this.getTrainingProvider(skill),
       duration: '4-8 weeks',
       level: 'Intermediate',
-      description: learningPaths[idx] || `Build expertise in ${skill} to match more job opportunities`,
+      description: `${learningPaths[idx] || 'Hands-on projects and expert guidance to bridge your skill gap and unlock senior roles.'} Ideal for advancing your career in tech.`,
       icon: this.getSkillIcon(skill),
       enrolled: false
     }));
@@ -283,7 +361,6 @@ export class AiAssistantComponent implements OnInit, AfterViewInit {
   private generateStaticRecommendations(): void {
     const cvData = this.portfolioData?.cvData;
     const userSkills = cvData?.skills?.map(s => s.skill_name.toLowerCase()) || [];
-
     this.jobRecommendations = this.getJobRecommendationsBasedOnSkills(userSkills);
     this.trainingRecommendations = this.getTrainingRecommendationsBasedOnGaps(userSkills);
   }
@@ -291,21 +368,19 @@ export class AiAssistantComponent implements OnInit, AfterViewInit {
   private populateUserDataFromPortfolio(portfolio: PortfolioData): void {
     const cvData = portfolio.cvData;
     const personalInfo = cvData.personal_info || cvData.personal_info;
-
     if (personalInfo) {
-      this.userData.name = personalInfo.full_name || 
-                          personalInfo.full_name || 
-                          personalInfo.name || 
+      this.userData.name = personalInfo.full_name ||
+                          personalInfo.full_name ||
+                          personalInfo.name ||
                           'User';
       
-      const profileImage = personalInfo.profile_image || 
-                          personalInfo.profile_image || 
+      const profileImage = personalInfo.profile_image ||
+                          personalInfo.profile_image ||
                           personalInfo.image;
       if (profileImage) {
         this.userData.avatar = this.getFullImageUrl(profileImage);
       }
     }
-
     if (cvData.skills && cvData.skills.length > 0) {
       const sortedSkills = [...cvData.skills].sort((a, b) => {
         const levelOrder = { 'Expert': 4, 'Advanced': 3, 'Intermediate': 2, 'Beginner': 1 };
@@ -313,29 +388,25 @@ export class AiAssistantComponent implements OnInit, AfterViewInit {
         const bLevel = levelOrder[b.proficiency_level as keyof typeof levelOrder] || 0;
         return bLevel - aLevel;
       });
-
       this.userData.topSkills = sortedSkills.slice(0, 3).map(skill => ({
         name: skill.skill_name,
         level: this.mapSkillLevel(skill.proficiency_level)
       }));
-
       const topSkillsForChart = sortedSkills.slice(0, 6);
       this.skillsChartData.labels = topSkillsForChart.map(s => s.skill_name);
       this.skillsChartData.userSkills = topSkillsForChart.map(s => this.getProficiencyNumber(s.proficiency_level));
       this.skillsChartData.marketDemand = topSkillsForChart.map(() => Math.floor(Math.random() * 30) + 70);
-
       this.skillsProgress = sortedSkills.slice(0, 3).map(skill => ({
         name: skill.skill_name,
         current: this.getProficiencyNumber(skill.proficiency_level),
         change: Math.floor(Math.random() * 20) + 5,
-        note: `${skill.category || 'General'} skill`
+        note: `${skill.category || 'Core'} skill - Keep building!`
       }));
     }
   }
 
   async sendMessage(): Promise<void> {
     if (!this.userMessage.trim() || this.isLoading) return;
-
     const message = this.userMessage.trim();
     
     this.conversationMessages.push({
@@ -343,10 +414,8 @@ export class AiAssistantComponent implements OnInit, AfterViewInit {
       content: message,
       timestamp: new Date()
     });
-
     this.userMessage = '';
     this.isLoading = true;
-
     try {
       // Send message to Gemini service
       const response = await this.geminiService.sendMessage(
@@ -354,21 +423,18 @@ export class AiAssistantComponent implements OnInit, AfterViewInit {
         this.conversationMessages.filter(m => m.type !== 'user' || m.content)
           .map(m => ({ role: m.type === 'user' ? 'user' : 'assistant', content: m.content }))
       ).toPromise();
-
       if (response?.success) {
         const aiMessage: ChatMessage = {
           type: 'ai',
-          content: response.message,
+          content: response.message + '<br><br><em>Pro Tip:</em> Refine your query for even better results, like adding location or salary preferences!',
           timestamp: new Date()
         };
-
         // Add job cards if recommendations include matched jobs
         if (response.recommendations?.matchedJobs && response.recommendations.matchedJobs.length > 0) {
           aiMessage.cards = response.recommendations.matchedJobs
-            .slice(0, 2)
+            .slice(0, 3)  // Show up to 3 for explorer-like feel
             .map(job => this.mapGeminiJobToFrontend(job));
         }
-
         // Add training cards if skill gaps are mentioned
         if (response.recommendations?.skillGaps && response.recommendations.skillGaps.length > 0) {
           const trainingCards = this.generateTrainingFromSkillGaps(
@@ -378,9 +444,11 @@ export class AiAssistantComponent implements OnInit, AfterViewInit {
           
           if (!aiMessage.cards) {
             aiMessage.cards = trainingCards;
+          } else if (aiMessage.cards.length < 3) {
+            // Append if space
+            aiMessage.cards = [...aiMessage.cards, ...trainingCards.slice(0, 3 - aiMessage.cards.length)];
           }
         }
-
         this.conversationMessages.push(aiMessage);
         
         setTimeout(() => {
@@ -390,10 +458,10 @@ export class AiAssistantComponent implements OnInit, AfterViewInit {
     } catch (error) {
       console.error('Error sending message to Gemini:', error);
       
-      // Fallback response
+      // Fallback response with better text
       this.conversationMessages.push({
         type: 'ai',
-        content: "I'm sorry, I'm having trouble processing your request right now. Please try again in a moment.",
+        content: "Oops, a momentary glitch! I'm back online. Try rephrasing your question or ask about 'top Python jobs in Nairobi' for quick wins.",
         timestamp: new Date()
       });
     } finally {
@@ -470,10 +538,12 @@ export class AiAssistantComponent implements OnInit, AfterViewInit {
     const jobDatabase = [
       {
         id: '1',
-        title: 'Data Analyst',
+        title: 'Senior Data Analyst',
         company: 'Microsoft Kenya',
         logo: 'fab fa-microsoft',
         salary: 'KSh 180,000 - 250,000',
+        location: 'Nairobi',
+        description: 'Analyze complex datasets to drive business decisions.',
         requiredSkills: ['sql', 'data analysis', 'python', 'r', 'statistics']
       },
       {
@@ -482,6 +552,8 @@ export class AiAssistantComponent implements OnInit, AfterViewInit {
         company: 'Google Africa',
         logo: 'fab fa-google',
         salary: 'KSh 200,000 - 300,000',
+        location: 'Nairobi',
+        description: 'Design intuitive interfaces for global users.',
         requiredSkills: ['ui/ux', 'figma', 'design', 'react', 'angular']
       },
       {
@@ -490,13 +562,14 @@ export class AiAssistantComponent implements OnInit, AfterViewInit {
         company: 'Safaricom PLC',
         logo: 'fas fa-building',
         salary: 'KSh 150,000 - 220,000',
+        location: 'Nairobi',
+        description: 'Build responsive web apps with modern frameworks.',
         requiredSkills: ['html', 'css', 'javascript', 'react', 'node.js']
       }
     ];
-
     return jobDatabase.map(job => {
       const skills = job.requiredSkills.map(skill => {
-        const hasSkill = userSkills.some(userSkill => 
+        const hasSkill = userSkills.some(userSkill =>
           userSkill.includes(skill) || skill.includes(userSkill)
         );
         
@@ -505,13 +578,14 @@ export class AiAssistantComponent implements OnInit, AfterViewInit {
           status: hasSkill ? 'matched' as const : 'missing' as const
         };
       }).slice(0, 4);
-
       return {
         id: job.id,
         title: job.title,
         company: job.company,
         logo: job.logo,
         salary: job.salary,
+        location: job.location,
+        description: job.description,
         skills: skills,
         applied: false,
         saved: false
@@ -527,7 +601,7 @@ export class AiAssistantComponent implements OnInit, AfterViewInit {
         provider: 'Coursera • Google',
         duration: '6 weeks',
         level: 'Intermediate',
-        description: 'Complete your data analysis toolkit with Python.',
+        description: 'Master Python libraries like Pandas and NumPy for data manipulation.',
         icon: 'fab fa-python',
         relatedSkills: ['python', 'data analysis']
       },
@@ -537,12 +611,11 @@ export class AiAssistantComponent implements OnInit, AfterViewInit {
         provider: 'Udemy',
         duration: '4 weeks',
         level: 'Intermediate',
-        description: 'Expand your frontend skills with Angular.',
+        description: 'Build scalable apps with Angular\'s component-based architecture.',
         icon: 'fab fa-angular',
         relatedSkills: ['angular', 'frontend']
       }
     ];
-
     return trainingDatabase
       .filter(training => {
         const hasRelatedSkill = training.relatedSkills.some(skill =>
@@ -564,17 +637,13 @@ export class AiAssistantComponent implements OnInit, AfterViewInit {
 
   initializeSkillsChart(): void {
     if (!this.skillsChart || this.skillsChartData.labels.length === 0) return;
-
     const canvas = this.skillsChart.nativeElement;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
-
     const centerX = canvas.width / 2;
     const centerY = canvas.height / 2;
     const radius = Math.min(centerX, centerY) - 40;
-
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-
     ctx.strokeStyle = '#e2e8f0';
     ctx.lineWidth = 1;
     for (let i = 1; i <= 5; i++) {
@@ -582,20 +651,16 @@ export class AiAssistantComponent implements OnInit, AfterViewInit {
       ctx.arc(centerX, centerY, (radius / 5) * i, 0, 2 * Math.PI);
       ctx.stroke();
     }
-
     const numPoints = this.skillsChartData.labels.length;
     const angleStep = (2 * Math.PI) / numPoints;
-
     for (let i = 0; i < numPoints; i++) {
       const angle = i * angleStep - Math.PI / 2;
       const x = centerX + radius * Math.cos(angle);
       const y = centerY + radius * Math.sin(angle);
-
       ctx.beginPath();
       ctx.moveTo(centerX, centerY);
       ctx.lineTo(x, y);
       ctx.stroke();
-
       ctx.fillStyle = '#64748b';
       ctx.font = '12px Inter';
       ctx.textAlign = 'center';
@@ -603,38 +668,32 @@ export class AiAssistantComponent implements OnInit, AfterViewInit {
       const labelY = centerY + (radius + 20) * Math.sin(angle);
       ctx.fillText(this.skillsChartData.labels[i], labelX, labelY);
     }
-
     ctx.beginPath();
     ctx.strokeStyle = '#667eea';
     ctx.fillStyle = 'rgba(102, 126, 234, 0.2)';
     ctx.lineWidth = 2;
-
     for (let i = 0; i < numPoints; i++) {
       const angle = i * angleStep - Math.PI / 2;
       const value = this.skillsChartData.userSkills[i];
       const distance = (value / 100) * radius;
       const x = centerX + distance * Math.cos(angle);
       const y = centerY + distance * Math.sin(angle);
-
       if (i === 0) ctx.moveTo(x, y);
       else ctx.lineTo(x, y);
     }
     ctx.closePath();
     ctx.fill();
     ctx.stroke();
-
     ctx.beginPath();
     ctx.strokeStyle = '#10b981';
     ctx.fillStyle = 'rgba(16, 185, 129, 0.1)';
     ctx.lineWidth = 2;
-
     for (let i = 0; i < numPoints; i++) {
       const angle = i * angleStep - Math.PI / 2;
       const value = this.skillsChartData.marketDemand[i];
       const distance = (value / 100) * radius;
       const x = centerX + distance * Math.cos(angle);
       const y = centerY + distance * Math.sin(angle);
-
       if (i === 0) ctx.moveTo(x, y);
       else ctx.lineTo(x, y);
     }
@@ -654,12 +713,12 @@ export class AiAssistantComponent implements OnInit, AfterViewInit {
 
   showInsights(): void {
     this.sendMessage();
-    this.userMessage = 'Can you give me career insights based on my profile?';
+    this.userMessage = 'Provide detailed career insights and market trends for my profile';
   }
 
   showSkillPlan(): void {
     this.sendMessage();
-    this.userMessage = 'Create a skill growth plan for me';
+    this.userMessage = 'Generate a 6-month skill development plan with milestones';
   }
 
   applyToJob(jobId: string): void {
@@ -691,38 +750,10 @@ export class AiAssistantComponent implements OnInit, AfterViewInit {
     return cards.length > 0 && cards[0].hasOwnProperty('provider');
   }
 
-  getSkillTagClass(status: string): string {
-    return `skill-tag ${status}`;
-  }
-
   getProgressChangeClass(change: number): string {
     if (change > 10) return 'progress-change positive';
     if (change > 0) return 'progress-change neutral';
     return 'progress-change negative';
-  }
-
-  getDeadlineClass(deadline: Deadline): string {
-    return deadline.urgent ? 'deadline-item urgent' : 'deadline-item normal';
-  }
-
-  formatDeadline(date: Date): string {
-    const now = new Date();
-    const diffTime = date.getTime() - now.getTime();
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-
-    if (diffDays === 0) return 'Due today';
-    if (diffDays === 1) return 'Due tomorrow';
-    if (diffDays < 7) return `Due in ${diffDays} days`;
-    return 'Next week';
-  }
-
-  getDeadlineIcon(type: string): string {
-    switch (type) {
-      case 'job': return 'fas fa-briefcase';
-      case 'training': return 'fas fa-graduation-cap';
-      case 'meeting': return 'fas fa-user-friends';
-      default: return 'fas fa-calendar';
-    }
   }
 
   onSimulate(): void {

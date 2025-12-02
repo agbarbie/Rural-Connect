@@ -1,42 +1,11 @@
-import { Component, OnInit } from '@angular/core';
+// src/app/employer/candidates/candidates.component.ts - FIXED VERSION
+import { Component, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { Router } from '@angular/router';
+import { Subject, takeUntil, finalize } from 'rxjs';
 import { SidebarComponent } from '../../shared/sidebar/sidebar.component';
-interface Candidate {
-  id: number;
-  name: string;
-  title: string;
-  profilePicture: string;
-  matchScore: number;
-  skills: string[];
-  certifications: Certification[];
-  experience: string;
-  location: string;
-  availability: string;
-  lastActive: string;
-  recentWork: string;
-  isShortlisted: boolean;
-  isSelected: boolean;
-}
-
-interface Certification {
-  name: string;
-  verified: boolean;
-  progress: number;
-}
-
-interface JobPost {
-  id: number;
-  title: string;
-  matchCount: number;
-}
-
-interface AIInsight {
-  reason: string;
-  skillOverlap: string[];
-  experienceRelevance: string;
-  trainingMatch: string;
-}
+import { CandidatesService, Candidate, JobPost, CandidatesQuery } from '../../../../../services/candidates.service';
 
 @Component({
   selector: 'app-candidates',
@@ -45,394 +14,446 @@ interface AIInsight {
   templateUrl: './candidates.component.html',
   styleUrls: ['./candidates.component.css']
 })
-export class CandidatesComponent implements OnInit {
-  selectedJob: number = 1;
-  jobPosts: JobPost[] = [
-    { id: 1, title: 'Backend Developer', matchCount: 15 },
-    { id: 2, title: 'Frontend Developer', matchCount: 8 },
-    { id: 3, title: 'Full-Stack Developer', matchCount: 12 }
-  ];
-
+export class CandidatesComponent implements OnInit, OnDestroy {
+promoteJob() {
+throw new Error('Method not implemented.');
+}
+onSearchSubmit() {
+throw new Error('Method not implemented.');
+}
+  private destroy$ = new Subject<void>();
+  // Data properties
+  candidates: Candidate[] = [];
+  filteredCandidates: Candidate[] = [];
+  jobPosts: JobPost[] = [];
+  // UI state
+  selectedJob: string = '';
   viewMode: 'grid' | 'list' = 'grid';
+  isLoading: boolean = false;
+ 
+  // Filters
   searchQuery = '';
   skillsMatchFilter = '';
   locationFilter = '';
   experienceFilter = '';
   trainingFilter = '';
-  sortBy = 'bestMatch';
-
-  selectedCandidates: number[] = [];
-  // showComparison = false; // Removed duplicate declaration
+  sortBy = 'match_score';
+  // Selection
+  selectedCandidates: string[] = [];
   showBatchActions = false;
-
-  // AI Insights
-  currentInsight: AIInsight | null = null;
-  
-  // Chatbot
-  isChatOpen = false;
-  currentMessage = '';
-
-  candidates: Candidate[] = [
-    {
-      id: 1,
-      name: 'Jane Mwangi',
-      profilePicture: 'https://images.unsplash.com/photo-1494790108755-2616b96fb53d?w=100&h=100&fit=crop&crop=face',
-      matchScore: 92,
-      skills: ['Node.js', 'Express', 'MongoDB', 'REST APIs', 'JavaScript'],
-      certifications: [
-        { name: 'Backend Development Certification', verified: true, progress: 100 },
-        { name: 'Database Management', verified: true, progress: 100 }
-      ],
-      experience: '4 years in Backend Development',
-      location: 'Nairobi, Kenya',
-      availability: 'Available immediately',
-      isShortlisted: false,
-      isSelected: false,
-      title: 'Backend Developer',
-      lastActive: '2 hours ago',
-      recentWork: 'Senior Backend Developer at TechStart'
-    },
-    {
-      id: 2,
-      name: 'David Kimani',
-      profilePicture: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=100&h=100&fit=crop&crop=face',
-      matchScore: 87,
-      skills: ['Python', 'Django', 'PostgreSQL', 'Docker', 'AWS'],
-      certifications: [
-        { name: 'Python Backend Specialist', verified: true, progress: 100 },
-        { name: 'Cloud Architecture', verified: false, progress: 75 }
-      ],
-      experience: '5 years in Full-Stack Development',
-      location: 'Mombasa, Kenya',
-      availability: '2 weeks notice',
-      isShortlisted: true,
-      isSelected: false,
-      title: 'Full-Stack Developer',
-      lastActive: '1 day ago',
-      recentWork: 'Lead Developer at InnovateKenya'
-    },
-    {
-      id: 3,
-      name: 'Sarah Wanjiku',
-      profilePicture: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=100&h=100&fit=crop&crop=face',
-      matchScore: 84,
-      skills: ['Java', 'Spring Boot', 'MySQL', 'Microservices', 'Git'],
-      certifications: [
-        { name: 'Java Enterprise Development', verified: true, progress: 100 }
-      ],
-      experience: '3 years in Backend Development',
-      location: 'Kisumu, Kenya',
-      availability: '1 month notice',
-      isShortlisted: false,
-      isSelected: false,
-      title: 'Backend Developer',
-      lastActive: '3 hours ago',
-      recentWork: 'Backend Developer at DataSolutions'
-    },
-    {
-      id: 4,
-      name: 'Michael Ochieng',
-      profilePicture: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop&crop=face',
-      matchScore: 89,
-      skills: ['Node.js', 'GraphQL', 'Redis', 'Docker', 'TypeScript'],
-      certifications: [
-        { name: 'Advanced Backend Architecture', verified: true, progress: 100 },
-        { name: 'DevOps Fundamentals', verified: true, progress: 100 }
-      ],
-      experience: '6 years in Backend Development',
-      location: 'Eldoret, Kenya',
-      availability: 'Available immediately',
-      isShortlisted: false,
-      isSelected: false,
-      title: 'Senior Backend Developer',
-      lastActive: '30 minutes ago',
-      recentWork: 'Tech Lead at ScaleUp Solutions'
-    },
-    {
-      id: 5,
-      name: 'Grace Nyong',
-      profilePicture: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=100&h=100&fit=crop&crop=face',
-      matchScore: 76,
-      skills: ['PHP', 'Laravel', 'MySQL', 'Vue.js', 'API Development'],
-      certifications: [
-        { name: 'Full-Stack PHP Development', verified: false, progress: 90 }
-      ],
-      experience: '2 years in Web Development',
-      location: 'Nakuru, Kenya',
-      availability: '3 weeks notice',
-      isShortlisted: false,
-      isSelected: false,
-      title: 'PHP Developer',
-      lastActive: '5 hours ago',
-      recentWork: 'Junior Developer at WebCraft'
-    }
-  ];
-
-  filteredCandidates: Candidate[] = [];
-  // Filter and sort options
-  skillFilter = '';
-  certificationFilter = '';
-  
-  // AI Chat
-  chatMessages: { type: 'user' | 'ai'; content: string }[] = [
-    { type: 'ai', content: 'Hello! I can help you understand candidate matches. Ask me anything about these candidates!' }
-  ];
-
   // Pagination
   currentPage = 1;
   itemsPerPage = 6;
-  
-  // Comparison modal
+  totalPages = 1;
+  totalCandidates = 0;
+ 
+  // Modals
   showComparison = false;
-Math: any;
-
+  currentInsight: any = null;
+ 
+  // AI Chat
+  isChatOpen = false;
+  currentMessage = '';
+  chatMessages: { type: 'user' | 'ai'; content: string }[] = [
+    { type: 'ai', content: 'Hello! I can help you understand candidate matches. Ask me anything about these candidates!' }
+  ];
+  // Expose Math to template
+  Math = Math;
+  constructor(
+    private candidatesService: CandidatesService,
+    private router: Router
+  ) {}
   ngOnInit() {
-    this.filteredCandidates = [...this.candidates];
-    this.sortCandidates();
+    console.log('🚀 Candidates Component initialized');
+    this.loadJobPosts();
   }
-
-  // Filter methods
-  applyFilters() {
-    this.filteredCandidates = this.candidates.filter(candidate => {
-      const matchesSearch = !this.searchQuery || 
-        candidate.name.toLowerCase().includes(this.searchQuery.toLowerCase()) ||
-        candidate.skills.some(skill => skill.toLowerCase().includes(this.searchQuery.toLowerCase()));
-      
-      const matchesSkillsMatch = !this.skillsMatchFilter || candidate.matchScore >= parseInt(this.skillsMatchFilter);
-      const matchesLocation = !this.locationFilter || candidate.location.toLowerCase().includes(this.locationFilter.toLowerCase());
-      const matchesExperience = !this.experienceFilter || candidate.experience.toLowerCase().includes(this.experienceFilter.toLowerCase());
-      const matchesTraining = !this.trainingFilter || candidate.certifications.some(cert => 
-        cert.name.toLowerCase().includes(this.trainingFilter.toLowerCase()) && cert.verified
-      );
-      
-      return matchesSearch && matchesSkillsMatch && matchesLocation && matchesExperience && matchesTraining;
-    });
-    this.sortCandidates();
+  ngOnDestroy() {
+    this.destroy$.next();
+    this.destroy$.complete();
+  }
+  /**
+   * Load employer's job posts
+   */
+  loadJobPosts(): void {
+    console.log('📋 Loading job posts...');
+   
+    this.candidatesService.getJobPosts()
+      .pipe(
+        takeUntil(this.destroy$),
+        finalize(() => console.log('✅ Job posts load completed'))
+      )
+      .subscribe({
+        next: (response) => {
+          if (response.success && response.data) {
+            this.jobPosts = response.data;
+           
+            // Auto-select first job if available
+            if (this.jobPosts.length > 0 && !this.selectedJob) {
+              this.selectedJob = this.jobPosts[0].id;
+              this.loadCandidates();
+            }
+           
+            console.log('✅ Job posts loaded:', this.jobPosts.length);
+          }
+        },
+        error: (error) => {
+          console.error('❌ Error loading job posts:', error);
+        }
+      });
+  }
+  /**
+   * Load candidates based on filters
+   */
+  loadCandidates(): void {
+    console.log('🔄 Loading candidates...');
+   
+    this.isLoading = true;
+    const query: CandidatesQuery = {
+      job_id: this.selectedJob || undefined,
+      match_score_min: this.skillsMatchFilter ? parseInt(this.skillsMatchFilter) : undefined,
+      location: this.locationFilter || undefined,
+      experience: this.experienceFilter || undefined,
+      training: this.trainingFilter || undefined,
+      sort_by: this.sortBy as any,
+      page: this.currentPage,
+      limit: this.itemsPerPage
+    };
+    this.candidatesService.getCandidates(query)
+      .pipe(
+        takeUntil(this.destroy$),
+        finalize(() => {
+          this.isLoading = false;
+          console.log('✅ Candidates load completed');
+        })
+      )
+      .subscribe({
+        next: (response) => {
+          console.log('📦 Raw API response:', response);
+          if (response.success && response.data) {
+            // FIXED: Ensure candidates is always an array
+            this.candidates = Array.isArray(response.data.data) ? response.data.data : [];
+            this.filteredCandidates = [...this.candidates];
+           
+            // Update pagination
+            this.totalCandidates = response.data.pagination?.total || 0;
+            this.totalPages = response.data.pagination?.total_pages || 1;
+            this.currentPage = response.data.pagination?.page || 1;
+           
+            // Apply client-side search filter if present
+            if (this.searchQuery) {
+              this.applyClientSideSearch();
+            }
+           
+            console.log('✅ Candidates loaded:', {
+              count: this.candidates.length,
+              total: this.totalCandidates,
+              page: this.currentPage,
+              totalPages: this.totalPages
+            });
+          } else {
+            // Handle error case - reset to empty array
+            this.candidates = [];
+            this.filteredCandidates = [];
+            this.totalCandidates = 0;
+            this.totalPages = 1;
+            this.currentPage = 1;
+            console.log('⚠️ No data received, reset to empty state');
+          }
+        },
+        error: (error) => {
+          console.error('❌ Error loading candidates:', error);
+          // Reset to empty state on error
+          this.candidates = [];
+          this.filteredCandidates = [];
+          this.totalCandidates = 0;
+          this.totalPages = 1;
+          this.currentPage = 1;
+        }
+      });
+  }
+  /**
+   * Apply client-side search filter (supplement to backend filtering)
+   */
+  applyClientSideSearch(): void {
+    if (!this.searchQuery) {
+      this.filteredCandidates = [...this.candidates];
+      return;
+    }
+    const query = this.searchQuery.toLowerCase();
+    this.filteredCandidates = this.candidates.filter(candidate =>
+      candidate.name.toLowerCase().includes(query) ||
+      candidate.title.toLowerCase().includes(query) ||
+      (candidate.skills && candidate.skills.some(skill => skill.toLowerCase().includes(query)))
+    );
+  }
+  /**
+   * Filter change handlers
+   */
+  onJobChange(): void {
+    console.log('🔄 Job changed to:', this.selectedJob);
     this.currentPage = 1;
+    this.clearSelection();
+    this.loadCandidates();
   }
-
-  clearFilters() {
+  applyFilters(): void {
+    console.log('🔍 Applying filters...');
+    this.currentPage = 1;
+    this.loadCandidates();
+  }
+  clearFilters(): void {
     this.searchQuery = '';
     this.skillsMatchFilter = '';
     this.locationFilter = '';
     this.experienceFilter = '';
     this.trainingFilter = '';
-    this.filteredCandidates = [...this.candidates];
-    this.sortCandidates();
+    this.sortBy = 'match_score';
+    this.currentPage = 1;
+    this.loadCandidates();
   }
-
-  sortCandidates() {
-    this.filteredCandidates.sort((a, b) => {
-      switch (this.sortBy) {
-        case 'bestMatch':
-          return b.matchScore - a.matchScore;
-        case 'mostExperienced':
-          return parseInt(b.experience) - parseInt(a.experience);
-        case 'recentlyActive':
-          return this.compareLastActive(a.lastActive, b.lastActive);
-        default:
-          return 0;
-      }
-    });
+  sortCandidates(): void {
+    this.currentPage = 1;
+    this.loadCandidates();
   }
-
-  compareLastActive(a: string, b: string): number {
-    // Simple comparison - in real app, would parse actual timestamps
-    if (a.includes('minutes')) return -1;
-    if (b.includes('minutes')) return 1;
-    if (a.includes('hours') && b.includes('day')) return -1;
-    if (b.includes('hours') && a.includes('day')) return 1;
-    return 0;
-  }
-
-  onJobChange() {
-    // Simulate fetching candidates for different job
-    this.applyFilters();
-  }
-
-  toggleViewMode() {
+  /**
+   * View mode toggle
+   */
+  toggleViewMode(): void {
     this.viewMode = this.viewMode === 'grid' ? 'list' : 'grid';
   }
-
-  // Selection methods
-  toggleCandidateSelection(candidateId: number) {
+  /**
+   * Selection methods
+   */
+  toggleCandidateSelection(candidateId: string): void {
     const index = this.selectedCandidates.indexOf(candidateId);
     if (index > -1) {
       this.selectedCandidates.splice(index, 1);
     } else {
       this.selectedCandidates.push(candidateId);
     }
-    this.showBatchActions = this.selectedCandidates.length > 0;
-    
+   
     // Update candidate selection status
     const candidate = this.candidates.find(c => c.id === candidateId);
     if (candidate) {
-      candidate.isSelected = this.selectedCandidates.includes(candidateId);
+      candidate.is_selected = this.selectedCandidates.includes(candidateId);
     }
+   
+    this.showBatchActions = this.selectedCandidates.length > 0;
   }
-
-  selectAllVisible() {
-    this.paginatedCandidates.forEach(candidate => {
+  selectAllVisible(): void {
+    this.filteredCandidates.forEach(candidate => {
       if (!this.selectedCandidates.includes(candidate.id)) {
         this.selectedCandidates.push(candidate.id);
-        candidate.isSelected = true;
+        candidate.is_selected = true;
       }
     });
     this.showBatchActions = true;
   }
-
-  clearSelection() {
+  clearSelection(): void {
     this.selectedCandidates = [];
-    this.candidates.forEach(c => c.isSelected = false);
+    this.candidates.forEach(c => c.is_selected = false);
     this.showBatchActions = false;
   }
-
-  // Batch actions
-  shortlistSelected() {
-    this.selectedCandidates.forEach(id => {
-      const candidate = this.candidates.find(c => c.id === id);
-      if (candidate) candidate.isShortlisted = true;
+  /**
+   * Batch actions
+   */
+  shortlistSelected(): void {
+    console.log('⭐ Shortlisting selected candidates:', this.selectedCandidates);
+   
+    if (!this.selectedJob) {
+      alert('Please select a job first');
+      return;
+    }
+    const promises = this.selectedCandidates.map(candidateId =>
+      this.candidatesService.toggleShortlist(candidateId, this.selectedJob).toPromise()
+    );
+    Promise.all(promises).then(() => {
+      console.log('✅ Batch shortlist completed');
+      this.loadCandidates();
+      this.clearSelection();
+    }).catch(error => {
+      console.error('❌ Error in batch shortlist:', error);
+      alert('Failed to shortlist some candidates. Please try again.');
     });
-    this.clearSelection();
   }
-
-  sendBulkInvites() {
-    console.log('Sending bulk invites to:', this.selectedCandidates);
-    // Implement bulk invite functionality
-    this.clearSelection();
+  sendBulkInvites(): void {
+    console.log('📧 Sending bulk invites to:', this.selectedCandidates);
+   
+    if (!this.selectedJob) {
+      alert('Please select a job first');
+      return;
+    }
+    const message = prompt('Enter invitation message (optional):') ||
+      'You have been invited to apply for this position based on your profile.';
+    this.candidatesService.sendBulkInvitations(this.selectedCandidates, this.selectedJob, message)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: () => {
+          console.log('✅ Bulk invites sent');
+          alert('Invitations sent successfully!');
+          this.clearSelection();
+        },
+        error: (error) => {
+          console.error('❌ Error sending invites:', error);
+          alert('Failed to send invitations. Please try again.');
+        }
+      });
   }
-
-  // Individual actions
-  viewFullProfile(candidateId: number) {
-    console.log('Viewing full profile for candidate:', candidateId);
-    // Navigate to candidate profile
+  /**
+   * Individual candidate actions
+   */
+  viewFullProfile(candidateId: string): void {
+    console.log('👤 Viewing profile:', candidateId);
+    this.router.navigate(['/employer/candidate-profile', candidateId], {
+      queryParams: { jobId: this.selectedJob }
+    });
   }
-
-  inviteToApply(candidateId: number) {
-    console.log('Inviting candidate to apply:', candidateId);
-    // Send invitation
+  toggleShortlist(candidate: Candidate): void {
+    if (!this.selectedJob) {
+      alert('Please select a job first');
+      return;
+    }
+    this.candidatesService.toggleShortlist(candidate.id, this.selectedJob)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (response) => {
+          if (response.success) {
+            candidate.is_shortlisted = response.data.is_shortlisted;
+            console.log('✅ Shortlist toggled:', candidate.is_shortlisted);
+          }
+        },
+        error: (error) => {
+          console.error('❌ Error toggling shortlist:', error);
+        }
+      });
   }
-
-  startChat(candidateId: number) {
-    console.log('Starting chat with candidate:', candidateId);
-    // Open chat interface
+  inviteToApply(candidateId: string): void {
+    if (!this.selectedJob) {
+      alert('Please select a job first');
+      return;
+    }
+    const message = prompt('Enter invitation message (optional):') ||
+      'You have been invited to apply for this position based on your profile.';
+    this.candidatesService.inviteCandidate(candidateId, this.selectedJob, message)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: () => {
+          console.log('✅ Invitation sent');
+          alert('Invitation sent successfully!');
+        },
+        error: (error) => {
+          console.error('❌ Error sending invitation:', error);
+          alert('Failed to send invitation. Please try again.');
+        }
+      });
   }
-
-  showAIInsights(candidate: Candidate) {
+  startChat(candidateId: string): void {
+    console.log('💬 Starting chat with:', candidateId);
+    // Navigate to messaging interface
+    this.router.navigate(['/employer/messages'], {
+      queryParams: { userId: candidateId }
+    });
+  }
+  requestInterview(candidateId: string): void {
+    console.log('📅 Requesting interview with:', candidateId);
+    // Navigate to interview scheduling
+    this.router.navigate(['/employer/schedule-interview'], {
+      queryParams: { candidateId, jobId: this.selectedJob }
+    });
+  }
+  /**
+   * AI Insights
+   */
+  showAIInsights(candidate: Candidate): void {
     this.currentInsight = {
-      reason: `High match due to strong ${candidate.skills.slice(0, 2).join(' and ')} skills`,
+      reason: `High match (${candidate.match_score}%) due to strong ${candidate.skills.slice(0, 2).join(' and ')} skills`,
       skillOverlap: candidate.skills.slice(0, 3),
-      experienceRelevance: `${candidate.experience} aligns perfectly with job requirements`,
-      trainingMatch: candidate.certifications.length > 0 ? candidate.certifications[0].name : 'No specific training match'
+      experienceRelevance: candidate.experience,
+      trainingMatch: candidate.certifications.length > 0 ?
+        candidate.certifications[0].name : 'No specific training match'
     };
   }
-
-  hideAIInsights() {
+  hideAIInsights(): void {
     this.currentInsight = null;
   }
-
-  // Candidate actions
-  toggleShortlist(candidate: Candidate) {
-    candidate.isShortlisted = !candidate.isShortlisted;
+  /**
+   * AI Chat
+   */
+  toggleChat(): void {
+    this.isChatOpen = !this.isChatOpen;
   }
-
-  toggleSelection(candidate: Candidate) {
-    candidate.isSelected = !candidate.isSelected;
-    if (candidate.isSelected) {
-      if (!this.selectedCandidates.includes(candidate.id)) {
-        this.selectedCandidates.push(candidate.id);
-      }
-    } else {
-      this.selectedCandidates = this.selectedCandidates.filter(id => id !== candidate.id);
+  sendMessage(): void {
+    if (this.currentMessage.trim()) {
+      this.chatMessages.push({ type: 'user', content: this.currentMessage });
+     
+      setTimeout(() => {
+        this.generateAIResponse(this.currentMessage);
+      }, 1000);
+     
+      this.currentMessage = '';
     }
   }
-
-  requestInterview(candidateId: number) {
-    console.log('Requesting interview with candidate:', candidateId);
-    // Open interview scheduling modal
+  generateAIResponse(message: string): void {
+    let response = '';
+    const lowerMessage = message.toLowerCase();
+   
+    if (lowerMessage.includes('top') || lowerMessage.includes('best')) {
+      const topCandidates = this.candidates
+        .sort((a, b) => b.match_score - a.match_score)
+        .slice(0, 5);
+      response = `Top candidates: ${topCandidates.map(c => `${c.name} (${c.match_score}%)`).join(', ')}`;
+    } else if (lowerMessage.includes('certified') || lowerMessage.includes('training')) {
+      const certified = this.candidates.filter(c =>
+        c.certifications.some(cert => cert.verified)
+      );
+      response = `${certified.length} candidates have verified certifications: ${certified.map(c => c.name).join(', ')}`;
+    } else if (lowerMessage.includes('available')) {
+      const available = this.candidates.filter(c =>
+        c.availability.includes('immediately')
+      );
+      response = `${available.length} candidates are available immediately: ${available.map(c => c.name).join(', ')}`;
+    } else {
+      response = 'I can help you find the best candidates! Try asking: "Who are the top candidates?" or "Show certified candidates"';
+    }
+   
+    this.chatMessages.push({ type: 'ai', content: response });
   }
-
-  // Comparison
-  openComparison() {
+  /**
+   * Pagination
+   */
+  get paginatedCandidates(): Candidate[] {
+    return this.filteredCandidates;
+  }
+  changePage(page: number): void {
+    if (page >= 1 && page <= this.totalPages) {
+      this.currentPage = page;
+      this.loadCandidates();
+    }
+  }
+  /**
+   * Comparison
+   */
+  openComparison(): void {
     if (this.selectedCandidates.length >= 2) {
       this.showComparison = true;
     }
   }
-
-  closeComparison() {
+  closeComparison(): void {
     this.showComparison = false;
   }
-
-  // AI Chat
-  toggleChat() {
-    this.isChatOpen = !this.isChatOpen;
-  }
-
-  sendMessage() {
-    if (this.currentMessage.trim()) {
-      this.chatMessages.push({ type: 'user', content: this.currentMessage });
-      
-      // Simulate AI response
-      setTimeout(() => {
-        this.generateAIResponse(this.currentMessage);
-      }, 1000);
-      
-      this.currentMessage = '';
-    }
-  }
-
-  generateAIResponse(message: string) {
-    let response = '';
-    const lowerMessage = message.toLowerCase();
-    
-    if (lowerMessage.includes('top 5') || lowerMessage.includes('best matches')) {
-      response = `Based on the Backend Developer role, your top 5 matches are: Jane Mwangi (92%), Michael Ochieng (89%), David Kimani (87%), Sarah Wanjiku (84%), and Grace Nyong (76%). Jane and Michael have the strongest Node.js and backend architecture skills.`;
-    } else if (lowerMessage.includes('completed training') || lowerMessage.includes('certified')) {
-      const certifiedCandidates = this.candidates.filter(c => c.certifications.some(cert => cert.verified));
-      response = `${certifiedCandidates.length} candidates have completed training: ${certifiedCandidates.map(c => c.name).join(', ')}. They have verified certifications in backend development, database management, and cloud architecture.`;
-    } else if (lowerMessage.includes('70%') || lowerMessage.includes('match')) {
-      const highMatches = this.candidates.filter(c => c.matchScore >= 70);
-      response = `${highMatches.length} candidates have 70%+ match scores. The highest matches are Jane Mwangi (92%) and Michael Ochieng (89%) - both have strong backend skills and relevant experience.`;
-    } else if (lowerMessage.includes('available') || lowerMessage.includes('immediate')) {
-      const available = this.candidates.filter(c => c.availability.includes('immediately'));
-      response = `${available.length} candidates are available immediately: ${available.map(c => c.name).join(', ')}. Perfect for urgent hiring needs!`;
-    } else {
-      response = 'I can help you find the best candidates! Try asking: "Who are the top 5 matches?" or "Show only candidates who completed training" or "Who has 80%+ match scores?"';
-    }
-    
-    this.chatMessages.push({ type: 'ai', content: response });
-  }
-
-  // Pagination
-  get paginatedCandidates() {
-    const startIndex = (this.currentPage - 1) * this.itemsPerPage;
-    return this.filteredCandidates.slice(startIndex, startIndex + this.itemsPerPage);
-  }
-
-  get totalPages() {
-    return Math.ceil(this.filteredCandidates.length / this.itemsPerPage);
-  }
-
-  changePage(page: number) {
-    if (page >= 1 && page <= this.totalPages) {
-      this.currentPage = page;
-    }
-  }
-
-  // Export
-  downloadReport() {
-    console.log('Downloading candidate report...');
-    // Implement export functionality
-  }
-
+  /**
+   * Helper methods
+   */
   getMatchScoreClass(score: number): string {
     if (score >= 90) return 'match-excellent';
     if (score >= 80) return 'match-good';
     if (score >= 70) return 'match-fair';
     return 'match-low';
   }
-
-  getConfidenceClass(confidence: string): string {
-    return `confidence-${confidence.toLowerCase()}`;
+  downloadReport(): void {
+    console.log('📥 Downloading candidate report...');
+    // Implement CSV/PDF export
+  }
+  toggleSelection(candidate: Candidate): void {
+    this.toggleCandidateSelection(candidate.id);
   }
 }

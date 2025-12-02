@@ -18,6 +18,7 @@ export interface PortfolioData {
 }
 
 export interface CVData {
+  updated_at: any;
   personal_info: {
     name: string;
     image: string | undefined;

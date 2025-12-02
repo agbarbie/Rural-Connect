@@ -8,15 +8,16 @@
 }
 
 body {
-  font-family: "Poppins", sans-serif;
+  font-family: "Inter", sans-serif;
   line-height: 1.6;
   color: #333;
+  overflow-x: hidden;
 }
 
 .container {
   max-width: 1200px;
   margin: 0 auto;
-  padding: 0 15px;
+  padding: 0 20px;
 }
 
 .header {
@@ -39,13 +40,13 @@ body {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  font-size: 1.5rem;
+  font-size: clamp(1.2rem, 2.5vw, 1.5rem);
   font-weight: 700;
   color: #22c55e;
 }
 
 .logo i {
-  font-size: 1.8rem;
+  font-size: clamp(1.5rem, 3vw, 1.8rem);
 }
 
 .nav {
@@ -59,6 +60,7 @@ body {
   color: #64748b;
   font-weight: 500;
   transition: color 0.3s ease;
+  font-size: 0.95rem;
 }
 
 .nav a:hover {
@@ -74,6 +76,9 @@ body {
   font-weight: 500;
   cursor: pointer;
   transition: all 0.3s ease;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
 }
 
 .btn-login:hover {
@@ -90,6 +95,9 @@ body {
   font-weight: 500;
   cursor: pointer;
   transition: background 0.3s ease;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
 }
 
 .btn-signup:hover {
@@ -140,30 +148,18 @@ body {
   gap: 0.5rem;
   padding: 1rem;
 }
-/* .job-vacancies {
-  background: url('https://media.licdn.com/dms/image/v2/D4E12AQFwjnlaeVS3YQ/article-cover_image-shrink_600_2000/article-cover_image-shrink_600_2000/0/1721310704848?e=2147483647&v=beta&t=b-qw8eTvMKKnG2X5PQJPDrGNjLCKT9nEeVVsRF1S018') no-repeat center center/cover;
-  padding: 120px 0;
-  position: relative;
-  color: #fff;
-  text-align: center;
-  height: 100vh;
-  display: flex;
-  align-items: center;
-}
-@keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
-} */
+
 .job-vacancies {
   background: url('https://media.licdn.com/dms/image/v2/D4E12AQFwjnlaeVS3YQ/article-cover_image-shrink_600_2000/article-cover_image-shrink_600_2000/0/1721310704848?e=2147483647&v=beta&t=b-qw8eTvMKKnG2X5PQJPDrGNjLCKT9nEeVVsRF1S018') 
     no-repeat center center;
   background-size: cover;
-  background-attachment: scroll;
-  padding: 120px 0;
+  background-attachment: fixed;
+  background-position: center;
+  padding: clamp(60px, 10vw, 120px) 0;
   position: relative;
   color: #fff;
   text-align: center;
-  min-height: 100vh;
+  min-height: 80vh;
   display: flex;
   align-items: center;
   animation: zoomBackground 6s ease-in-out infinite alternate;
@@ -171,13 +167,12 @@ body {
 
 @keyframes zoomBackground {
   0% {
-    background-size: 110%;
+    background-size: 100%;
   }
   100% {
-    background-size: 120%;
+    background-size: 110%;
   }
 }
-
 
 .job-vacancies::before {
   content: '';
@@ -186,7 +181,7 @@ body {
   left: 0;
   width: 100%;
   height: 100%;
-  background: rgba(0, 0, 0, 0.6);
+  background: linear-gradient(135deg, rgba(34, 197, 94, 0.2), rgba(0, 0, 0, 0.3));
   z-index: 1;
 }
 
@@ -200,24 +195,24 @@ body {
 }
 
 .job-vacancies h1 {
-  font-size: 3.5rem;
+  font-size: clamp(2rem, 5vw, 3.5rem);
   font-weight: 800;
   margin-bottom: 1.5rem;
   line-height: 1.2;
-  text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+  text-shadow: 0 2px 4px rgba(0,0,0,0.5);
 }
 
 .job-vacancies .highlight {
   color: #22c55e;
-  text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+  text-shadow: 0 2px 4px rgba(0,0,0,0.5);
 }
 
 .job-vacancies p {
-  font-size: 1.25rem;
-  color: rgba(255,255,255,0.9);
+  font-size: clamp(1rem, 2.5vw, 1.25rem);
+  color: rgba(255,255,255,0.95);
   margin-bottom: 2.5rem;
   line-height: 1.6;
-  text-shadow: 0 1px 2px rgba(0,0,0,0.3);
+  text-shadow: 0 1px 2px rgba(0,0,0,0.5);
 }
 
 .vacancies-links {
@@ -232,26 +227,34 @@ body {
   background: #22c55e;
   color: white;
   border: none;
-  padding: 1rem 2.5rem;
+  padding: clamp(0.75rem, 2vw, 1rem) clamp(1.5rem, 4vw, 2.5rem);
   border-radius: 8px;
   font-weight: 600;
-  font-size: 1.1rem;
+  font-size: clamp(0.9rem, 2vw, 1.1rem);
   transition: all 0.3s ease;
   box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
 }
 
 .vacancies-content .btn-link {
   background-color: #22c55e;
   color: white;
   border: none;
-  padding: 10px 20px;
+  padding: clamp(0.5rem, 1.5vw, 0.75rem) clamp(1rem, 3vw, 1.5rem);
   border-radius: 6px;
   font-weight: 600;
-  font-size: 1.1rem;
+  font-size: clamp(0.85rem, 2vw, 1.1rem);
   cursor: pointer;
-  transition: background-color 0.3s ease, color 0.3s ease;
+  transition: all 0.3s ease;
   text-decoration: none;
   display: inline-block;
+  min-height: 44px;
+  align-items: center;
+  justify-content: center;
 }
 
 .vacancies-content .btn-link:hover {
@@ -261,49 +264,46 @@ body {
   border: 1px solid #22c55e;
 }
 
-
 .job-vacancies .btn-primary:hover {
   background: #16a34a;
   transform: translateY(-3px);
   box-shadow: 0 6px 12px rgba(0,0,0,0.15);
 }
-.container {
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 0 20px;
-}
 
 .powerful-features {
-  padding: 60px 0;
+  padding: clamp(40px, 8vw, 60px) 0;
   text-align: center;
 }
 
 .powerful-features h2 {
-  font-size: 2.5rem;
+  font-size: clamp(1.8rem, 4vw, 2.5rem);
   margin-bottom: 20px;
 }
 
 .powerful-features p {
-  font-size: 1.1rem;
+  font-size: clamp(0.95rem, 2vw, 1.1rem);
   color: #666;
   margin-bottom: 40px;
+  max-width: 600px;
+  margin-left: auto;
+  margin-right: auto;
 }
 
 .features-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-  gap: 30px;
+  gap: clamp(20px, 4vw, 30px);
 }
 
 .feature-card {
   background: #ffffff;
   border-radius: 10px;
-  padding: 20px;
+  padding: clamp(15px, 3vw, 20px);
   box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
 }
 
 .feature-card h3 {
-  font-size: 1.5rem;
+  font-size: clamp(1.2rem, 2.5vw, 1.5rem);
   margin-bottom: 15px;
 }
 
@@ -322,6 +322,8 @@ body {
 .progress-bar span {
   font-weight: bold;
   color: #333;
+  min-width: 100px;
+  flex-shrink: 0;
 }
 
 .progress {
@@ -329,6 +331,7 @@ body {
   background: #e0e0e0;
   border-radius: 5px;
   flex-grow: 1;
+  min-width: 100px;
 }
 
 .progress[style*="width: 95%"] {
@@ -349,19 +352,19 @@ body {
 }
 
 .premium-simulator {
-  padding: 60px 0;
+  padding: clamp(40px, 8vw, 60px) 0;
   background: linear-gradient(135deg, #f0f9ff 0%, #f0fdf4 100%);
 }
 
 .simulator-content {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 3rem;
+  gap: clamp(2rem, 5vw, 3rem);
   align-items: start;
 }
 
 .simulator-description h3 {
-  font-size: 1.8rem;
+  font-size: clamp(1.4rem, 3vw, 1.8rem);
   color: #1e293b;
   margin-bottom: 1rem;
 }
@@ -393,7 +396,7 @@ body {
 .subscription-pricing {
   text-align: center;
   background: white;
-  padding: 1.5rem;
+  padding: clamp(1rem, 3vw, 1.5rem);
   border-radius: 12px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
 }
@@ -407,7 +410,7 @@ body {
 }
 
 .price {
-  font-size: 2.5rem;
+  font-size: clamp(2rem, 5vw, 2.5rem);
   font-weight: 800;
   color: #22c55e;
 }
@@ -421,6 +424,7 @@ body {
   width: 100%;
   padding: 0.75rem;
   font-size: 1rem;
+  min-height: 44px;
 }
 
 .trial-note {
@@ -436,7 +440,7 @@ body {
 
 .demo-card {
   background: white;
-  padding: 2rem;
+  padding: clamp(1.5rem, 4vw, 2rem);
   border-radius: 12px;
   box-shadow: 0 6px 20px rgba(0, 0, 0, 0.1);
   text-align: center;
@@ -445,7 +449,7 @@ body {
 }
 
 .demo-card h4 {
-  font-size: 1.3rem;
+  font-size: clamp(1.1rem, 2.5vw, 1.3rem);
   color: #1e293b;
   margin-bottom: 1rem;
 }
@@ -475,6 +479,7 @@ body {
   align-items: center;
   justify-content: center;
   gap: 0.5rem;
+  min-height: 44px;
 }
 
 .skill-btn:hover {
@@ -518,20 +523,21 @@ body {
 .premium-lock i {
   font-size: 0.75rem;
 }
+
 .hero {
   background: linear-gradient(135deg, #e0f2fe 0%, #f0fdf4 50%, #fef3c7 100%);
-  padding: 80px 0 60px;
+  padding: clamp(40px, 8vw, 80px) 0 clamp(30px, 6vw, 60px);
 }
 
 .hero-content {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 2rem;
+  gap: clamp(1.5rem, 4vw, 2rem);
   align-items: center;
 }
 
 .hero-text h1 {
-  font-size: 2.5rem;
+  font-size: clamp(1.8rem, 4vw, 2.5rem);
   font-weight: 800;
   line-height: 1.2;
   margin-bottom: 1rem;
@@ -543,7 +549,7 @@ body {
 }
 
 .hero-text p {
-  font-size: 1rem;
+  font-size: clamp(0.9rem, 2vw, 1rem);
   color: #64748b;
   margin-bottom: 1.5rem;
   line-height: 1.7;
@@ -554,16 +560,20 @@ body {
   justify-content: space-between;
   gap: 1rem;
   margin-bottom: 1.5rem;
+  flex-wrap: wrap;
 }
 
 .stat-item {
   text-align: center;
+  flex: 1;
+  min-width: 100px;
 }
 
 .stat-number {
-  font-size: 1.5rem;
+  font-size: clamp(1.2rem, 3vw, 1.5rem);
   font-weight: 700;
   color: #1e293b;
+  display: block;
 }
 
 .stat-label {
@@ -581,7 +591,7 @@ body {
   background: #22c55e;
   color: white;
   border: none;
-  padding: 0.75rem 1.5rem;
+  padding: clamp(0.6rem, 1.5vw, 0.75rem) clamp(1rem, 3vw, 1.5rem);
   border-radius: 8px;
   font-weight: 600;
   cursor: pointer;
@@ -589,7 +599,8 @@ body {
   display: inline-flex;
   align-items: center;
   gap: 0.5rem;
-  font-size: 0.9rem;
+  font-size: clamp(0.85rem, 2vw, 0.9rem);
+  min-height: 44px;
 }
 
 .btn-primary:hover {
@@ -601,12 +612,15 @@ body {
   background: #f97316;
   color: white;
   border: none;
-  padding: 0.75rem 1.5rem;
+  padding: clamp(0.6rem, 1.5vw, 0.75rem) clamp(1rem, 3vw, 1.5rem);
   border-radius: 8px;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.3s ease;
-  font-size: 0.9rem;
+  font-size: clamp(0.85rem, 2vw, 0.9rem);
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
 }
 
 .btn-secondary:hover {
@@ -617,19 +631,20 @@ body {
 .hero-image {
   display: flex;
   flex-direction: column;
-  gap: 1.5rem;
+  gap: clamp(1rem, 3vw, 1.5rem);
   justify-content: center;
   align-items: center;
 }
 
 .hero-card {
   background: white;
-  padding: 1.5rem;
+  padding: clamp(1rem, 3vw, 1.5rem);
   border-radius: 12px;
   box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
   text-align: center;
-  max-width: 280px;
+  max-width: clamp(220px, 40vw, 280px);
   border: 1px solid #e2e8f0;
+  width: 100%;
 }
 
 .hero-card.floating {
@@ -642,20 +657,20 @@ body {
 }
 
 .hero-card i {
-  font-size: 2.5rem;
+  font-size: clamp(2rem, 5vw, 2.5rem);
   color: #22c55e;
   margin-bottom: 0.75rem;
 }
 
 .hero-card h3 {
-  font-size: 1.1rem;
+  font-size: clamp(0.95rem, 2.5vw, 1.1rem);
   font-weight: 600;
   margin-bottom: 1rem;
 }
 
 .hero-card p {
   color: #64748b;
-  font-size: 0.9rem;
+  font-size: clamp(0.8rem, 2vw, 0.9rem);
 }
 
 @keyframes float {
@@ -664,24 +679,24 @@ body {
 }
 
 .featured-opportunities {
-  padding: 60px 0;
+  padding: clamp(40px, 8vw, 60px) 0;
   background: #f8fafc;
 }
 
 .section-header {
   text-align: center;
-  margin-bottom: 3rem;
+  margin-bottom: clamp(2rem, 5vw, 3rem);
 }
 
 .section-header h2 {
-  font-size: 2rem;
+  font-size: clamp(1.6rem, 4vw, 2rem);
   font-weight: 700;
   margin-bottom: 0.75rem;
   color: #1e293b;
 }
 
 .section-header p {
-  font-size: 1rem;
+  font-size: clamp(0.9rem, 2vw, 1rem);
   color: #64748b;
   max-width: 500px;
   margin: 0 auto;
@@ -692,18 +707,23 @@ body {
   justify-content: center;
   margin-bottom: 2rem;
   border-bottom: 1px solid #e2e8f0;
+  flex-wrap: wrap;
 }
 
 .opportunity-tab {
   background: none;
   border: none;
-  padding: 0.75rem 1.5rem;
-  font-size: 0.9rem;
+  padding: clamp(0.5rem, 2vw, 0.75rem) clamp(1rem, 3vw, 1.5rem);
+  font-size: clamp(0.85rem, 2vw, 0.9rem);
   font-weight: 600;
   color: #64748b;
   cursor: pointer;
   border-bottom: 3px solid transparent;
   transition: all 0.3s ease;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
 }
 
 .opportunity-tab.active {
@@ -717,13 +737,14 @@ body {
 
 .opportunity-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-  gap: 1.5rem;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: clamp(1rem, 3vw, 1.5rem);
 }
+
 .job-rating {
   margin: 6px 0 8px;
   color: #fbc02d; 
-  font-size: 15px;
+  font-size: clamp(0.8rem, 2vw, 15px);
 }
 
 .job-rating .fa-star,
@@ -734,7 +755,7 @@ body {
 .opportunity-card {
   background: white;
   border-radius: 12px;
-  padding: 1.5rem;
+  padding: clamp(1rem, 3vw, 1.5rem);
   box-shadow: 0 6px 24px rgba(0, 0, 0, 0.1);
   border: 1px solid #e5e7eb;
   transition: transform 0.3s ease, box-shadow 0.3s ease;
@@ -783,11 +804,12 @@ body {
   display: flex;
   align-items: center;
   gap: 0.5rem;
+  flex: 1;
 }
 
 .company-logo {
-  width: 40px;
-  height: 40px;
+  width: clamp(35px, 8vw, 40px);
+  height: clamp(35px, 8vw, 40px);
   border-radius: 8px;
   background: #22c55e;
   display: flex;
@@ -795,11 +817,12 @@ body {
   justify-content: center;
   color: white;
   font-weight: 700;
-  font-size: 1rem;
+  font-size: clamp(0.9rem, 2vw, 1rem);
+  flex-shrink: 0;
 }
 
 .company-details h3 {
-  font-size: 1.1rem;
+  font-size: clamp(1rem, 2.5vw, 1.1rem);
   font-weight: 600;
   color: #1e293b;
   margin-bottom: 0.25rem;
@@ -807,7 +830,7 @@ body {
 
 .company-details p {
   color: #64748b;
-  font-size: 0.85rem;
+  font-size: clamp(0.75rem, 2vw, 0.85rem);
 }
 
 .bookmark-btn {
@@ -817,6 +840,7 @@ body {
   font-size: 1.1rem;
   cursor: pointer;
   transition: color 0.3s ease;
+  flex-shrink: 0;
 }
 
 .bookmark-btn:hover {
@@ -827,10 +851,12 @@ body {
   display: flex;
   justify-content: space-between;
   margin-bottom: 0.75rem;
+  flex-wrap: wrap;
+  gap: 0.5rem;
 }
 
 .job-type, .salary-range {
-  font-size: 0.85rem;
+  font-size: clamp(0.75rem, 2vw, 0.85rem);
   color: #64748b;
 }
 
@@ -846,7 +872,7 @@ body {
   color: #475569;
   padding: 0.2rem 0.6rem;
   border-radius: 20px;
-  font-size: 0.75rem;
+  font-size: clamp(0.7rem, 1.5vw, 0.75rem);
   font-weight: 500;
 }
 
@@ -857,13 +883,15 @@ body {
   margin-top: 1rem;
   padding-top: 0.75rem;
   border-top: 1px solid #f1f5f9;
+  flex-wrap: wrap;
+  gap: 1rem;
 }
 
 .match-score {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  font-size: 0.85rem;
+  font-size: clamp(0.8rem, 2vw, 0.85rem);
   font-weight: 600;
 }
 
@@ -873,6 +901,7 @@ body {
   background: #e2e8f0;
   border-radius: 2px;
   overflow: hidden;
+  flex-shrink: 0;
 }
 
 .match-progress {
@@ -890,10 +919,11 @@ body {
   font-weight: 600;
   cursor: pointer;
   transition: all 0.3s ease;
-  font-size: 0.9rem;
+  font-size: clamp(0.85rem, 2vw, 0.9rem);
   display: inline-flex;
   align-items: center;
   gap: 0.5rem;
+  min-height: 44px;
 }
 
 .apply-btn:hover, .enroll-btn:hover {
@@ -904,6 +934,7 @@ body {
 .training-card .apply-btn, .training-card .enroll-btn {
   background: #3b82f6;
   margin-top: 10px;
+  width: 100%;
 }
 
 .training-card .apply-btn:hover, .training-card .enroll-btn:hover {
@@ -929,7 +960,7 @@ body {
 
 .duration {
   color: #64748b;
-  font-size: 0.85rem;
+  font-size: clamp(0.75rem, 2vw, 0.85rem);
   margin-bottom: 0.75rem;
 }
 
@@ -938,7 +969,7 @@ body {
   color: white;
   padding: 0.2rem 0.6rem;
   border-radius: 12px;
-  font-size: 0.75rem;
+  font-size: clamp(0.7rem, 1.5vw, 0.75rem);
   font-weight: 600;
 }
 
@@ -951,12 +982,15 @@ body {
   background: none;
   border: 2px solid #22c55e;
   color: #22c55e;
-  padding: 0.75rem 1.5rem;
+  padding: clamp(0.6rem, 1.5vw, 0.75rem) clamp(1rem, 3vw, 1.5rem);
   border-radius: 8px;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.3s ease;
-  font-size: 0.9rem;
+  font-size: clamp(0.85rem, 2vw, 0.9rem);
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
 }
 
 .btn-outline:hover {
@@ -966,20 +1000,20 @@ body {
 }
 
 .candidates {
-  padding: 60px 0;
+  padding: clamp(40px, 8vw, 60px) 0;
   background: #f8fafc;
 }
 
 .candidates-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-  gap: 1.5rem;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: clamp(1rem, 3vw, 1.5rem);
 }
 
 .candidate-card {
   background: white;
   border-radius: 12px;
-  padding: 1.5rem;
+  padding: clamp(1rem, 3vw, 1.5rem);
   text-align: center;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
   position: relative;
@@ -998,8 +1032,8 @@ body {
   right: 0.75rem;
   background: #22c55e;
   color: white;
-  width: 35px;
-  height: 35px;
+  width: clamp(30px, 6vw, 35px);
+  height: clamp(30px, 6vw, 35px);
   border-radius: 50%;
   display: flex;
   align-items: center;
@@ -1013,8 +1047,8 @@ body {
 }
 
 .candidate-image img {
-  width: 80px;
-  height: 80px;
+  width: clamp(60px, 12vw, 80px);
+  height: clamp(60px, 12vw, 80px);
   border-radius: 50%;
   object-fit: cover;
 }
@@ -1027,11 +1061,11 @@ body {
   color: white;
   padding: 0.2rem 0.6rem;
   border-radius: 12px;
-  font-size: 0.75rem;
+  font-size: clamp(0.7rem, 1.5vw, 0.75rem);
 }
 
 .candidate-info h3 {
-  font-size: 1.25rem;
+  font-size: clamp(1.1rem, 2.5vw, 1.25rem);
   font-weight: 600;
   margin-bottom: 0.5rem;
   color: #1e293b;
@@ -1041,13 +1075,22 @@ body {
   color: #22c55e;
   font-weight: 500;
   margin-bottom: 0.5rem;
+  font-size: clamp(0.9rem, 2vw, 1rem);
 }
 
 .candidate-experience,
 .candidate-location {
   color: #64748b;
-  font-size: 0.85rem;
+  font-size: clamp(0.75rem, 2vw, 0.85rem);
   margin-bottom: 0.25rem;
+}
+
+.candidate-skills {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.5rem;
+  margin: 0.5rem 0;
 }
 
 .btn-resume {
@@ -1060,36 +1103,39 @@ body {
   cursor: pointer;
   margin-top: 1rem;
   transition: all 0.3s ease;
-  font-size: 0.9rem;
+  font-size: clamp(0.85rem, 2vw, 0.9rem);
   display: flex;
   align-items: center;
   gap: 0.5rem;
   margin-left: auto;
   margin-right: auto;
+  min-height: 44px;
+  justify-content: center;
 }
 
 .btn-resume:hover {
   background: #16a34a;
   transform: translateY(-2px);
 }
+
 .how-it-works {
   background-color: #f9f9f9;
-  padding: 60px 20px;
-  font-family: 'Segoe UI', sans-serif;
+  padding: clamp(40px, 8vw, 60px) 20px;
+  font-family: 'Inter', sans-serif;
 }
 
 .how-it-works .section-header {
   text-align: center;
-  margin-bottom: 50px;
+  margin-bottom: clamp(2rem, 5vw, 50px);
 }
 
 .how-it-works .section-header h2 {
-  font-size: 2.5rem;
+  font-size: clamp(1.8rem, 4vw, 2.5rem);
   color: #2c3e50;
 }
 
 .how-it-works .section-header p {
-  font-size: 1.1rem;
+  font-size: clamp(0.95rem, 2vw, 1.1rem);
   color: #7f8c8d;
 }
 
@@ -1102,8 +1148,11 @@ body {
 
 .step-item {
   position: relative;
-  margin-bottom: 60px;
+  margin-bottom: clamp(40px, 8vw, 60px);
   padding-left: 20px;
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
 }
 
 .step-item::before {
@@ -1124,28 +1173,29 @@ body {
   position: absolute;
   left: -45px;
   top: 0;
-  width: 40px;
-  height: 40px;
+  width: clamp(30px, 6vw, 40px);
+  height: clamp(30px, 6vw, 40px);
   background: #00b894;
   color: #fff;
   font-weight: bold;
   border-radius: 50%;
   text-align: center;
-  line-height: 40px;
-  font-size: 1.2rem;
+  line-height: clamp(30px, 6vw, 40px);
+  font-size: clamp(1rem, 2.5vw, 1.2rem);
   z-index: 2;
 }
 
 .step-icon {
-  font-size: 1.5rem;
+  font-size: clamp(1.2rem, 3vw, 1.5rem);
   color: #00b894;
   margin-bottom: 10px;
+  flex-shrink: 0;
 }
 
 .step-content h3 {
   margin-bottom: 10px;
   color: #2d3436;
-  font-size: 1.4rem;
+  font-size: clamp(1.1rem, 2.5vw, 1.4rem);
 }
 
 .step-content p {
@@ -1170,10 +1220,11 @@ body {
 .step-features i {
   color: #00b894;
   margin-right: 8px;
+  min-width: 16px;
 }
 
 .success-stories {
-  padding: 60px 0;
+  padding: clamp(40px, 8vw, 60px) 0;
   background: white;
 }
 
@@ -1190,6 +1241,7 @@ body {
 .testimonial-slide {
   flex: 0 0 100%;
   display: none;
+  padding: 0 10px;
 }
 
 .testimonial-slide.active {
@@ -1198,7 +1250,7 @@ body {
 
 .story-card {
   background: #f8fafc;
-  padding: 1.5rem;
+  padding: clamp(1rem, 3vw, 1.5rem);
   border-radius: 12px;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
   border: 1px solid #e5e7eb;
@@ -1206,41 +1258,45 @@ body {
 
 .story-rating {
   margin-bottom: 1rem;
+  display: flex;
+  justify-content: center;
 }
 
 .story-rating i {
   color: #f97316;
-  font-size: 1rem;
+  font-size: clamp(0.9rem, 2vw, 1rem);
 }
 
 .story-content p {
   font-style: italic;
   margin-bottom: 1rem;
   color: #64748b;
-  font-size: 0.9rem;
+  font-size: clamp(0.85rem, 2vw, 0.9rem);
+  text-align: center;
 }
 
 .story-author {
   display: flex;
   align-items: center;
   gap: 0.75rem;
+  justify-content: center;
 }
 
 .story-author img {
-  width: 40px;
-  height: 40px;
+  width: clamp(35px, 8vw, 40px);
+  height: clamp(35px, 8vw, 40px);
   border-radius: 50%;
 }
 
 .story-author h4 {
   font-weight: 600;
   color: #1e293b;
-  font-size: 1rem;
+  font-size: clamp(0.85rem, 2vw, 1rem);
 }
 
 .story-author span {
   color: #64748b;
-  font-size: 0.85rem;
+  font-size: clamp(0.75rem, 1.5vw, 0.85rem);
 }
 
 .testimonial-indicators {
@@ -1257,6 +1313,7 @@ body {
   border-radius: 50%;
   border: none;
   cursor: pointer;
+  transition: background 0.3s ease;
 }
 
 .indicator.active {
@@ -1264,38 +1321,45 @@ body {
 }
 
 .cta {
-  padding: 60px 0;
+  padding: clamp(40px, 8vw, 60px) 0;
   background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
   color: white;
   text-align: center;
 }
 
 .cta-content h2 {
-  font-size: 2rem;
+  font-size: clamp(1.6rem, 4vw, 2rem);
   font-weight: 700;
   margin-bottom: 1rem;
 }
 
 .cta-content p {
-  font-size: 1rem;
+  font-size: clamp(0.9rem, 2vw, 1rem);
   margin-bottom: 1.5rem;
 }
 
 .cta-stats {
   display: flex;
   justify-content: center;
-  gap: 2rem;
+  gap: clamp(1rem, 4vw, 2rem);
   margin-bottom: 1.5rem;
+  flex-wrap: wrap;
+}
+
+.cta-stat {
+  flex: 1;
+  min-width: 150px;
 }
 
 .cta-stat .stat-number {
-  font-size: 1.5rem;
+  font-size: clamp(1.2rem, 3vw, 1.5rem);
   font-weight: 700;
+  display: block;
 }
 
 .cta-stat .stat-label {
   font-size: 0.9rem;
-  color:white;
+  color: white;
   padding-left: 15px;
 }
 
@@ -1330,13 +1394,13 @@ body {
 .footer {
   background: #1e293b;
   color: white;
-  padding: 40px 0 20px;
+  padding: clamp(30px, 6vw, 40px) 0 clamp(15px, 3vw, 20px);
 }
 
 .footer-content {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 2rem;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: clamp(1.5rem, 4vw, 2rem);
   margin-bottom: 1.5rem;
 }
 
@@ -1348,7 +1412,7 @@ body {
 .footer-brand p {
   color: #94a3b8;
   margin-bottom: 1rem;
-  font-size: 0.9rem;
+  font-size: clamp(0.8rem, 2vw, 0.9rem);
 }
 
 .social-links {
@@ -1359,8 +1423,8 @@ body {
 .social-links a {
   background: #334155;
   color: white;
-  width: 35px;
-  height: 35px;
+  width: clamp(30px, 6vw, 35px);
+  height: clamp(30px, 6vw, 35px);
   border-radius: 50%;
   display: flex;
   align-items: center;
@@ -1390,7 +1454,7 @@ body {
   color: #94a3b8;
   text-decoration: none;
   margin-bottom: 0.5rem;
-  font-size: 0.85rem;
+  font-size: clamp(0.8rem, 2vw, 0.85rem);
   transition: color 0.3s ease;
 }
 
@@ -1405,17 +1469,31 @@ body {
   justify-content: space-between;
   align-items: center;
   color: #94a3b8;
-  font-size: 0.85rem;
+  font-size: clamp(0.8rem, 2vw, 0.85rem);
+  flex-wrap: wrap;
+  gap: 1rem;
 }
 
 @media (max-width: 1024px) {
+  .job-vacancies {
+    background-attachment: scroll;
+    min-height: 70vh;
+  }
+
   .hero-content {
     grid-template-columns: 1fr;
     text-align: center;
+    gap: 2rem;
   }
 
   .hero-image {
     margin-top: 2rem;
+    flex-direction: row;
+    justify-content: center;
+  }
+
+  .hero-stats {
+    justify-content: center;
   }
 
   .opportunity-grid {
@@ -1428,10 +1506,12 @@ body {
 
   .footer-content {
     grid-template-columns: 1fr;
+    text-align: center;
   }
 
   .footer-links {
     grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+    justify-content: center;
   }
 
   .simulator-content {
@@ -1446,69 +1526,55 @@ body {
   .skill-buttons {
     flex-direction: row;
     justify-content: center;
+    flex-wrap: wrap;
   }
 
   .skill-btn {
     flex: 1;
     max-width: 120px;
   }
-}
-@media (max-width: 1024px) {
-  .job-vacancies {
-    min-height: 70vh;
-    padding: 100px 0;
-  }
-  
-  .job-vacancies h1 {
-    font-size: 3rem;
-  }
-}
 
-@media (max-width: 768px) {
-  .job-vacancies {
-    min-height: 60vh;
-    padding: 80px 0;
-    margin: 70px 0 30px;
-  }
-  
-  .job-vacancies h1 {
-    font-size: 2.5rem;
-  }
-  
-  .job-vacancies p {
-    font-size: 1.1rem;
-  }
-  
-  .vacancies-links {
+  .step-item {
     flex-direction: column;
     align-items: center;
+    text-align: center;
   }
-  
-  .job-vacancies .btn-primary {
-    width: 100%;
-    max-width: 300px;
-    padding: 0.9rem;
-  }
-}
 
-@media (max-width: 480px) {
-  .job-vacancies {
-    min-height: 50vh;
-    padding: 60px 0;
+  .steps-timeline {
+    margin-left: 0;
+    border-left: none;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding-left: 0;
   }
-  
-  .job-vacancies h1 {
-    font-size: 2rem;
+
+  .step-number {
+    position: static;
+    margin-bottom: 1rem;
   }
-  
-  .job-vacancies p {
-    font-size: 1rem;
+
+  .step-item::before {
+    left: 50%;
+    transform: translateX(-50%);
+    top: 0;
   }
 }
 
 @media (max-width: 768px) {
   .container {
-    padding: 0 10px;
+    padding: 0 15px;
+  }
+
+  .job-vacancies {
+    min-height: 60vh;
+    padding: 60px 0;
+    background-size: cover;
+    background-position: center top;
+  }
+
+  .job-vacancies::before {
+    background: linear-gradient(135deg, rgba(34, 197, 94, 0.3), rgba(0, 0, 0, 0.4));
   }
 
   .desktop-nav {
@@ -1523,47 +1589,21 @@ body {
     padding: 60px 0 40px;
   }
 
-  .hero-text h1 {
-    font-size: 1.8rem;
-  }
-
-  .hero-text p {
-    font-size: 0.9rem;
-  }
-
-  .hero-stats {
-    flex-direction: column;
-    gap: 0.75rem;
-  }
-
   .hero-buttons {
     flex-direction: column;
     align-items: center;
   }
 
+  .hero-image {
+    flex-direction: column;
+  }
+
   .hero-card {
     max-width: 100%;
-    padding: 1rem;
-  }
-
-  .hero-card h3 {
-    font-size: 1rem;
-  }
-
-  .hero-card p {
-    font-size: 0.85rem;
   }
 
   .featured-opportunities {
     padding: 40px 0;
-  }
-
-  .section-header h2 {
-    font-size: 1.8rem;
-  }
-
-  .section-header p {
-    font-size: 0.9rem;
   }
 
   .opportunity-tabs {
@@ -1581,22 +1621,13 @@ body {
     grid-template-columns: 1fr;
   }
 
-  .opportunity-card {
-    padding: 1rem;
+  .card-footer {
+    flex-direction: column;
+    align-items: stretch;
   }
 
-  .company-logo {
-    width: 35px;
-    height: 35px;
-    font-size: 0.9rem;
-  }
-
-  .company-details h3 {
-    font-size: 1rem;
-  }
-
-  .company-details p {
-    font-size: 0.8rem;
+  .apply-btn, .enroll-btn {
+    width: 100%;
   }
 
   .candidates {
@@ -1607,82 +1638,16 @@ body {
     grid-template-columns: 1fr;
   }
 
-  .candidate-card {
-    padding: 1rem;
-  }
-
-  .candidate-image img {
-    width: 70px;
-    height: 70px;
-  }
-
-  .candidate-info h3 {
-    font-size: 1.1rem;
-  }
-
   .how-it-works {
     padding: 40px 0;
-  }
-
-  .steps-timeline {
-    gap: 1.5rem;
-  }
-
-  .step-item {
-    flex-direction: column;
-    align-items: center;
-    text-align: center;
-  }
-
-  .step-number {
-    width: 35px;
-    height: 35px;
-    font-size: 1rem;
-  }
-
-  .step-icon {
-    font-size: 1.25rem;
-  }
-
-  .step-content h3 {
-    font-size: 1.1rem;
-  }
-
-  .step-content p {
-    font-size: 0.85rem;
   }
 
   .success-stories {
     padding: 40px 0;
   }
 
-  .story-card {
-    padding: 1rem;
-  }
-
-  .story-content p {
-    font-size: 0.85rem;
-  }
-
-  .story-author img {
-    width: 35px;
-    height: 35px;
-  }
-
-  .story-author h4 {
-    font-size: 0.9rem;
-  }
-
   .cta {
     padding: 40px 0;
-  }
-
-  .cta-content h2 {
-    font-size: 1.8rem;
-  }
-
-  .cta-content p {
-    font-size: 0.9rem;
   }
 
   .cta-stats {
@@ -1692,18 +1657,11 @@ body {
 
   .cta-buttons {
     flex-direction: column;
+    align-items: center;
   }
 
   .footer {
     padding: 30px 0 15px;
-  }
-
-  .footer-content {
-    grid-template-columns: 1fr;
-  }
-
-  .footer-links {
-    grid-template-columns: 1fr;
   }
 
   .footer-bottom {
@@ -1716,16 +1674,24 @@ body {
     padding: 40px 0;
   }
 
-  .demo-card {
-    padding: 1.5rem;
-  }
-
   .skill-buttons {
     flex-direction: column;
   }
 
   .skill-btn {
     max-width: none;
+  }
+
+  .vacancies-links {
+    flex-direction: column;
+    align-items: center;
+    gap: 1rem;
+  }
+
+  .job-vacancies .btn-primary,
+  .vacancies-content .btn-link {
+    width: 100%;
+    max-width: 300px;
   }
 }
 
@@ -1740,6 +1706,16 @@ body {
 
   .mobile-menu-btn {
     font-size: 1.2rem;
+  }
+
+  .job-vacancies {
+    min-height: 50vh;
+    padding: 40px 0;
+    background-position: center;
+  }
+
+  .job-vacancies::before {
+    background: linear-gradient(135deg, rgba(34, 197, 94, 0.4), rgba(0, 0, 0, 0.5));
   }
 
   .hero-text h1 {
@@ -1774,10 +1750,6 @@ body {
     font-size: 0.9rem;
   }
 
-  .candidate-info h3 {
-    font-size: 1rem;
-  }
-
   .cta-content h2 {
     font-size: 1.5rem;
   }
@@ -1793,6 +1765,7 @@ body {
   .btn-primary, .btn-secondary, .btn-outline, .apply-btn, .enroll-btn, .btn-resume {
     padding: 0.5rem 1rem;
     font-size: 0.85rem;
+    width: 100%;
   }
 
   .price {
@@ -1802,46 +1775,25 @@ body {
   .subscribe-btn {
     font-size: 0.9rem;
   }
-}
-@media (max-width: 768px) {
-  .job-vacancies {
-    padding: 40px 0;
+
+  .features-grid {
+    grid-template-columns: 1fr;
   }
 
-  .job-vacancies h1 {
-    font-size: 1.8rem;
-  }
-
-  .job-vacancies p {
-    font-size: 0.9rem;
-  }
-
-  .vacancies-links {
+  .testimonial-container {
     flex-direction: column;
-    gap: 0.5rem;
   }
 
-  .btn-link, .job-vacancies .btn-primary {
-    width: 100%;
-    padding: 0.5rem 1rem;
-    font-size: 0.85rem;
-  }
-}
-
-@media (max-width: 768px) {
-  .steps-timeline {
-    padding-left: 20px;
-    margin-left: 0;
-    border-left: none;
+  .testimonial-slide {
+    padding: 0;
   }
 
-  .step-item {
-    padding-left: 0;
-    margin-left: 0;
+  .footer-links {
+    grid-template-columns: 1fr;
+    text-align: center;
   }
 
-  .step-item::before,
-  .step-number {
-    display: none;
+  .social-links {
+    justify-content: center;
   }
 }

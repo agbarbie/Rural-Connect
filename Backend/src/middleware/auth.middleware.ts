@@ -15,7 +15,6 @@ export const authenticateToken = (req: AuthenticatedRequest, res: Response, next
   try {
     const authHeader = req.headers['authorization'] || req.headers['Authorization'];
     let token: string | null = null;
-
     // Extract token from Authorization header
     if (authHeader && typeof authHeader === 'string') {
       if (authHeader.startsWith('Bearer ')) {
@@ -24,7 +23,6 @@ export const authenticateToken = (req: AuthenticatedRequest, res: Response, next
         token = authHeader; // In case token is sent without Bearer prefix
       }
     }
-
     console.log('Auth Debug:', {
       hasAuthHeader: !!authHeader,
       authHeaderValue: typeof authHeader === 'string' ? `${authHeader.substring(0, 20)}...` : 'None',
@@ -33,7 +31,6 @@ export const authenticateToken = (req: AuthenticatedRequest, res: Response, next
       url: req.url,
       method: req.method
     });
-
     if (!token || token.trim() === '') {
       console.log('Authentication failed: No token provided');
       res.status(401).json({
@@ -43,7 +40,6 @@ export const authenticateToken = (req: AuthenticatedRequest, res: Response, next
       });
       return;
     }
-
     if (!process.env.JWT_SECRET) {
       console.error('JWT_SECRET environment variable is not set');
       res.status(500).json({
@@ -52,7 +48,6 @@ export const authenticateToken = (req: AuthenticatedRequest, res: Response, next
       });
       return;
     }
-
     // Use synchronous verification
     try {
       const decoded = jwt.verify(token.trim(), process.env.JWT_SECRET) as any;
@@ -63,7 +58,6 @@ export const authenticateToken = (req: AuthenticatedRequest, res: Response, next
         email: decoded.email,
         exp: decoded.exp ? new Date(decoded.exp * 1000).toISOString() : 'No expiration'
       });
-
       // Validate that required fields exist
       if (!decoded.id || !decoded.email || !decoded.user_type) {
         console.log('Token missing required fields:', decoded);
@@ -74,14 +68,12 @@ export const authenticateToken = (req: AuthenticatedRequest, res: Response, next
         });
         return;
       }
-
       // Add user info to request object
       req.user = {
         id: decoded.id,
         email: decoded.email,
         user_type: decoded.user_type
       };
-
       console.log('Authentication successful for user:', req.user.id);
       next();
     } catch (jwtError: any) {
@@ -90,10 +82,8 @@ export const authenticateToken = (req: AuthenticatedRequest, res: Response, next
         errorMessage: jwtError.message,
         tokenLength: token.length
       });
-
       let message = 'Invalid or expired token';
       let statusCode = 403;
-
       if (jwtError.name === 'TokenExpiredError') {
         message = 'Token has expired';
         statusCode = 401;
@@ -104,7 +94,6 @@ export const authenticateToken = (req: AuthenticatedRequest, res: Response, next
         message = 'Token not active yet';
         statusCode = 403;
       }
-
       res.status(statusCode).json({
         success: false,
         message: message,
@@ -132,7 +121,6 @@ export const requireJobseeker = (req: AuthenticatedRequest, res: Response, next:
     userType: req.user?.user_type,
     userId: req.user?.id
   });
-
   if (!req.user) {
     res.status(401).json({
       success: false,
@@ -141,7 +129,6 @@ export const requireJobseeker = (req: AuthenticatedRequest, res: Response, next:
     });
     return;
   }
-
   if (req.user.user_type !== 'jobseeker') {
     console.log('Access denied - not a jobseeker:', req.user.user_type);
     res.status(403).json({
@@ -152,7 +139,6 @@ export const requireJobseeker = (req: AuthenticatedRequest, res: Response, next:
     });
     return;
   }
-
   console.log('Jobseeker role check passed for user:', req.user.id);
   next();
 };
@@ -164,7 +150,6 @@ export const requireEmployer = (req: AuthenticatedRequest, res: Response, next: 
     userId: req.user?.id,
     url: req.url
   });
-
   if (!req.user) {
     console.log('Employer check failed: No user in request');
     res.status(401).json({
@@ -174,7 +159,6 @@ export const requireEmployer = (req: AuthenticatedRequest, res: Response, next: 
     });
     return;
   }
-
   if (req.user.user_type !== 'employer') {
     console.log('Access denied - not an employer:', {
       actualRole: req.user.user_type,
@@ -189,7 +173,6 @@ export const requireEmployer = (req: AuthenticatedRequest, res: Response, next: 
     });
     return;
   }
-
   console.log('Employer role check passed for user:', req.user.id);
   next();
 };
@@ -200,7 +183,6 @@ export const requireAdmin = (req: AuthenticatedRequest, res: Response, next: Nex
     userType: req.user?.user_type,
     userId: req.user?.id
   });
-
   if (!req.user) {
     res.status(401).json({
       success: false,
@@ -209,7 +191,6 @@ export const requireAdmin = (req: AuthenticatedRequest, res: Response, next: Nex
     });
     return;
   }
-
   if (req.user.user_type !== 'admin') {
     console.log('Access denied - not an admin:', req.user.user_type);
     res.status(403).json({
@@ -220,7 +201,6 @@ export const requireAdmin = (req: AuthenticatedRequest, res: Response, next: Nex
     });
     return;
   }
-
   console.log('Admin role check passed for user:', req.user.id);
   next();
 };
@@ -229,7 +209,6 @@ export const requireAdmin = (req: AuthenticatedRequest, res: Response, next: Nex
 export const optionalAuth = (req: AuthenticatedRequest, res: Response, next: NextFunction): void => {
   const authHeader = req.headers['authorization'] || req.headers['Authorization'];
   let token: string | null = null;
-
   if (authHeader && typeof authHeader === 'string') {
     if (authHeader.startsWith('Bearer ')) {
       token = authHeader.substring(7);
@@ -237,20 +216,17 @@ export const optionalAuth = (req: AuthenticatedRequest, res: Response, next: Nex
       token = authHeader;
     }
   }
-
   if (!token || token.trim() === '') {
     // No token provided - continue without user info
     console.log('Optional auth: No token provided');
     next();
     return;
   }
-
   if (!process.env.JWT_SECRET) {
     console.error('JWT_SECRET not configured');
     next();
     return;
   }
-
   try {
     const decoded = jwt.verify(token.trim(), process.env.JWT_SECRET) as any;
     
@@ -277,7 +253,6 @@ export const requireEmployerOrJobseeker = (req: AuthenticatedRequest, res: Respo
     userType: req.user?.user_type,
     userId: req.user?.id
   });
-
   if (!req.user) {
     res.status(401).json({
       success: false,
@@ -286,7 +261,6 @@ export const requireEmployerOrJobseeker = (req: AuthenticatedRequest, res: Respo
     });
     return;
   }
-
   if (req.user.user_type !== 'employer' && req.user.user_type !== 'jobseeker') {
     res.status(403).json({
       success: false,
@@ -296,7 +270,6 @@ export const requireEmployerOrJobseeker = (req: AuthenticatedRequest, res: Respo
     });
     return;
   }
-
   console.log('EmployerOrJobseeker role check passed for user:', req.user.id);
   next();
 };

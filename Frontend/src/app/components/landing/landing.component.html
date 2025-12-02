@@ -1,4 +1,3 @@
-<!-- cspell:ignore jobseeker -->
 <header class="header">
   <div class="container">
     <div class="nav-wrapper">
@@ -237,15 +236,16 @@ Browse real job openings and training programs that match your skills. No random
               </div>
             </div>
             <button class="bookmark-btn" (click)="bookmarkOpportunity($event, job.id)">
+              <i class="fas fa-bookmark"></i>
             </button>
           </div>
           <div class="job-rating">
-  <i 
-    *ngFor="let star of [1,2,3,4,5]" 
-    class="fas" 
-    [ngClass]="star <= (job.rating ?? 0) ? 'fa-star' : 'fa-star-half-alt'">
-  </i>
-</div>
+            <i 
+              *ngFor="let star of [1,2,3,4,5]" 
+              class="fas" 
+              [ngClass]="star <= (job.rating ?? 0) ? 'fa-star' : 'fa-star-half-alt'">
+            </i>
+          </div>
 
           <div class="job-meta">
             <span class="job-type">{{ job.type }}</span>
@@ -282,6 +282,7 @@ Browse real job openings and training programs that match your skills. No random
               </div>
             </div>
             <button class="bookmark-btn" (click)="bookmarkOpportunity($event, training.id)">
+              <i class="fas fa-bookmark"></i>
             </button>
           </div>
 

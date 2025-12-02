@@ -37,7 +37,7 @@
             <label>Job Post</label>
             <select [(ngModel)]="selectedJob" (change)="onJobChange()" class="filter-select">
               <option [value]="job.id" *ngFor="let job of jobPosts">
-                {{ job.title }} ({{ job.matchCount }} matches)
+                {{ job.title }} ({{ job.match_count }} matches)
               </option>
             </select>
           </div>
@@ -135,19 +135,19 @@
 
     <!-- Candidate Cards -->
     <div class="candidates-container" [class.list-view]="viewMode === 'list'">
-      <div class="candidate-card" *ngFor="let candidate of paginatedCandidates" [class.selected]="candidate.isSelected">
+      <div class="candidate-card" *ngFor="let candidate of paginatedCandidates" [class.selected]="candidate.is_selected">
         <!-- Selection Checkbox -->
         <div class="card-selection">
           <input 
             type="checkbox" 
-            [checked]="candidate.isSelected" 
+            [checked]="candidate.is_selected" 
             (change)="toggleCandidateSelection(candidate.id)"
             class="candidate-checkbox">
         </div>
 
         <!-- Profile Section -->
         <div class="candidate-profile">
-          <img [src]="candidate.profilePicture" [alt]="candidate.name" class="profile-image">
+          <img [src]="candidate.profile_picture" [alt]="candidate.name" class="profile-image">
           <div class="profile-info">
             <h3 class="candidate-name">{{ candidate.name }}</h3>
             <p class="candidate-title">{{ candidate.title }}</p>
@@ -155,8 +155,8 @@
         </div>
 
         <!-- Match Percentage Badge -->
-        <div class="match-badge" [ngClass]="getMatchScoreClass(candidate.matchScore)">
-          {{ candidate.matchScore }}%
+        <div class="match-badge" [ngClass]="getMatchScoreClass(candidate.match_score)">
+          {{ candidate.match_score }}%
         </div>
 
         <!-- Key Skills Section -->
@@ -173,7 +173,7 @@
         <div class="experience-section">
           <label>Experience & Background</label>
           <p class="experience-text">{{ candidate.experience }}</p>
-          <p class="recent-work">{{ candidate.recentWork }}</p>
+          <p class="recent-work">{{ candidate.recent_work }}</p>
         </div>
 
         <!-- Training Completion Badge -->
@@ -189,9 +189,9 @@
 
         <!-- Engagement Status -->
         <div class="engagement-status">
-          <span class="status-indicator" [class.active]="candidate.lastActive.includes('minutes') || candidate.lastActive.includes('hour')">
+          <span class="status-indicator" [class.active]="candidate.last_active.includes('minutes') || candidate.last_active.includes('hour')">
             <i class="fas fa-circle"></i>
-            Active {{ candidate.lastActive }}
+            Active {{ candidate.last_active }}
           </span>
         </div>
 
@@ -203,11 +203,11 @@
           </button>
           <button 
             class="btn" 
-            [class.btn-secondary]="candidate.isShortlisted"
-            [class.btn-outline]="!candidate.isShortlisted"
+            [class.btn-secondary]="candidate.is_shortlisted"
+            [class.btn-outline]="!candidate.is_shortlisted"
             (click)="toggleShortlist(candidate)">
-            <i class="fas" [class.fa-heart]="candidate.isShortlisted" [class.fa-heart-o]="!candidate.isShortlisted"></i>
-            {{ candidate.isShortlisted ? 'Shortlisted' : 'Shortlist' }}
+            <i class="fas" [class.fa-heart]="candidate.is_shortlisted" [class.fa-heart-o]="!candidate.is_shortlisted"></i>
+            {{ candidate.is_shortlisted ? 'Shortlisted' : 'Shortlist' }}
           </button>
           <button class="btn btn-primary" (click)="inviteToApply(candidate.id)">
             <i class="fas fa-paper-plane"></i>
@@ -390,12 +390,12 @@
           <ng-container *ngFor="let candidate of candidates">
             <div *ngIf="candidate.id === candidateId">
               <div class="candidate-header">
-                <img [src]="candidate.profilePicture" [alt]="candidate.name" class="profile-picture">
+                <img [src]="candidate.profile_picture" [alt]="candidate.name" class="profile-picture">
                 <div>
                   <h4>{{ candidate.name }}</h4>
                   <p class="candidate-title">{{ candidate.title }}</p>
-                  <div class="match-score-badge" [ngClass]="getMatchScoreClass(candidate.matchScore)">
-                    {{ candidate.matchScore }}% Match
+                  <div class="match-score-badge" [ngClass]="getMatchScoreClass(candidate.match_score)">
+                    {{ candidate.match_score }}% Match
                   </div>
                 </div>
               </div>
@@ -421,7 +421,7 @@
                 <div class="detail-section">
                   <strong>Experience</strong>
                   <p>{{ candidate.experience }}</p>
-                  <p class="recent-work">{{ candidate.recentWork }}</p>
+                  <p class="recent-work">{{ candidate.recent_work }}</p>
                 </div>
                 
                 <div class="detail-section">
@@ -432,7 +432,7 @@
                 
                 <div class="detail-section">
                   <strong>Activity Status</strong>
-                  <p class="last-active">Active {{ candidate.lastActive }}</p>
+                  <p class="last-active">Active {{ candidate.last_active }}</p>
                 </div>
               </div>
             </div>

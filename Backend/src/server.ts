@@ -8,6 +8,7 @@ import cvBuilderRoutes from './routes/cv-builder.routes';
 import portfolioRoutes from './routes/portfolio.routes';
 import profileRoutes from './routes/profile.routes';
 import geminiRoutes from './routes/gemini.routes';
+import candidatesRoutes from './routes/candidates.routes';
 import pool from './db/db.config';
 import path from 'path';
 
@@ -29,7 +30,6 @@ console.log('DB_PORT:', process.env.DB_PORT);
 // Validate required environment variables
 const requiredEnvVars = ['DB_HOST', 'DB_NAME', 'DB_USER', 'DB_PASSWORD', 'JWT_SECRET'] as const;
 const missingEnvVars = requiredEnvVars.filter(envVar => !process.env[envVar]);
-
 if (missingEnvVars.length > 0) {
   console.error('Missing required environment variables:', missingEnvVars);
   console.error('Please ensure you have the following in your .env file:');
@@ -53,14 +53,12 @@ pool.connect()
       
       await client.query('SELECT 1 FROM job_applications LIMIT 1');
       console.log('✓ Job applications table accessible');
-
       // Test training-related tables
       await client.query('SELECT 1 FROM trainings LIMIT 1');
       console.log('✓ Trainings table accessible');
       
       await client.query('SELECT 1 FROM training_enrollments LIMIT 1');
       console.log('✓ Training enrollments table accessible');
-
       // Test portfolio-related tables
       await client.query('SELECT 1 FROM portfolio_settings LIMIT 1');
       console.log('✓ Portfolio settings table accessible');
@@ -70,6 +68,15 @@ pool.connect()
       
       await client.query('SELECT 1 FROM portfolio_testimonials LIMIT 1');
       console.log('✓ Portfolio testimonials table accessible');
+      // Test candidates-related tables
+      await client.query('SELECT 1 FROM shortlisted_candidates LIMIT 1');
+      console.log('✓ Shortlisted candidates table accessible');
+      
+      await client.query('SELECT 1 FROM job_invitations LIMIT 1');
+      console.log('✓ Job invitations table accessible');
+      
+      await client.query('SELECT 1 FROM notifications LIMIT 1');
+      console.log('✓ Notifications table accessible');
       
     } catch (tableError: any) {
       console.warn('Database tables might need migration:', tableError.message);
@@ -78,9 +85,10 @@ pool.connect()
       // List expected tables
       const expectedTables = [
         'users', 'jobs', 'job_applications',
-        'trainings', 'training_videos', 'training_outcomes', 
+        'trainings', 'training_videos', 'training_outcomes',
         'training_enrollments', 'training_video_progress', 'training_reviews',
-        'cvs', 'portfolio_settings', 'portfolio_views', 'portfolio_testimonials'
+        'cvs', 'portfolio_settings', 'portfolio_views', 'portfolio_testimonials',
+        'shortlisted_candidates', 'job_invitations', 'notifications'
       ];
       console.warn('Expected tables:', expectedTables.join(', '));
     }
@@ -104,7 +112,7 @@ const corsOptions = {
     'http://localhost:4200', // Angular dev server
     'http://localhost:3000', // React dev server
     'http://localhost:5000', // This server
-    'http://localhost:8080'  // Alternative frontend port
+    'http://localhost:8080' // Alternative frontend port
   ],
   credentials: true,
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
@@ -181,6 +189,7 @@ console.log('- CV Builder routes: /api/cv/*');
 console.log('- Portfolio routes: /api/portfolio/*');
 console.log('- Profile routes: /api/profile/*');
 console.log('- Gemini AI routes: /api/gemini/*');
+console.log('- Employer candidates routes: /api/employer/*');
 
 // API Routes
 app.use('/api/auth', authRoutes);
@@ -190,6 +199,7 @@ app.use('/api/cv', cvBuilderRoutes);
 app.use('/api/portfolio', portfolioRoutes);
 app.use('/api/profile', profileRoutes);
 app.use('/api/gemini', geminiRoutes);
+app.use('/api/employer', candidatesRoutes);
 
 // Root route
 app.get('/', (req: Request, res: Response) => {
@@ -205,6 +215,7 @@ app.get('/', (req: Request, res: Response) => {
       portfolio: '/api/portfolio',
       profile: '/api/profile',
       gemini: '/api/gemini',
+      employer: '/api/employer',
       health: '/health',
       database_health: '/health/db'
     },
@@ -390,6 +401,23 @@ app.get('/api', (req: Request, res: Response) => {
           'Conversational AI assistant',
           'What-if skill simulation'
         ]
+      },
+      employer: {
+        base: '/api/employer',
+        routes: [
+          'GET /api/employer/candidates - Get all candidates (applicants) for employer\'s jobs',
+          'GET /api/employer/job-posts - Get employer\'s job posts with application counts',
+          'GET /api/employer/candidates/:userId - Get candidate full profile',
+          'POST /api/employer/candidates/:userId/shortlist - Shortlist/Unshortlist a candidate',
+          'POST /api/employer/candidates/:userId/invite - Send invite to candidate'
+        ],
+        authentication: 'Required - Employer role only',
+        features: [
+          'Candidate filtering and sorting by match score, location, experience',
+          'Batch shortlisting and bulk invitations',
+          'Application status management',
+          'AI-powered candidate insights'
+        ]
       }
     },
     authentication: {
@@ -398,7 +426,7 @@ app.get('/api', (req: Request, res: Response) => {
       note: 'Include JWT token for protected routes',
       user_types: {
         jobseeker: 'Can manage CV, portfolio, enroll in trainings, apply for jobs, use AI assistant',
-        employer: 'Can create jobs and trainings, manage applications',
+        employer: 'Can create jobs and trainings, manage applications and candidates',
         admin: 'Full system access'
       }
     }
@@ -419,6 +447,7 @@ app.all('*', (req: Request, res: Response) => {
       '/api/portfolio/*',
       '/api/profile/*',
       '/api/gemini/*',
+      '/api/employer/*',
       '/health',
       '/health/db',
       '/api'
@@ -437,7 +466,6 @@ app.use((error: any, req: Request, res: Response, next: NextFunction): void => {
     body: req.body,
     timestamp: new Date().toISOString()
   });
-
   // Database connection errors
   if (error.code && error.code.startsWith('28')) {
     res.status(500).json({
@@ -447,7 +475,6 @@ app.use((error: any, req: Request, res: Response, next: NextFunction): void => {
     });
     return;
   }
-
   // JWT errors
   if (error.name === 'JsonWebTokenError') {
     res.status(401).json({
@@ -457,7 +484,6 @@ app.use((error: any, req: Request, res: Response, next: NextFunction): void => {
     });
     return;
   }
-
   if (error.name === 'TokenExpiredError') {
     res.status(401).json({
       success: false,
@@ -466,7 +492,6 @@ app.use((error: any, req: Request, res: Response, next: NextFunction): void => {
     });
     return;
   }
-
   // Validation errors
   if (error.name === 'ValidationError') {
     res.status(400).json({
@@ -477,7 +502,6 @@ app.use((error: any, req: Request, res: Response, next: NextFunction): void => {
     });
     return;
   }
-
   // Database constraint errors
   if (error.code === '23505') { // Unique constraint violation
     res.status(409).json({
@@ -488,7 +512,6 @@ app.use((error: any, req: Request, res: Response, next: NextFunction): void => {
     });
     return;
   }
-
   if (error.code === '23503') { // Foreign key constraint violation
     res.status(400).json({
       success: false,
@@ -498,15 +521,14 @@ app.use((error: any, req: Request, res: Response, next: NextFunction): void => {
     });
     return;
   }
-
   // Default error response
   res.status(error.status || 500).json({
     success: false,
     message: error.message || 'Internal server error',
     timestamp: new Date().toISOString(),
-    ...(process.env.NODE_ENV === 'development' && { 
+    ...(process.env.NODE_ENV === 'development' && {
       error: error.message,
-      stack: error.stack 
+      stack: error.stack
     })
   });
   return;
@@ -539,7 +561,6 @@ process.on('uncaughtException', (error) => {
   console.error('Uncaught Exception:', error);
   process.exit(1);
 });
-
 process.on('unhandledRejection', (reason, promise) => {
   console.error('Unhandled Rejection at:', promise, 'reason:', reason);
   process.exit(1);
@@ -554,18 +575,19 @@ app.listen(PORT, () => {
   console.log(`💾 Database health: http://localhost:${PORT}/health/db`);
   console.log(`📚 API Documentation: http://localhost:${PORT}/api`);
   console.log(`\n📋 Available Endpoints:`);
-  console.log(`   • Authentication: http://localhost:${PORT}/api/auth`);
-  console.log(`   • Jobs: http://localhost:${PORT}/api/jobs`);
-  console.log(`   • Training: http://localhost:${PORT}/api/trainings`);
-  console.log(`   • CV Builder: http://localhost:${PORT}/api/cv`);
-  console.log(`   • Portfolio: http://localhost:${PORT}/api/portfolio`);
-  console.log(`   • Profile: http://localhost:${PORT}/api/profile`);
-  console.log(`   • Gemini AI: http://localhost:${PORT}/api/gemini`);
+  console.log(` • Authentication: http://localhost:${PORT}/api/auth`);
+  console.log(` • Jobs: http://localhost:${PORT}/api/jobs`);
+  console.log(` • Training: http://localhost:${PORT}/api/trainings`);
+  console.log(` • CV Builder: http://localhost:${PORT}/api/cv`);
+  console.log(` • Portfolio: http://localhost:${PORT}/api/portfolio`);
+  console.log(` • Profile: http://localhost:${PORT}/api/profile`);
+  console.log(` • Gemini AI: http://localhost:${PORT}/api/gemini`);
+  console.log(` • Employer Candidates: http://localhost:${PORT}/api/employer`);
   console.log(`\n🎓 Features:`);
-  console.log(`   • Jobseekers: CV building, portfolio management, job applications, training enrollment`);
-  console.log(`   • Employers: Job postings, training creation, applicant management`);
-  console.log(`   • Portfolio: Public/private portfolios with analytics and PDF export`);
-  console.log(`   • AI Assistant: Personalized career guidance powered by Gemini AI`);
+  console.log(` • Jobseekers: CV building, portfolio management, job applications, training enrollment`);
+  console.log(` • Employers: Job postings, training creation, applicant management, candidate shortlisting`);
+  console.log(` • Portfolio: Public/private portfolios with analytics and PDF export`);
+  console.log(` • AI Assistant: Personalized career guidance powered by Gemini AI`);
   console.log(`\n🔐 Remember to include 'Authorization: Bearer <token>' header for protected routes`);
 });
 
