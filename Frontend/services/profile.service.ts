@@ -208,6 +208,9 @@ export interface ProfileResponse {
   providedIn: 'root'
 })
 export class ProfileService {
+  uploadCV(file: File) {
+    throw new Error('Method not implemented.');
+  }
   private portfolioUrl = `${environment.apiUrl}/portfolio`;
   private profileUrl = `${environment.apiUrl}/profile`;
 

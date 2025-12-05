@@ -89,6 +89,8 @@ interface Field {
 export class ProfileComponent implements OnInit {
   isLoading = true;
   isEditMode = false;
+  isUploadingCV = false; // New: Track CV upload state
+  showCVUpload = false; // New: Toggle for optional CV upload
   portfolioData: PortfolioData | null = null;
   shareableUrl: string = '';
   isPublic: boolean = false;
@@ -155,6 +157,7 @@ export class ProfileComponent implements OnInit {
   completionRecommendations: string[] = [];
 
   @ViewChild('fileInput') fileInput!: ElementRef<HTMLInputElement>;
+  @ViewChild('cvFileInput') cvFileInput!: ElementRef<HTMLInputElement>;
 
   constructor(
     private profileService: ProfileService,
@@ -410,6 +413,11 @@ export class ProfileComponent implements OnInit {
     }
   }
 
+  // New: Toggle CV upload section
+  toggleCVUpload(): void {
+    this.showCVUpload = !this.showCVUpload;
+  }
+
   // Toggle skill selection
   toggleSkill(skill: string, event: any): void {
     if (event.target.checked) {
@@ -613,6 +621,109 @@ export class ProfileComponent implements OnInit {
         this.isLoading = false;
       }
     });
+  }
+
+  // CV Upload Methods
+  triggerCVUpload(): void {
+    this.cvFileInput.nativeElement.click();
+  }
+
+  handleCVUpload(event: any): void {
+    const file = event.target.files[0];
+    if (file && (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf'))) {
+      // Check file size (e.g., max 5MB)
+      if (file.size > 5 * 1024 * 1024) {
+        alert('CV file size must be less than 5MB.');
+        return;
+      }
+      // Set loading state
+      this.isUploadingCV = true;
+      // Upload to server
+      this.uploadCV(file);
+    } else {
+      alert('Please select a valid PDF CV file.');
+    }
+  }
+
+  private uploadCV(file: File): void {
+    // Show informative message for long-running process
+    const uploadMessage = 'Uploading and processing your CV. This may take 1-3 minutes depending on file size and content complexity. Please wait...';
+    alert(uploadMessage); // Or use a modal/toast for better UX
+
+    const result: any = this.profileService.uploadCV(file);
+
+    // If the service returns an Observable
+    if (result && typeof result.subscribe === 'function') {
+      result.subscribe({
+        next: (response: any) => {
+          this.isUploadingCV = false;
+          if (response?.success) {
+            alert('CV uploaded successfully! Refreshing your profile sections...');
+            // Poll for portfolio updates (retry up to 3 times with 10s intervals)
+            this.pollForPortfolioUpdate(0, 3);
+            // Reload completion after update
+            this.loadProfileCompletion();
+            // Clear the file input
+            if (this.cvFileInput && this.cvFileInput.nativeElement) {
+              this.cvFileInput.nativeElement.value = '';
+            }
+          }
+        },
+        error: (error: any) => {
+          this.isUploadingCV = false;
+          console.error('Error uploading CV:', error);
+          alert('Failed to upload CV. Please try again or check file size.');
+        }
+      });
+      return;
+    }
+
+    // If the service returns a Promise
+    if (result && typeof result.then === 'function') {
+      result.then((response: any) => {
+        this.isUploadingCV = false;
+        if (response?.success) {
+          alert('CV uploaded successfully! Refreshing your profile sections...');
+          this.pollForPortfolioUpdate(0, 3);
+          this.loadProfileCompletion();
+          if (this.cvFileInput && this.cvFileInput.nativeElement) {
+            this.cvFileInput.nativeElement.value = '';
+          }
+        }
+      }).catch((error: any) => {
+        this.isUploadingCV = false;
+        console.error('Error uploading CV:', error);
+        alert('Failed to upload CV. Please try again.');
+      });
+      return;
+    }
+
+    // Service returned void (no observable/promise) — fallback with polling
+    console.warn('uploadCV did not return an Observable/Promise; using polling fallback.');
+    this.isUploadingCV = false;
+    // Poll for portfolio updates (retry up to 3 times with 10s intervals)
+    this.pollForPortfolioUpdate(0, 3);
+    if (this.cvFileInput && this.cvFileInput.nativeElement) {
+      this.cvFileInput.nativeElement.value = '';
+    }
+  }
+
+  // New: Poll for portfolio updates after CV upload
+  private pollForPortfolioUpdate(retryCount: number, maxRetries: number): void {
+    this.loadPortfolioData();
+    // Check if portfolio is updated (e.g., cvData exists)
+    if (this.portfolioData && this.portfolioData.cvData) {
+      alert('CV processing complete! Your profile has been updated.');
+      return;
+    }
+
+    if (retryCount < maxRetries) {
+      setTimeout(() => {
+        this.pollForPortfolioUpdate(retryCount + 1, maxRetries);
+      }, 10000); // Wait 10 seconds before next poll
+    } else {
+      alert('CV upload complete, but processing may still be ongoing. Please refresh the page in a few minutes or try uploading again.');
+    }
   }
 
   private calculateDuration(startDate: string, endDate: string | undefined, isCurrent: boolean): string {

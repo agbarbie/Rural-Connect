@@ -131,6 +131,39 @@
             Edit Your Information
           </h2>
 
+          <!-- Optional CV Upload Toggle -->
+          <div class="optional-section-toggle">
+            <button class="btn btn-secondary" (click)="toggleCVUpload()">
+              <i class="fas fa-file-upload"></i>
+              {{ showCVUpload ? 'Hide CV Upload' : 'Upload CV (Optional)' }}
+            </button>
+            <p class="toggle-help">Auto-populates your experience, education, and skills from your CV</p>
+          </div>
+
+          <!-- CV Upload (Optional) -->
+          @if (showCVUpload) {
+          <div class="form-card">
+            <h3 class="form-section-title">Upload Your CV</h3>
+            <div class="form-group full-width">
+              <label>Upload CV (PDF only)</label>
+              <div class="cv-upload-wrapper">
+                <button class="btn btn-primary" (click)="triggerCVUpload()" type="button" [disabled]="isUploadingCV">
+                  <i class="fas fa-upload"></i>
+                  {{ isUploadingCV ? 'Uploading...' : 'Choose CV File' }}
+                </button>
+                <input
+                  #cvFileInput
+                  type="file"
+                  accept=".pdf"
+                  (change)="handleCVUpload($event)"
+                  style="display: none;"
+                />
+                <p class="help-text">Supported: PDF files up to 5MB. Your CV will be parsed to automatically fill sections like work experience and education.</p>
+              </div>
+            </div>
+          </div>
+          }
+
           <!-- Basic Info -->
           <div class="form-card">
             <h3 class="form-section-title">Contact Information</h3>

@@ -9,6 +9,18 @@ import { User, AuthResponse, RegisterRequest, LoginRequest } from '../src/Interf
   providedIn: 'root'
 })
 export class AuthService {
+  updateToken(newToken: any) {
+    throw new Error('Method not implemented.');
+  }
+  storeToken(newToken: any) {
+    throw new Error('Method not implemented.');
+  }
+  setToken(newToken: any) {
+    throw new Error('Method not implemented.');
+  }
+  refreshToken() {
+    throw new Error('Method not implemented.');
+  }
   private apiUrl = environment.apiUrl;
   private currentUserSubject = new BehaviorSubject<User | null>(null);
   private tokenSubject = new BehaviorSubject<string | null>(null);
