@@ -5,6 +5,7 @@ import { Observable } from 'rxjs';
 import { environment } from '../src/environments/environment.prod';
 
 export interface Candidate {
+  email: any;
   id: string;
   application_id: string;
   name: string;

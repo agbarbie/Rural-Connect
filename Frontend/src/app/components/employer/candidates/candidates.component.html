@@ -32,83 +32,151 @@
 
       <!-- Filter/Sort Bar -->
       <div class="filter-sort-bar">
-        <div class="filter-section">
-          <div class="filter-group">
-            <label>Job Post</label>
-            <select [(ngModel)]="selectedJob" (change)="onJobChange()" class="filter-select">
-              <option [value]="job.id" *ngFor="let job of jobPosts">
-                {{ job.title }} ({{ job.match_count }} matches)
-              </option>
-            </select>
-          </div>
-          
-          <div class="search-box">
-            <i class="fas fa-search"></i>
-            <input 
-              type="text" 
-              [(ngModel)]="searchQuery" 
-              (input)="applyFilters()" 
-              placeholder="Search by name or skill"
-              class="search-input">
-          </div>
-        </div>
-
-        <div class="filter-section">
-          <div class="filter-group">
-            <label>Match %</label>
-            <select [(ngModel)]="skillsMatchFilter" (change)="applyFilters()" class="filter-select">
-              <option value="">All matches</option>
-              <option value="90">90%+ match</option>
-              <option value="80">80%+ match</option>
-              <option value="70">70%+ match</option>
-            </select>
-          </div>
-          
-          <div class="filter-group">
-            <label>Location</label>
-            <input 
-              type="text" 
-              [(ngModel)]="locationFilter" 
-              (input)="applyFilters()" 
-              placeholder="Any location"
-              class="filter-input">
-          </div>
-          
-          <div class="filter-group">
-            <label>Experience</label>
-            <input 
-              type="text" 
-              [(ngModel)]="experienceFilter" 
-              (input)="applyFilters()" 
-              placeholder="Experience level"
-              class="filter-input">
-          </div>
-          
-          <div class="filter-group">
-            <label>Training</label>
-            <input 
-              type="text" 
-              [(ngModel)]="trainingFilter" 
-              (input)="applyFilters()" 
-              placeholder="Training completed"
-              class="filter-input">
-          </div>
-          
-          <div class="filter-group">
-            <label>Sort By</label>
-            <select [(ngModel)]="sortBy" (change)="sortCandidates()" class="filter-select">
-              <option value="bestMatch">Best Match</option>
-              <option value="mostExperienced">Most Experienced</option>
-              <option value="recentlyActive">Recently Active</option>
-            </select>
-          </div>
-          
-          <button class="btn btn-outline clear-btn" (click)="clearFilters()">
-            <i class="fas fa-times"></i>
-            Clear
-          </button>
-        </div>
+        <!-- Update the job filter dropdown section -->
+<div class="filter-group">
+  <label for="jobFilter">Job Post</label>
+  <select
+    id="jobFilter"
+    [(ngModel)]="selectedJob"
+    (change)="onJobChange()"
+    class="filter-select">
+    <option value="all">All Jobs</option>
+    <option *ngFor="let job of jobPosts" [value]="job.id">
+      {{ job.title }} ({{ job.match_count }} applications)
+    </option>
+  </select>
+</div>
+<!-- Update the search input to trigger filtering -->
+<div class="search-box">
+  <input
+    type="text"
+    [(ngModel)]="searchQuery"
+    (input)="onSearchChange()"
+    (keyup.enter)="onSearchSubmit()"
+    placeholder="Search by name, title, skills, location..."
+    class="search-input">
+  <button class="search-btn" (click)="onSearchSubmit()">
+    <i class="fas fa-search"></i>
+  </button>
+</div>
+<!-- Update the skills match filter -->
+<div class="filter-group">
+  <label for="skillsMatch">Min Match Score</label>
+  <select
+    id="skillsMatch"
+    [(ngModel)]="skillsMatchFilter"
+    (change)="applyFilters()"
+    class="filter-select">
+    <option value="">Any Score</option>
+    <option value="90">90% and above</option>
+    <option value="80">80% and above</option>
+    <option value="70">70% and above</option>
+    <option value="60">60% and above</option>
+  </select>
+</div>
+<!-- Update location filter -->
+<div class="filter-group">
+  <label for="location">Location</label>
+  <input
+    type="text"
+    id="location"
+    [(ngModel)]="locationFilter"
+    (blur)="applyFilters()"
+    (keyup.enter)="applyFilters()"
+    placeholder="Enter location..."
+    class="filter-input">
+</div>
+<!-- Update experience filter -->
+<div class="filter-group">
+  <label for="experience">Experience</label>
+  <select
+    id="experience"
+    [(ngModel)]="experienceFilter"
+    (change)="applyFilters()"
+    class="filter-select">
+    <option value="">Any Experience</option>
+    <option value="entry">Entry Level (0-2 years)</option>
+    <option value="mid">Mid Level (3-5 years)</option>
+    <option value="senior">Senior (5+ years)</option>
+  </select>
+</div>
+<!-- Update training filter -->
+<div class="filter-group">
+  <label for="training">Training/Certification</label>
+  <select
+    id="training"
+    [(ngModel)]="trainingFilter"
+    (change)="applyFilters()"
+    class="filter-select">
+    <option value="">Any Training</option>
+    <option value="certified">Certified Only</option>
+    <option value="in-progress">In Progress</option>
+    <option value="completed">Completed Training</option>
+  </select>
+</div>
+<!-- Update sort dropdown -->
+<div class="sort-controls">
+  <label for="sortBy">Sort by:</label>
+  <select
+    id="sortBy"
+    [(ngModel)]="sortBy"
+    (change)="sortCandidates()"
+    class="sort-select">
+    <option value="newest">Newest First</option>
+    <option value="match_score">Best Match</option>
+    <option value="recent_activity">Recent Activity</option>
+    <option value="mostExperienced">Most Experienced</option>
+  </select>
+</div>
+<!-- Add Clear Filters button -->
+<div class="filter-actions">
+  <button class="btn-secondary" (click)="clearFilters()">
+    <i class="fas fa-times"></i> Clear All Filters
+  </button>
+</div>
       </div>
+
+      <!-- Show active filters indicator -->
+<div class="active-filters" *ngIf="searchQuery || skillsMatchFilter || locationFilter || experienceFilter || trainingFilter || selectedJob !== 'all'">
+  <span class="filter-label">Active Filters:</span>
+  <ng-container *ngFor="let job of jobPosts">
+    <span class="filter-tag" *ngIf="job.id == selectedJob">
+      Job: {{ job.title }}
+      <i class="fas fa-times" (click)="selectedJob = 'all'; onJobChange()"></i>
+    </span>
+  </ng-container>
+  <span class="filter-tag" *ngIf="searchQuery">
+    Search: "{{ searchQuery }}"
+    <i class="fas fa-times" (click)="searchQuery = ''; onSearchChange()"></i>
+  </span>
+  <span class="filter-tag" *ngIf="skillsMatchFilter">
+    Min Score: {{ skillsMatchFilter }}%
+    <i class="fas fa-times" (click)="skillsMatchFilter = ''; applyFilters()"></i>
+  </span>
+  <span class="filter-tag" *ngIf="locationFilter">
+    Location: {{ locationFilter }}
+    <i class="fas fa-times" (click)="locationFilter = ''; applyFilters()"></i>
+  </span>
+  <span class="filter-tag" *ngIf="experienceFilter">
+    Experience: {{ experienceFilter }}
+    <i class="fas fa-times" (click)="experienceFilter = ''; applyFilters()"></i>
+  </span>
+  <span class="filter-tag" *ngIf="trainingFilter">
+    Training: {{ trainingFilter }}
+    <i class="fas fa-times" (click)="trainingFilter = ''; applyFilters()"></i>
+  </span>
+</div>
+<!-- Show results count -->
+<div class="results-info">
+  <p>
+    Showing {{ filteredCandidates.length }} of {{ totalCandidates }} candidates
+    <ng-container *ngIf="selectedJob !== 'all'">
+      <ng-container *ngFor="let job of jobPosts">
+        <span *ngIf="job.id == selectedJob"> for {{ job.title }}</span>
+      </ng-container>
+    </ng-container>
+  </p>
+</div>
     </div>
 
     <!-- Batch Actions Toolbar -->

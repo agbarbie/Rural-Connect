@@ -1,4 +1,4 @@
-// src/routes/job.routes.ts - COMPLETE FILE WITH NOTIFICATIONS & TEST ENDPOINT
+// src/routes/job.routes.ts - COMPLETE FILE WITH WITHDRAW ROUTE
 import { Router } from 'express';
 import { PostJobsController } from '../controllers/postjobs.controller';
 import { JobseekerJobController } from '../controllers/Jobseeker job.controller';
@@ -7,10 +7,12 @@ import {
    authenticateToken,
    requireEmployer,
    requireJobseeker,
-   AuthenticatedRequest
+   AuthenticatedRequest,
+   authenticate
 } from '../middleware/auth.middleware';
 import { JobNotificationService } from '../services/job-notification.service';
 import pool from '../db/db.config';
+import { authorize } from '../middleware/role.middleware';
 
 const router = Router();
 
@@ -62,7 +64,6 @@ router.post('/test-notification', authenticateToken, async (req: any, res: any) 
     const notificationService = new JobNotificationService();
     
     if (userType === 'employer') {
-      // EMPLOYER: Simulate receiving a job application
       const testMetadata = {
         job_id: 'test-job-' + Date.now(),
         job_title: 'Senior Software Engineer',
@@ -75,7 +76,6 @@ router.post('/test-notification', authenticateToken, async (req: any, res: any) 
       console.log('📬 Creating application_received notification for EMPLOYER');
       console.log('📬 Metadata:', testMetadata);
       
-      // Create notification
       await notificationService.createNotification(
         userId,
         'application_received',
@@ -83,7 +83,6 @@ router.post('/test-notification', authenticateToken, async (req: any, res: any) 
         testMetadata
       );
       
-      // Verify notification was created in database
       const verifyQuery = await pool.query(
         `SELECT 
           id, user_id, type, title, message, read, created_at 
@@ -96,7 +95,6 @@ router.post('/test-notification', authenticateToken, async (req: any, res: any) 
       
       console.log('✅ Verification query result:', verifyQuery.rows[0]);
       
-      // Get all notifications for this user
       const allNotifications = await pool.query(
         `SELECT COUNT(*) as total, 
                 COUNT(CASE WHEN read = false THEN 1 END) as unread
@@ -129,7 +127,6 @@ router.post('/test-notification', authenticateToken, async (req: any, res: any) 
       });
       
     } else if (userType === 'jobseeker') {
-      // JOBSEEKER: Simulate being shortlisted for a job
       const testMetadata = {
         job_id: 'test-job-' + Date.now(),
         job_title: 'Frontend Developer',
@@ -149,7 +146,6 @@ router.post('/test-notification', authenticateToken, async (req: any, res: any) 
         testMetadata
       );
       
-      // Verify notification
       const verifyQuery = await pool.query(
         `SELECT id, user_id, type, title, message, read, created_at 
          FROM notifications 
@@ -216,13 +212,11 @@ router.get('/debug-notifications', authenticateToken, async (req: any, res: any)
     
     console.log('🔍 DEBUG: Checking notification setup for user:', userId);
     
-    // Check if user exists
     const userCheck = await pool.query(
       'SELECT id, email, user_type, first_name, last_name FROM users WHERE id = $1',
       [userId]
     );
     
-    // Check if employer record exists (if user is employer)
     let employerCheck = null;
     if (userType === 'employer') {
       employerCheck = await pool.query(
@@ -234,7 +228,6 @@ router.get('/debug-notifications', authenticateToken, async (req: any, res: any)
       );
     }
     
-    // Get all notifications for this user
     const notificationsCheck = await pool.query(
       `SELECT id, type, title, read, created_at 
        FROM notifications 
@@ -244,7 +237,6 @@ router.get('/debug-notifications', authenticateToken, async (req: any, res: any)
       [userId]
     );
     
-    // Get notification counts by type
     const notificationStats = await pool.query(
       `SELECT type, COUNT(*) as count, 
               COUNT(CASE WHEN read = false THEN 1 END) as unread_count
@@ -319,6 +311,15 @@ router.post('/jobseeker/bookmark/:jobId', authenticateToken, requireJobseeker, j
 router.delete('/jobseeker/bookmark/:jobId', authenticateToken, requireJobseeker, jobseekerJobController.unsaveJob);
 router.get('/jobseeker/bookmarked', authenticateToken, requireJobseeker, jobseekerJobController.getSavedJobs);
 router.post('/jobseeker/apply/:jobId', authenticateToken, requireJobseeker, jobseekerJobController.applyToJob);
+
+// 🔥 NEW: Withdraw application by job ID - CRITICAL ADDITION
+router.delete(
+  '/jobseeker/withdraw/:jobId',
+  authenticateToken,
+  requireJobseeker,
+  jobseekerJobController.withdrawApplicationByJob
+);
+
 router.get('/jobseeker/applications', authenticateToken, requireJobseeker, jobseekerJobController.getAppliedJobs);
 router.get('/jobseeker/application-status/:jobId', authenticateToken, requireJobseeker, jobseekerJobController.getApplicationStatus);
 router.put('/jobseeker/application/:applicationId', authenticateToken, requireJobseeker, jobseekerJobController.updateApplication);

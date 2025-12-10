@@ -1,4 +1,4 @@
-// src/app/employer/candidates/candidates.component.ts - WITH AUTO-REFRESH
+// src/app/employer/candidates/candidates.component.ts - FIXED AUTO-LOAD & FILTERS
 
 import { Component, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
@@ -24,7 +24,7 @@ export class CandidatesComponent implements OnInit, OnDestroy {
   jobPosts: JobPost[] = [];
   
   // UI state
-  selectedJob: string = '';
+  selectedJob: string = 'all'; // 🔥 CHANGED: Default to 'all' to show all candidates
   viewMode: 'grid' | 'list' = 'grid';
   isLoading: boolean = false;
   lastRefreshTime: Date = new Date();
@@ -35,7 +35,7 @@ export class CandidatesComponent implements OnInit, OnDestroy {
   locationFilter = '';
   experienceFilter = '';
   trainingFilter = '';
-  sortBy = 'match_score';
+  sortBy = 'newest'; // 🔥 CHANGED: Default to newest first
   
   // Selection
   selectedCandidates: string[] = [];
@@ -58,7 +58,7 @@ export class CandidatesComponent implements OnInit, OnDestroy {
     { type: 'ai', content: 'Hello! I can help you understand candidate matches. Ask me anything about these candidates!' }
   ];
   
-  // 🔥 NEW: Auto-refresh properties
+  // Auto-refresh properties
   private autoRefreshInterval = 30000; // 30 seconds
   showNewApplicationsBadge = false;
   newApplicationsCount = 0;
@@ -73,9 +73,6 @@ export class CandidatesComponent implements OnInit, OnDestroy {
   ngOnInit() {
     console.log('🚀 Candidates Component initialized');
     this.loadJobPosts();
-    
-    // 🔥 Setup auto-refresh for new applications
-    this.setupAutoRefresh();
   }
   
   ngOnDestroy() {
@@ -84,7 +81,7 @@ export class CandidatesComponent implements OnInit, OnDestroy {
   }
   
   /**
-   * 🔥 NEW: Setup auto-refresh to check for new applications
+   * Setup auto-refresh to check for new applications
    */
   private setupAutoRefresh(): void {
     console.log('⏱️ Setting up auto-refresh every', this.autoRefreshInterval / 1000, 'seconds');
@@ -98,15 +95,13 @@ export class CandidatesComponent implements OnInit, OnDestroy {
   }
   
   /**
-   * 🔥 NEW: Check for new applications without disrupting user
+   * Check for new applications without disrupting user
    */
   private checkForNewApplications(): void {
-    if (!this.selectedJob) return;
-    
     const query: CandidatesQuery = {
-      job_id: this.selectedJob,
+      job_id: this.selectedJob === 'all' ? undefined : this.selectedJob,
       page: 1,
-      limit: 100 // Get more to detect new ones
+      limit: 100
     };
     
     this.candidatesService.getCandidates(query)
@@ -116,14 +111,10 @@ export class CandidatesComponent implements OnInit, OnDestroy {
           if (response.success && response.data) {
             const currentTotal = response.data.pagination?.total || 0;
             
-            // Check if there are new applications
             if (currentTotal > this.totalCandidates) {
               this.newApplicationsCount = currentTotal - this.totalCandidates;
               this.showNewApplicationsBadge = true;
-              
               console.log('🔔 New applications detected:', this.newApplicationsCount);
-              
-              // Show browser notification if permitted
               this.showBrowserNotification(this.newApplicationsCount);
             }
           }
@@ -135,11 +126,13 @@ export class CandidatesComponent implements OnInit, OnDestroy {
   }
   
   /**
-   * 🔥 NEW: Show browser notification for new applications
+   * Show browser notification for new applications
    */
   private showBrowserNotification(count: number): void {
     if ('Notification' in window && Notification.permission === 'granted') {
-      const jobTitle = this.jobPosts.find(j => j.id === this.selectedJob)?.title || 'your job';
+      const jobTitle = this.selectedJob === 'all' 
+        ? 'all jobs' 
+        : this.jobPosts.find(j => j.id === this.selectedJob)?.title || 'your job';
       
       new Notification('New Job Applications!', {
         body: `${count} new ${count === 1 ? 'application' : 'applications'} received for ${jobTitle}`,
@@ -147,13 +140,12 @@ export class CandidatesComponent implements OnInit, OnDestroy {
         badge: '/assets/logo.png'
       });
     } else if ('Notification' in window && Notification.permission !== 'denied') {
-      // Request permission for future notifications
       Notification.requestPermission();
     }
   }
   
   /**
-   * 🔥 NEW: Refresh data when user clicks the badge
+   * Refresh data when user clicks the badge
    */
   refreshCandidates(): void {
     console.log('🔄 Manual refresh triggered by user');
@@ -163,7 +155,7 @@ export class CandidatesComponent implements OnInit, OnDestroy {
   }
   
   /**
-   * Load employer's job posts
+   * 🔥 FIXED: Load employer's job posts and auto-load candidates
    */
   loadJobPosts(): void {
     console.log('📋 Loading job posts...');
@@ -177,33 +169,43 @@ export class CandidatesComponent implements OnInit, OnDestroy {
         next: (response) => {
           if (response.success && response.data) {
             this.jobPosts = response.data;
-            
-            // Auto-select first job if available
-            if (this.jobPosts.length > 0 && !this.selectedJob) {
-              this.selectedJob = this.jobPosts[0].id;
-              this.loadCandidates();
-            }
-            
             console.log('✅ Job posts loaded:', this.jobPosts.length);
+            
+            // 🔥 AUTO-LOAD: Load candidates immediately after job posts are loaded
+            this.loadCandidates();
+            
+            // Setup auto-refresh after initial load
+            this.setupAutoRefresh();
           }
         },
         error: (error) => {
           console.error('❌ Error loading job posts:', error);
+          // 🔥 Even if job posts fail, try to load candidates
+          this.loadCandidates();
         }
       });
   }
   
   /**
-   * Load candidates based on filters
+   * 🔥 FIXED: Load candidates based on filters with proper query building
    */
   loadCandidates(): void {
-    console.log('🔄 Loading candidates...');
+    console.log('🔄 Loading candidates with filters:', {
+      selectedJob: this.selectedJob,
+      searchQuery: this.searchQuery,
+      skillsMatchFilter: this.skillsMatchFilter,
+      locationFilter: this.locationFilter,
+      experienceFilter: this.experienceFilter,
+      trainingFilter: this.trainingFilter,
+      sortBy: this.sortBy
+    });
     
     this.isLoading = true;
     this.lastRefreshTime = new Date();
     
+    // 🔥 FIXED: Build query properly - only send job_id if not 'all'
     const query: CandidatesQuery = {
-      job_id: this.selectedJob || undefined,
+      job_id: this.selectedJob === 'all' ? undefined : this.selectedJob,
       match_score_min: this.skillsMatchFilter ? parseInt(this.skillsMatchFilter) : undefined,
       location: this.locationFilter || undefined,
       experience: this.experienceFilter || undefined,
@@ -212,6 +214,8 @@ export class CandidatesComponent implements OnInit, OnDestroy {
       page: this.currentPage,
       limit: this.itemsPerPage
     };
+    
+    console.log('📤 Sending query to backend:', query);
     
     this.candidatesService.getCandidates(query)
       .pipe(
@@ -227,20 +231,18 @@ export class CandidatesComponent implements OnInit, OnDestroy {
           
           if (response.success && response.data) {
             this.candidates = Array.isArray(response.data.data) ? response.data.data : [];
-            this.filteredCandidates = [...this.candidates];
             
             // Update pagination
             this.totalCandidates = response.data.pagination?.total || 0;
             this.totalPages = response.data.pagination?.total_pages || 1;
             this.currentPage = response.data.pagination?.page || 1;
             
-            // Apply client-side search filter if present
-            if (this.searchQuery) {
-              this.applyClientSideSearch();
-            }
+            // 🔥 FIXED: Apply client-side filters AFTER loading from backend
+            this.applyClientSideFilters();
             
             console.log('✅ Candidates loaded:', {
               count: this.candidates.length,
+              filtered: this.filteredCandidates.length,
               total: this.totalCandidates,
               page: this.currentPage,
               totalPages: this.totalPages
@@ -268,52 +270,93 @@ export class CandidatesComponent implements OnInit, OnDestroy {
   }
   
   /**
-   * Apply client-side search filter
+   * 🔥 FIXED: Apply client-side filters for search query
    */
-  applyClientSideSearch(): void {
-    if (!this.searchQuery) {
-      this.filteredCandidates = [...this.candidates];
-      return;
+  applyClientSideFilters(): void {
+    // Start with all candidates from backend
+    let filtered = [...this.candidates];
+    
+    // Apply search query filter
+    if (this.searchQuery && this.searchQuery.trim()) {
+      const query = this.searchQuery.toLowerCase().trim();
+      filtered = filtered.filter(candidate =>
+        candidate.name.toLowerCase().includes(query) ||
+        candidate.title.toLowerCase().includes(query) ||
+        candidate.email?.toLowerCase().includes(query) ||
+        (candidate.skills && candidate.skills.some(skill => 
+          skill.toLowerCase().includes(query)
+        )) ||
+        (candidate.location && candidate.location.toLowerCase().includes(query))
+      );
+      console.log('🔍 Search filter applied:', {
+        query,
+        before: this.candidates.length,
+        after: filtered.length
+      });
     }
     
-    const query = this.searchQuery.toLowerCase();
-    this.filteredCandidates = this.candidates.filter(candidate =>
-      candidate.name.toLowerCase().includes(query) ||
-      candidate.title.toLowerCase().includes(query) ||
-      (candidate.skills && candidate.skills.some(skill => skill.toLowerCase().includes(query)))
-    );
+    this.filteredCandidates = filtered;
   }
   
-  // Filter change handlers
+  /**
+   * 🔥 FIXED: Apply filters triggers backend reload
+   */
+  applyFilters(): void {
+    console.log('🔍 Applying filters...');
+    this.currentPage = 1; // Reset to first page
+    this.loadCandidates(); // Reload from backend with new filters
+  }
+  
+  /**
+   * 🔥 FIXED: Clear filters and reload
+   */
+  clearFilters(): void {
+    console.log('🧹 Clearing filters...');
+    this.searchQuery = '';
+    this.skillsMatchFilter = '';
+    this.locationFilter = '';
+    this.experienceFilter = '';
+    this.trainingFilter = '';
+    this.sortBy = 'newest';
+    this.selectedJob = 'all'; // Reset to show all jobs
+    this.currentPage = 1;
+    this.loadCandidates();
+  }
+  
+  /**
+   * 🔥 FIXED: Job change handler
+   */
   onJobChange(): void {
     console.log('🔄 Job changed to:', this.selectedJob);
     this.currentPage = 1;
     this.clearSelection();
     this.showNewApplicationsBadge = false;
     this.newApplicationsCount = 0;
-    this.loadCandidates();
+    this.loadCandidates(); // Reload with new job filter
   }
   
-  applyFilters(): void {
-    console.log('🔍 Applying filters...');
-    this.currentPage = 1;
-    this.loadCandidates();
-  }
-  
-  clearFilters(): void {
-    this.searchQuery = '';
-    this.skillsMatchFilter = '';
-    this.locationFilter = '';
-    this.experienceFilter = '';
-    this.trainingFilter = '';
-    this.sortBy = 'match_score';
-    this.currentPage = 1;
-    this.loadCandidates();
-  }
-  
+  /**
+   * 🔥 FIXED: Sort change handler
+   */
   sortCandidates(): void {
+    console.log('📊 Sort changed to:', this.sortBy);
     this.currentPage = 1;
-    this.loadCandidates();
+    this.loadCandidates(); // Reload with new sort
+  }
+  
+  /**
+   * 🔥 NEW: Search input handler (debounced search would be better)
+   */
+  onSearchChange(): void {
+    // Apply client-side filter immediately for search
+    this.applyClientSideFilters();
+  }
+  
+  /**
+   * Handle search form submission
+   */
+  onSearchSubmit(): void {
+    this.applyClientSideFilters();
   }
   
   toggleViewMode(): void {
@@ -355,8 +398,8 @@ export class CandidatesComponent implements OnInit, OnDestroy {
   
   // Batch actions
   shortlistSelected(): void {
-    if (!this.selectedJob) {
-      alert('Please select a job first');
+    if (this.selectedJob === 'all') {
+      alert('Please select a specific job to shortlist candidates');
       return;
     }
     
@@ -375,8 +418,8 @@ export class CandidatesComponent implements OnInit, OnDestroy {
   }
   
   sendBulkInvites(): void {
-    if (!this.selectedJob) {
-      alert('Please select a job first');
+    if (this.selectedJob === 'all') {
+      alert('Please select a specific job to send invitations');
       return;
     }
     
@@ -400,13 +443,13 @@ export class CandidatesComponent implements OnInit, OnDestroy {
   // Individual candidate actions
   viewFullProfile(candidateId: string): void {
     this.router.navigate(['/employer/candidate-profile', candidateId], {
-      queryParams: { jobId: this.selectedJob }
+      queryParams: { jobId: this.selectedJob === 'all' ? undefined : this.selectedJob }
     });
   }
   
   toggleShortlist(candidate: Candidate): void {
-    if (!this.selectedJob) {
-      alert('Please select a job first');
+    if (this.selectedJob === 'all') {
+      alert('Please select a specific job to shortlist candidates');
       return;
     }
     
@@ -425,8 +468,8 @@ export class CandidatesComponent implements OnInit, OnDestroy {
   }
   
   inviteToApply(candidateId: string): void {
-    if (!this.selectedJob) {
-      alert('Please select a job first');
+    if (this.selectedJob === 'all') {
+      alert('Please select a specific job to send invitation');
       return;
     }
     
@@ -454,11 +497,14 @@ export class CandidatesComponent implements OnInit, OnDestroy {
   
   requestInterview(candidateId: string): void {
     this.router.navigate(['/employer/schedule-interview'], {
-      queryParams: { candidateId, jobId: this.selectedJob }
+      queryParams: { 
+        candidateId, 
+        jobId: this.selectedJob === 'all' ? undefined : this.selectedJob 
+      }
     });
   }
   
-  // Helper methods remain the same...
+  // Helper methods
   showAIInsights(candidate: Candidate): void {
     this.currentInsight = {
       reason: `High match (${candidate.match_score}%) due to strong ${candidate.skills.slice(0, 2).join(' and ')} skills`,
@@ -494,17 +540,17 @@ export class CandidatesComponent implements OnInit, OnDestroy {
     const lowerMessage = message.toLowerCase();
     
     if (lowerMessage.includes('top') || lowerMessage.includes('best')) {
-      const topCandidates = this.candidates
+      const topCandidates = this.filteredCandidates
         .sort((a, b) => b.match_score - a.match_score)
         .slice(0, 5);
       response = `Top candidates: ${topCandidates.map(c => `${c.name} (${c.match_score}%)`).join(', ')}`;
     } else if (lowerMessage.includes('certified') || lowerMessage.includes('training')) {
-      const certified = this.candidates.filter(c =>
+      const certified = this.filteredCandidates.filter(c =>
         c.certifications.some(cert => cert.verified)
       );
       response = `${certified.length} candidates have verified certifications: ${certified.map(c => c.name).join(', ')}`;
     } else if (lowerMessage.includes('available')) {
-      const available = this.candidates.filter(c =>
+      const available = this.filteredCandidates.filter(c =>
         c.availability.includes('immediately')
       );
       response = `${available.length} candidates are available immediately: ${available.map(c => c.name).join(', ')}`;
@@ -553,9 +599,5 @@ export class CandidatesComponent implements OnInit, OnDestroy {
   
   promoteJob() {
     console.log('📢 Promoting job...');
-  }
-  
-  onSearchSubmit() {
-    this.applyFilters();
   }
 }

@@ -2155,3 +2155,249 @@
   top: 10px;
   right: 10px;
 }
+.apply-btn.applied {
+  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.25);
+  pointer-events: auto; /* ✅ IMPORTANT: Make it clickable */
+}
+
+.apply-btn.applied:hover:not(:disabled) {
+  background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+  box-shadow: 0 6px 16px rgba(220, 38, 38, 0.35);
+  transform: translateY(-2px);
+}
+
+.apply-btn.applied:active:not(:disabled) {
+  transform: translateY(0);
+  box-shadow: 0 2px 8px rgba(220, 38, 38, 0.25);
+}
+
+/* Loading state for withdrawal */
+.apply-btn.applied:disabled {
+  background: linear-gradient(135deg, #f87171 0%, #ef4444 100%);
+  cursor: not-allowed;
+  opacity: 0.8;
+}
+
+/* Icon animation for withdraw */
+.apply-btn.applied .fa-times-circle {
+  animation: rotateIn 0.3s ease-out;
+}
+
+@keyframes rotateIn {
+  from {
+    transform: rotate(-180deg) scale(0.5);
+    opacity: 0;
+  }
+  to {
+    transform: rotate(0deg) scale(1);
+    opacity: 1;
+  }
+}
+
+/* Success state when first applied */
+.apply-btn.just-applied {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  animation: successPulse 0.5s ease-out;
+}
+
+@keyframes successPulse {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.05);
+  }
+}
+
+/* Hover tooltip for applied jobs */
+.apply-btn.applied::before {
+  content: 'Click to withdraw your application';
+  position: absolute;
+  bottom: calc(100% + 10px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: #1f2937;
+  color: white;
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+  z-index: 1000;
+}
+
+.apply-btn.applied::after {
+  content: '';
+  position: absolute;
+  bottom: calc(100% + 4px);
+  left: 50%;
+  transform: translateX(-50%);
+  border: 6px solid transparent;
+  border-top-color: #1f2937;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+  z-index: 1000;
+}
+
+.apply-btn.applied:hover::before,
+.apply-btn.applied:hover::after {
+  opacity: 1;
+}
+
+/* Confirmation animation when withdrawing */
+@keyframes fadeOutSlide {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+}
+
+/* Processing state */
+.apply-btn:disabled .fa-spinner {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Mobile responsive adjustments */
+@media (max-width: 768px) {
+  .apply-btn.applied::before {
+    font-size: 11px;
+    padding: 6px 10px;
+  }
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+  .apply-btn.applied {
+    border: 2px solid #991b1b;
+  }
+  
+  .apply-btn.applied:hover {
+    border-color: #7f1d1d;
+  }
+}
+
+/* Focus visible for keyboard navigation */
+.apply-btn.applied:focus-visible {
+  outline: 3px solid rgba(239, 68, 68, 0.5);
+  outline-offset: 2px;
+}
+/* Error/Info/Warning Notifications - Enhanced */
+.notifications-container {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  z-index: 2000;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: 420px;
+}
+
+.notification-toast {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 20px;
+  border-radius: 12px;
+  background: white;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+  animation: slideInRight 0.3s ease-out;
+  border-left: 4px solid #cbd5e1;
+  position: relative;
+  min-width: 300px;
+}
+
+@keyframes slideInRight {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+.notification-toast i {
+  font-size: 20px;
+  flex-shrink: 0;
+}
+
+.notification-toast.success {
+  border-left-color: #10b981;
+  background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%);
+}
+
+.notification-toast.success i {
+  color: #10b981;
+}
+
+.notification-toast.error {
+  border-left-color: #ef4444;
+  background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%);
+}
+
+.notification-toast.error i {
+  color: #ef4444;
+}
+
+.notification-toast.info {
+  border-left-color: #3b82f6;
+  background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+}
+
+.notification-toast.info i {
+  color: #3b82f6;
+}
+
+.notification-toast.warning {
+  border-left-color: #f59e0b;
+  background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%);
+}
+
+.notification-toast.warning i {
+  color: #f59e0b;
+}
+
+.notification-toast span {
+  flex: 1;
+  font-size: 14px;
+  font-weight: 500;
+  color: #1f2937;
+  line-height: 1.5;
+}
+
+.close-toast {
+  background: none;
+  border: none;
+  font-size: 20px;
+  color: #6b7280;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 4px;
+  transition: all 0.2s;
+  flex-shrink: 0;
+}
+
+.close-toast:hover {
+  background: rgba(0, 0, 0, 0.05);
+  color: #1f2937;
+}

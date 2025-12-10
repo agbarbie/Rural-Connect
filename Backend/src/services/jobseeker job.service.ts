@@ -839,7 +839,53 @@ async getAppliedJobs(userId: string, filters: { page: number; limit: number; sta
       throw error;
     }
   }
+  // Withdraw application by job ID
+async withdrawApplicationByJob(userId: string, jobId: string): Promise<ServiceResponse<void>> {
+  try {
+    console.log('🔄 Attempting to withdraw application:', { userId, jobId });
+    
+    // First check if application exists and get its current status
+    const checkResult = await this.db.query(
+      `SELECT id, status FROM job_applications 
+       WHERE job_id = $1 AND user_id = $2`,
+      [jobId, userId]
+    );
 
+    if (checkResult.rows.length === 0) {
+      console.log('❌ No application found for this job');
+      return { success: false, message: 'Application not found for this job' };
+    }
+
+    const currentStatus = checkResult.rows[0].status;
+    console.log('📋 Current application status:', currentStatus);
+
+    // Don't allow withdrawing if already withdrawn, accepted, or rejected by employer
+    const terminalStatuses = ['withdrawn', 'accepted', 'rejected'];
+    if (terminalStatuses.includes(currentStatus)) {
+      console.log('⚠️ Cannot withdraw - application is in terminal status:', currentStatus);
+      return { 
+        success: false, 
+        message: `Cannot withdraw application that is ${currentStatus}` 
+      };
+    }
+
+    // Withdraw the application
+    const result = await this.db.query(
+      `UPDATE job_applications 
+       SET status = 'withdrawn', updated_at = NOW() 
+       WHERE job_id = $1 AND user_id = $2 
+       RETURNING id, status`,
+      [jobId, userId]
+    );
+
+    console.log('✅ Application withdrawn successfully:', result.rows[0]);
+    return { success: true };
+    
+  } catch (error) {
+    console.error('❌ Error withdrawing application:', error);
+    throw error;
+  }
+}
   // Get jobseeker statistics - FIXED VERSION WITH ERROR HANDLING
   async getJobseekerStats(userId: string): Promise<JobseekerStats> {
     try {

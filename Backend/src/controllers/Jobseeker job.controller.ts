@@ -1,4 +1,4 @@
-// src/controllers/jobseeker-job.controller.ts
+// src/controllers/jobseeker-job.controller.ts - COMPLETE WITH WITHDRAW METHOD
 import { Request, Response, NextFunction } from 'express';
 import { AuthenticatedRequest } from '../middleware/auth.middleware';
 import { JobseekerJobService } from '../services/jobseeker job.service';
@@ -50,6 +50,44 @@ export class JobseekerJobController {
         data: result
       });
     } catch (error) {
+      next(error);
+    }
+  };
+
+  // 🔥 NEW: Withdraw application by job ID (convenience endpoint)
+  withdrawApplicationByJob = async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const { jobId } = req.params;
+      const userId = req.user!.id;
+
+      console.log('🔥 WITHDRAW BY JOB ID - Controller called');
+      console.log('Job ID:', jobId);
+      console.log('User ID:', userId);
+
+      if (!isValidUUID(jobId)) {
+        res.status(400).json({
+          success: false,
+          message: 'Invalid job ID format'
+        });
+        return;
+      }
+
+      const result = await this.jobseekerJobService.withdrawApplicationByJob(userId, jobId);
+
+      if (!result.success) {
+        res.status(400).json({
+          success: false,
+          message: result.message
+        });
+        return;
+      }
+
+      res.status(200).json({
+        success: true,
+        message: 'Application withdrawn successfully'
+      });
+    } catch (error) {
+      console.error('❌ Controller error in withdrawApplicationByJob:', error);
       next(error);
     }
   };
@@ -317,7 +355,7 @@ export class JobseekerJobController {
     }
   };
 
-  // Withdraw application
+  // Withdraw application by application ID
   withdrawApplication = async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
       const { applicationId } = req.params;

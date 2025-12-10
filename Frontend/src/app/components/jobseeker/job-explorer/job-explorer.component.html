@@ -292,25 +292,33 @@
             class="fa-bookmark"></i>
         </button>
         <button 
-          class="apply-btn" 
-          [class.applied]="isJobApplied(getJobId(job))"
-          [class.disabled-incomplete]="!isProfileComplete && !isJobApplied(getJobId(job))"
-          (click)="applyToJob(getJobId(job))"
-          [disabled]="isJobApplied(getJobId(job)) || isApplying === getJobId(job)"
-          [title]="!isProfileComplete && !isJobApplied(getJobId(job)) ? 'Complete your profile to apply ('+profileCompletion+'%/80%)' : ''">
-          <span *ngIf="isApplying === getJobId(job)">
-            <i class="fas fa-spinner fa-spin"></i> Applying...
-          </span>
-          <span *ngIf="isApplying !== getJobId(job) && !isJobApplied(getJobId(job)) && isProfileComplete">
-            <i class="fas fa-paper-plane"></i> Apply
-          </span>
-          <span *ngIf="isApplying !== getJobId(job) && !isJobApplied(getJobId(job)) && !isProfileComplete">
-            <i class="fas fa-lock"></i> Complete Profile First
-          </span>
-          <span *ngIf="isApplying !== getJobId(job) && isJobApplied(getJobId(job))">
-            <i class="fas fa-check"></i> Applied
-          </span>
-        </button>
+  class="apply-btn" 
+  [class.applied]="isJobApplied(getJobId(job))"
+  [class.disabled-incomplete]="!isProfileComplete && !isJobApplied(getJobId(job))"
+  (click)="applyToJob(getJobId(job))"
+  [disabled]="isApplying === getJobId(job) || (!isProfileComplete && !isJobApplied(getJobId(job)))"
+  [title]="getApplyButtonTitle(job)">
+  
+  <!-- Loading State -->
+  <span *ngIf="isApplying === getJobId(job)">
+    <i class="fas fa-spinner fa-spin"></i> Processing...
+  </span>
+  
+  <!-- Applied State - Click to Withdraw -->
+  <span *ngIf="isApplying !== getJobId(job) && isJobApplied(getJobId(job))">
+    <i class="fas fa-times-circle"></i> Withdraw Application
+  </span>
+  
+  <!-- Not Applied - Profile Incomplete -->
+  <span *ngIf="isApplying !== getJobId(job) && !isJobApplied(getJobId(job)) && !isProfileComplete">
+    <i class="fas fa-lock"></i> Complete Profile First
+  </span>
+  
+  <!-- Not Applied - Can Apply -->
+  <span *ngIf="isApplying !== getJobId(job) && !isJobApplied(getJobId(job)) && isProfileComplete">
+    <i class="fas fa-paper-plane"></i> Apply Now
+  </span>
+</button>
       </div>
     </div>
 

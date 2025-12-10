@@ -51,6 +51,9 @@ export interface Job {
   company_industry?: string;
   company_size?: string;
   company_website?: string;
+  // Optional runtime fields used by the frontend (not persisted by API)
+  has_applied?: boolean;
+  application_status?: string | null;
 }
 
 export interface JobStats {
@@ -151,6 +154,9 @@ export interface PaginatedResponse<T> {
   providedIn: 'root'
 })
 export class JobService {
+  withdrawApplication(jobId: string) {
+    throw new Error('Method not implemented.');
+  }
   private apiUrl = `${environment.apiUrl}/jobs`;
   private jobsSubject = new BehaviorSubject<Job[]>([]);
   public jobs$ = this.jobsSubject.asObservable();
@@ -198,6 +204,88 @@ export class JobService {
     
     return { userId, companyId, userType };
   }
+
+  withdrawApplicationByJobId(jobId: string): Observable<ApiResponse<void>> {
+  if (!this.authService.isAuthenticated()) {
+    console.error('withdrawApplicationByJobId: User is not authenticated');
+    return throwError(() => ({
+      error: { message: 'Authentication required. Please log in again.' }
+    }));
+  }
+
+  console.log('🔄 Withdrawing application for job ID:', jobId);
+
+  return this.http.delete<ApiResponse<void>>(
+    `${this.apiUrl}/jobseeker/withdraw/${jobId}`,
+    { headers: this.getAuthHeaders() }
+  ).pipe(
+    tap(response => {
+      console.log('✅ Withdraw application response:', response);
+      
+      if (response.success) {
+        // Remove from appliedJobIds cache
+        this.appliedJobIds = this.appliedJobIds.filter(id => id !== jobId);
+        
+        // Update local jobs cache
+        const jobs = this.jobsSubject.value;
+        const jobIndex = jobs.findIndex(j => j.id === jobId);
+        
+        if (jobIndex !== -1) {
+          jobs[jobIndex] = {
+            ...jobs[jobIndex],
+            has_applied: false,
+            application_status: undefined
+          };
+          this.jobsSubject.next([...jobs]);
+        }
+        
+        console.log('✅ Local state updated after withdrawal');
+      }
+    }),
+    catchError((error) => {
+      console.error('❌ Error withdrawing application:', error);
+      
+      let errorMsg = 'Failed to withdraw application. Please try again.';
+      
+      if (error.status === 401) {
+        errorMsg = '🔐 Please log in to withdraw applications';
+        this.authService.logout();
+      } else if (error.status === 404) {
+        errorMsg = 'Application not found or already withdrawn';
+        // Clean up local state anyway
+        this.appliedJobIds = this.appliedJobIds.filter(id => id !== jobId);
+      } else if (error.status === 400) {
+        errorMsg = error.error?.message || 'Cannot withdraw this application';
+      } else if (error.error?.message) {
+        errorMsg = error.error.message;
+      }
+      
+      return throwError(() => ({ ...error, userMessage: errorMsg }));
+    })
+  );
+}
+
+// Also add a helper property to track appliedJobIds
+private appliedJobIds: string[] = [];
+
+// Add getter/setter methods
+getAppliedJobIds(): string[] {
+  return [...this.appliedJobIds];
+}
+
+setAppliedJobIds(ids: string[]): void {
+  this.appliedJobIds = [...ids];
+}
+
+addAppliedJobId(jobId: string): void {
+  if (!this.appliedJobIds.includes(jobId)) {
+    this.appliedJobIds.push(jobId);
+  }
+}
+
+removeAppliedJobId(jobId: string): void {
+  this.appliedJobIds = this.appliedJobIds.filter(id => id !== jobId);
+}
 
   createJob(jobData: CreateJobRequest): Observable<ApiResponse<Job>> {
     if (!this.authService.isAuthenticated()) {
