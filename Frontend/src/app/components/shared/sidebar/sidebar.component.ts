@@ -57,7 +57,7 @@ export class SidebarComponent implements OnInit {
         { label: 'Dashboard', icon: 'fas fa-th-large', route: '/employer/employer-dashboard' },
         { label: 'Post Jobs', icon: 'fas fa-briefcase', route: '/employer/post-jobs' },
         { label: 'Candidates', icon: 'fas fa-users', route: '/employer/candidates' },
-        { label: 'Interviews', icon: 'fas fa-calendar-alt', route: '/employer/interviews' },
+        // { label: 'Interviews', icon: 'fas fa-calendar-alt', route: '/employer/interviews' },
         { label: 'Training', icon: 'fas fa-play-circle', route: '/employer/training' },
         { label: 'AI Assistant', icon: 'fas fa-robot', route: '/employer/ai-assistant' },
         { label: 'Company Profile', icon: 'fas fa-building', route: '/employer/company-profile' }

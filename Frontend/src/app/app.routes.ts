@@ -66,7 +66,7 @@ export const routes: Routes = [
   { path: 'employer/candidates', component: CandidatesComponent },
   { path: 'employer/interviews', component: InterviewsComponent },
   { path: 'employer/company-profile', component: CompanyProfileComponent },
-  { path: 'employer/candidate-profile', component: CandidateProfileComponent },
+  { path: 'employer/candidate-profile/:id', component: CandidateProfileComponent },
   // Alternative shorter routes for employer (in case the issue is with long paths)
   { path: 'post-jobs', component: PostJobsComponent },
   
