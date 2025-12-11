@@ -7,6 +7,7 @@ import { Router } from '@angular/router';
 import { Subject, takeUntil, finalize, interval } from 'rxjs';
 import { SidebarComponent } from '../../shared/sidebar/sidebar.component';
 import { CandidatesService, Candidate, JobPost, CandidatesQuery } from '../../../../../services/candidates.service';
+import { environment } from '../../../../environments/environments';
 
 @Component({
   selector: 'app-candidates',
@@ -306,6 +307,52 @@ export class CandidatesComponent implements OnInit, OnDestroy {
     this.currentPage = 1; // Reset to first page
     this.loadCandidates(); // Reload from backend with new filters
   }
+
+  getFullImageUrl(imagePath: string | null | undefined, candidateName: string): string {
+  // If no image path, return avatar placeholder
+  if (!imagePath) {
+    return `https://ui-avatars.com/api/?name=${encodeURIComponent(candidateName)}&background=4285f4&color=fff&size=128`;
+  }
+  
+  // If it's already a full URL (http/https or data URL), return as is
+  if (imagePath.startsWith('http') || imagePath.startsWith('data:')) {
+    return imagePath;
+  }
+  
+  // If it's a relative path, construct full URL
+  if (imagePath.startsWith('/uploads') || imagePath.startsWith('uploads')) {
+    const baseUrl = environment.apiUrl.replace('/api', '');
+    return `${baseUrl}${imagePath.startsWith('/') ? '' : '/'}${imagePath}`;
+  }
+  
+  // If it's an asset path
+  if (imagePath.startsWith('assets/')) {
+    return imagePath;
+  }
+  
+  // Default to avatar if path doesn't match expected patterns
+  return `https://ui-avatars.com/api/?name=${encodeURIComponent(candidateName)}&background=4285f4&color=fff&size=128`;
+}
+
+/**
+ * Handle image load error - fallback to avatar
+ */
+handleImageError(event: any, candidateName: string): void {
+  console.log('Profile image load error for:', candidateName);
+  event.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(candidateName)}&background=4285f4&color=fff&size=128`;
+}
+
+/**
+ * Get initials for avatar fallback
+ */
+getInitials(name: string): string {
+  if (!name) return '?';
+  const parts = name.split(' ');
+  if (parts.length >= 2) {
+    return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
+  }
+  return name.substring(0, 2).toUpperCase();
+}
   
   /**
    * 🔥 FIXED: Clear filters and reload
@@ -442,10 +489,17 @@ export class CandidatesComponent implements OnInit, OnDestroy {
   
   // Individual candidate actions
   viewFullProfile(candidateId: string): void {
-    this.router.navigate(['/employer/candidate-profile', candidateId], {
-      queryParams: { jobId: this.selectedJob === 'all' ? undefined : this.selectedJob }
-    });
-  }
+  console.log('🔍 Navigating to candidate profile:', candidateId);
+  
+  // ✅ Route is defined as: 'employer/candidate-profile/:id'
+  // So navigate to: ['/employer/candidate-profile', candidateId]
+  // This will make candidateId available as params['id']
+
+  this.router.navigate(['../candidate-profile', candidateId], {
+    queryParams: { jobId: this.selectedJob === 'all' ? undefined : this.selectedJob }
+  });
+}
+
   
   toggleShortlist(candidate: Candidate): void {
     if (this.selectedJob === 'all') {

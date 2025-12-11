@@ -215,12 +215,18 @@
 
         <!-- Profile Section -->
         <div class="candidate-profile">
-          <img [src]="candidate.profile_picture" [alt]="candidate.name" class="profile-image">
-          <div class="profile-info">
-            <h3 class="candidate-name">{{ candidate.name }}</h3>
-            <p class="candidate-title">{{ candidate.title }}</p>
-          </div>
-        </div>
+  <img 
+    [src]="getFullImageUrl(candidate.profile_picture, candidate.name)" 
+    [alt]="candidate.name" 
+    class="profile-image"
+    (error)="handleImageError($event, candidate.name)"
+    loading="lazy"
+  />
+  <div class="profile-info">
+    <h3 class="candidate-name">{{ candidate.name }}</h3>
+    <p class="candidate-title">{{ candidate.title }}</p>
+  </div>
+</div>
 
         <!-- Match Percentage Badge -->
         <div class="match-badge" [ngClass]="getMatchScoreClass(candidate.match_score)">

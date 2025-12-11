@@ -529,122 +529,405 @@ export class CandidatesController {
   /**
    * Get candidate full profile
    */
-  async getCandidateProfile(req: AuthenticatedRequest, res: Response): Promise<Response> {
-    try {
-      const userId = req.user?.id;
-      const { userId: candidateUserId } = req.params;
-      const { jobId } = req.query;
-      
-      if (!userId) {
-        return res.status(401).json({
-          success: false,
-          message: 'User ID not found'
-        });
-      }
-      
-      const employerQuery = `SELECT id as employer_id FROM employers WHERE user_id = $1`;
-      const employerResult = await pool.query(employerQuery, [userId]);
-      
-      if (employerResult.rows.length === 0) {
-        return res.status(404).json({
-          success: false,
-          message: 'Employer profile not found'
-        });
-      }
-      
-      const employerId = employerResult.rows[0].employer_id;
-      
-      const accessCheck = await pool.query(
-        `SELECT 1 FROM job_applications ja
-         INNER JOIN jobs j ON ja.job_id = j.id
-         WHERE ja.user_id = $1 AND j.employer_id = $2
-         ${jobId ? 'AND ja.job_id = $3' : ''}
-         LIMIT 1`,
-        jobId ? [candidateUserId, employerId, jobId] : [candidateUserId, employerId]
-      );
-      
-      if (accessCheck.rows.length === 0) {
-        return res.status(403).json({
-          success: false,
-          message: 'Access denied to this candidate profile'
-        });
-      }
-      
-      const query = `
-        SELECT
-          u.*,
-          cv.id as cv_id,
-          cv.status as cv_status,
-          cv.updated_at as cv_updated_at,
-          pi.full_name,
-          pi.phone,
-          pi.address,
-          pi.linkedin_url,
-          pi.website_url,
-          pi.portfolio_url,
-          pi.github_url,
-          pi.professional_summary,
-          pi.profile_image
-        FROM users u
-        LEFT JOIN LATERAL (
-          SELECT * FROM cvs
-          WHERE user_id = u.id
-          ORDER BY is_primary DESC NULLS LAST, created_at DESC
-          LIMIT 1
-        ) cv ON true
-        LEFT JOIN cv_personal_info pi ON cv.id = pi.cv_id
-        WHERE u.id = $1
-      `;
-      
-      const result = await pool.query(query, [candidateUserId]);
-      
-      if (result.rows.length === 0) {
-        return res.status(404).json({
-          success: false,
-          message: 'Candidate not found'
-        });
-      }
-      
-      const row = result.rows[0];
-      
-      const formattedCandidate = {
-        ...row,
-        cv_data: {
-          id: row.cv_id,
-          status: row.cv_status,
-          updated_at: row.cv_updated_at,
-          personal_info: {
-            full_name: row.full_name || null,
-            phone: row.phone || null,
-            address: row.address || null,
-            linkedin_url: row.linkedin_url || null,
-            website_url: row.website_url || null,
-            portfolio_url: row.portfolio_url || null,
-            github_url: row.github_url || null,
-            professional_summary: row.professional_summary || null,
-            profile_image: row.profile_image || null
-          }
-        },
-        portfolio_url: row.portfolio_url || null,
-        github_url: row.github_url || null,
-        linkedin_url: row.linkedin_url || null,
-        website_url: row.website_url || null
-      };
-      
-      return res.json({
-        success: true,
-        data: formattedCandidate
-      });
-      
-    } catch (error) {
-      console.error('❌ Error fetching candidate profile:', error);
-      return res.status(500).json({
+ async getCandidateProfile(req: AuthenticatedRequest, res: Response): Promise<Response> {
+  try {
+    const userId = req.user?.id;
+    const { userId: candidateUserId } = req.params;
+    const { jobId } = req.query;
+    
+    if (!userId) {
+      return res.status(401).json({
         success: false,
-        message: 'Failed to fetch candidate profile',
-        error: error instanceof Error ? error.message : 'Unknown error'
+        message: 'User ID not found'
       });
     }
+    
+    const employerQuery = `SELECT id as employer_id FROM employers WHERE user_id = $1`;
+    const employerResult = await pool.query(employerQuery, [userId]);
+    
+    if (employerResult.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'Employer profile not found'
+      });
+    }
+    
+    const employerId = employerResult.rows[0].employer_id;
+    
+    // Verify employer has access to this candidate (through job applications)
+    const accessCheck = await pool.query(
+      `SELECT 1 FROM job_applications ja
+       INNER JOIN jobs j ON ja.job_id = j.id
+       WHERE ja.user_id = $1 AND j.employer_id = $2
+       ${jobId ? 'AND ja.job_id = $3' : ''}
+       LIMIT 1`,
+      jobId ? [candidateUserId, employerId, jobId] : [candidateUserId, employerId]
+    );
+    
+    if (accessCheck.rows.length === 0) {
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied to this candidate profile'
+      });
+    }
+    
+    // 🔥 ENHANCED QUERY: Fetch complete candidate profile with CV data
+    const query = `
+      SELECT
+        u.id as user_id,
+        u.first_name,
+        u.last_name,
+        u.email,
+        u.created_at as user_created_at,
+        
+        -- Jobseeker profile data
+        jp.bio,
+        jp.skills as profile_skills,
+        jp.phone,
+        jp.location,
+        jp.portfolio_url,
+        jp.linkedin_url,
+        jp.github_url,
+        jp.years_of_experience,
+        jp.current_position,
+        jp.availability_status,
+        jp.preferred_job_types,
+        jp.preferred_locations,
+        jp.salary_expectation_min,
+        jp.salary_expectation_max,
+        
+        -- CV data
+        cv.id as cv_id,
+        cv.status as cv_status,
+        cv.updated_at as cv_updated_at,
+        
+        -- Personal info from CV
+        pi.full_name,
+        pi.phone as cv_phone,
+        pi.address,
+        pi.linkedin_url as cv_linkedin,
+        pi.website_url as cv_website,
+        pi.portfolio_url as cv_portfolio,
+        pi.github_url as cv_github,
+        pi.professional_summary,
+        pi.profile_image,
+        
+        -- Application details if jobId provided
+        ja.id as application_id,
+        ja.status as application_status,
+        ja.cover_letter,
+        ja.expected_salary,
+        ja.availability_date,
+        ja.applied_at,
+        
+        -- Aggregated skills
+        COALESCE(
+          json_agg(DISTINCT jsonb_build_object(
+            'skill_name', s.skill_name,
+            'skill_level', s.skill_level,
+            'category', s.category
+          )) FILTER (WHERE s.id IS NOT NULL),
+          '[]'::json
+        ) as cv_skills,
+        
+        -- Aggregated work experience
+        COALESCE(
+          json_agg(DISTINCT jsonb_build_object(
+            'company', we.company,
+            'position', we.position,
+            'start_date', we.start_date,
+            'end_date', we.end_date,
+            'is_current', we.is_current,
+            'responsibilities', we.responsibilities,
+            'achievements', we.achievements
+          ) ORDER BY jsonb_build_object(
+            'company', we.company,
+            'position', we.position,
+            'start_date', we.start_date,
+            'end_date', we.end_date,
+            'is_current', we.is_current,
+            'responsibilities', we.responsibilities,
+            'achievements', we.achievements
+          )) FILTER (WHERE we.id IS NOT NULL),
+          '[]'::json
+        ) as work_experience,
+        
+        -- Aggregated certifications
+        COALESCE(
+          json_agg(DISTINCT jsonb_build_object(
+            'certification_name', cert.certification_name,
+            'issuer', cert.issuer,
+            'date_issued', cert.date_issued,
+            'credential_id', cert.credential_id
+          ) ORDER BY jsonb_build_object(
+            'certification_name', cert.certification_name,
+            'issuer', cert.issuer,
+            'date_issued', cert.date_issued,
+            'credential_id', cert.credential_id
+          )) FILTER (WHERE cert.id IS NOT NULL),
+          '[]'::json
+        ) as certifications,
+        
+        -- Aggregated education
+        COALESCE(
+          json_agg(DISTINCT jsonb_build_object(
+            'institution', edu.institution,
+            'degree', edu.degree,
+            'field_of_study', edu.field_of_study,
+            'start_year', edu.start_year,
+            'end_year', edu.end_year
+          ) ORDER BY jsonb_build_object(
+            'institution', edu.institution,
+            'degree', edu.degree,
+            'field_of_study', edu.field_of_study,
+            'start_year', edu.start_year,
+            'end_year', edu.end_year
+          )) FILTER (WHERE edu.id IS NOT NULL),
+          '[]'::json
+        ) as education,
+        
+        -- Aggregated projects
+        COALESCE(
+          json_agg(DISTINCT jsonb_build_object(
+            'project_name', proj.project_name,
+            'description', proj.description,
+            'technologies', proj.technologies,
+            'github_link', proj.github_link,
+            'demo_link', proj.demo_link
+          ) ORDER BY jsonb_build_object(
+            'project_name', proj.project_name,
+            'description', proj.description,
+            'technologies', proj.technologies,
+            'github_link', proj.github_link,
+            'demo_link', proj.demo_link
+          )) FILTER (WHERE proj.id IS NOT NULL),
+          '[]'::json
+        ) as projects
+        
+      FROM users u
+      
+      -- Join jobseeker profile
+      LEFT JOIN jobseeker_profiles jp ON u.id = jp.user_id
+      
+      -- Get primary or most recent CV
+      LEFT JOIN LATERAL (
+        SELECT id, status, updated_at
+        FROM cvs
+        WHERE user_id = u.id
+        ORDER BY is_primary DESC NULLS LAST, created_at DESC
+        LIMIT 1
+      ) cv ON true
+      
+      -- Join CV sections
+      LEFT JOIN cv_personal_info pi ON cv.id = pi.cv_id
+      LEFT JOIN cv_skills s ON cv.id = s.cv_id
+      LEFT JOIN cv_work_experience we ON cv.id = we.cv_id
+      LEFT JOIN cv_certifications cert ON cv.id = cert.cv_id
+      LEFT JOIN cv_education edu ON cv.id = edu.cv_id
+      LEFT JOIN cv_projects proj ON cv.id = proj.cv_id
+      
+      -- Join application if jobId provided
+      LEFT JOIN job_applications ja ON u.id = ja.user_id ${jobId ? 'AND ja.job_id = $3' : ''}
+      
+      WHERE u.id = $1
+      
+      GROUP BY
+        u.id, u.first_name, u.last_name, u.email, u.created_at,
+        jp.bio, jp.skills, jp.phone, jp.location, jp.portfolio_url,
+        jp.linkedin_url, jp.github_url, jp.years_of_experience,
+        jp.current_position, jp.availability_status, jp.preferred_job_types,
+        jp.preferred_locations, jp.salary_expectation_min, jp.salary_expectation_max,
+        cv.id, cv.status, cv.updated_at,
+        pi.full_name, pi.phone, pi.address, pi.linkedin_url,
+        pi.website_url, pi.portfolio_url, pi.github_url,
+        pi.professional_summary, pi.profile_image,
+        ja.id, ja.status, ja.cover_letter, ja.expected_salary,
+        ja.availability_date, ja.applied_at
+    `;
+    
+    const queryParams = jobId ? [candidateUserId, employerId, jobId] : [candidateUserId, employerId];
+    const result = await pool.query(query, queryParams);
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'Candidate not found'
+      });
+    }
+    
+    const row = result.rows[0];
+    
+    // 🔥 CONSTRUCT PROFILE IMAGE URL
+    let profileImage = 'https://ui-avatars.com/api/?name=' + 
+      encodeURIComponent(row.full_name || `${row.first_name} ${row.last_name}`) +
+      '&background=4285f4&color=fff&size=128';
+    
+    if (row.profile_image) {
+      // If it's already a full URL, use as is
+      if (row.profile_image.startsWith('http')) {
+        profileImage = row.profile_image;
+      } else {
+        // Construct full URL for relative paths
+        const baseUrl = process.env.API_URL || 'http://localhost:5000';
+        profileImage = `${baseUrl}${row.profile_image.startsWith('/') ? '' : '/'}${row.profile_image}`;
+      }
+    }
+    
+    // Parse aggregated fields
+    const cvSkills = Array.isArray(row.cv_skills) ? row.cv_skills : [];
+    const profileSkills = this.parseJsonField(row.profile_skills);
+    const allSkills = [...new Set([...cvSkills.map((s: any) => s.skill_name), ...profileSkills])];
+    
+    const workExperience = Array.isArray(row.work_experience) ? row.work_experience : [];
+    const certifications = Array.isArray(row.certifications) ? row.certifications : [];
+    const education = Array.isArray(row.education) ? row.education : [];
+    const projects = Array.isArray(row.projects) ? row.projects : [];
+    
+    // Format the complete candidate profile
+    const candidateProfile = {
+      // Basic info
+      user_id: row.user_id,
+      name: row.full_name || `${row.first_name} ${row.last_name}`,
+      email: row.email,
+      phone: row.cv_phone || row.phone,
+      location: row.address || row.location,
+      profile_image: profileImage,
+      
+      // Professional summary
+      bio: row.professional_summary || row.bio,
+      title: workExperience.length > 0 ? workExperience[0].position : 'Job Seeker',
+      
+      // Career info
+      years_of_experience: row.years_of_experience || this.calculateTotalExperience(workExperience),
+      current_position: row.current_position || (workExperience.length > 0 ? workExperience[0].position : null),
+      availability_status: row.availability_status,
+      
+      // Skills
+      skills: allSkills,
+      cv_skills: cvSkills,
+      
+      // Work experience
+      work_experience: workExperience.map((exp: any) => ({
+        company: exp.company,
+        position: exp.position,
+        start_date: exp.start_date,
+        end_date: exp.end_date,
+        is_current: exp.is_current,
+        duration: this.calculateDuration(exp.start_date, exp.end_date, exp.is_current),
+        responsibilities: exp.responsibilities ? exp.responsibilities.split('\n').filter((r: string) => r.trim()) : [],
+        achievements: exp.achievements ? exp.achievements.split('\n').filter((a: string) => a.trim()) : []
+      })),
+      
+      // Education
+      education: education.map((edu: any) => ({
+        institution: edu.institution,
+        degree: edu.degree,
+        field_of_study: edu.field_of_study,
+        start_year: edu.start_year,
+        end_year: edu.end_year
+      })),
+      
+      // Certifications
+      certifications: certifications.map((cert: any) => ({
+        name: cert.certification_name,
+        issuer: cert.issuer,
+        date_issued: cert.date_issued,
+        credential_id: cert.credential_id
+      })),
+      
+      // Projects
+      projects: projects.map((proj: any) => ({
+        name: proj.project_name,
+        description: proj.description,
+        technologies: proj.technologies ? proj.technologies.split(',').map((t: string) => t.trim()) : [],
+        github_link: proj.github_link,
+        demo_link: proj.demo_link
+      })),
+      
+      // Social links
+      social_links: {
+        linkedin: row.cv_linkedin || row.linkedin_url,
+        github: row.cv_github || row.github_url,
+        portfolio: row.cv_portfolio || row.portfolio_url,
+        website: row.cv_website
+      },
+      
+      // Application details (if jobId provided)
+      application: row.application_id ? {
+        id: row.application_id,
+        status: row.application_status,
+        cover_letter: row.cover_letter,
+        expected_salary: row.expected_salary,
+        availability_date: row.availability_date,
+        applied_at: row.applied_at
+      } : null,
+      
+      // Preferences
+      preferences: {
+        job_types: this.parseJsonField(row.preferred_job_types),
+        locations: this.parseJsonField(row.preferred_locations),
+        salary_min: row.salary_expectation_min,
+        salary_max: row.salary_expectation_max
+      },
+      
+      // CV metadata
+      cv_info: {
+        cv_id: row.cv_id,
+        cv_status: row.cv_status,
+        last_updated: row.cv_updated_at
+      }
+    };
+    
+    return res.json({
+      success: true,
+      data: candidateProfile
+    });
+    
+  } catch (error) {
+    console.error('❌ Error fetching candidate profile:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to fetch candidate profile',
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
   }
+}
+
+private parseJsonField(field: any): string[] {
+  if (!field) return [];
+  try {
+    if (typeof field === 'string') {
+      return JSON.parse(field);
+    }
+    if (Array.isArray(field)) {
+      return field;
+    }
+    return [];
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Helper: Calculate duration between dates
+ */
+private calculateDuration(startDate: string, endDate: string | null, isCurrent: boolean): string {
+  const start = new Date(startDate);
+  const end = isCurrent ? new Date() : (endDate ? new Date(endDate) : new Date());
+  
+  const months = (end.getFullYear() - start.getFullYear()) * 12 + 
+                 (end.getMonth() - start.getMonth());
+  const years = Math.floor(months / 12);
+  const remainingMonths = months % 12;
+
+  if (years > 0 && remainingMonths > 0) {
+    return `${years} year${years > 1 ? 's' : ''} ${remainingMonths} month${remainingMonths > 1 ? 's' : ''}`;
+  } else if (years > 0) {
+    return `${years} year${years > 1 ? 's' : ''}`;
+  } else {
+    return `${remainingMonths || 1} month${remainingMonths > 1 ? 's' : ''}`;
+  }
+}
 
   /**
    * Toggle shortlist status
