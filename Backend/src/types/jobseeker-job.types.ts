@@ -107,6 +107,8 @@ export interface JobseekerStats {
   reviewed_applications: number;
   shortlisted_applications: number;
   rejected_applications: number;
+  accepted_applications?: number;
+  withdrawn_applications?: number; // ✅ NEW: Track withdrawn separately
   total_saved_jobs: number;
   profile_views: number;
   applications_this_month: number;

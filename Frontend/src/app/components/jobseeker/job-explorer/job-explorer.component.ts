@@ -2,7 +2,7 @@ import { Component, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
-import { Subject, takeUntil, finalize, forkJoin, catchError, of, interval, Observable } from 'rxjs';
+import { Subject, takeUntil, finalize, forkJoin, catchError, throwError, of, interval, Observable } from 'rxjs';
 import { JobService, Job } from '../../../../../services/job.service';
 import { ProfileService } from '../../../../../services/profile.service';
 import { SidebarComponent } from '../../shared/sidebar/sidebar.component';
@@ -77,6 +77,7 @@ export class JobExplorerComponent implements OnInit, OnDestroy {
   unreadNotificationCount: number = 0;
   showNotifications: boolean = false;
   lastNotificationCheck: Date = new Date();
+  authService: any;
 
   constructor(
     private jobService: JobService,
@@ -423,69 +424,80 @@ export class JobExplorerComponent implements OnInit, OnDestroy {
    * Load saved and applied jobs from backend to sync state on page refresh
    */
   loadSavedAndAppliedJobs(): void {
-    console.log('🔄 Loading saved and applied jobs from backend...');
-    
-    const savedJobs$ = this.jobService.getSavedJobs({ page: 1, limit: 1000 }).pipe(
-      catchError(error => {
-        console.error('❌ Error loading saved jobs:', error);
-        return of({ success: false, data: null });
-      })
-    );
-    
-    const appliedJobs$ = this.jobService.getAppliedJobs({ page: 1, limit: 1000 }).pipe(
-      catchError(error => {
-        console.error('❌ Error loading applied jobs:', error);
-        return of({ success: false, data: null });
-      })
-    );
-    
-    forkJoin({
-      saved: savedJobs$,
-      applied: appliedJobs$
-    }).pipe(
-      takeUntil(this.destroy$),
-      finalize(() => {
-        console.log('✅ Saved/Applied jobs load completed');
-        this.loadJobs();
-      })
-    )
-    .subscribe({
-      next: (results) => {
-        console.log('📦 Raw responses:', { saved: results.saved, applied: results.applied });
+  console.log('🔄 Loading saved and applied jobs from backend...');
+  
+  const savedJobs$ = this.jobService.getSavedJobs({ page: 1, limit: 1000 }).pipe(
+    catchError(error => {
+      console.error('❌ Error loading saved jobs:', error);
+      return of({ success: false, data: null });
+    })
+  );
+  
+  // ✅ FIX: Explicitly exclude withdrawn applications
+  const appliedJobs$ = this.jobService.getAppliedJobs({ 
+    page: 1, 
+    limit: 1000,
+    // Don't include withdrawn in the applied jobs list - use supported 'status' filter
+    status: 'active'
+  }).pipe(
+    catchError(error => {
+      console.error('❌ Error loading applied jobs:', error);
+      return of({ success: false, data: null });
+    })
+  );
+  
+  forkJoin({
+    saved: savedJobs$,
+    applied: appliedJobs$
+  }).pipe(
+    takeUntil(this.destroy$),
+    finalize(() => {
+      console.log('✅ Saved/Applied jobs load completed');
+      this.loadJobs();
+    })
+  )
+  .subscribe({
+    next: (results) => {
+      console.log('📦 Raw responses:', { saved: results.saved, applied: results.applied });
+      
+      // Process saved jobs
+      if (results.saved && results.saved.success && results.saved.data) {
+        const savedData = results.saved.data.data || results.saved.data.jobs || results.saved.data;
         
-        // Process saved jobs
-        if (results.saved && results.saved.success && results.saved.data) {
-          const savedData = results.saved.data.data || results.saved.data.jobs || results.saved.data;
+        if (Array.isArray(savedData)) {
+          this.savedJobIds = savedData
+            .map((item: any) => item.job_id || item.id || item.job?.id)
+            .filter(id => id);
           
-          if (Array.isArray(savedData)) {
-            this.savedJobIds = savedData
-              .map((item: any) => item.job_id || item.id || item.job?.id)
-              .filter(id => id);
-            
-            console.log('✅ Loaded saved job IDs:', this.savedJobIds.length);
-          }
+          console.log('✅ Loaded saved job IDs:', this.savedJobIds.length);
         }
-        
-        // Process applied jobs
-        if (results.applied && results.applied.success && results.applied.data) {
-          const appliedData = results.applied.data.data || results.applied.data.jobs || results.applied.data;
-          
-          if (Array.isArray(appliedData)) {
-            this.appliedJobIds = appliedData
-              .map((item: any) => item.job_id || item.id || item.job?.id)
-              .filter(id => id);
-            
-            console.log('✅ Loaded applied job IDs:', this.appliedJobIds.length);
-          }
-        }
-        
-        console.log('📋 Final state:', {
-          savedJobIds: this.savedJobIds,
-          appliedJobIds: this.appliedJobIds
-        });
       }
-    });
-  }
+      
+      // Process applied jobs - ✅ These should NOT include withdrawn
+      if (results.applied && results.applied.success && results.applied.data) {
+        const appliedData = results.applied.data.data || results.applied.data.jobs || results.applied.data;
+        
+        if (Array.isArray(appliedData)) {
+          // ✅ Filter out any withdrawn that might slip through
+          this.appliedJobIds = appliedData
+            .filter((item: any) => {
+              const status = item.status || item.application_status || item.job?.application_status;
+              return status !== 'withdrawn';
+            })
+            .map((item: any) => item.job_id || item.id || item.job?.id)
+            .filter(id => id);
+          
+          console.log('✅ Loaded applied job IDs (excluding withdrawn):', this.appliedJobIds.length);
+        }
+      }
+      
+      console.log('📋 Final state:', {
+        savedJobIds: this.savedJobIds,
+        appliedJobIds: this.appliedJobIds
+      });
+    }
+  });
+}
 
   /**
    * Get sort field for API query
@@ -650,8 +662,8 @@ export class JobExplorerComponent implements OnInit, OnDestroy {
       })
     )
     .subscribe({
-      next: (response) => {
-        if (!response || !response.success) return;
+      next: (response: ApiResponse | any) => {
+        if (!response || !(response as ApiResponse).success) return;
         
         console.log('✅ Apply job response:', response);
         
@@ -687,164 +699,201 @@ export class JobExplorerComponent implements OnInit, OnDestroy {
   /**
    * Withdraw/Unapply from a job
    */
-  withdrawApplication(jobId: string): void {
-    console.log('=== WITHDRAW APPLICATION ===');
-    console.log('Job ID:', jobId);
-    
-    // Prevent double-click
-    if (this.isApplying === jobId) {
-      console.log('⏳ Already processing application action');
-      return;
-    }
+// src/app/components/job-explorer/job-explorer.component.ts - FIXED withdrawApplication method
 
-    // Confirm withdrawal with user
-    const job = this.jobs.find(j => this.getJobId(j) === jobId);
-    const jobTitle = job?.title || 'this position';
-    
-    const confirmWithdraw = confirm(
-      `⚠️ Withdraw Application?\n\n` +
-      `Are you sure you want to withdraw your application for "${jobTitle}"?\n\n` +
-      `✓ You can reapply anytime later\n` +
-      `✓ The job will return to your recommended list\n` +
-      `✓ The employer will see your withdrawal\n\n` +
-      `Click OK to confirm withdrawal.`
+withdrawApplication(jobId: string): void {
+  console.log('=== WITHDRAW APPLICATION ===');
+  console.log('Job ID:', jobId);
+  
+  // Prevent double-click
+  if (this.isApplying === jobId) {
+    console.log('⏳ Already processing application action');
+    return;
+  }
+
+  // Get job details for confirmation
+  const job = this.jobs.find(j => this.getJobId(j) === jobId);
+  const jobTitle = job?.title || 'this position';
+  
+  // Check if already withdrawn
+  if (job && (job as any).application_status === 'withdrawn') {
+    console.log('ℹ️ Application already withdrawn');
+    this.addNotification(
+      `This application was already withdrawn from "${jobTitle}"`, 
+      'info'
     );
     
-    if (!confirmWithdraw) {
-      console.log('❌ User cancelled withdrawal');
-      return;
-    }
-
-    this.isApplying = jobId;
-    console.log('🔄 Starting withdrawal process...');
+    // Clean up local state
+    this.appliedJobIds = this.appliedJobIds.filter(id => id !== jobId);
+    this.appliedJobsCount = Math.max(0, this.appliedJobsCount - 1);
     
-    this.jobService.withdrawApplicationByJobId(jobId)
-      .pipe(
-        takeUntil(this.destroy$),
-        finalize(() => {
-          this.isApplying = null;
-          console.log('🏁 Withdrawal process completed');
-        }),
-        catchError((error) => {
-          console.error('❌ Error withdrawing application:', error);
+    // ✅ FIX: If on Applied tab, remove job from view immediately
+    if (this.activeTab === 'applied') {
+      this.jobs = this.jobs.filter(j => this.getJobId(j) !== jobId);
+      this.filteredJobs = [...this.jobs];
+    }
+    
+    // Refresh the view
+    setTimeout(() => {
+      this.loadJobs(this.currentPage);
+      this.loadJobseekerStats();
+    }, 1000);
+    
+    return;
+  }
+  
+  // Confirm withdrawal with user
+  const confirmWithdraw = confirm(
+    `⚠️ Withdraw Application?\n\n` +
+    `Are you sure you want to withdraw your application for "${jobTitle}"?\n\n` +
+    `✓ You can reapply anytime later\n` +
+    `✓ The job will return to your recommended list\n` +
+    `✓ The employer will be notified of your withdrawal\n\n` +
+    `Click OK to confirm withdrawal.`
+  );
+  
+  if (!confirmWithdraw) {
+    console.log('❌ User cancelled withdrawal');
+    return;
+  }
+
+  this.isApplying = jobId;
+  console.log('🔄 Starting withdrawal process...');
+  
+  this.jobService.withdrawApplicationByJobId(jobId)
+    .pipe(
+      takeUntil(this.destroy$),
+      finalize(() => {
+        this.isApplying = null;
+        console.log('🏁 Withdrawal process completed');
+      }),
+      catchError((error) => {
+        console.error('❌ Error withdrawing application:', error);
+        
+        let errorMsg = 'Failed to withdraw application. Please try again.';
+        let shouldSync = false;
+        
+        if (error.status === 400) {
+          const backendMsg = error.error?.message || '';
           
-          // Extract meaningful error message
-          let errorMsg = 'Failed to withdraw application. Please try again.';
-          
-          if (error.status === 400) {
-            const backendMsg = error.error?.message || '';
-            
-            // Check if already withdrawn
-            if (backendMsg.includes('withdrawn')) {
-              errorMsg = 'This application was already withdrawn';
-              
-              // Clean up the local state since it's already withdrawn
-              this.appliedJobIds = this.appliedJobIds.filter(id => id !== jobId);
-              this.appliedJobsCount = Math.max(0, this.appliedJobsCount - 1);
-              
-              // Update UI
-              const jobIndex = this.jobs.findIndex(j => this.getJobId(j) === jobId);
-              if (jobIndex !== -1) {
-                this.jobs[jobIndex] = {
-                  ...this.jobs[jobIndex],
-                  has_applied: false,
-                  application_status: 'withdrawn'
-                };
-              }
-              
-              // Show info message instead of error
-              this.addNotification(
-                `ℹ️ ${errorMsg}. Refreshing...`,
-                'info'
-              );
-              
-              // Reload to sync state
-              setTimeout(() => {
-                this.loadJobs(this.currentPage);
-                this.loadJobseekerStats();
-              }, 1000);
-              
-              return of({ success: true, message: errorMsg });
-            } else {
-              errorMsg = backendMsg || 'Cannot withdraw this application';
-            }
-          } else if (error.status === 404) {
-            errorMsg = 'Application not found';
+          // If already withdrawn, clean up and sync
+          if (backendMsg.includes('already withdrawn') || backendMsg.includes('not applied')) {
+            errorMsg = 'This application was already withdrawn';
+            shouldSync = true;
             
             // Clean up local state
             this.appliedJobIds = this.appliedJobIds.filter(id => id !== jobId);
-          } else if (error.error?.message) {
-            errorMsg = error.error.message;
+            this.appliedJobsCount = Math.max(0, this.appliedJobsCount - 1);
+            
+            // ✅ FIX: Remove from Applied tab immediately
+            if (this.activeTab === 'applied') {
+              this.jobs = this.jobs.filter(j => this.getJobId(j) !== jobId);
+              this.filteredJobs = [...this.jobs];
+            }
+            
+          } else if (backendMsg.includes('accepted') || backendMsg.includes('rejected')) {
+            errorMsg = 'Cannot withdraw: Application has already been processed by employer';
+            
+          } else {
+            errorMsg = backendMsg || 'Cannot withdraw this application';
           }
-          
-          this.addNotification(`❌ ${errorMsg}`, 'error');
-          
-          return of({ success: false, message: errorMsg });
-        })
-      )
-      .subscribe({
-        next: (response) => {
-          if (!response || !response.success) {
-            console.log('❌ Withdrawal failed:', response?.message || 'Unknown error');
-            return;
-          }
-          
-          console.log('✅ Withdrawal successful:', response);
-          
-          // Check if this was an "already withdrawn" case - if so, we already handled it in catchError
-          if (response.message && response.message.includes('already withdrawn')) {
-            console.log('ℹ️ Already withdrawn case handled in error handler');
-            return;
-          }
-          
-          // Update local state - remove from applied jobs
+        } else if (error.status === 404) {
+          errorMsg = 'Application not found';
+          shouldSync = true;
           this.appliedJobIds = this.appliedJobIds.filter(id => id !== jobId);
-          this.appliedJobsCount = Math.max(0, this.appliedJobsCount - 1);
           
-          // Update the job in the local cache to mark as not applied
-          const jobIndex = this.jobs.findIndex(j => this.getJobId(j) === jobId);
-          if (jobIndex !== -1) {
-            this.jobs[jobIndex] = {
-              ...this.jobs[jobIndex],
-              has_applied: false,
-              application_status: 'withdrawn'
-            };
+          // ✅ FIX: Remove from Applied tab immediately
+          if (this.activeTab === 'applied') {
+            this.jobs = this.jobs.filter(j => this.getJobId(j) !== jobId);
+            this.filteredJobs = [...this.jobs];
           }
           
-          // Show success message with clear instructions
-          this.addNotification(
-            `✅ Successfully withdrawn from ${jobTitle}`, 
-            'success'
-          );
+        } else if (error.status === 401) {
+          errorMsg = 'Please log in to withdraw applications';
+          this.authService.logout();
           
-          // Add second notification about where to find the job
+        } else if (error.error?.message) {
+          errorMsg = error.error.message;
+        }
+        
+        this.addNotification(`ℹ️ ${errorMsg}`, shouldSync ? 'info' : 'error');
+        
+        // Sync state if needed
+        if (shouldSync) {
+          setTimeout(() => {
+            this.loadJobs(this.currentPage);
+            this.loadJobseekerStats();
+          }, 1000);
+        }
+        
+        return throwError(() => error);
+      })
+    )
+    .subscribe({
+      next: (response: ApiResponse | any) => {
+        if (!response || !(response as ApiResponse).success) {
+          console.log('❌ Withdrawal failed');
+          return;
+        }
+        
+        console.log('✅ Withdrawal successful:', response);
+        
+        // ✅ FIX 1: Update local state - remove from applied jobs
+        this.appliedJobIds = this.appliedJobIds.filter(id => id !== jobId);
+        this.appliedJobsCount = Math.max(0, this.appliedJobsCount - 1);
+        
+        // ✅ FIX 2: If on Applied tab, remove the job from current view immediately
+        if (this.activeTab === 'applied') {
+          this.jobs = this.jobs.filter(j => this.getJobId(j) !== jobId);
+          this.filteredJobs = [...this.jobs];
+          console.log('✅ Removed job from Applied tab view');
+        }
+        
+        // ✅ FIX 3: Update the job in the local cache (for other tabs)
+        const jobIndex = this.jobs.findIndex(j => this.getJobId(j) === jobId);
+        if (jobIndex !== -1 && this.activeTab !== 'applied') {
+          this.jobs[jobIndex] = {
+            ...this.jobs[jobIndex],
+            has_applied: false,
+            application_status: 'withdrawn'
+          };
+          this.filteredJobs = [...this.jobs];
+        }
+        
+        // Show success message
+        const wasAlreadyWithdrawn = response.message?.includes('already withdrawn');
+        const successMsg = wasAlreadyWithdrawn
+          ? `Application for "${jobTitle}" was already withdrawn`
+          : `✅ Successfully withdrawn from "${jobTitle}"`;
+        
+        this.addNotification(successMsg, 'success');
+        
+        // Add info about where to find the job
+        if (!wasAlreadyWithdrawn) {
           setTimeout(() => {
             this.addNotification(
               `💡 You can now find "${jobTitle}" in your Recommended jobs`, 
               'info'
             );
           }, 1500);
-          
-          console.log('📊 Updated state:', {
-            appliedJobIds: this.appliedJobIds,
-            appliedJobsCount: this.appliedJobsCount
-          });
-          
-          // If on "Applied" tab, reload to remove the job from list
-          if (this.activeTab === 'applied') {
-            setTimeout(() => {
-              this.loadJobs(this.currentPage);
-            }, 500);
-          } else {
-            // If on other tabs, just update the UI to show "Apply Now" button
-            this.filteredJobs = [...this.jobs];
-          }
-          
-          // Refresh stats
-          this.loadJobseekerStats();
         }
-      });
-  }
+        
+        console.log('📊 Updated state:', {
+          appliedJobIds: this.appliedJobIds,
+          appliedJobsCount: this.appliedJobsCount,
+          currentTab: this.activeTab,
+          jobsInView: this.jobs.length
+        });
+        
+        // ✅ FIX 4: Reload the current tab to sync with backend
+        // This ensures the Recommended tab will now show the withdrawn job
+        setTimeout(() => {
+          this.loadJobs(this.currentPage);
+          this.loadJobseekerStats();
+        }, 500);
+      }
+    });
+}
 
   /**
    * Save/Bookmark a job with toggle functionality
@@ -981,8 +1030,24 @@ export class JobExplorerComponent implements OnInit, OnDestroy {
    * Check if job is applied
    */
   isJobApplied(jobId: string): boolean {
-    return this.appliedJobIds.includes(jobId);
+  // First check the appliedJobIds array
+  if (!this.appliedJobIds.includes(jobId)) {
+    return false;
   }
+  
+  // ✅ Double-check: If job is in the jobs array, verify its status
+  const job = this.jobs.find(j => this.getJobId(j) === jobId);
+  if (job) {
+    const status = (job as any).application_status;
+    // If withdrawn, remove from appliedJobIds and return false
+    if (status === 'withdrawn') {
+      this.appliedJobIds = this.appliedJobIds.filter(id => id !== jobId);
+      return false;
+    }
+  }
+  
+  return true;
+}
 
   /**
    * Check if job is saved
@@ -1443,3 +1508,4 @@ getApplyButtonIcon(job: Job): string {
     }
   }
 }
+

@@ -215,104 +215,116 @@ export class JobseekerJobService {
 
   // Get recommended jobs for jobseeker
   async getRecommendedJobs(userId: string, filters: RecommendationFilters): Promise<PaginatedResult<JobWithDetails>> {
-    const { page, limit } = filters;
-    const offset = (page - 1) * limit;
+  const { page, limit } = filters;
+  const offset = (page - 1) * limit;
 
-    try {
-      // Get user profile for recommendations
-      const profileResult = await this.db.query(
-        'SELECT skills, preferred_location, experience_level FROM user_profiles WHERE user_id = $1',
-        [userId]
-      );
+  try {
+    // Get user profile for recommendations
+    const profileResult = await this.db.query(
+      'SELECT skills, preferred_location, experience_level FROM user_profiles WHERE user_id = $1',
+      [userId]
+    );
 
-      let whereConditions = ["j.status = 'Open'"];
-      let queryParams: any[] = [];
-      let paramIndex = 1;
+    let whereConditions = ["j.status = 'Open'"];
+    let queryParams: any[] = [];
+    let paramIndex = 1;
 
-      if (profileResult.rows.length > 0) {
-        const profile = profileResult.rows[0];
-        
-        // Match by skills
-        if (profile.skills && profile.skills.length > 0) {
-          whereConditions.push(`j.skills_required && $${paramIndex}`);
-          queryParams.push(profile.skills);
-          paramIndex++;
-        }
-
-        // Match by location preference
-        if (profile.preferred_location) {
-          whereConditions.push(`(j.location ILIKE $${paramIndex} OR j.work_arrangement = 'Remote')`);
-          queryParams.push(`%${profile.preferred_location}%`);
-          paramIndex++;
-        }
-
-        // Match by experience level
-        if (profile.experience_level) {
-          whereConditions.push(`j.experience_level = $${paramIndex}`);
-          queryParams.push(profile.experience_level);
-          paramIndex++;
-        }
+    if (profileResult.rows.length > 0) {
+      const profile = profileResult.rows[0];
+      
+      // Match by skills
+      if (profile.skills && profile.skills.length > 0) {
+        whereConditions.push(`j.skills_required && $${paramIndex}`);
+        queryParams.push(profile.skills);
+        paramIndex++;
       }
 
-      // Exclude already applied jobs
-      whereConditions.push(`j.id NOT IN (SELECT job_id FROM job_applications WHERE user_id = $${paramIndex})`);
-      queryParams.push(userId);
-      paramIndex++;
+      // Match by location preference
+      if (profile.preferred_location) {
+        whereConditions.push(`(j.location ILIKE $${paramIndex} OR j.work_arrangement = 'Remote')`);
+        queryParams.push(`%${profile.preferred_location}%`);
+        paramIndex++;
+      }
 
-      const whereClause = whereConditions.join(' AND ');
-
-      const baseQuery = `
-        FROM jobs j
-        LEFT JOIN companies c ON j.company_id = c.id
-        LEFT JOIN categories cat ON j.category_id = cat.id
-        LEFT JOIN job_bookmarks jb ON j.id = jb.job_id AND jb.user_id = $${paramIndex}
-        WHERE ${whereClause}
-      `;
-
-      queryParams.push(userId);
-
-      // Count query
-      const countResult = await this.db.query(`SELECT COUNT(*) as total ${baseQuery}`, queryParams);
-      const total = parseInt(countResult.rows[0].total);
-
-      // Data query
-      const dataQuery = `
-        SELECT 
-          j.*,
-          c.name as company_name,
-          c.logo_url as company_logo,
-          c.industry as company_industry,
-          c.company_size,
-          c.website_url as company_website,
-          cat.name as category_name,
-          CASE WHEN jb.id IS NOT NULL THEN true ELSE false END as is_saved,
-          false as has_applied
-        ${baseQuery}
-        ORDER BY j.created_at DESC
-        LIMIT $${paramIndex + 1} OFFSET $${paramIndex + 2}
-      `;
-
-      queryParams.push(limit, offset);
-      const result = await this.db.query(dataQuery, queryParams);
-
-      const totalPages = Math.ceil(total / limit);
-
-      return {
-        data: result.rows as JobWithDetails[],
-        pagination: {
-          total,
-          page,
-          limit,
-          totalPages,
-          hasNext: page < totalPages,
-          hasPrev: page > 1
-        }
-      };
-    } catch (error) {
-      console.error('Error fetching recommended jobs:', error);
-      throw error;
+      // Match by experience level
+      if (profile.experience_level) {
+        whereConditions.push(`j.experience_level = $${paramIndex}`);
+        queryParams.push(profile.experience_level);
+        paramIndex++;
+      }
     }
+
+    // ✅ FIX: Only exclude jobs with ACTIVE applications (not withdrawn)
+    whereConditions.push(`j.id NOT IN (
+      SELECT job_id 
+      FROM job_applications 
+      WHERE user_id = $${paramIndex} 
+        AND status != 'withdrawn'
+    )`);
+    queryParams.push(userId);
+    paramIndex++;
+
+    const whereClause = whereConditions.join(' AND ');
+
+    const baseQuery = `
+      FROM jobs j
+      LEFT JOIN companies c ON j.company_id = c.id
+      LEFT JOIN categories cat ON j.category_id = cat.id
+      LEFT JOIN job_bookmarks jb ON j.id = jb.job_id AND jb.user_id = $${paramIndex}
+      WHERE ${whereClause}
+    `;
+
+    queryParams.push(userId);
+
+    // Count query
+    const countResult = await this.db.query(`SELECT COUNT(*) as total ${baseQuery}`, queryParams);
+    const total = parseInt(countResult.rows[0].total);
+
+    // Data query
+    const dataQuery = `
+      SELECT 
+        j.*,
+        c.name as company_name,
+        c.logo_url as company_logo,
+        c.industry as company_industry,
+        c.company_size,
+        c.website_url as company_website,
+        cat.name as category_name,
+        CASE WHEN jb.id IS NOT NULL THEN true ELSE false END as is_saved,
+        false as has_applied
+      ${baseQuery}
+      ORDER BY j.created_at DESC
+      LIMIT $${paramIndex + 1} OFFSET $${paramIndex + 2}
+    `;
+
+    queryParams.push(limit, offset);
+    const result = await this.db.query(dataQuery, queryParams);
+
+    const totalPages = Math.ceil(total / limit);
+
+    console.log('✅ Recommended jobs fetched:', {
+      total,
+      page,
+      jobsReturned: result.rows.length,
+      withdrawnJobsNowIncluded: true
+    });
+
+    return {
+      data: result.rows as JobWithDetails[],
+      pagination: {
+        total,
+        page,
+        limit,
+        totalPages,
+        hasNext: page < totalPages,
+        hasPrev: page > 1
+      }
+    };
+  } catch (error) {
+    console.error('Error fetching recommended jobs:', error);
+    throw error;
   }
+}
 
   // Save a job
   async saveJob(userId: string, jobId: string): Promise<ServiceResponse<JobBookmark>> {
@@ -612,8 +624,11 @@ async applyToJob(userId: string, jobId: string, applicationData: ApplicationData
 
 
   // Get applied jobs
-async getAppliedJobs(userId: string, filters: { page: number; limit: number; status?: string }): Promise<PaginatedResult<JobApplicationWithDetails>> {
-  const { page, limit, status } = filters;
+async getAppliedJobs(
+  userId: string, 
+  filters: { page: number; limit: number; status?: string; includeWithdrawn?: boolean }
+): Promise<PaginatedResult<JobApplicationWithDetails>> {
+  const { page, limit, status, includeWithdrawn = false } = filters;
   const offset = (page - 1) * limit;
 
   try {
@@ -621,6 +636,12 @@ async getAppliedJobs(userId: string, filters: { page: number; limit: number; sta
     let queryParams: any[] = [userId];
     let paramIndex = 2;
 
+    // ✅ FIX: By default, EXCLUDE withdrawn applications
+    if (!includeWithdrawn) {
+      whereConditions.push(`ja.status != 'withdrawn'`);
+    }
+
+    // If specific status requested, filter by it
     if (status) {
       whereConditions.push(`ja.status = $${paramIndex}`);
       queryParams.push(status);
@@ -638,10 +659,13 @@ async getAppliedJobs(userId: string, filters: { page: number; limit: number; sta
     `;
 
     // Count query
-    const countResult = await this.db.query(`SELECT COUNT(*) as total ${baseQuery}`, queryParams);
+    const countResult = await this.db.query(
+      `SELECT COUNT(*) as total ${baseQuery}`, 
+      queryParams
+    );
     const total = parseInt(countResult.rows[0].total);
 
-    // Data query - Simple version
+    // Data query
     const dataQuery = `
       SELECT 
         ja.id as application_id,
@@ -684,7 +708,6 @@ async getAppliedJobs(userId: string, filters: { page: number; limit: number; sta
       updated_at: row.application_updated_at,
       user_id: row.application_user_id,
       job_id: row.job_id,
-      // Create nested job object
       job: {
         id: row.id,
         title: row.title,
@@ -718,8 +741,8 @@ async getAppliedJobs(userId: string, filters: { page: number; limit: number; sta
         company_size: row.company_size,
         company_website: row.company_website,
         category_name: row.category_name,
-        is_saved: false, // Will need separate query if needed
-        has_applied: true, // Always true for applied jobs
+        is_saved: false,
+        has_applied: true,
         application_status: row.application_status
       }
     }));
@@ -840,152 +863,171 @@ async getAppliedJobs(userId: string, filters: { page: number; limit: number; sta
     }
   }
   // Withdraw application by job ID
-async withdrawApplicationByJob(userId: string, jobId: string): Promise<ServiceResponse<void>> {
-  try {
-    console.log('🔄 Attempting to withdraw application:', { userId, jobId });
-    
-    // First check if application exists and get its current status
-    const checkResult = await this.db.query(
-      `SELECT id, status FROM job_applications 
-       WHERE job_id = $1 AND user_id = $2`,
-      [jobId, userId]
-    );
-
-    if (checkResult.rows.length === 0) {
-      console.log('❌ No application found for this job');
-      return { success: false, message: 'Application not found for this job' };
-    }
-
-    const currentStatus = checkResult.rows[0].status;
-    console.log('📋 Current application status:', currentStatus);
-
-    // Don't allow withdrawing if already withdrawn, accepted, or rejected by employer
-    const terminalStatuses = ['withdrawn', 'accepted', 'rejected'];
-    if (terminalStatuses.includes(currentStatus)) {
-      console.log('⚠️ Cannot withdraw - application is in terminal status:', currentStatus);
-      return { 
-        success: false, 
-        message: `Cannot withdraw application that is ${currentStatus}` 
-      };
-    }
-
-    // Withdraw the application
-    const result = await this.db.query(
-      `UPDATE job_applications 
-       SET status = 'withdrawn', updated_at = NOW() 
-       WHERE job_id = $1 AND user_id = $2 
-       RETURNING id, status`,
-      [jobId, userId]
-    );
-
-    console.log('✅ Application withdrawn successfully:', result.rows[0]);
-    return { success: true };
-    
-  } catch (error) {
-    console.error('❌ Error withdrawing application:', error);
-    throw error;
-  }
-}
-  // Get jobseeker statistics - FIXED VERSION WITH ERROR HANDLING
-  async getJobseekerStats(userId: string): Promise<JobseekerStats> {
+   async withdrawApplicationByJob(userId: string, jobId: string): Promise<ServiceResponse<void>> {
     try {
-      console.log('📊 Fetching jobseeker stats for user:', userId);
-
-      // Query for applications by status with error handling
-      let applicationsResult;
-      try {
-        applicationsResult = await this.db.query(`
-          SELECT status, COUNT(*) as count 
-          FROM job_applications 
-          WHERE user_id = $1 
-          GROUP BY status
-        `, [userId]);
-      } catch (error) {
-        console.error('Error fetching applications stats:', error);
-        applicationsResult = { rows: [] };
-      }
-
-      // Query for saved jobs with error handling
-      let savedJobsResult;
-      try {
-        savedJobsResult = await this.db.query(
-          'SELECT COUNT(*) as total FROM job_bookmarks WHERE user_id = $1',
-          [userId]
-        );
-      } catch (error) {
-        console.error('Error fetching saved jobs count:', error);
-        savedJobsResult = { rows: [{ total: '0' }] };
-      }
-
-      // Query for profile views with graceful error handling
-      let profileViewsResult;
-      try {
-        profileViewsResult = await this.db.query(
-          'SELECT COUNT(*) as total FROM profile_views WHERE profile_user_id = $1',
-          [userId]
-        );
-      } catch (error: any) {
-        // Check if it's a "relation does not exist" error
-        if (error.code === '42P01' || error.message?.includes('does not exist')) {
-          console.warn('⚠️ profile_views table does not exist. Defaulting to 0.');
-        } else {
-          console.error('Error fetching profile views:', error);
-        }
-        profileViewsResult = { rows: [{ total: '0' }] };
-      }
-
-      // Query for monthly applications with error handling
-      let monthlyAppsResult;
-      try {
-        monthlyAppsResult = await this.db.query(`
-          SELECT COUNT(*) as total 
-          FROM job_applications 
-          WHERE user_id = $1 AND applied_at >= date_trunc('month', CURRENT_DATE)
-        `, [userId]);
-      } catch (error) {
-        console.error('Error fetching monthly applications:', error);
-        monthlyAppsResult = { rows: [{ total: '0' }] };
-      }
-
-      // Process application statistics
-      const applicationStats = applicationsResult.rows.reduce((acc: any, row) => {
-        acc[`${row.status}_applications`] = parseInt(row.count);
-        return acc;
-      }, {});
-
-      const totalApplications = applicationsResult.rows.reduce(
-        (sum, row) => sum + parseInt(row.count), 
-        0
+      console.log('🔄 SERVICE: Attempting to withdraw application:', { userId, jobId });
+      
+      // Check if application exists and get its current status
+      const checkResult = await this.db.query(
+        `SELECT id, status FROM job_applications 
+         WHERE job_id = $1 AND user_id = $2`,
+        [jobId, userId]
       );
 
-      const stats = {
-        total_applications: totalApplications,
-        pending_applications: applicationStats.pending_applications || 0,
-        reviewed_applications: applicationStats.reviewed_applications || 0,
-        shortlisted_applications: applicationStats.shortlisted_applications || 0,
-        rejected_applications: applicationStats.rejected_applications || 0,
-        total_saved_jobs: parseInt(savedJobsResult.rows[0]?.total || '0'),
-        profile_views: parseInt(profileViewsResult.rows[0]?.total || '0'),
-        applications_this_month: parseInt(monthlyAppsResult.rows[0]?.total || '0')
-      };
+      if (checkResult.rows.length === 0) {
+        console.log('❌ SERVICE: No application found');
+        return { 
+          success: false, 
+          message: 'You have not applied to this job' 
+        };
+      }
 
-      console.log('✅ Stats fetched successfully:', stats);
-      return stats;
-
-    } catch (error) {
-      console.error('❌ Critical error in getJobseekerStats:', error);
+      const application = checkResult.rows[0];
+      const currentStatus = application.status;
       
-      // Return default stats instead of throwing
-      return {
-        total_applications: 0,
-        pending_applications: 0,
-        reviewed_applications: 0,
-        shortlisted_applications: 0,
-        rejected_applications: 0,
-        total_saved_jobs: 0,
-        profile_views: 0,
-        applications_this_month: 0
-      };
+      console.log('📋 SERVICE: Current application status:', currentStatus);
+
+      // Check if already withdrawn
+      if (currentStatus === 'withdrawn') {
+        console.log('⚠️ SERVICE: Application already withdrawn');
+        return {
+          success: false,
+          message: 'This application was already withdrawn'
+        };
+      }
+
+      // Don't allow withdrawing if accepted or rejected by employer
+      const terminalStatuses = ['accepted', 'rejected'];
+      if (terminalStatuses.includes(currentStatus)) {
+        console.log('⚠️ SERVICE: Cannot withdraw - terminal status:', currentStatus);
+        return { 
+          success: false, 
+          message: `Cannot withdraw application that is ${currentStatus}` 
+        };
+      }
+
+      // Withdraw the application
+      const result = await this.db.query(
+        `UPDATE job_applications 
+         SET status = 'withdrawn', updated_at = NOW() 
+         WHERE job_id = $1 AND user_id = $2 
+         RETURNING id, status`,
+        [jobId, userId]
+      );
+
+      console.log('✅ SERVICE: Application withdrawn successfully:', result.rows[0]);
+      
+      return { success: true };
+      
+    } catch (error) {
+      console.error('❌ SERVICE ERROR: withdrawApplicationByJob:', error);
+      throw error;
     }
   }
+
+  // Get jobseeker statistics - FIXED VERSION WITH ERROR HANDLING
+  async getJobseekerStats(userId: string): Promise<JobseekerStats> {
+  try {
+    console.log('📊 Fetching jobseeker stats for user:', userId);
+
+    // ✅ FIX: Query applications by status, EXCLUDING withdrawn from active counts
+    let applicationsResult;
+    try {
+      applicationsResult = await this.db.query(`
+        SELECT status, COUNT(*) as count 
+        FROM job_applications 
+        WHERE user_id = $1 
+        GROUP BY status
+      `, [userId]);
+    } catch (error) {
+      console.error('Error fetching applications stats:', error);
+      applicationsResult = { rows: [] };
+    }
+
+    let savedJobsResult;
+    try {
+      savedJobsResult = await this.db.query(
+        'SELECT COUNT(*) as total FROM job_bookmarks WHERE user_id = $1',
+        [userId]
+      );
+    } catch (error) {
+      console.error('Error fetching saved jobs count:', error);
+      savedJobsResult = { rows: [{ total: '0' }] };
+    }
+
+    let profileViewsResult;
+    try {
+      profileViewsResult = await this.db.query(
+        'SELECT COUNT(*) as total FROM profile_views WHERE profile_user_id = $1',
+        [userId]
+      );
+    } catch (error: any) {
+      if (error.code === '42P01' || error.message?.includes('does not exist')) {
+        console.warn('⚠️ profile_views table does not exist. Defaulting to 0.');
+      } else {
+        console.error('Error fetching profile views:', error);
+      }
+      profileViewsResult = { rows: [{ total: '0' }] };
+    }
+
+    let monthlyAppsResult;
+    try {
+      // ✅ FIX: Exclude withdrawn from monthly count
+      monthlyAppsResult = await this.db.query(`
+        SELECT COUNT(*) as total 
+        FROM job_applications 
+        WHERE user_id = $1 
+          AND applied_at >= date_trunc('month', CURRENT_DATE)
+          AND status != 'withdrawn'
+      `, [userId]);
+    } catch (error) {
+      console.error('Error fetching monthly applications:', error);
+      monthlyAppsResult = { rows: [{ total: '0' }] };
+    }
+
+    // Process application statistics
+    const applicationStats = applicationsResult.rows.reduce((acc: any, row) => {
+      acc[`${row.status}_applications`] = parseInt(row.count);
+      return acc;
+    }, {});
+
+    // ✅ FIX: Calculate total EXCLUDING withdrawn
+    const totalApplications = applicationsResult.rows
+      .filter(row => row.status !== 'withdrawn')
+      .reduce((sum, row) => sum + parseInt(row.count), 0);
+
+    const stats = {
+      total_applications: totalApplications,
+      pending_applications: applicationStats.pending_applications || 0,
+      reviewed_applications: applicationStats.reviewed_applications || 0,
+      shortlisted_applications: applicationStats.shortlisted_applications || 0,
+      rejected_applications: applicationStats.rejected_applications || 0,
+      accepted_applications: applicationStats.accepted_applications || 0,
+      withdrawn_applications: applicationStats.withdrawn_applications || 0, // Track separately
+      total_saved_jobs: parseInt(savedJobsResult.rows[0]?.total || '0'),
+      profile_views: parseInt(profileViewsResult.rows[0]?.total || '0'),
+      applications_this_month: parseInt(monthlyAppsResult.rows[0]?.total || '0')
+    };
+
+    console.log('✅ Stats fetched successfully:', stats);
+    return stats;
+
+  } catch (error) {
+    console.error('❌ Critical error in getJobseekerStats:', error);
+    
+    return {
+      total_applications: 0,
+      pending_applications: 0,
+      reviewed_applications: 0,
+      shortlisted_applications: 0,
+      rejected_applications: 0,
+      accepted_applications: 0,
+      withdrawn_applications: 0,
+      total_saved_jobs: 0,
+      profile_views: 0,
+      applications_this_month: 0
+    };
+  }
+}
+
 }
