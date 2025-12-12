@@ -254,12 +254,13 @@ export class JobseekerJobService {
       }
     }
 
-    // ✅ FIX: Only exclude jobs with ACTIVE applications (not withdrawn)
+    // 🔥 FIX: Only exclude jobs with ACTIVE applications (pending, reviewed, shortlisted, etc.)
+    // Include jobs where user has withdrawn their application
     whereConditions.push(`j.id NOT IN (
       SELECT job_id 
       FROM job_applications 
       WHERE user_id = $${paramIndex} 
-        AND status != 'withdrawn'
+        AND status NOT IN ('withdrawn', 'rejected')
     )`);
     queryParams.push(userId);
     paramIndex++;
@@ -476,6 +477,9 @@ async getSavedJobs(userId: string, filters: { page: number; limit: number }): Pr
 }
 
   // Apply to a job
+// src/services/jobseeker-job.service.ts - FIXED applyToJob method
+
+// Apply to a job
 async applyToJob(userId: string, jobId: string, applicationData: ApplicationData): Promise<ServiceResponse<JobApplication>> {
   const client = await this.db.connect();
   
@@ -526,9 +530,10 @@ async applyToJob(userId: string, jobId: string, applicationData: ApplicationData
     
     console.log('✅ Applicant:', applicantName);
     
-    // Check if already applied
+    // 🔥 FIX: Check for ACTIVE applications only (exclude withdrawn)
     const existingApplication = await client.query(
-      'SELECT id FROM job_applications WHERE user_id = $1 AND job_id = $2',
+      `SELECT id, status FROM job_applications 
+       WHERE user_id = $1 AND job_id = $2 AND status != 'withdrawn'`,
       [userId, jobId]
     );
     
@@ -539,6 +544,13 @@ async applyToJob(userId: string, jobId: string, applicationData: ApplicationData
         message: 'Already applied to this job' 
       };
     }
+    
+    // 🔥 NEW: If there's a withdrawn application, DELETE it before creating new one
+    await client.query(
+      `DELETE FROM job_applications 
+       WHERE user_id = $1 AND job_id = $2 AND status = 'withdrawn'`,
+      [userId, jobId]
+    );
     
     // Validate resume if provided
     if (applicationData.resumeId) {
@@ -580,7 +592,7 @@ async applyToJob(userId: string, jobId: string, applicationData: ApplicationData
     await client.query('COMMIT');
     console.log('✅ Transaction committed');
     
-    // 🔥 NOTIFY EMPLOYER - Use employer_id from job
+    // 🔥 NOTIFY EMPLOYER
     try {
       console.log('📢 Calling notifyEmployerAboutApplication with:', {
         employerId: job.employer_id,
@@ -591,7 +603,7 @@ async applyToJob(userId: string, jobId: string, applicationData: ApplicationData
       });
       
       await this.notificationService.notifyEmployerAboutApplication(
-        job.employer_id, // ✅ This is the employer table ID
+        job.employer_id,
         job.id,
         job.title,
         applicantName,
@@ -606,9 +618,6 @@ async applyToJob(userId: string, jobId: string, applicationData: ApplicationData
         employerId: job.employer_id,
         jobId: job.id
       });
-      
-      // ⚠️ Don't fail the application - just log the error
-      // The application was already committed
     }
     
     return { success: true, data: newApplication };
