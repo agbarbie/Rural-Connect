@@ -12,6 +12,7 @@ build/
 .env
 .env.example
 .env.local
+.env.*.local
 .env.development.local
 .env.test.local
 .env.production.local
