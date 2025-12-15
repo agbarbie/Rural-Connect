@@ -75,6 +75,7 @@ export class AuthService {
       }
 
     // Create associated profile based on user type
+// Create associated profile based on user type
 if (userData.user_type === 'employer') {
   await client.query(`
     INSERT INTO employers (user_id, role_in_company, can_post_jobs, can_manage_candidates)
@@ -83,8 +84,8 @@ if (userData.user_type === 'employer') {
 } else if (userData.user_type === 'jobseeker') {
   await client.query(`
     INSERT INTO jobseekers (user_id, location, contact_number, skills)
-    VALUES ($1::uuid, $2, $3, $4::jsonb)
-  `, [newUser.id, userData.location || null, userData.contact_number || null, JSON.stringify([])]);
+    VALUES ($1::uuid, $2, $3, $4)
+  `, [newUser.id, userData.location || null, userData.contact_number || null, []]);
 } else if (userData.user_type === 'admin') {
   await client.query(`
     INSERT INTO admins (user_id, name, email, password_hash, contact_number, role, permissions)
@@ -93,7 +94,7 @@ if (userData.user_type === 'employer') {
     newUser.id, 
     userData.name,
     userData.email,
-    hashedPassword,  // This was created earlier: const hashedPassword = await hashPassword(userData.password);
+    hashedPassword,
     userData.contact_number || null, 
     'admin',
     '["all"]'
