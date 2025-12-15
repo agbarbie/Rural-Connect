@@ -1,7 +1,7 @@
-<!-- ai-assistant.component.html -->
+<!-- ai-assistant.component.html - WITH REAL DATA -->
 <div class="ai-assistant-container">
   <!-- Sidebar Navigation -->
- <app-sidebar [userType]="'employer'"></app-sidebar>
+  <app-sidebar [userType]="'employer'"></app-sidebar>
 
   <!-- Main Content -->
   <div class="main-content">
@@ -16,8 +16,14 @@
       </div>
     </div>
 
+    <!-- Loading State -->
+    <div class="loading-overlay" *ngIf="isLoading">
+      <div class="spinner"></div>
+      <p>Loading data...</p>
+    </div>
+
     <!-- Filters Section -->
-    <div class="filters-section">
+    <div class="filters-section" *ngIf="!isLoading">
       <div class="filters-grid">
         <div class="filter-group">
           <label for="jobRole">Job Role</label>
@@ -44,18 +50,18 @@
         </div>
         
         <div class="filter-group">
-          <label for="industry">Industry</label>
+          <label for="industry">Location/Industry</label>
           <select id="industry" [(ngModel)]="selectedIndustry" class="filter-select">
-            <option value="">All Industries</option>
+            <option value="">All Locations</option>
             <option *ngFor="let industry of industries" [value]="industry">{{ industry }}</option>
           </select>
         </div>
       </div>
       
       <div class="filter-actions">
-        <button class="btn btn-primary" (click)="applyFilters()" [disabled]="isLoading">
+        <button class="btn btn-primary" (click)="applyFilters()">
           <i class="fas fa-filter"></i>
-          {{ isLoading ? 'Applying...' : 'Apply Filters' }}
+          Apply Filters
         </button>
         <button class="btn btn-secondary" (click)="clearFilters()">
           <i class="fas fa-times"></i>
@@ -65,21 +71,21 @@
     </div>
 
     <!-- Tabs Navigation -->
-    <div class="tabs-container">
+    <div class="tabs-container" *ngIf="!isLoading">
       <div class="tabs-nav">
         <button 
           class="tab-btn" 
           [class.active]="activeTab === 'candidates'"
           (click)="setActiveTab('candidates')">
           <i class="fas fa-users"></i>
-          Job Matches
+          Candidate Matches ({{ candidates.length }})
         </button>
         <button 
           class="tab-btn" 
           [class.active]="activeTab === 'training'"
           (click)="setActiveTab('training')">
           <i class="fas fa-graduation-cap"></i>
-          Training Recommendations
+          Training Recommendations ({{ trainings.length }})
         </button>
         <button 
           class="tab-btn" 
@@ -94,18 +100,21 @@
       <div class="tab-content">
         <!-- Candidates Tab -->
         <div class="tab-pane" [class.active]="activeTab === 'candidates'">
-          <div class="candidates-grid">
+          <div class="candidates-grid" *ngIf="candidates.length > 0">
             <div class="candidate-card" *ngFor="let candidate of candidates">
               <div class="candidate-header">
                 <div class="candidate-avatar">
-                  <i class="fas fa-user"></i>
+                  <img 
+                    [src]="getFullImageUrl(candidate.profile_picture, candidate.name)" 
+                    [alt]="candidate.name"
+                    (error)="handleImageError($event, candidate.name)">
                 </div>
                 <div class="candidate-info">
                   <h3 class="candidate-name">{{ candidate.name }}</h3>
                   <p class="candidate-title">{{ candidate.title }}</p>
                 </div>
-                <div class="match-score" [class]="getMatchScoreClass(candidate.matchScore)">
-                  {{ candidate.matchScore }}% match
+                <div class="match-score" [ngClass]="getMatchScoreClass(candidate.match_score)">
+                  {{ candidate.match_score }}% match
                 </div>
               </div>
               
@@ -113,16 +122,21 @@
                 <div class="skills-section">
                   <h4>Key Skills</h4>
                   <div class="skills-list">
-                    <span class="skill-tag" *ngFor="let skill of candidate.skills">{{ skill }}</span>
+                    <span class="skill-tag" *ngFor="let skill of candidate.skills.slice(0, 5)">{{ skill }}</span>
                   </div>
                 </div>
                 
-                <div class="certifications-section">
+                <div class="experience-section">
+                  <h4>Experience</h4>
+                  <p>{{ candidate.experience }}</p>
+                </div>
+                
+                <div class="certifications-section" *ngIf="candidate.certifications && candidate.certifications.length > 0">
                   <h4>Certifications</h4>
                   <div class="certifications-list">
                     <div class="certification" *ngFor="let cert of candidate.certifications">
                       <i class="fas fa-check-circle"></i>
-                      {{ cert }}
+                      {{ cert.name }}
                     </div>
                   </div>
                 </div>
@@ -148,15 +162,26 @@
               </div>
             </div>
           </div>
+          
+          <!-- Empty State -->
+          <div class="empty-state" *ngIf="candidates.length === 0">
+            <i class="fas fa-users"></i>
+            <h3>No candidates found</h3>
+            <p>Try adjusting your filters to see more candidates</p>
+            <button class="btn btn-primary" (click)="clearFilters()">
+              <i class="fas fa-redo"></i>
+              Clear Filters
+            </button>
+          </div>
         </div>
 
         <!-- Training Tab -->
         <div class="tab-pane" [class.active]="activeTab === 'training'">
-          <div class="training-grid">
+          <div class="training-grid" *ngIf="trainings.length > 0">
             <div class="training-card" *ngFor="let training of trainings">
               <div class="training-header">
-                <div class="training-provider">{{ training.provider }}</div>
-                <div class="training-level" [class]="getLevelBadgeClass(training.level)">
+                <div class="training-provider">{{ training.provider_name }}</div>
+                <div class="training-level" [ngClass]="getLevelBadgeClass(training.level)">
                   {{ training.level }}
                 </div>
               </div>
@@ -168,21 +193,29 @@
                 <div class="training-meta">
                   <div class="meta-item">
                     <i class="fas fa-clock"></i>
-                    <span>{{ training.duration }}</span>
+                    <span>{{ training.duration_hours }}h</span>
                   </div>
                   <div class="meta-item">
-                    <i class="fas fa-chart-line"></i>
-                    <span>+{{ training.employabilityBoost }}% hiring chance</span>
+                    <i class="fas fa-users"></i>
+                    <span>{{ training.total_students }} enrolled</span>
                   </div>
                   <div class="meta-item">
                     <i class="fas fa-tag"></i>
                     <span>{{ training.category }}</span>
                   </div>
+                  <div class="meta-item" *ngIf="training.cost_type === 'Free'">
+                    <i class="fas fa-gift"></i>
+                    <span>Free</span>
+                  </div>
+                  <div class="meta-item" *ngIf="training.cost_type === 'Paid'">
+                    <i class="fas fa-dollar-sign"></i>
+                    <span>${{ training.price }}</span>
+                  </div>
                 </div>
               </div>
               
               <div class="training-actions">
-                <button class="btn btn-primary" (click)="assignTraining(training.id)">
+                <button class="btn btn-primary" (click)="assignTraining(training)">
                   <i class="fas fa-user-plus"></i>
                   Assign to Candidates
                 </button>
@@ -192,6 +225,17 @@
                 </button>
               </div>
             </div>
+          </div>
+          
+          <!-- Empty State -->
+          <div class="empty-state" *ngIf="trainings.length === 0">
+            <i class="fas fa-graduation-cap"></i>
+            <h3>No training programs available</h3>
+            <p>Create training programs to upskill your candidates</p>
+            <a href="/employer/training" class="btn btn-primary">
+              <i class="fas fa-plus"></i>
+              Create Training Program
+            </a>
           </div>
         </div>
 
@@ -206,7 +250,7 @@
                   Top Skills in Demand
                 </h3>
                 <div class="skills-chart">
-                  <div class="skill-bar" *ngFor="let skill of skillGaps">
+                  <div class="skill-bar" *ngFor="let skill of skillGaps.slice(0, 5)">
                     <div class="skill-info">
                       <span class="skill-name">{{ skill.skill }}</span>
                       <span class="skill-percentage">{{ skill.demandPercentage }}%</span>
@@ -225,11 +269,11 @@
                   Skill Gap Analysis
                 </h3>
                 <div class="gap-analysis">
-                  <div class="gap-item" *ngFor="let skill of skillGaps">
+                  <div class="gap-item" *ngFor="let skill of skillGaps.slice(0, 5)">
                     <div class="gap-header">
                       <span class="gap-skill">{{ skill.skill }}</span>
-                      <span class="gap-percentage" [class]="getGapSeverity(getSkillGapPercentage(skill))">
-                        {{ getSkillGapPercentage(skill) }}% have this skill
+                      <span class="gap-percentage" [ngClass]="getGapSeverity(getSkillGapPercentage(skill))">
+                        {{ getSkillGapPercentage(skill) }}% of candidates have this
                       </span>
                     </div>
                     <div class="gap-bar">
@@ -239,28 +283,28 @@
                 </div>
               </div>
 
-              <!-- Training Impact Projection -->
+              <!-- Summary Stats -->
               <div class="insight-card full-width">
                 <h3 class="card-title">
                   <i class="fas fa-rocket"></i>
-                  Training Impact Projection
+                  Pipeline Overview
                 </h3>
                 <div class="impact-grid">
                   <div class="impact-stat">
-                    <div class="stat-number">75%</div>
-                    <div class="stat-label">Would qualify after React training</div>
+                    <div class="stat-number">{{ candidates.length }}</div>
+                    <div class="stat-label">Total Candidates</div>
                   </div>
                   <div class="impact-stat">
-                    <div class="stat-number">60%</div>
-                    <div class="stat-label">Would qualify after Python training</div>
+                    <div class="stat-number">{{ trainings.length }}</div>
+                    <div class="stat-label">Available Training Programs</div>
                   </div>
                   <div class="impact-stat">
-                    <div class="stat-number">45%</div>
-                    <div class="stat-label">Would qualify after AWS training</div>
+                    <div class="stat-number">{{ jobPosts.length }}</div>
+                    <div class="stat-label">Open Positions</div>
                   </div>
                   <div class="impact-stat">
-                    <div class="stat-number">85%</div>
-                    <div class="stat-label">Overall pipeline improvement potential</div>
+                    <div class="stat-number">{{ skillGaps.length }}</div>
+                    <div class="stat-label">Skill Gaps Identified</div>
                   </div>
                 </div>
               </div>
@@ -290,9 +334,20 @@
           *ngFor="let message of chatMessages"
           [class.user-message]="message.isUser"
           [class.ai-message]="!message.isUser">
-          <div class="message-content">{{ message.message }}</div>
+          <div class="message-content" style="white-space: pre-line">{{ message.message }}</div>
           <div class="message-time">
             {{ message.timestamp | date:'short' }}
+          </div>
+        </div>
+        
+        <!-- Loading indicator -->
+        <div class="chat-message ai-message" *ngIf="isLoading">
+          <div class="message-content">
+            <div class="typing-indicator">
+              <span></span>
+              <span></span>
+              <span></span>
+            </div>
           </div>
         </div>
       </div>
@@ -302,25 +357,104 @@
           type="text" 
           [(ngModel)]="currentChatMessage"
           (keypress)="onChatKeyPress($event)"
+          [disabled]="isLoading"
           placeholder="Ask me about candidates, training, or insights..."
           class="chat-input-field">
-        <button class="chat-send-btn" (click)="sendChatMessage()" [disabled]="!currentChatMessage.trim()">
-          <i class="fas fa-paper-plane"></i>
+        <button 
+          class="chat-send-btn" 
+          (click)="sendChatMessage()" 
+          [disabled]="!currentChatMessage.trim() || isLoading">
+          <i class="fas fa-paper-plane" *ngIf="!isLoading"></i>
+          <i class="fas fa-spinner fa-spin" *ngIf="isLoading"></i>
         </button>
       </div>
     </div>
   </div>
 
   <!-- Quick Actions Suggestions -->
-  <div class="quick-actions" *ngIf="isChatOpen">
-    <button class="quick-action" (click)="addChatMessage('Show me top candidates for my Marketing Manager role.', true); sendChatMessage()">
-      Top candidates for Marketing Manager
+  <div class="quick-actions" *ngIf="isChatOpen && chatMessages.length === 1">
+    <button class="quick-action" (click)="currentChatMessage = 'Show me the top 5 candidates with the highest match scores'; sendChatMessage()">
+      Top candidates by match score
     </button>
-    <button class="quick-action" (click)="addChatMessage('Which trainings will boost my pipeline for Data Analysts?', true); sendChatMessage()">
-      Best trainings for Data Analysts
+    <button class="quick-action" (click)="currentChatMessage = 'Which training programs would help close our biggest skill gaps?'; sendChatMessage()">
+      Best trainings for skill gaps
     </button>
-    <button class="quick-action" (click)="addChatMessage('What are the biggest skill gaps in my candidate pool?', true); sendChatMessage()">
-      Show skill gaps analysis
+    <button class="quick-action" (click)="currentChatMessage = 'What are the most in-demand skills we should prioritize?'; sendChatMessage()">
+      Most in-demand skills
     </button>
+  </div>
+</div>
+
+<!-- Assignment Modal -->
+<div class="modal-overlay" *ngIf="showAssignmentModal" (click)="closeAssignmentModal()">
+  <div class="modal-content assignment-modal" (click)="$event.stopPropagation()">
+    <div class="modal-header">
+      <h3>
+        <i class="fas fa-user-plus"></i>
+        Assign Training: {{ selectedTraining?.title }}
+      </h3>
+      <button class="close-btn" (click)="closeAssignmentModal()">
+        <i class="fas fa-times"></i>
+      </button>
+    </div>
+    
+    <div class="modal-body">
+      <p class="modal-description">
+        Select candidates to assign to this training program
+      </p>
+      
+      <div class="candidates-list">
+        <div 
+          class="candidate-item" 
+          *ngFor="let candidate of candidates"
+          [class.selected]="isCandidateSelectedForAssignment(candidate.id)"
+          (click)="toggleCandidateForAssignment(candidate.id)">
+          <div class="candidate-checkbox">
+            <input 
+              type="checkbox" 
+              [checked]="isCandidateSelectedForAssignment(candidate.id)"
+              (click)="$event.stopPropagation()">
+          </div>
+          <div class="candidate-avatar-small">
+            <img 
+              [src]="getFullImageUrl(candidate.profile_picture, candidate.name)" 
+              [alt]="candidate.name"
+              (error)="handleImageError($event, candidate.name)">
+          </div>
+          <div class="candidate-details">
+            <h4>{{ candidate.name }}</h4>
+            <p>{{ candidate.title }}</p>
+            <div class="candidate-skills-small">
+              <span class="skill-tag-small" *ngFor="let skill of candidate.skills.slice(0, 3)">
+                {{ skill }}
+              </span>
+            </div>
+          </div>
+          <div class="candidate-match">
+            <span class="match-badge" [ngClass]="getMatchScoreClass(candidate.match_score)">
+              {{ candidate.match_score }}%
+            </span>
+          </div>
+        </div>
+      </div>
+      
+      <div class="selection-summary" *ngIf="selectedCandidatesForAssignment.size > 0">
+        <i class="fas fa-info-circle"></i>
+        {{ selectedCandidatesForAssignment.size }} candidate(s) selected
+      </div>
+    </div>
+    
+    <div class="modal-footer">
+      <button class="btn btn-secondary" (click)="closeAssignmentModal()">
+        Cancel
+      </button>
+      <button 
+        class="btn btn-primary" 
+        (click)="confirmAssignment()"
+        [disabled]="selectedCandidatesForAssignment.size === 0">
+        <i class="fas fa-check"></i>
+        Assign Training ({{ selectedCandidatesForAssignment.size }})
+      </button>
+    </div>
   </div>
 </div>

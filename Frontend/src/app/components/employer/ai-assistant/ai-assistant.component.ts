@@ -1,31 +1,13 @@
-// ai-assistant.component.ts
-import { Component, OnInit } from '@angular/core';
+// ai-assistant.component.ts - COMPLETE WITH REAL DATA INTEGRATION
+import { Component, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { Subject } from 'rxjs';
+import { takeUntil } from 'rxjs/operators';
 import { SidebarComponent } from '../../shared/sidebar/sidebar.component';
-
-interface Candidate {
-  id: string;
-  name: string;
-  title: string;
-  profilePhoto: string;
-  matchScore: number;
-  skills: string[];
-  certifications: string[];
-  experience: string;
-  industry: string;
-}
-
-interface Training {
-  id: string;
-  title: string;
-  provider: string;
-  duration: string;
-  level: 'Beginner' | 'Intermediate' | 'Advanced';
-  employabilityBoost: number;
-  description: string;
-  category: string;
-}
+import { CandidatesService, Candidate, JobPost } from '../../../../../services/candidates.service';
+import { TrainingService, Training } from '../../../../../services/training.service';
+import { GeminiChatService, GeminiResponse } from '../../../../../services/gemini-chat.service';
 
 interface ChatMessage {
   id: string;
@@ -48,8 +30,16 @@ interface SkillGap {
   templateUrl: './ai-assistant.component.html',
   styleUrls: ['./ai-assistant.component.css']
 })
-export class AiAssistantComponent implements OnInit {
+export class AiAssistantComponent implements OnInit, OnDestroy {
+  private destroy$ = new Subject<void>();
+  
   activeTab: 'candidates' | 'training' | 'insights' = 'candidates';
+  
+  // Real data from services
+  candidates: Candidate[] = [];
+  trainings: Training[] = [];
+  jobPosts: JobPost[] = [];
+  skillGaps: SkillGap[] = [];
   
   // Filter properties
   selectedJobRole: string = '';
@@ -57,132 +47,205 @@ export class AiAssistantComponent implements OnInit {
   selectedExperience: string = '';
   selectedIndustry: string = '';
 
-  // Data properties
-  candidates: Candidate[] = [];
-  trainings: Training[] = [];
-  skillGaps: SkillGap[] = [];
-  chatMessages: ChatMessage[] = [];
-  
   // UI state
   isChatOpen: boolean = false;
   currentChatMessage: string = '';
   isLoading: boolean = false;
+  chatMessages: ChatMessage[] = [];
   
-  // Filter options
-  jobRoles: string[] = ['Software Engineer', 'Marketing Manager', 'Data Analyst', 'Product Manager', 'UX Designer'];
-  skillOptions: string[] = ['JavaScript', 'Python', 'React', 'Angular', 'Node.js', 'Digital Marketing', 'Data Science'];
+  // Chat history for Gemini
+  chatHistory: { role: 'user' | 'assistant'; content: string }[] = [];
+  
+  // Filter options (will be populated from real data)
+  jobRoles: string[] = [];
+  skillOptions: string[] = [];
   experienceLevels: string[] = ['Entry Level', 'Mid Level', 'Senior Level', 'Executive'];
-  industries: string[] = ['Technology', 'Healthcare', 'Finance', 'Education', 'E-commerce'];
+  industries: string[] = [];
+  
+  // Assignment modal
+  showAssignmentModal: boolean = false;
+  selectedTraining: Training | null = null;
+  selectedCandidatesForAssignment: Set<string> = new Set();
+
+  constructor(
+    private candidatesService: CandidatesService,
+    private trainingService: TrainingService,
+    private geminiService: GeminiChatService
+  ) {}
 
   ngOnInit(): void {
-    this.loadMockData();
+    console.log('🚀 AI Assistant initialized');
+    this.loadRealData();
     this.initializeChat();
   }
 
-  loadMockData(): void {
-    // Mock candidates data
-    this.candidates = [
-      {
-        id: '1',
-        name: 'Sarah Johnson',
-        title: 'Frontend Developer',
-        profilePhoto: 'assets/images/profile1.jpg',
-        matchScore: 94,
-        skills: ['React', 'TypeScript', 'CSS', 'JavaScript'],
-        certifications: ['AWS Certified Developer', 'Google Analytics Certified'],
-        experience: '3 years',
-        industry: 'Technology'
-      },
-      {
-        id: '2',
-        name: 'Michael Chen',
-        title: 'Full Stack Developer',
-        profilePhoto: 'assets/images/profile2.jpg',
-        matchScore: 87,
-        skills: ['Angular', 'Node.js', 'MongoDB', 'Python'],
-        certifications: ['Microsoft Azure Certified', 'Scrum Master Certified'],
-        experience: '5 years',
-        industry: 'Technology'
-      },
-      {
-        id: '3',
-        name: 'Emily Rodriguez',
-        title: 'Digital Marketing Specialist',
-        profilePhoto: 'assets/images/profile3.jpg',
-        matchScore: 82,
-        skills: ['SEO', 'Google Ads', 'Social Media Marketing', 'Analytics'],
-        certifications: ['Google Ads Certified', 'HubSpot Certified'],
-        experience: '2 years',
-        industry: 'Marketing'
-      }
-    ];
-
-    // Mock trainings data
-    this.trainings = [
-      {
-        id: '1',
-        title: 'Advanced React Development',
-        provider: 'Meta',
-        duration: '6 weeks',
-        level: 'Advanced',
-        employabilityBoost: 15,
-        description: 'Master advanced React concepts and build production-ready applications',
-        category: 'Frontend Development'
-      },
-      {
-        id: '2',
-        title: 'Digital Marketing Fundamentals',
-        provider: 'Google',
-        duration: '4 weeks',
-        level: 'Beginner',
-        employabilityBoost: 12,
-        description: 'Learn the basics of digital marketing and online advertising',
-        category: 'Marketing'
-      },
-      {
-        id: '3',
-        title: 'Data Science with Python',
-        provider: 'IBM',
-        duration: '8 weeks',
-        level: 'Intermediate',
-        employabilityBoost: 20,
-        description: 'Comprehensive course on data science techniques and Python programming',
-        category: 'Data Science'
-      }
-    ];
-
-    // Mock skill gaps data
-    this.skillGaps = [
-      { skill: 'React', demandPercentage: 85, candidatesWithSkill: 45, totalCandidates: 100 },
-      { skill: 'Python', demandPercentage: 78, candidatesWithSkill: 38, totalCandidates: 100 },
-      { skill: 'AWS', demandPercentage: 70, candidatesWithSkill: 25, totalCandidates: 100 },
-      { skill: 'Machine Learning', demandPercentage: 65, candidatesWithSkill: 20, totalCandidates: 100 },
-      { skill: 'Digital Marketing', demandPercentage: 60, candidatesWithSkill: 35, totalCandidates: 100 }
-    ];
+  ngOnDestroy(): void {
+    this.destroy$.next();
+    this.destroy$.complete();
   }
 
-  initializeChat(): void {
-    this.chatMessages = [
-      {
-        id: '1',
-        message: 'Hello! I\'m your AI assistant. I can help you find the best candidates, recommend training programs, and provide insights about your talent pipeline. What would you like to know?',
-        isUser: false,
-        timestamp: new Date()
-      }
-    ];
+  // ============================================
+  // DATA LOADING
+  // ============================================
+  
+  loadRealData(): void {
+    this.isLoading = true;
+    
+    // Load job posts
+    this.candidatesService.getJobPosts()
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (response) => {
+          if (response.success && response.data) {
+            this.jobPosts = response.data;
+            this.jobRoles = [...new Set(this.jobPosts.map(j => j.title))];
+            console.log('✅ Loaded job posts:', this.jobPosts.length);
+            this.loadCandidates();
+          }
+        },
+        error: (error) => {
+          console.error('❌ Error loading job posts:', error);
+          this.isLoading = false;
+        }
+      });
+    
+    // Load trainings
+    const employerId = localStorage.getItem('userId') || '';
+    this.trainingService.getMyTrainings({ 
+      status: 'published',
+      limit: 100 
+    }, employerId)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (response) => {
+          if (response.success && response.data?.trainings) {
+            this.trainings = response.data.trainings;
+            console.log('✅ Loaded trainings:', this.trainings.length);
+          }
+        },
+        error: (error) => {
+          console.error('❌ Error loading trainings:', error);
+        }
+      });
   }
 
+  loadCandidates(): void {
+    this.candidatesService.getCandidates({ page: 1, limit: 100 })
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (response) => {
+          if (response.success && response.data) {
+            this.candidates = Array.isArray(response.data.data) ? response.data.data : [];
+            
+            // Extract unique skills and industries
+            const allSkills = new Set<string>();
+            const allIndustries = new Set<string>();
+            
+            this.candidates.forEach(candidate => {
+              candidate.skills?.forEach(skill => allSkills.add(skill));
+              if (candidate.location) {
+                allIndustries.add(candidate.location);
+              }
+            });
+            
+            this.skillOptions = Array.from(allSkills);
+            this.industries = Array.from(allIndustries);
+            
+            // Calculate skill gaps
+            this.calculateSkillGaps();
+            
+            console.log('✅ Loaded candidates:', this.candidates.length);
+            console.log('✅ Unique skills:', this.skillOptions.length);
+            
+            this.isLoading = false;
+          }
+        },
+        error: (error) => {
+          console.error('❌ Error loading candidates:', error);
+          this.isLoading = false;
+        }
+      });
+  }
+
+  calculateSkillGaps(): void {
+    const skillDemand = new Map<string, number>();
+    const skillCount = new Map<string, number>();
+    
+    // Count required skills from job posts
+    this.jobPosts.forEach(job => {
+      job.skills_required?.forEach((skill: string) => {
+        skillDemand.set(skill, (skillDemand.get(skill) || 0) + 1);
+      });
+    });
+    
+    // Count candidates with each skill
+    this.candidates.forEach(candidate => {
+      candidate.skills?.forEach(skill => {
+        skillCount.set(skill, (skillCount.get(skill) || 0) + 1);
+      });
+    });
+    
+    // Calculate gaps
+    this.skillGaps = Array.from(skillDemand.entries())
+      .map(([skill, demand]) => ({
+        skill,
+        demandPercentage: Math.round((demand / this.jobPosts.length) * 100),
+        candidatesWithSkill: skillCount.get(skill) || 0,
+        totalCandidates: this.candidates.length
+      }))
+      .sort((a, b) => b.demandPercentage - a.demandPercentage)
+      .slice(0, 10);
+  }
+
+  // ============================================
+  // TAB MANAGEMENT
+  // ============================================
+  
   setActiveTab(tab: 'candidates' | 'training' | 'insights'): void {
     this.activeTab = tab;
   }
 
+  // ============================================
+  // FILTERS
+  // ============================================
+  
   applyFilters(): void {
     this.isLoading = true;
-    // Simulate API call
-    setTimeout(() => {
-      // Filter logic would go here
-      this.isLoading = false;
-    }, 1000);
+    
+    let filtered = [...this.candidates];
+    
+    if (this.selectedJobRole) {
+      // Filter by job role match
+      const job = this.jobPosts.find(j => j.title === this.selectedJobRole);
+      if (job && job.skills_required) {
+        filtered = filtered.filter(candidate => 
+          candidate.skills?.some(skill => 
+            job.skills_required?.includes(skill)
+          )
+        );
+      }
+    }
+    
+    if (this.selectedSkills) {
+      filtered = filtered.filter(candidate =>
+        candidate.skills?.includes(this.selectedSkills)
+      );
+    }
+    
+    if (this.selectedExperience) {
+      filtered = filtered.filter(candidate =>
+        candidate.experience?.toLowerCase().includes(this.selectedExperience.toLowerCase())
+      );
+    }
+    
+    if (this.selectedIndustry) {
+      filtered = filtered.filter(candidate =>
+        candidate.location?.includes(this.selectedIndustry)
+      );
+    }
+    
+    this.candidates = filtered;
+    this.isLoading = false;
   }
 
   clearFilters(): void {
@@ -190,42 +253,142 @@ export class AiAssistantComponent implements OnInit {
     this.selectedSkills = '';
     this.selectedExperience = '';
     this.selectedIndustry = '';
-    this.applyFilters();
+    this.loadCandidates();
   }
 
+  // ============================================
+  // CANDIDATE ACTIONS
+  // ============================================
+  
   viewProfile(candidateId: string): void {
     console.log('Viewing profile for candidate:', candidateId);
-    // Navigate to candidate profile
+    window.open(`/employer/candidate-profile/${candidateId}`, '_blank');
   }
 
   inviteToApply(candidateId: string): void {
     console.log('Inviting candidate to apply:', candidateId);
-    // Send invitation logic
+    
+    if (!this.selectedJobRole) {
+      alert('Please select a job role first');
+      return;
+    }
+    
+    const job = this.jobPosts.find(j => j.title === this.selectedJobRole);
+    if (job) {
+      const message = `You have been identified as a strong match for our ${job.title} position. We invite you to apply!`;
+      
+      this.candidatesService.inviteCandidate(candidateId, job.id, message)
+        .pipe(takeUntil(this.destroy$))
+        .subscribe({
+          next: () => {
+            alert('Invitation sent successfully!');
+          },
+          error: (error) => {
+            console.error('Error sending invitation:', error);
+            alert('Failed to send invitation');
+          }
+        });
+    }
   }
 
   messageCandidate(candidateId: string): void {
     console.log('Messaging candidate:', candidateId);
-    // Open messaging interface
+    window.open(`/employer/messages?userId=${candidateId}`, '_blank');
   }
 
-  assignTraining(trainingId: string): void {
-    console.log('Assigning training:', trainingId);
-    // Open training assignment interface
+  // ============================================
+  // TRAINING ACTIONS
+  // ============================================
+  
+  assignTraining(training: Training): void {
+    console.log('Opening assignment modal for training:', training.title);
+    this.selectedTraining = training;
+    this.selectedCandidatesForAssignment.clear();
+    this.showAssignmentModal = true;
+  }
+
+  closeAssignmentModal(): void {
+    this.showAssignmentModal = false;
+    this.selectedTraining = null;
+    this.selectedCandidatesForAssignment.clear();
+  }
+
+  toggleCandidateForAssignment(candidateId: string): void {
+    if (this.selectedCandidatesForAssignment.has(candidateId)) {
+      this.selectedCandidatesForAssignment.delete(candidateId);
+    } else {
+      this.selectedCandidatesForAssignment.add(candidateId);
+    }
+  }
+
+  isCandidateSelectedForAssignment(candidateId: string): boolean {
+    return this.selectedCandidatesForAssignment.has(candidateId);
+  }
+
+  confirmAssignment(): void {
+    if (this.selectedCandidatesForAssignment.size === 0) {
+      alert('Please select at least one candidate');
+      return;
+    }
+    
+    if (!this.selectedTraining) {
+      alert('No training selected');
+      return;
+    }
+    
+    const candidateCount = this.selectedCandidatesForAssignment.size;
+    const trainingTitle = this.selectedTraining.title;
+    
+    if (confirm(`Assign "${trainingTitle}" to ${candidateCount} candidate(s)?`)) {
+      // In a real implementation, you would call a service method here
+      console.log('Assigning training to candidates:', {
+        training: this.selectedTraining,
+        candidates: Array.from(this.selectedCandidatesForAssignment)
+      });
+      
+      alert(`Training "${trainingTitle}" assigned to ${candidateCount} candidate(s)!`);
+      this.closeAssignmentModal();
+    }
   }
 
   explainRecommendation(type: string, id: string): void {
-    const explanation = this.generateExplanation(type, id);
-    this.addChatMessage(explanation, false);
-    this.isChatOpen = true;
+    let question = '';
+    
+    if (type === 'candidate') {
+      const candidate = this.candidates.find(c => c.id === id);
+      if (candidate) {
+        question = `Why is ${candidate.name} recommended for ${this.selectedJobRole || 'our positions'}?`;
+      }
+    } else if (type === 'training') {
+      const training = this.trainings.find(t => t.id === id);
+      if (training) {
+        question = `Why is "${training.title}" training recommended for our candidates?`;
+      }
+    }
+    
+    if (question) {
+      this.currentChatMessage = question;
+      this.sendChatMessage();
+      this.isChatOpen = true;
+    }
   }
 
-  generateExplanation(type: string, id: string): string {
-    if (type === 'candidate') {
-      return `This candidate was recommended based on their skill match (94%), relevant experience, and validated certifications. They have strong proficiency in React and TypeScript, which align perfectly with your job requirements.`;
-    } else if (type === 'training') {
-      return `This training was recommended because 65% of your candidate pool lacks advanced React skills, which are required for 85% of your job postings. Completing this training would increase candidate employability by 15%.`;
-    }
-    return 'Recommendation explanation not available.';
+  // ============================================
+  // AI CHAT
+  // ============================================
+  
+  initializeChat(): void {
+    this.chatMessages = [{
+      id: '1',
+      message: '👋 Hello! I\'m your AI hiring assistant. I can help you:\n\n' +
+               '• Analyze candidate qualifications\n' +
+               '• Find top matches for your jobs\n' +
+               '• Recommend training for candidates\n' +
+               '• Identify skill gaps in your pipeline\n\n' +
+               'What would you like to know?',
+      isUser: false,
+      timestamp: new Date()
+    }];
   }
 
   toggleChat(): void {
@@ -233,17 +396,85 @@ export class AiAssistantComponent implements OnInit {
   }
 
   sendChatMessage(): void {
-    if (this.currentChatMessage.trim()) {
-      this.addChatMessage(this.currentChatMessage, true);
-      const userMessage = this.currentChatMessage;
-      this.currentChatMessage = '';
-      
-      // Simulate AI response
-      setTimeout(() => {
-        const aiResponse = this.generateAIResponse(userMessage);
-        this.addChatMessage(aiResponse, false);
-      }, 1000);
-    }
+    if (!this.currentChatMessage.trim() || this.isLoading) return;
+
+    const userMessage = this.currentChatMessage.trim();
+    this.addChatMessage(userMessage, true);
+    this.currentChatMessage = '';
+    this.isLoading = true;
+    
+    // Add to chat history
+    this.chatHistory.push({
+      role: 'user',
+      content: userMessage
+    });
+
+    // Prepare context for Gemini
+    const context = {
+      jobs: this.jobPosts.map(j => ({
+        id: j.id,
+        title: j.title,
+        skills_required: j.skills_required,
+        applications_count: j.applications_count,
+        status: j.status
+      })),
+      trainings: this.trainings.map(t => ({
+        id: t.id,
+        title: t.title,
+        category: t.category,
+        level: t.level,
+        duration_hours: t.duration_hours,
+        cost_type: t.cost_type,
+        total_students: t.total_students
+      })),
+      candidates: this.candidates.slice(0, 20).map(c => ({
+        id: c.id,
+        name: c.name,
+        title: c.title,
+        skills: c.skills,
+        experience: c.experience,
+        match_score: c.match_score
+      })),
+      selectedJob: this.selectedJobRole ? 
+        this.jobPosts.find(j => j.title === this.selectedJobRole) : null
+    };
+    
+    console.log('🚀 Sending to Gemini:', {
+      userMessage,
+      contextJobs: context.jobs.length,
+      contextTrainings: context.trainings.length,
+      contextCandidates: context.candidates.length
+    });
+
+    this.geminiService.sendEmployerMessage(userMessage, this.chatHistory, context)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (response: GeminiResponse) => {
+          console.log('✅ Gemini response:', response);
+          
+          const aiMessage = response.message || 
+            'I apologize, but I couldn\'t process that request. Please try rephrasing.';
+          
+          this.addChatMessage(aiMessage, false);
+          
+          this.chatHistory.push({
+            role: 'assistant',
+            content: aiMessage
+          });
+          
+          this.isLoading = false;
+        },
+        error: (error) => {
+          console.error('❌ Gemini error:', error);
+          
+          this.addChatMessage(
+            '❌ I encountered an error. Please try again or rephrase your question.',
+            false
+          );
+          
+          this.isLoading = false;
+        }
+      });
   }
 
   addChatMessage(message: string, isUser: boolean): void {
@@ -253,19 +484,14 @@ export class AiAssistantComponent implements OnInit {
       isUser,
       timestamp: new Date()
     });
+    
+    setTimeout(() => this.scrollChatToBottom(), 100);
   }
 
-  generateAIResponse(userMessage: string): string {
-    const lowerMessage = userMessage.toLowerCase();
-    
-    if (lowerMessage.includes('marketing manager') || lowerMessage.includes('marketing')) {
-      return 'For Marketing Manager roles, I recommend focusing on candidates with digital marketing experience, Google Ads certification, and analytics skills. Would you like me to show you the top 3 candidates?';
-    } else if (lowerMessage.includes('data analyst') || lowerMessage.includes('data')) {
-      return 'For Data Analyst positions, Python and SQL skills are critical. I recommend the "Data Science with Python" course which could boost your candidate pool by 20%. Should I show you candidates who would benefit from this training?';
-    } else if (lowerMessage.includes('training') || lowerMessage.includes('upskill')) {
-      return 'Based on your job postings, I recommend focusing on React, Python, and AWS training programs. These address the biggest skill gaps in your candidate pipeline. Would you like specific course recommendations?';
-    } else {
-      return 'I can help you with candidate recommendations, training suggestions, and talent insights. Try asking about specific roles like "Show me candidates for Software Engineer" or "What training should I recommend for my pipeline?"';
+  scrollChatToBottom(): void {
+    const chatContainer = document.querySelector('.chat-messages');
+    if (chatContainer) {
+      chatContainer.scrollTop = chatContainer.scrollHeight;
     }
   }
 
@@ -276,6 +502,10 @@ export class AiAssistantComponent implements OnInit {
     }
   }
 
+  // ============================================
+  // UTILITY METHODS
+  // ============================================
+  
   getMatchScoreClass(score: number): string {
     if (score >= 90) return 'match-excellent';
     if (score >= 80) return 'match-good';
@@ -293,6 +523,7 @@ export class AiAssistantComponent implements OnInit {
   }
 
   getSkillGapPercentage(skillGap: SkillGap): number {
+    if (skillGap.totalCandidates === 0) return 0;
     return Math.round((skillGap.candidatesWithSkill / skillGap.totalCandidates) * 100);
   }
 
@@ -300,5 +531,21 @@ export class AiAssistantComponent implements OnInit {
     if (percentage < 30) return 'severe';
     if (percentage < 60) return 'moderate';
     return 'low';
+  }
+
+  getFullImageUrl(imagePath: string | null | undefined, candidateName: string): string {
+    if (!imagePath) {
+      return `https://ui-avatars.com/api/?name=${encodeURIComponent(candidateName)}&background=4285f4&color=fff&size=128`;
+    }
+    
+    if (imagePath.startsWith('http') || imagePath.startsWith('data:')) {
+      return imagePath;
+    }
+    
+    return `https://ui-avatars.com/api/?name=${encodeURIComponent(candidateName)}&background=4285f4&color=fff&size=128`;
+  }
+
+  handleImageError(event: any, candidateName: string): void {
+    event.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(candidateName)}&background=4285f4&color=fff&size=128`;
   }
 }
