@@ -1678,3 +1678,75 @@ body {
 .filter-actions {
   margin-top: 12px;
 }
+/* Add this to your candidates.component.css */
+
+/* AI Chat Context Display */
+.chat-context {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.75rem;
+  color: #64748b;
+  padding: 4px 8px;
+  background: rgba(59, 130, 246, 0.1);
+  border-radius: 12px;
+  margin-left: 8px;
+}
+
+.chat-context i {
+  font-size: 0.7rem;
+}
+
+/* Enhanced Quick Suggestions */
+.quick-suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 12px;
+  background: #f8fafc;
+  border-top: 1px solid #e2e8f0;
+}
+
+.suggestion-chip {
+  padding: 6px 12px;
+  font-size: 0.85rem;
+  background: white;
+  border: 1px solid #cbd5e1;
+  border-radius: 16px;
+  color: #475569;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.suggestion-chip:hover {
+  background: #3b82f6;
+  color: white;
+  border-color: #3b82f6;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(59, 130, 246, 0.2);
+}
+
+/* AI Context Summary in Insights */
+.ai-insights-widget .widget-header {
+  position: relative;
+}
+
+.context-indicator {
+  position: absolute;
+  top: 8px;
+  right: 40px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.7rem;
+  color: #64748b;
+  padding: 2px 6px;
+  background: rgba(59, 130, 246, 0.1);
+  border-radius: 8px;
+}
+
+.context-indicator i {
+  font-size: 0.65rem;
+  color: #3b82f6;
+}

@@ -1,4 +1,4 @@
-// src/routes/cv-builder.routes.ts
+// src/routes/cv-builder.routes.ts - COMPLETE FIXED VERSION
 import { Router } from 'express';
 import { cvBuilderController } from '../controllers/cv-builder.controller';
 import { authenticateToken, requireJobseeker } from '../middleware/auth.middleware';
@@ -68,6 +68,7 @@ const imageFileFilter = (req: any, file: Express.Multer.File, cb: multer.FileFil
   }
 };
 
+// FIXED: Accept both 'cv' and 'cvFile' field names
 const uploadCV = multer({
   storage: cvStorage,
   fileFilter: cvFileFilter,
@@ -127,9 +128,30 @@ router.delete('/:id', cvBuilderController.deleteCV);
  * @route POST /api/cv/upload
  * @desc Upload and parse CV file
  * @access Private (Jobseeker only)
+ * FIXED: Now accepts both 'cv' and 'cvFile' field names
  */
-router.post('/upload', uploadCV.single('cvFile'), (req, res, next) => {
-  cvBuilderController.uploadCV(req as any, res, next);
+router.post('/upload', (req, res, next) => {
+  // Try 'cv' field first (what frontend is sending)
+  const uploadHandler = uploadCV.single('cv');
+  
+  uploadHandler(req, res, (err) => {
+    if (err) {
+      // If 'cv' fails with "Unexpected field", try 'cvFile'
+      if (err.message === 'Unexpected field') {
+        const uploadHandlerAlt = uploadCV.single('cvFile');
+        uploadHandlerAlt(req, res, (err2) => {
+          if (err2) {
+            return next(err2);
+          }
+          cvBuilderController.uploadCV(req as any, res, next);
+        });
+      } else {
+        return next(err);
+      }
+    } else {
+      cvBuilderController.uploadCV(req as any, res, next);
+    }
+  });
 });
 
 /**

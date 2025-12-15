@@ -1,4 +1,4 @@
-// src/routes/gemini.routes.ts
+// src/routes/gemini.routes.ts - COMPLETE FIXED VERSION
 import { Router, Request, Response } from 'express';
 import { authenticateToken } from '../middleware/auth.middleware';
 import geminiService from '../services/gemini.service';
@@ -43,7 +43,7 @@ router.get('/recommendations', authenticateToken, async (req: AuthRequest, res: 
 
 /**
  * @route   POST /api/gemini/chat
- * @desc    Send a chat message to Gemini AI
+ * @desc    Send a chat message to Gemini AI (JOBSEEKER)
  * @access  Private
  */
 router.post('/chat', authenticateToken, async (req: AuthRequest, res: Response) => {
@@ -77,6 +77,67 @@ router.post('/chat', authenticateToken, async (req: AuthRequest, res: Response) 
     return res.status(500).json({
       success: false,
       message: 'Failed to process chat message',
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+/**
+ * @route   POST /api/gemini/employer-chat
+ * @desc    Employer-specific chat for candidate analysis
+ * @access  Private (Employer only)
+ */
+router.post('/employer-chat', authenticateToken, async (req: AuthRequest, res: Response) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({
+        success: false,
+        message: 'User not authenticated'
+      });
+    }
+
+    const { message, conversationHistory, context } = req.body;
+
+    if (!message || typeof message !== 'string') {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid message format'
+      });
+    }
+
+    // Extract employer context from frontend
+    const {
+      jobs = [],
+      trainings = [],
+      candidates = [],
+      selectedJob = null
+    } = context || {};
+
+    console.log('📊 Employer chat context:', {
+      jobs: jobs.length,
+      trainings: trainings.length,
+      candidates: candidates.length,
+      trainingTitles: trainings.map((t: any) => t.title)
+    });
+
+    // Build employer-specific prompt
+    const employerPrompt = buildEmployerPrompt(message, {
+      jobs,
+      trainings,
+      candidates,
+      selectedJob,
+      conversationHistory
+    });
+
+    // Call Gemini directly (bypass jobseeker-focused service)
+    const response = await callGeminiForEmployer(employerPrompt);
+
+    return res.json(response);
+  } catch (error) {
+    console.error('Error in employer chat:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to process employer chat',
       error: error instanceof Error ? error.message : 'Unknown error'
     });
   }
@@ -265,5 +326,146 @@ router.post('/feedback', authenticateToken, async (req: AuthRequest, res: Respon
     });
   }
 });
+
+// ============================================
+// HELPER FUNCTIONS FOR EMPLOYER CHAT
+// ============================================
+
+/**
+ * Build employer-specific prompt with context
+ */
+function buildEmployerPrompt(
+  userMessage: string,
+  context: {
+    jobs: any[];
+    trainings: any[];
+    candidates: any[];
+    selectedJob: any;
+    conversationHistory: any[];
+  }
+): string {
+  const { jobs, trainings, candidates, selectedJob, conversationHistory } = context;
+
+  const jobsList = jobs.length > 0
+    ? jobs.map(j => `• ${j.title} (${j.applications_count || 0} applications, Skills: ${j.skills_required?.slice(0, 3).join(', ') || 'Not specified'})`).join('\n')
+    : 'No active jobs';
+
+  const trainingsList = trainings.length > 0
+    ? trainings.map(t => `• ${t.title} - ${t.category}, ${t.level}, ${t.duration_hours}h, ${t.cost_type}`).join('\n')
+    : 'No training programs available';
+
+  const candidatesList = candidates.length > 0
+    ? candidates.slice(0, 5).map(c => 
+        `• ${c.name} (${c.match_score}%, ${c.title}, Skills: ${c.skills?.slice(0, 3).join(', ') || 'Not specified'})`
+      ).join('\n')
+    : 'No candidates yet';
+
+  const conversationContext = conversationHistory
+    .slice(-4)
+    .map((msg: any) => `${msg.role === 'user' ? 'Employer' : 'AI'}: ${msg.content}`)
+    .join('\n\n');
+
+  return `You are an expert HR consultant helping an employer make hiring decisions.
+
+**EMPLOYER'S ACTIVE JOBS (${jobs.length}):**
+${jobsList}
+
+**AVAILABLE TRAINING PROGRAMS (${trainings.length}):**
+${trainingsList}
+
+**CANDIDATE POOL (${candidates.length} total, showing top 5):**
+${candidatesList}
+
+${selectedJob ? `**CURRENTLY VIEWING JOB:** ${selectedJob.title}` : '**VIEWING:** All candidates across all jobs'}
+
+**RECENT CONVERSATION:**
+${conversationContext || 'Starting new conversation'}
+
+**EMPLOYER'S QUESTION:**
+${userMessage}
+
+**YOUR ROLE:**
+- Analyze candidates for job fit
+- Recommend SPECIFIC training programs from the list above when candidates have skill gaps
+- Compare candidates objectively using their match scores and skills
+- Suggest hiring strategies
+- Reference actual job titles, candidate names, and training programs by name
+
+**CRITICAL RULES:**
+1. When asked about trainings, LIST the actual programs with details (title, category, level, duration, cost)
+2. When recommending training for a candidate, cite specific programs from the list
+3. Always reference candidate names and their match scores
+4. Be specific and actionable, not generic
+5. If no data is available, say so clearly
+
+**EXAMPLE RESPONSES:**
+- "You have 7 training programs available: React Masterclass (Technology, Intermediate, 8h, Paid), Python Fundamentals (Technology, Beginner, 6h, Free)..."
+- "For Alice Johnson (65% match), I recommend enrolling her in your 'Backend Development Bootcamp' to strengthen her server-side skills."
+- "Comparing your top candidates: John (85%) has strong React skills, while Sarah (78%) excels in Node.js..."
+
+Respond naturally, professionally, and helpfully:`;
+}
+
+/**
+ * Call Gemini API for employer chat
+ */
+async function callGeminiForEmployer(prompt: string): Promise<any> {
+  const { GoogleGenerativeAI } = require('@google/generative-ai');
+  
+  if (!process.env.GEMINI_API_KEY) {
+    console.error('❌ GEMINI_API_KEY not configured');
+    return {
+      success: false,
+      message: 'AI service is not configured. Please contact support.'
+    };
+  }
+
+  const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+  const model = genAI.getGenerativeModel({ 
+    model: 'gemini-2.5-flash',
+    generationConfig: {
+      temperature: 0.7,
+      topP: 0.95,
+      topK: 40,
+      maxOutputTokens: 2048,
+    }
+  });
+
+  try {
+    console.log('🤖 Calling Gemini API for employer chat...');
+    const result = await model.generateContent(prompt);
+    const response = result.response;
+    const text = response.text();
+
+    console.log('✅ Gemini API responded successfully');
+    return {
+      success: true,
+      message: text
+    };
+  } catch (error: any) {
+    console.error('❌ Gemini API error:', error.message);
+    console.error('   Status:', error.status);
+    
+    // Check if it's a quota error
+    if (error.status === 429 || error.message?.includes('quota')) {
+      return {
+        success: true,
+        message: '⚠️ AI service is currently at capacity. However, I can still help you!\n\n' +
+                 'I can see your context. Please rephrase your question or ask me to:\n' +
+                 '• List your available training programs\n' +
+                 '• Analyze a specific candidate\n' +
+                 '• Compare candidates\n' +
+                 '• Suggest hiring strategies'
+      };
+    }
+    
+    // Generic fallback
+    return {
+      success: true,
+      message: 'I apologize for the temporary issue. Could you please rephrase your question? ' +
+               'I have access to your jobs, candidates, and training programs and can help analyze them.'
+    };
+  }
+}
 
 export default router;

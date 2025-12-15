@@ -287,14 +287,21 @@ export class CvBuilderComponent implements OnInit, OnDestroy {
   }
 
   getProfileImageUrl(): string {
-    if (this.profileImagePreview) {
-      return this.profileImagePreview;
-    }
-    if (this.cvData.personalInfo.profileImage) {
-      return this.getFullImageUrl(this.cvData.personalInfo.profileImage);
-    }
+  // Add null check for cvData
+  if (!this.cvData || !this.cvData.personalInfo) {
     return 'assets/images/default-avatar.png';
   }
+
+  if (this.profileImagePreview) {
+    return this.profileImagePreview;
+  }
+  
+  if (this.cvData.personalInfo.profileImage) {
+    return this.getFullImageUrl(this.cvData.personalInfo.profileImage);
+  }
+  
+  return 'assets/images/default-avatar.png';
+}
 
   private getFullImageUrl(imagePath: string): string {
     if (!imagePath) return 'assets/images/default-avatar.png';

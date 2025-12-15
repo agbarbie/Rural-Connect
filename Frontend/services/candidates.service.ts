@@ -50,6 +50,11 @@ export interface Education {
 }
 
 export interface JobPost {
+  location: any;
+  employment_type: any;
+  applications_count: number;
+  skills_required: any;
+  experience_level: string;
   id: string;
   title: string;
   status: string;

@@ -208,11 +208,20 @@ export interface ProfileResponse {
   providedIn: 'root'
 })
 export class ProfileService {
-  uploadCV(file: File) {
-    throw new Error('Method not implemented.');
-  }
+  uploadCV(file: File): Observable<any> {
+  const formData = new FormData();
+  formData.append('cv', file); // FIXED: Using 'cv' to match backend
+
+  return this.http.post<any>(
+    `${environment.apiUrl}/cv/upload`,
+    formData,
+    { headers: this.getAuthHeaders() }
+  );
+}
+
   private portfolioUrl = `${environment.apiUrl}/portfolio`;
   private profileUrl = `${environment.apiUrl}/profile`;
+  private cvUrl = `${environment.apiUrl}/cv-builder`;
 
   constructor(private http: HttpClient) {}
 
@@ -226,7 +235,7 @@ export class ProfileService {
     return this.http.post<ImageUploadResponse>(
       `${environment.apiUrl}/upload/profile-image`,
       formData,
-      { headers: this.getAuthHeaders() } // No Content-Type for FormData
+      { headers: this.getAuthHeaders() }
     );
   }
 

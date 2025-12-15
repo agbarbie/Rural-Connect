@@ -5,6 +5,7 @@ import { validate as isValidUUID } from 'uuid';
 import path from 'path';
 import PDFDocument from 'pdfkit';
 import { v4 as uuidv4 } from 'uuid';
+import { CVParserService } from '../services/cv-parse.service';
 
 interface ExportResult {
   success: boolean;
@@ -200,20 +201,19 @@ export class CVBuilderService {
 for (let i = 0; i < cvData.education.length; i++) {
   const edu = cvData.education[i];
   await client.query(
-    `
-    INSERT INTO cv_education (
-      cv_id, institution, degree, field_of_study, start_year, end_year, gpa, achievements, display_order
-    ) VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, $8, $9)
-    `,
+    `INSERT INTO cv_education (
+      cv_id, institution, degree, field_of_study, 
+      start_year, end_year, gpa, achievements, display_order
+    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
     [
       cvId,
-      edu.institution,
-      edu.degree,
-      edu.field_of_study,
-      edu.start_year || null,  // ← Change this: make it nullable
-      edu.end_year ?? null,
-      edu.gpa ?? null,
-      edu.achievements ?? null,
+      edu.institution || '',
+      edu.degree || '',
+      edu.field_of_study || '',
+      edu.start_year || null,
+      edu.end_year || edu.start_year || '2024', // FIX: Default to start_year or '2024' if null
+      edu.gpa || null,
+      edu.achievements || null,
       i
     ]
   );
@@ -655,15 +655,33 @@ async updateCV(cvId: string, userId: string, cvDataInput?: CVData): Promise<CV |
   }
 
   // Parse CV from file (simple placeholder parse)
-  async parseAndCreateCV(userId: string, filePath: string, originalFilename: string, mimeType: string): Promise<CV | null> {
-    try {
-      const fileInfo = {
-        url: `/uploads/cvs/${path.basename(filePath)}`,
-        filename: originalFilename
-      };
+ // In cv-builder.service.ts, update the parseAndCreateCV method:
 
-      // Minimal empty CV data — you can implement real parsing here
-      const cvData: CVData = {
+async parseAndCreateCV(userId: string, filePath: string, originalFilename: string, mimeType: string): Promise<CV | null> {
+  try {
+    const fileInfo = {
+      url: `/uploads/cvs/${path.basename(filePath)}`,
+      filename: originalFilename
+    };
+
+    console.log('Parsing CV file:', { filePath, originalFilename, mimeType });
+
+    // Import CV parser - FIXED import
+    const CVParserService = (await import('./cv-parse.service')).default;
+    
+    let cvData: CVData;
+    try {
+      cvData = await CVParserService.parseCV(filePath, mimeType);
+      console.log('CV parsed successfully:', {
+        hasPersonalInfo: !!cvData.personal_info?.full_name,
+        educationCount: cvData.education?.length || 0,
+        workExpCount: cvData.work_experience?.length || 0,
+        skillsCount: cvData.skills?.length || 0
+      });
+    } catch (parseError: any) {
+      console.error('Error parsing CV file:', parseError);
+      
+      cvData = {
         personal_info: {
           full_name: '',
           email: '',
@@ -671,8 +689,8 @@ async updateCV(cvId: string, userId: string, cvDataInput?: CVData): Promise<CV |
           address: '',
           linkedin_url: '',
           website_url: '',
-          professional_summary: '',
-          profile_image: undefined,  // ← CHANGED: null to undefined
+          professional_summary: 'Please update your professional summary',
+          profile_image: undefined,
           website: undefined,
           linkedIn: undefined,
           github: undefined,
@@ -685,13 +703,22 @@ async updateCV(cvId: string, userId: string, cvDataInput?: CVData): Promise<CV |
         certifications: [],
         projects: []
       };
-
-      return await this.createCV(userId, cvData, true, fileInfo);
-    } catch (error: any) {
-      console.error('Parse and create CV error:', error);
-      return null;
+      
+      console.warn('Using minimal CV data due to parsing error');
     }
+
+    const createdCV = await this.createCV(userId, cvData, true, fileInfo);
+    
+    if (createdCV) {
+      console.log('CV created successfully with ID:', createdCV.id);
+    }
+    
+    return createdCV;
+  } catch (error: any) {
+    console.error('Parse and create CV error:', error);
+    return null;
   }
+}
 
   // Export CV - unified method
   async exportCV(cvId: string, userId: string, options: CVExportOptions): Promise<ExportResult> {

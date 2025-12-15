@@ -415,8 +415,8 @@ export class ProfileComponent implements OnInit {
 
   // New: Toggle CV upload section
   toggleCVUpload(): void {
-    this.showCVUpload = !this.showCVUpload;
-  }
+  this.showCVUpload = !this.showCVUpload;
+}
 
   // Toggle skill selection
   toggleSkill(skill: string, event: any): void {
@@ -625,88 +625,84 @@ export class ProfileComponent implements OnInit {
 
   // CV Upload Methods
   triggerCVUpload(): void {
-    this.cvFileInput.nativeElement.click();
-  }
+  this.cvFileInput.nativeElement.click();
+}
 
   handleCVUpload(event: any): void {
-    const file = event.target.files[0];
-    if (file && (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf'))) {
-      // Check file size (e.g., max 5MB)
-      if (file.size > 5 * 1024 * 1024) {
-        alert('CV file size must be less than 5MB.');
-        return;
-      }
-      // Set loading state
-      this.isUploadingCV = true;
-      // Upload to server
-      this.uploadCV(file);
-    } else {
-      alert('Please select a valid PDF CV file.');
+  const file = event.target.files[0];
+  if (file && (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf'))) {
+    // Check file size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      alert('CV file size must be less than 5MB.');
+      return;
     }
+    
+    this.isUploadingCV = true;
+    this.uploadCV(file);
+  } else {
+    alert('Please select a valid PDF CV file.');
   }
+}
 
   private uploadCV(file: File): void {
-    // Show informative message for long-running process
-    const uploadMessage = 'Uploading and processing your CV. This may take 1-3 minutes depending on file size and content complexity. Please wait...';
-    alert(uploadMessage); // Or use a modal/toast for better UX
+  console.log('Uploading CV file:', file.name, file.type, file.size);
+  
+  // Show loading message
+  const uploadNotification = 'Uploading and processing your CV. This may take 1-3 minutes depending on file size and content complexity. Please wait...';
+  alert(uploadNotification);
 
-    const result: any = this.profileService.uploadCV(file);
-
-    // If the service returns an Observable
-    if (result && typeof result.subscribe === 'function') {
-      result.subscribe({
-        next: (response: any) => {
-          this.isUploadingCV = false;
-          if (response?.success) {
-            alert('CV uploaded successfully! Refreshing your profile sections...');
-            // Poll for portfolio updates (retry up to 3 times with 10s intervals)
-            this.pollForPortfolioUpdate(0, 3);
-            // Reload completion after update
-            this.loadProfileCompletion();
-            // Clear the file input
-            if (this.cvFileInput && this.cvFileInput.nativeElement) {
-              this.cvFileInput.nativeElement.value = '';
-            }
-          }
-        },
-        error: (error: any) => {
-          this.isUploadingCV = false;
-          console.error('Error uploading CV:', error);
-          alert('Failed to upload CV. Please try again or check file size.');
+  this.profileService.uploadCV(file).subscribe({
+    next: (response: any) => {
+      console.log('CV upload response:', response);
+      this.isUploadingCV = false;
+      
+      if (response?.success) {
+        alert('CV uploaded successfully! Your profile sections are being updated...');
+        
+        // Reload profile and portfolio data
+        this.loadProfileData();
+        this.loadPortfolioData();
+        this.loadProfileCompletion();
+        
+        // Clear the file input
+        if (this.cvFileInput && this.cvFileInput.nativeElement) {
+          this.cvFileInput.nativeElement.value = '';
         }
-      });
-      return;
+        
+        // Show success message after data loads
+        setTimeout(() => {
+          alert('CV processing complete! Your profile has been updated with the extracted information.');
+        }, 2000);
+      } else {
+        alert('CV upload failed. Please try again or check the file format.');
+      }
+    },
+    error: (error: any) => {
+      console.error('Error uploading CV:', error);
+      this.isUploadingCV = false;
+      
+      let errorMessage = 'Failed to upload CV. ';
+      if (error.status === 401) {
+        errorMessage += 'Please login again.';
+        setTimeout(() => this.router.navigate(['/login']), 2000);
+      } else if (error.status === 413) {
+        errorMessage += 'File is too large. Maximum size is 5MB.';
+      } else if (error.error?.message) {
+        errorMessage += error.error.message;
+      } else {
+        errorMessage += 'Please try again or check file format.';
+      }
+      
+      alert(errorMessage);
+      
+      // Clear the file input
+      if (this.cvFileInput && this.cvFileInput.nativeElement) {
+        this.cvFileInput.nativeElement.value = '';
+      }
     }
-
-    // If the service returns a Promise
-    if (result && typeof result.then === 'function') {
-      result.then((response: any) => {
-        this.isUploadingCV = false;
-        if (response?.success) {
-          alert('CV uploaded successfully! Refreshing your profile sections...');
-          this.pollForPortfolioUpdate(0, 3);
-          this.loadProfileCompletion();
-          if (this.cvFileInput && this.cvFileInput.nativeElement) {
-            this.cvFileInput.nativeElement.value = '';
-          }
-        }
-      }).catch((error: any) => {
-        this.isUploadingCV = false;
-        console.error('Error uploading CV:', error);
-        alert('Failed to upload CV. Please try again.');
-      });
-      return;
-    }
-
-    // Service returned void (no observable/promise) — fallback with polling
-    console.warn('uploadCV did not return an Observable/Promise; using polling fallback.');
-    this.isUploadingCV = false;
-    // Poll for portfolio updates (retry up to 3 times with 10s intervals)
-    this.pollForPortfolioUpdate(0, 3);
-    if (this.cvFileInput && this.cvFileInput.nativeElement) {
-      this.cvFileInput.nativeElement.value = '';
-    }
+  });
   }
+
 
   // New: Poll for portfolio updates after CV upload
   private pollForPortfolioUpdate(retryCount: number, maxRetries: number): void {
