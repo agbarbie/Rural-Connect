@@ -69,6 +69,7 @@ export class PostJobsComponent implements OnInit, OnDestroy {
   showAddForm: boolean = false;
   showJobDetails: boolean = false;
   selectedJob: Job | null = null;
+  editingJob: Job | null = null;
   
   // Loading states
   isLoading: boolean = false;
@@ -374,12 +375,49 @@ export class PostJobsComponent implements OnInit, OnDestroy {
       });
   }
 
-  toggleAddForm(): void {
+  toggleForm(): void {
     this.showAddForm = !this.showAddForm;
     if (!this.showAddForm) {
-      this.jobForm.reset();
-      this.jobForm.patchValue({ currency: 'USD', is_featured: false });
+      this.resetForm();
     }
+  }
+
+  editJob(job: Job): void {
+    this.editingJob = job;
+    this.populateForm(job);
+    this.showAddForm = true;
+  }
+
+  private populateForm(job: Job): void {
+    this.jobForm.patchValue({
+      title: job.title,
+      description: job.description,
+      requirements: job.requirements || '',
+      responsibilities: job.responsibilities || '',
+      location: job.location,
+      employment_type: job.employment_type,
+      work_arrangement: job.work_arrangement,
+      salary_min: job.salary_min || '',
+      salary_max: job.salary_max || '',
+      currency: job.currency || 'USD',
+      skills_required: Array.isArray(job.skills_required) ? job.skills_required.join(', ') : (job.skills_required || ''),
+      experience_level: job.experience_level || '',
+      education_level: job.education_level || '',
+      benefits: Array.isArray(job.benefits) ? job.benefits.join(', ') : (job.benefits || ''),
+      department: job.department || '',
+      application_deadline: job.application_deadline ? new Date(job.application_deadline).toISOString().split('T')[0] : '',
+      is_featured: job.is_featured || false
+    });
+  }
+
+  private resetForm(): void {
+    this.jobForm.reset();
+    this.jobForm.patchValue({ currency: 'USD', is_featured: false });
+    this.editingJob = null;
+  }
+
+  get isEditing(): boolean {
+    return !!this.editingJob;
   }
 
   onSubmit(): void {
@@ -420,41 +458,80 @@ export class PostJobsComponent implements OnInit, OnDestroy {
         }
       });
 
-      const jobData: CreateJobRequest = formData;
-      console.log('📤 Processed job data:', jobData);
+      const processedData: CreateJobRequest = formData as CreateJobRequest;
+      console.log('📤 Processed job data:', processedData);
       
-      this.jobService.createJob(jobData)
-        .pipe(
-          takeUntil(this.destroy$),
-          finalize(() => this.isSubmitting = false)
-        )
-        .subscribe({
-          next: (response) => {
-            console.log('✅ Job creation response:', response);
-            if (response.success && response.data) {
-              this.addNotification('Job posted successfully!', 'success');
-              this.toggleAddForm();
-              this.loadJobPosts();
-              this.loadJobStats();
-            } else {
-              this.addNotification(response.message || 'Failed to create job', 'error');
+      if (this.isEditing) {
+        // Update existing job
+        this.jobService.updateJob(this.editingJob!.id, processedData)
+          .pipe(
+            takeUntil(this.destroy$),
+            finalize(() => this.isSubmitting = false)
+          )
+          .subscribe({
+            next: (response) => {
+              console.log('✅ Job update response:', response);
+              if (response.success && response.data) {
+                this.addNotification('Job updated successfully!', 'success');
+                this.resetForm();
+                this.toggleForm();
+                this.loadJobPosts();
+                this.loadJobStats();
+              } else {
+                this.addNotification(response.message || 'Failed to update job', 'error');
+              }
+            },
+            error: (error) => {
+              console.error('❌ Error updating job:', error);
+              let errorMessage = 'Failed to update job. Please try again.';
+              
+              if (error.status === 403) {
+                errorMessage = 'You do not have permission to update jobs.';
+              } else if (error.status === 401) {
+                errorMessage = 'Your session has expired. Please log in again.';
+              } else if (error.error?.message) {
+                errorMessage = error.error.message;
+              }
+              
+              this.addNotification(errorMessage, 'error');
             }
-          },
-          error: (error) => {
-            console.error('❌ Error creating job:', error);
-            let errorMessage = 'Failed to create job. Please try again.';
-            
-            if (error.status === 403) {
-              errorMessage = 'You do not have permission to create jobs.';
-            } else if (error.status === 401) {
-              errorMessage = 'Your session has expired. Please log in again.';
-            } else if (error.error?.message) {
-              errorMessage = error.error.message;
+          });
+      } else {
+        // Create new job
+        this.jobService.createJob(processedData)
+          .pipe(
+            takeUntil(this.destroy$),
+            finalize(() => this.isSubmitting = false)
+          )
+          .subscribe({
+            next: (response) => {
+              console.log('✅ Job creation response:', response);
+              if (response.success && response.data) {
+                this.addNotification('Job posted successfully!', 'success');
+                this.resetForm();
+                this.toggleForm();
+                this.loadJobPosts();
+                this.loadJobStats();
+              } else {
+                this.addNotification(response.message || 'Failed to create job', 'error');
+              }
+            },
+            error: (error) => {
+              console.error('❌ Error creating job:', error);
+              let errorMessage = 'Failed to create job. Please try again.';
+              
+              if (error.status === 403) {
+                errorMessage = 'You do not have permission to create jobs.';
+              } else if (error.status === 401) {
+                errorMessage = 'Your session has expired. Please log in again.';
+              } else if (error.error?.message) {
+                errorMessage = error.error.message;
+              }
+              
+              this.addNotification(errorMessage, 'error');
             }
-            
-            this.addNotification(errorMessage, 'error');
-          }
-        });
+          });
+      }
     } else {
       this.addNotification('Please fill all required fields correctly.', 'error');
       this.markFormGroupTouched();
