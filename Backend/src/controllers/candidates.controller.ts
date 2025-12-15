@@ -60,6 +60,53 @@ export class CandidatesController {
         whereConditions.push(`ja.job_id = $${paramIndex}`);
         queryParams.push(job_id);
         paramIndex++;
+
+        console.log('🔍 === CANDIDATES QUERY DEBUG ===');
+        console.log('Employer User ID from JWT:', employerUserId);
+
+        // Log the employer lookup
+        const employerResultDebug = await pool.query(
+          `SELECT id as employer_id, user_id, company_id
+           FROM employers
+           WHERE user_id = $1`,
+          [employerUserId]
+        );
+
+        console.log('Employer query result:', employerResultDebug.rows);
+
+        if (employerResultDebug.rows.length === 0) {
+          console.error('❌ No employer record found!');
+          console.error('Available employers in database:');
+
+          const allEmployers = await pool.query(
+            'SELECT id, user_id, company_id FROM employers LIMIT 10'
+          );
+          console.table(allEmployers.rows);
+
+          return res.status(404).json({
+            success: false,
+            message: 'Employer profile not found. Please contact support.',
+            debug: {
+              userId: employerUserId,
+              employersFound: allEmployers.rows.length
+            }
+          });
+        }
+
+        const employerIdDebug = employerResultDebug.rows[0].employer_id;
+        console.log('✅ Found employer_id:', employerIdDebug);
+
+        // Log job applications
+        const applicationsCheck = await pool.query(
+          `SELECT COUNT(*) as count
+           FROM job_applications ja
+           INNER JOIN jobs j ON ja.job_id = j.id
+           WHERE j.employer_id = $1`,
+          [employerIdDebug]
+        );
+
+        console.log(`📊 Total applications for this employer: ${applicationsCheck.rows[0].count}`);
+        console.log('🔍 === END DEBUG ===\n');
       }
       
       // Filter by location (from normalized personal_info table)

@@ -239,7 +239,8 @@ export class AuthService {
       }
 
       localStorage.setItem('token', token);
-      localStorage.setItem('user', JSON.stringify(user));
+  localStorage.setItem('user', JSON.stringify(user));
+  localStorage.setItem('userId', user.id); // 🔥 Explicitly store user ID
       this.tokenSubject.next(token);
       this.currentUserSubject.next(user);
 
