@@ -1343,36 +1343,44 @@ async issueCertificateManually(req: Request, res: Response): Promise<void> {
     }
   }
 
-  async deleteVideoFromTraining(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
-    try {
-      const { trainingId, videoId } = req.params;
-      const userId = req.user?.id;
-
-      if (!userId) {
-        res.status(401).json({ success: false, message: 'Unauthorized' });
-        return;
-      }
-
-      if (req.user?.user_type !== 'employer') {
-        res.status(403).json({ success: false, message: 'Forbidden' });
-        return;
-      }
-
-      const deleted = await this.trainingService.deleteTrainingVideo(trainingId, videoId, userId);
-
-      if (!deleted) {
-        res.status(404).json({ success: false, message: 'Video not found' });
-        return;
-      }
-
-      res.status(200).json({
-        success: true,
-        message: 'Video deleted successfully'
-      });
-    } catch (error) {
-      next(error);
+  /**
+ * Delete a video from a training (employer only)
+ * FIXED: Read employer_id from query param OR fallback to req.user.id
+ */
+async deleteVideoFromTraining(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const { trainingId, videoId } = req.params;
+    // FIXED: Use query param if provided (for frontend compatibility), fallback to user ID
+    const employerId = (req.query.employer_id as string) || req.user?.id;
+    
+    if (!employerId) {
+      res.status(401).json({ success: false, message: 'Employer ID required' });
+      return;
     }
+
+    if (req.user?.user_type !== 'employer') {
+      res.status(403).json({ success: false, message: 'Forbidden' });
+      return;
+    }
+
+    console.log('🗑️ Controller: Deleting video:', { trainingId, videoId, employerId });
+
+    const deleted = await this.trainingService.deleteTrainingVideo(trainingId, videoId, employerId);
+
+    if (!deleted) {
+      res.status(404).json({ success: false, message: 'Video not found or unauthorized' });
+      return;
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Video deleted successfully'
+    });
+  } catch (error: any) {
+    console.error('❌ Controller error in deleteVideoFromTraining:', error);
+    res.status(500).json({ success: false, message: error.message || 'Internal server error' });
   }
+}
 
   // ============================================
   // VIDEO PROGRESS (JOBSEEKER)

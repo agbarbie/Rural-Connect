@@ -864,12 +864,22 @@ checkCertificateAvailability(enrollmentId: string): Observable<ApiResponse<{ ava
   /**
    * EMPLOYER: Delete training
    */
-  deleteTraining(id: string, employerId: string): Observable<ApiResponse<void>> {
+  deleteTraining(id: string, employerId?: string): Observable<ApiResponse<void>> {
     this.loadingSubject.next(true);
     
+    // Build options and include employer_id if provided (backend may require it to authorize/delete)
+    let options: { headers: HttpHeaders; params?: HttpParams } = {
+      headers: this.getAuthHeaders()
+    };
+    if (employerId) {
+      options.params = new HttpParams().set('employer_id', employerId);
+    }
+
+    console.log('Deleting training:', { id, employerId, endpoint: `${this.TRAINING_ENDPOINT}/${id}` });
+
     return this.http.delete<ApiResponse<void>>(
       `${this.TRAINING_ENDPOINT}/${id}`,
-      { headers: this.getAuthHeaders() }
+      options
     ).pipe(
       tap(response => {
         if (response.success) {
@@ -882,6 +892,10 @@ checkCertificateAvailability(enrollmentId: string): Observable<ApiResponse<{ ava
       }),
       catchError(error => {
         this.loadingSubject.next(false);
+        // Map common 404 to a clearer message for the component
+        if (error?.status === 404) {
+          return throwError(() => new Error('Training not found or unauthorized'));
+        }
         return this.handleError(error);
       })
     );

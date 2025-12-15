@@ -1,20 +1,23 @@
+// training.component.ts (Complete, Error-Free Version)
 import { Component, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
 import { Subject, interval } from 'rxjs';
 import { takeUntil } from 'rxjs/operators';
-import { 
-  TrainingService, 
-  Training, 
-  CreateTrainingRequest, 
+import {
+  TrainingService,
+  Training,
+  CreateTrainingRequest,
   UpdateTrainingRequest,
   TrainingStats,
   TrainingVideo,
   TrainingOutcome,
-  TrainingSearchParams 
+  TrainingSearchParams
 } from '../../../../../services/training.service';
 import { SidebarComponent } from '../../shared/sidebar/sidebar.component';
+import { DatePipe } from '@angular/common'; // Added for date pipe
+
 interface NewTraining {
   title: string;
   description: string;
@@ -39,11 +42,12 @@ interface NewTraining {
   selector: 'app-training',
   templateUrl: './training.component.html',
   imports: [CommonModule, FormsModule, SidebarComponent],
-  styleUrls: ['./training.component.css']
+  styleUrls: ['./training.component.css'],
+  providers: [DatePipe] // Added for date pipe
 })
 export class TrainingComponent implements OnInit, OnDestroy {
   private destroy$ = new Subject<void>();
-  
+
   // Component state
   employerName: string = 'TechCorp Solutions';
   employerId: string = 'current-employer-id'; // Replace with actual employer ID from auth service/context
@@ -53,14 +57,21 @@ export class TrainingComponent implements OnInit, OnDestroy {
   showVideoPlayer: boolean = false;
   isLoading: boolean = false;
   error: string | null = null;
-  
+
+  // For details modal
+  showDetailsModal: boolean = false;
+  detailedTraining: Training | null = null;
+
+  // For editing
+  editingTrainingId: string | null = null;
+
   // Thumbnail handling
   thumbnailPreview: string | null = null;
   thumbnailFile: File | null = null;
-  
+
   // Training stats
   stats: TrainingStats | null = null;
-  
+
   // Search and pagination
   searchParams: TrainingSearchParams = {
     page: 1,
@@ -70,7 +81,7 @@ export class TrainingComponent implements OnInit, OnDestroy {
   };
   totalPages: number = 0;
   currentPage: number = 1;
-  
+
   // Form data
   newTraining: NewTraining = {
     title: '',
@@ -91,16 +102,16 @@ export class TrainingComponent implements OnInit, OnDestroy {
     videos: [],
     outcomes: []
   };
-  
+
   // Form helpers
   categories: string[] = [
-    'Technology', 'Business', 'Design', 'Marketing', 
+    'Technology', 'Business', 'Design', 'Marketing',
     'Personal Development', 'Health & Safety', 'Finance',
     'Communication', 'Leadership', 'Project Management'
   ];
-  
+
   levels: ('Beginner' | 'Intermediate' | 'Advanced')[] = ['Beginner', 'Intermediate', 'Advanced'];
-  
+
   // Video form
   showVideoForm: boolean = false;
   editingVideoId: string | null = null;
@@ -115,7 +126,7 @@ export class TrainingComponent implements OnInit, OnDestroy {
     completed: false,
     url: ''
   };
-  
+
   // Outcome form
   showOutcomeForm: boolean = false;
   newOutcome: TrainingOutcome = {
@@ -128,52 +139,48 @@ export class TrainingComponent implements OnInit, OnDestroy {
   unreadNotificationCount: number = 0;
   showNotifications: boolean = false;
 
+  // Bulk operations
+  selectedTrainingIds: Set<string> = new Set();
+
   constructor(
     private trainingService: TrainingService,
-    private http: HttpClient
+    private http: HttpClient,
+    private datePipe: DatePipe // Added for date pipe
   ) {}
 
-   ngOnInit(): void {
+  ngOnInit(): void {
     console.log('🚀 Initializing Training Component...');
-    
-    // CRITICAL FIX: Load employer ID from auth/storage
+   
     const userId = localStorage.getItem('userId');
     if (userId) {
       this.employerId = userId;
       console.log('✅ Employer ID loaded:', this.employerId);
     }
-    
-    // Subscribe to service state BEFORE loading
+   
     this.trainingService.trainings$
       .pipe(takeUntil(this.destroy$))
       .subscribe(trainings => {
         console.log('📦 Trainings received from service:', trainings?.length || 0);
         this.trainings = trainings || [];
-        
-        // CRITICAL: Recalculate stats every time trainings change
-        console.log('📊 Recalculating stats from trainings...');
         this.calculateLocalStats();
       });
-    
+   
     this.trainingService.loading$
       .pipe(takeUntil(this.destroy$))
       .subscribe(loading => {
         this.isLoading = loading;
       });
-    
+   
     this.trainingService.error$
       .pipe(takeUntil(this.destroy$))
       .subscribe(error => {
         this.error = error;
       });
-    
-    // FIXED: Load trainings with enrollment stats, THEN load API stats
+   
     this.loadTrainings();
-    this.loadStats(); // FIXED: Load API stats on init to ensure consistency on refresh
-
+    this.loadStats();
     this.loadNotifications();
-    
-    // Refresh notifications every 30 seconds
+   
     interval(30000)
       .pipe(takeUntil(this.destroy$))
       .subscribe(() => this.loadNotifications());
@@ -184,42 +191,34 @@ export class TrainingComponent implements OnInit, OnDestroy {
     this.destroy$.complete();
   }
 
-  // ================ COMPUTED PROPERTIES ================
-
+  // Computed Properties
   get totalCompletions(): number {
-    // Sum of all total_students across all trainings
     return this.trainings.reduce((sum, t) => sum + (t.total_students || 0), 0);
   }
 
   get totalCertificates(): number {
-    // Count trainings that offer certificates multiplied by their enrollments
     return this.trainings
       .filter(t => t.has_certificate)
       .reduce((sum, t) => sum + (t.total_students || 0), 0);
   }
 
   get activeTrainingsCount(): number {
-    // Count of published trainings
     return this.trainings.filter(t => t.status === 'published').length;
   }
 
   get draftTrainingsCount(): number {
-    // Count of draft trainings
     return this.trainings.filter(t => t.status === 'draft').length;
   }
 
   get suspendedTrainingsCount(): number {
-    // Count of suspended trainings
     return this.trainings.filter(t => t.status === 'suspended').length;
   }
 
   get totalTrainingsCount(): number {
-    // Total count of all trainings
     return this.trainings.length;
   }
 
   get totalVideosCount(): number {
-    // Sum of all videos across all trainings
     return this.trainings.reduce((sum, t) => {
       const videoCount = t.videos?.length || t.video_count || 0;
       return sum + videoCount;
@@ -227,15 +226,12 @@ export class TrainingComponent implements OnInit, OnDestroy {
   }
 
   get averageRating(): number {
-    // Average rating across all trainings
     if (this.trainings.length === 0) return 0;
-    
     const totalRating = this.trainings.reduce((sum, t) => sum + (t.rating || 0), 0);
     return Math.round((totalRating / this.trainings.length) * 10) / 10;
   }
 
   get totalRevenue(): number {
-    // Sum of price * total_students for paid trainings
     return this.trainings
       .filter(t => t.cost_type === 'Paid')
       .reduce((sum, t) => sum + ((t.price || 0) * (t.total_students || 0)), 0);
@@ -249,15 +245,14 @@ export class TrainingComponent implements OnInit, OnDestroy {
     return this.trainings.filter(t => t.cost_type === 'Paid').length;
   }
 
-  // ================ DATA LOADING ================
-
+  // Data Loading
   loadTrainings(): void {
-    this.trainingService.getMyTrainings(this.searchParams, this.employerId) // FIXED: Pass employerId
+    this.trainingService.getMyTrainings(this.searchParams, this.employerId)
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: (response) => {
           console.log('Raw response:', response);
-          
+         
           if (response.success) {
             if (response.data && Array.isArray(response.data.trainings)) {
               this.trainings = response.data.trainings;
@@ -267,7 +262,7 @@ export class TrainingComponent implements OnInit, OnDestroy {
               console.warn('Unexpected response structure:', response);
               this.trainings = [];
             }
-            
+           
             if (response.pagination) {
               this.totalPages = response.pagination.total_pages;
               this.currentPage = response.pagination.current_page;
@@ -283,17 +278,15 @@ export class TrainingComponent implements OnInit, OnDestroy {
         }
       });
   }
-loadStats(): void {
-    // Always calculate stats from local data for reliability
+
+  loadStats(): void {
     this.calculateLocalStats();
-    
-    // Optionally try to get stats from API to supplement
+   
     this.trainingService.getTrainingStats(this.employerId)
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: (response) => {
           if (response.success && response.data) {
-            // Merge API stats with calculated stats
             this.stats = {
               ...this.stats,
               ...response.data
@@ -303,13 +296,11 @@ loadStats(): void {
         },
         error: (error) => {
           console.error('Error loading stats from API:', error);
-          // Continue using calculated stats
         }
       });
   }
 
   private calculateLocalStats(): void {
-    // Calculate stats from the trainings array as fallback
     const computedStats: Partial<TrainingStats> & { categories_breakdown?: any[] } = {
       total_trainings: this.totalTrainingsCount,
       published_trainings: this.activeTrainingsCount,
@@ -318,32 +309,28 @@ loadStats(): void {
       total_enrollments: this.totalCompletions,
       total_revenue: this.totalRevenue,
       avg_rating: this.averageRating,
-      completion_rate: 0, // This requires enrollment data
+      completion_rate: 0,
       categories_breakdown: this.getCategoriesBreakdown()
     };
-    
+   
     this.stats = computedStats as TrainingStats;
-    
+   
     console.log('Calculated local stats:', this.stats);
   }
 
   private getCategoriesBreakdown(): any[] {
     const categoriesMap = new Map<string, number>();
-    
+   
     this.trainings.forEach(t => {
       const count = categoriesMap.get(t.category) || 0;
       categoriesMap.set(t.category, count + 1);
     });
-    
+   
     return Array.from(categoriesMap.entries()).map(([category, count]) => ({
       category,
       count
     }));
   }
-
-  // ============================================
-  // NOTIFICATIONS
-  // ============================================
 
   loadNotifications(): void {
     this.trainingService.getEnrollmentNotifications(this.employerId)
@@ -385,8 +372,7 @@ loadStats(): void {
     }
   }
 
-  // ================ SEARCH AND FILTERING ================
-
+  // Search and Filtering
   onSearch(searchTerm: string): void {
     this.searchParams.search = searchTerm;
     this.searchParams.page = 1;
@@ -420,12 +406,17 @@ loadStats(): void {
     this.loadTrainings();
   }
 
-  // ================ FORM MANAGEMENT ================
-
+  // Form Management
   toggleAddForm(): void {
+    if (this.showAddForm && this.editingTrainingId) {
+      if (confirm('Discard changes?')) {
+        this.cancelEdit();
+      }
+      return;
+    }
     this.showAddForm = !this.showAddForm;
     if (!this.showAddForm) {
-      this.resetForm();
+      this.cancelEdit();
     }
   }
 
@@ -449,14 +440,13 @@ loadStats(): void {
       videos: [],
       outcomes: []
     };
-    
+    this.editingTrainingId = null;
     this.thumbnailPreview = null;
     this.thumbnailFile = null;
     this.error = null;
   }
 
-  // ================ THUMBNAIL HANDLING ================
-
+  // Thumbnail Handling
   onThumbnailSelected(event: any): void {
     const file = event.target.files[0];
     if (file) {
@@ -464,20 +454,18 @@ loadStats(): void {
         this.error = 'Please select a valid image file.';
         return;
       }
-
       if (file.size > 5 * 1024 * 1024) {
         this.error = 'Image file must be less than 5MB.';
         return;
       }
-
       this.thumbnailFile = file;
-      
+     
       const reader = new FileReader();
       reader.onload = (e: any) => {
         this.thumbnailPreview = e.target.result;
       };
       reader.readAsDataURL(file);
-      
+     
       this.error = null;
     }
   }
@@ -486,7 +474,7 @@ loadStats(): void {
     this.thumbnailPreview = null;
     this.thumbnailFile = null;
     this.newTraining.thumbnail_url = '';
-    
+   
     const fileInput = document.getElementById('thumbnail') as HTMLInputElement;
     if (fileInput) {
       fileInput.value = '';
@@ -499,18 +487,15 @@ loadStats(): void {
         resolve('');
         return;
       }
-
       const formData = new FormData();
       formData.append('thumbnail', this.thumbnailFile);
-
       setTimeout(() => {
         resolve(this.thumbnailPreview || '');
       }, 1000);
     });
   }
 
-  // ================ VIDEO MANAGEMENT ================
-
+  // Video Management
   toggleVideoForm(): void {
     this.showVideoForm = !this.showVideoForm;
     if (!this.showVideoForm) {
@@ -548,7 +533,7 @@ loadStats(): void {
 
   openVideoForm(training: Training, video?: TrainingVideo): void {
     this.selectedTraining = training;
-    
+   
     if (video) {
       this.editingVideoId = video.id || null;
       this.newVideo = { ...video };
@@ -556,18 +541,23 @@ loadStats(): void {
       this.resetVideoForm();
       this.newVideo.order_index = training.videos?.length || 0;
     }
-    
+   
     this.showVideoForm = true;
   }
 
   saveVideo(): void {
-    if (!this.selectedTraining || !this.newVideo.title || !this.newVideo.video_url) {
+    if (!this.selectedTraining) {
+      alert('No training selected');
+      return;
+    }
+    const videoUrl = (this.newVideo.video_url && this.newVideo.video_url.trim()) || (this.newVideo.url && this.newVideo.url.trim()) || '';
+    const title = this.newVideo.title ? this.newVideo.title.trim() : '';
+    if (!title || !videoUrl) {
       alert('Please fill in all required fields');
       return;
     }
-
+    this.newVideo.video_url = videoUrl;
     if (this.editingVideoId) {
-      // Update existing video
       this.trainingService.updateTrainingVideo(
         this.selectedTraining.id,
         this.editingVideoId,
@@ -583,11 +573,10 @@ loadStats(): void {
             }
           },
           error: (error) => {
-            alert('Failed to update video: ' + error.message);
+            alert('Failed to update video: ' + error?.message || 'Unknown error');
           }
         });
     } else {
-      // Add new video
       this.trainingService.addVideoToTraining(
         this.selectedTraining.id,
         this.newVideo,
@@ -602,7 +591,7 @@ loadStats(): void {
             }
           },
           error: (error) => {
-            alert('Failed to add video: ' + error.message);
+            alert('Failed to add video: ' + error?.message || 'Unknown error');
           }
         });
     }
@@ -626,8 +615,7 @@ loadStats(): void {
     }
   }
 
-  // ================ OUTCOME MANAGEMENT ================
-
+  // Outcome Management
   toggleOutcomeForm(): void {
     this.showOutcomeForm = !this.showOutcomeForm;
     if (!this.showOutcomeForm) {
@@ -656,32 +644,31 @@ loadStats(): void {
     });
   }
 
-  // ================ TRAINING CRUD OPERATIONS ================
-
-  addTraining(): void {
+  // Training CRUD
+  saveTraining(): void {
     if (this.isFormValid()) {
       if (this.thumbnailFile) {
         this.uploadThumbnail().then(thumbnailUrl => {
-          this.createTrainingWithThumbnail(thumbnailUrl);
+          this.performSave(thumbnailUrl);
         }).catch(error => {
           console.error('Error uploading thumbnail:', error);
           this.error = 'Failed to upload thumbnail. Please try again.';
         });
       } else {
-        this.createTrainingWithThumbnail('');
+        this.performSave(this.newTraining.thumbnail_url);
       }
     }
   }
 
-  private createTrainingWithThumbnail(thumbnailUrl: string): void {
-    const trainingData: CreateTrainingRequest = {
+  private performSave(thumbnailUrl: string): void {
+    const baseData: UpdateTrainingRequest = {
       title: this.newTraining.title,
       description: this.newTraining.description,
       category: this.newTraining.category,
       level: this.newTraining.level,
       duration_hours: this.newTraining.duration_hours,
       cost_type: this.newTraining.cost_type,
-      price: this.newTraining.cost_type === 'Paid' ? this.newTraining.price : 0,
+      price: this.newTraining.cost_type === 'Paid' ? this.newTraining.price : undefined,
       mode: this.newTraining.mode,
       provider_name: this.newTraining.provider_name,
       has_certificate: this.newTraining.has_certificate,
@@ -694,21 +681,52 @@ loadStats(): void {
       outcomes: this.newTraining.outcomes
     };
 
-    this.trainingService.createTraining(trainingData, this.employerId)
-      .pipe(takeUntil(this.destroy$))
-      .subscribe({
-        next: (response) => {
-          if (response.success) {
-            this.toggleAddForm();
-            this.loadStats();
-            alert('Training created successfully!');
+    if (this.editingTrainingId) {
+      console.log('🔄 Updating training:', this.editingTrainingId);
+      this.trainingService.updateTraining(this.editingTrainingId, baseData, this.employerId)
+        .pipe(takeUntil(this.destroy$))
+        .subscribe({
+          next: (response) => {
+            if (response.success) {
+              this.cancelEdit();
+              this.loadTrainings();
+              this.loadStats();
+              alert('Training updated successfully!');
+            }
+          },
+          error: (error) => {
+            console.error('Error updating training:', error);
+            this.error = 'Failed to update training. Please check your inputs and try again.';
           }
-        },
-        error: (error) => {
-          console.error('Error creating training:', error);
-          this.error = 'Failed to create training. Please check your inputs and try again.';
-        }
-      });
+        });
+    } else {
+      const trainingData: CreateTrainingRequest = { ...baseData } as CreateTrainingRequest;
+      this.trainingService.createTraining(trainingData, this.employerId)
+        .pipe(takeUntil(this.destroy$))
+        .subscribe({
+          next: (response) => {
+            if (response.success) {
+              this.showAddForm = false;
+              this.resetForm();
+              this.loadTrainings();
+              this.loadStats();
+              alert('Training created successfully!');
+            }
+          },
+          error: (error) => {
+            console.error('Error creating training:', error);
+            this.error = 'Failed to create training. Please check your inputs and try again.';
+          }
+        });
+    }
+  }
+
+  cancelEdit(): void {
+    this.showAddForm = false;
+    this.editingTrainingId = null;
+    this.resetForm();
+    this.thumbnailPreview = null;
+    this.thumbnailFile = null;
   }
 
   updateTraining(training: Training, updateData: UpdateTrainingRequest): void {
@@ -746,8 +764,7 @@ loadStats(): void {
     }
   }
 
-  // ================ TRAINING STATUS MANAGEMENT ================
-
+  // Status Management
   publishTraining(training: Training): void {
     if (confirm('Are you sure you want to publish this training? It will become visible to jobseekers.')) {
       this.trainingService.publishTraining(training.id)
@@ -819,11 +836,30 @@ loadStats(): void {
     }
   }
 
-  // ================ TRAINING DETAILS AND ANALYTICS ================
-
+  // Training Details and Analytics
   viewTrainingDetails(training: Training): void {
+    console.log('👁️ Viewing details for:', training.id);
     this.selectedTraining = training;
-    this.showVideoPlayer = true;
+    this.trainingService.getTrainingDetails(training.id).pipe(takeUntil(this.destroy$)).subscribe({
+      next: (response) => {
+        if (response.success && response.data) {
+          this.detailedTraining = response.data;
+          this.showDetailsModal = true;
+          console.log('Detailed training loaded:', this.detailedTraining);
+        } else {
+          this.error = 'Failed to load training details';
+        }
+      },
+      error: (error) => {
+        console.error('Error loading details:', error);
+        this.error = 'Failed to load training details';
+      }
+    });
+  }
+
+  closeDetailsModal(): void {
+    this.showDetailsModal = false;
+    this.detailedTraining = null;
   }
 
   closeVideoPlayer(): void {
@@ -833,7 +869,7 @@ loadStats(): void {
 
   viewTrainingAnalytics(training: Training): void {
     console.log('Viewing analytics for training:', training.id);
-    
+   
     this.trainingService.getTrainingAnalytics(training.id, this.employerId, '30days')
       .pipe(takeUntil(this.destroy$))
       .subscribe({
@@ -851,7 +887,7 @@ loadStats(): void {
 
   viewEnrollments(training: Training): void {
     console.log('Viewing enrollments for training:', training.id);
-    
+   
     this.trainingService.getTrainingEnrollments(training.id, this.employerId, { page: 1, limit: 10 })
       .pipe(takeUntil(this.destroy$))
       .subscribe({
@@ -869,7 +905,7 @@ loadStats(): void {
 
   viewReviews(training: Training): void {
     console.log('Viewing reviews for training:', training.id);
-    
+   
     this.trainingService.getTrainingReviews(training.id, { page: 1, limit: 10 })
       .pipe(takeUntil(this.destroy$))
       .subscribe({
@@ -885,10 +921,7 @@ loadStats(): void {
       });
   }
 
-  // ============================================
-  // CERTIFICATE MANAGEMENT
-  // ============================================
-
+  // Certificate Management
   issueCertificate(enrollmentId: string): void {
     if (confirm('Issue certificate for this enrollment?')) {
       this.trainingService.issueCertificate(enrollmentId, this.employerId)
@@ -907,26 +940,25 @@ loadStats(): void {
     }
   }
 
-  // ================ FORM VALIDATION ================
-
+  // Form Validation
   isFormValid(): boolean {
     const basicValidation = !!(
-      this.newTraining.title && 
-      this.newTraining.description && 
+      this.newTraining.title &&
+      this.newTraining.description &&
       this.newTraining.category &&
       this.newTraining.level &&
       this.newTraining.duration_hours > 0 &&
       this.newTraining.provider_name
     );
-    
+   
     if (this.newTraining.cost_type === 'Paid' && this.newTraining.price <= 0) {
       return false;
     }
-    
+   
     if (this.newTraining.mode === 'Offline' && !this.newTraining.location?.trim()) {
       return false;
     }
-    
+   
     if (this.newTraining.start_date && this.newTraining.end_date) {
       const startDate = new Date(this.newTraining.start_date);
       const endDate = new Date(this.newTraining.end_date);
@@ -934,27 +966,27 @@ loadStats(): void {
         return false;
       }
     }
-    
+   
     return basicValidation;
   }
 
   getValidationErrors(): string[] {
     const errors: string[] = [];
-    
+   
     if (!this.newTraining.title) errors.push('Title is required');
     if (!this.newTraining.description) errors.push('Description is required');
     if (!this.newTraining.category) errors.push('Category is required');
     if (!this.newTraining.provider_name) errors.push('Provider name is required');
     if (this.newTraining.duration_hours <= 0) errors.push('Duration must be greater than 0');
-    
+   
     if (this.newTraining.cost_type === 'Paid' && this.newTraining.price <= 0) {
       errors.push('Price must be greater than 0 for paid trainings');
     }
-    
+   
     if (this.newTraining.mode === 'Offline' && !this.newTraining.location?.trim()) {
       errors.push('Location is required for offline trainings');
     }
-    
+   
     if (this.newTraining.start_date && this.newTraining.end_date) {
       const startDate = new Date(this.newTraining.start_date);
       const endDate = new Date(this.newTraining.end_date);
@@ -962,12 +994,11 @@ loadStats(): void {
         errors.push('End date must be after start date');
       }
     }
-    
+   
     return errors;
   }
 
-  // ================ UTILITY METHODS ================
-
+  // Utility Methods
   clearError(): void {
     this.error = null;
     this.trainingService.clearError();
@@ -1007,48 +1038,39 @@ loadStats(): void {
     }
   }
 
-  // ================ TRAINING DUPLICATION ================
-
-  duplicateTraining(training: Training): void {
-    if (confirm('Create a copy of this training?')) {
-      const duplicatedTraining: CreateTrainingRequest = {
-        title: `${training.title} (Copy)`,
-        description: training.description,
-        category: training.category,
-        level: training.level,
-        duration_hours: training.duration_hours,
-        cost_type: training.cost_type,
-        price: training.price,
-        mode: training.mode,
-        provider_name: training.provider_name,
-        has_certificate: training.has_certificate,
-        thumbnail_url: training.thumbnail_url,
-        location: training.location,
-        max_participants: training.max_participants,
-        videos: training.videos || [],
-        outcomes: training.outcomes || []
-      };
-
-      this.trainingService.createTraining(duplicatedTraining, this.employerId)
-        .pipe(takeUntil(this.destroy$))
-        .subscribe({
-          next: (response) => {
-            if (response.success) {
-              alert('Training duplicated successfully!');
-            }
-          },
-          error: (error) => {
-            console.error('Error duplicating training:', error);
-            this.error = 'Failed to duplicate training. Please try again.';
-          }
-        });
+  // Edit Training
+  editTraining(training: Training): void {
+    console.log('✏️ Editing training:', training.id);
+    this.editingTrainingId = training.id;
+    this.newTraining = {
+      title: training.title,
+      description: training.description,
+      category: training.category,
+      level: training.level,
+      duration_hours: training.duration_hours,
+      cost_type: training.cost_type,
+      price: training.price || 0,
+      mode: training.mode,
+      provider_name: training.provider_name,
+      has_certificate: training.has_certificate,
+      thumbnail_url: training.thumbnail_url || '',
+      location: training.location || '',
+      start_date: training.start_date ? this.datePipe.transform(training.start_date, 'yyyy-MM-dd') || '' : '',
+      end_date: training.end_date ? this.datePipe.transform(training.end_date, 'yyyy-MM-dd') || '' : '',
+      max_participants: training.max_participants || 0,
+      videos: training.videos || [],
+      outcomes: training.outcomes || []
+    };
+    if (training.thumbnail_url) {
+      this.thumbnailPreview = training.thumbnail_url;
     }
+    this.showAddForm = true;
+    this.error = null;
   }
 
-  // ================ BULK OPERATIONS ================
+  // Duplicate viewTrainingDetails and closeDetailsModal removed (original implementations kept above)
 
-  selectedTrainingIds: Set<string> = new Set();
-
+  // Bulk Operations
   toggleTrainingSelection(trainingId: string): void {
     if (this.selectedTrainingIds.has(trainingId)) {
       this.selectedTrainingIds.delete(trainingId);
@@ -1077,7 +1099,6 @@ loadStats(): void {
       alert('Please select trainings to publish.');
       return;
     }
-
     if (confirm(`Publish ${selectedIds.length} selected training(s)?`)) {
       selectedIds.forEach(id => {
         const training = this.trainings.find(t => t.id === id);
@@ -1095,7 +1116,6 @@ loadStats(): void {
       alert('Please select trainings to suspend.');
       return;
     }
-
     if (confirm(`Suspend ${selectedIds.length} selected training(s)?`)) {
       selectedIds.forEach(id => {
         const training = this.trainings.find(t => t.id === id);
@@ -1104,6 +1124,42 @@ loadStats(): void {
         }
       });
       this.selectedTrainingIds.clear();
+    }
+  }
+
+  // Duplication
+  duplicateTraining(training: Training): void {
+    if (confirm('Create a copy of this training?')) {
+      const duplicatedTraining: CreateTrainingRequest = {
+        title: `${training.title} (Copy)`,
+        description: training.description,
+        category: training.category,
+        level: training.level,
+        duration_hours: training.duration_hours,
+        cost_type: training.cost_type,
+        price: training.price,
+        mode: training.mode,
+        provider_name: training.provider_name,
+        has_certificate: training.has_certificate,
+        thumbnail_url: training.thumbnail_url,
+        location: training.location,
+        max_participants: training.max_participants,
+        videos: training.videos || [],
+        outcomes: training.outcomes || []
+      };
+      this.trainingService.createTraining(duplicatedTraining, this.employerId)
+        .pipe(takeUntil(this.destroy$))
+        .subscribe({
+          next: (response) => {
+            if (response.success) {
+              alert('Training duplicated successfully!');
+            }
+          },
+          error: (error) => {
+            console.error('Error duplicating training:', error);
+            this.error = 'Failed to duplicate training. Please try again.';
+          }
+        });
     }
   }
 }

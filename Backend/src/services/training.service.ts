@@ -1920,34 +1920,71 @@ async updateTraining(id: string, data: UpdateTrainingRequest, employerId: string
   const client = await this.db.connect();
   try {
     await client.query('BEGIN');
-
-    // Get training details BEFORE deletion
+    
+    // Get training details BEFORE deletion (for notifications)
     const trainingResult = await client.query(
-      'SELECT title, status FROM trainings WHERE id = $1',
+      'SELECT title, status, provider_id FROM trainings WHERE id = $1',
       [id]
     );
-
     if (trainingResult.rows.length === 0) {
       await client.query('ROLLBACK');
       return false;
     }
-
     const training = trainingResult.rows[0];
 
-    // Delete training (cascades to videos, enrollments, etc.)
-    const result = await client.query(
-      'DELETE FROM trainings WHERE id = $1 AND provider_id = $2',
-      [id, employerId]
+    // FIXED: Get employer profile ID and check BOTH user ID and profile ID for ownership
+    const employerProfileCheck = await client.query(
+      'SELECT id FROM employers WHERE user_id = $1',
+      [employerId]
+    );
+    const employerProfileId = employerProfileCheck.rows.length > 0
+      ? employerProfileCheck.rows[0].id
+      : null;
+
+    console.log('🔍 Delete ownership check:', {
+      trainingId: id,
+      requestedByUserId: employerId,
+      requestedByProfileId: employerProfileId,
+      actualProviderId: training.provider_id
+    });
+
+    // Verify ownership with BOTH user ID and profile ID
+    const ownershipCheck = await client.query(
+      `SELECT id FROM trainings 
+       WHERE id = $1 
+         AND (provider_id = $2 OR provider_id = $3)`,
+      [id, employerId, employerProfileId || '']  // '' as fallback for null
     );
 
-    if ((result.rowCount ?? 0) === 0) {
+    if (ownershipCheck.rows.length === 0) {
+      console.error('❌ Ownership check failed for deleteTraining:', {
+        trainingId: id,
+        requestedBy: employerId,
+        requestedByProfile: employerProfileId,
+        actualOwner: training.provider_id
+      });
+      await client.query('ROLLBACK');
+      return false;  // This will trigger 404 in controller
+    }
+
+    // Delete training (cascades to videos, enrollments, etc.)
+    const deleteResult = await client.query(
+      `DELETE FROM trainings 
+       WHERE id = $1 
+         AND (provider_id = $2 OR provider_id = $3)`,
+      [id, employerId, employerProfileId || '']
+    );
+
+    if ((deleteResult.rowCount ?? 0) === 0) {
       await client.query('ROLLBACK');
       return false;
     }
 
     await client.query('COMMIT');
 
-    // ✅ CRITICAL: Notify enrolled jobseekers AFTER commit
+    console.log('✅ Training deleted successfully:', { trainingId: id });
+
+    // CRITICAL: Notify enrolled jobseekers AFTER commit
     if (training.status === 'published') {
       this.notifyEnrolledJobseekers(
         id,
@@ -1964,6 +2001,7 @@ async updateTraining(id: string, data: UpdateTrainingRequest, employerId: string
     return true;
   } catch (error: any) {
     await client.query('ROLLBACK');
+    console.error('❌ Error in deleteTraining:', error);
     throw error;
   } finally {
     client.release();

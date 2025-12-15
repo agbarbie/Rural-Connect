@@ -25,6 +25,126 @@ body {
   box-shadow: 4px 0 24px rgba(0, 0, 0, 0.15);
 }
 
+/* Edit training button (prominent action) */
+.btn-edit-training {
+  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+  color: #fff;
+  border: none;
+  padding: 0.6rem 1rem;
+  border-radius: 10px;
+  font-weight: 700;
+  font-size: 0.9375rem;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  transition: transform 0.18s ease, box-shadow 0.18s ease, opacity 0.18s ease;
+  box-shadow: 0 8px 20px rgba(217, 119, 6, 0.16);
+}
+
+.btn-edit-training i {
+  font-size: 1rem;
+  line-height: 0;
+}
+
+.btn-edit-training:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 14px 30px rgba(217, 119, 6, 0.22);
+}
+
+.btn-edit-training:active {
+  transform: translateY(-1px);
+}
+
+.btn-edit-training:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+/* View details button (secondary but visible) */
+.btn-view-details {
+  background: transparent;
+  color: #334155; /* darker text for contrast on light contexts */
+  border: 2px solid rgba(102, 126, 234, 0.12);
+  padding: 0.55rem 0.95rem;
+  border-radius: 12px;
+  font-weight: 700;
+  font-size: 0.9375rem;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  transition: all 0.18s ease;
+}
+
+.btn-view-details i {
+  color: #667eea;
+  font-size: 1rem;
+  line-height: 0;
+}
+
+.btn-view-details:hover {
+  background: linear-gradient(135deg, rgba(102, 126, 234, 0.12), rgba(118, 75, 162, 0.06));
+  color: #0f172a;
+  border-color: rgba(102, 126, 234, 0.22);
+  box-shadow: 0 10px 26px rgba(102, 126, 234, 0.12);
+}
+
+.btn-view-details:focus {
+  outline: none;
+  box-shadow: 0 0 0 6px rgba(102, 126, 234, 0.06);
+}
+
+/* Small / icon variants for compact action bars */
+.btn-edit-training.small,
+.btn-view-details.small,
+.training-card .btn-edit,
+.training-card .btn-view {
+  padding: 0.45rem 0.6rem;
+  border-radius: 8px;
+  font-size: 0.875rem;
+}
+
+/* Utility: make .btn-edit (existing) adopt the new visual when used for "edit training" */
+.training-card .btn-edit.btn-edit-training,
+.training-card .btn-edit {
+  /* allow existing markup using .btn-edit to look better in context */
+  min-width: 40px;
+  height: 40px;
+  padding: 0 0.75rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+/* Utility: ensure view action inside cards uses the view details style */
+.training-card .btn-view.btn-view-details,
+.training-card .btn-view {
+  min-width: 120px;
+  padding: 0.5rem 0.85rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+/* Responsive tweaks */
+@media (max-width: 768px) {
+  .btn-edit-training,
+  .btn-view-details {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .btn-edit-training.small,
+  .btn-view-details.small {
+    width: auto;
+  }
+}
+
 .sidebar-header {
   padding: 2rem;
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
