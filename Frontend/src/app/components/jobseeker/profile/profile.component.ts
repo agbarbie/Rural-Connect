@@ -167,8 +167,8 @@ export class ProfileComponent implements OnInit {
 
   ngOnInit(): void {
     this.loadProfileData();
-    this.loadProfileCompletion();
-    // Load portfolio data if needed
+    // Profile completion will be calculated after profile data loads
+    // Load portfolio data if needed (for display purposes only)
     this.loadPortfolioData();
   }
 
@@ -183,6 +183,20 @@ export class ProfileComponent implements OnInit {
           this.profile.phone = data.phone || '';
           this.profile.location = data.location || '';
           this.profile.about = data.bio || '';
+          
+          // ✅ Load profile image from backend
+          if (data.profile_image || data.profileImage) {
+            const imageUrl = data.profile_image || data.profileImage;
+            this.profile.profileImage = this.getFullImageUrl(imageUrl);
+            console.log('✅ Profile image loaded:', {
+              rawUrl: imageUrl,
+              fullUrl: this.profile.profileImage
+            });
+          } else {
+            this.profile.profileImage = 'assets/images/profile-placeholder.jpg';
+            console.log('ℹ️ No profile image found, using placeholder');
+          }
+          
           this.profile.linkedIn = data.linkedin_url || '';
           this.profile.website = data.website_url || '';
           this.profile.github = data.github_url || '';
@@ -206,6 +220,9 @@ export class ProfileComponent implements OnInit {
             website: this.profile.website || ''
           };
           this.buildSocialLinks();
+          
+          // ✅ CALCULATE PROFILE COMPLETION BASED ON FORM FIELDS
+          this.calculateProfileCompletion();
         }
       },
       error: (error) => {
@@ -263,31 +280,120 @@ export class ProfileComponent implements OnInit {
       }));
   }
 
-  // Load profile completion independently
-  private loadProfileCompletion(): void {
-    this.profileService.getDetailedProfileCompletion().subscribe({
-      next: (response) => {
-        if (response && response.data) {
-          this.completedSections = response.data.completedSections || [];
-          this.missingFields = response.data.missingFields || [];
-          this.completionRecommendations = response.data.recommendations || [];
-          this.profile.profileCompletion = response.data.completion || 0;
-         
-          console.log('Profile completion updated:', this.profile.profileCompletion);
+  /**
+   * ✅ NEW: Calculate profile completion based on form fields only
+   * This ensures profile completion is 100% independent of CV upload
+   */
+  private calculateProfileCompletion(): void {
+    let totalFields = 0;
+    let completedFields = 0;
+    this.missingFields = [];
 
-          // Frontend fix: Remove 'skills' from missingFields if selectedSkills is filled
-          if (this.profile.selectedSkills && this.profile.selectedSkills.length > 0) {
-            this.missingFields = this.missingFields.filter(f => f.toLowerCase().trim() !== 'skills');
-            // Optionally adjust completion percentage if skills was the only missing field
-            if (this.missingFields.length === 0) {
-              this.profile.profileCompletion = 100;
-            }
-          }
-        }
-      },
-      error: (error) => {
-        console.error('Error loading profile completion:', error);
-      }
+    // 1. Basic Contact Information (3 required fields)
+    totalFields += 3;
+    if (this.profile.phone && this.profile.phone.trim().length > 0) {
+      completedFields++;
+    } else {
+      this.missingFields.push('Phone Number');
+    }
+    
+    if (this.profile.location && this.profile.location.trim().length > 0) {
+      completedFields++;
+    } else {
+      this.missingFields.push('Location');
+    }
+    
+    // Check if profile image is uploaded (not the default placeholder)
+    const hasCustomImage = this.profile.profileImage && 
+                          this.profile.profileImage !== 'assets/images/profile-placeholder.jpg' &&
+                          !this.profile.profileImage.includes('profile-placeholder') &&
+                          (this.profile.profileImage.startsWith('http') || 
+                           this.profile.profileImage.startsWith('/uploads') ||
+                           this.profile.profileImage.startsWith('data:image'));
+    
+    if (hasCustomImage) {
+      completedFields++;
+    } else {
+      this.missingFields.push('Profile Image');
+    }
+
+    // 2. Professional Summary (1 required field)
+    totalFields += 1;
+    if (this.profile.about && this.profile.about.trim().length > 50) {
+      completedFields++;
+    } else {
+      this.missingFields.push('Professional Summary (minimum 50 characters)');
+    }
+
+    // 3. Skills (1 required field - at least 3 skills)
+    totalFields += 1;
+    if (this.profile.selectedSkills && this.profile.selectedSkills.length >= 3) {
+      completedFields++;
+    } else {
+      this.missingFields.push(`Skills (${this.profile.selectedSkills.length}/3 minimum)`);
+    }
+
+    // 4. Social Links (1 required field - at least one link)
+    totalFields += 1;
+    const hasLinkedIn = this.profile.socialLinksInput.linkedin && this.profile.socialLinksInput.linkedin.trim().length > 0;
+    const hasGithub = this.profile.socialLinksInput.github && this.profile.socialLinksInput.github.trim().length > 0;
+    const hasWebsite = this.profile.socialLinksInput.website && this.profile.socialLinksInput.website.trim().length > 0;
+    
+    if (hasLinkedIn || hasGithub || hasWebsite) {
+      completedFields++;
+    } else {
+      this.missingFields.push('At least one Social Link (LinkedIn, GitHub, or Website)');
+    }
+
+    // 5. Career Preferences (3 required fields)
+    totalFields += 3;
+    if (this.profile.yearsOfExperience > 0) {
+      completedFields++;
+    } else {
+      this.missingFields.push('Years of Experience');
+    }
+    
+    if (this.profile.currentPosition && this.profile.currentPosition.trim().length > 0) {
+      completedFields++;
+    } else {
+      this.missingFields.push('Current Position');
+    }
+    
+    if (this.profile.preferredJobTypes && this.profile.preferredJobTypes.trim().length > 0) {
+      completedFields++;
+    } else {
+      this.missingFields.push('Preferred Job Types');
+    }
+
+    // 6. Salary Expectations (1 optional field - bonus points if filled)
+    totalFields += 1;
+    if ((this.profile.salaryMin && this.profile.salaryMin > 0) || 
+        (this.profile.salaryMax && this.profile.salaryMax > 0)) {
+      completedFields++;
+    } else {
+      this.missingFields.push('Salary Expectations (optional but recommended)');
+    }
+
+    // Calculate percentage
+    const percentage = totalFields > 0 ? Math.round((completedFields / totalFields) * 100) : 0;
+    this.profile.profileCompletion = percentage;
+    
+    // Update completion recommendations
+    this.completionRecommendations = [];
+    if (percentage < 100) {
+      this.completionRecommendations.push(
+        `Complete the following ${this.missingFields.length} field(s) to reach 100%:`
+      );
+      this.completionRecommendations.push(...this.missingFields);
+    } else {
+      this.completionRecommendations.push('✅ Your profile is 100% complete! You can now apply for jobs.');
+    }
+
+    console.log('📊 Profile completion calculation (Form-based):', {
+      totalFields,
+      completedFields,
+      percentage,
+      missingFields: this.missingFields
     });
   }
 
@@ -298,18 +404,17 @@ export class ProfileComponent implements OnInit {
       next: (response) => {
         if (response.success && response.data) {
           this.portfolioData = response.data;
-          this.populatePortfolioFromData(response.data); // Renamed to avoid confusion
+          this.populatePortfolioFromData(response.data); // For display purposes only
           this.loadShareableUrl();
         } else {
-          console.error('No portfolio data found');
-          // Don't show message, as profile can exist without portfolio
+          console.log('No portfolio data found - CV not uploaded yet');
         }
         this.isLoading = false;
       },
       error: (error) => {
         console.error('Error loading portfolio:', error);
         if (error.status === 404 || error.error?.message?.includes('No CV found')) {
-          // No portfolio, but profile can still be edited
+          console.log('No CV found - user can still complete profile without CV');
         }
         this.isLoading = false;
       }
@@ -326,12 +431,12 @@ export class ProfileComponent implements OnInit {
       this.profile.title = workExp[0].position;
     }
 
-    // Populate CV-based sections (non-editable here)
+    // Populate CV-based sections (non-editable here, for display only)
     if (personalInfo.profile_image) {
       this.profile.profileImage = this.getFullImageUrl(personalInfo.profile_image);
     }
 
-    // Skills from CV if profile skills empty
+    // Skills from CV if profile skills empty (for display)
     if (this.technicalSkills.length === 0 && this.softSkills.length === 0 && this.otherSkills.length === 0 && cvData.skills) {
       const cvSkills: Skill[] = cvData.skills;
       const allSkills = cvSkills.map(s => s.skill_name);
@@ -339,7 +444,7 @@ export class ProfileComponent implements OnInit {
       this.populateSkills(allSkills);
     }
 
-    // Education
+    // Education (for display)
     if (cvData.education && cvData.education.length > 0) {
       this.education = cvData.education.map(edu => ({
         degree: edu.degree,
@@ -350,7 +455,7 @@ export class ProfileComponent implements OnInit {
       }));
     }
 
-    // Work Experience
+    // Work Experience (for display)
     if (cvData.work_experience && cvData.work_experience.length > 0) {
       this.experiences = cvData.work_experience.map(work => {
         const duration = this.calculateDuration(work.start_date, work.end_date, work.is_current);
@@ -370,7 +475,7 @@ export class ProfileComponent implements OnInit {
       });
     }
 
-    // Certifications
+    // Certifications (for display)
     if (cvData.certifications && cvData.certifications.length > 0) {
       this.certifications = cvData.certifications.map(cert => ({
         degree: cert.certification_name,
@@ -380,7 +485,7 @@ export class ProfileComponent implements OnInit {
       }));
     }
 
-    // Projects
+    // Projects (for display)
     if (cvData.projects && cvData.projects.length > 0) {
       this.projects = cvData.projects.map(proj => ({
         title: proj.project_name,
@@ -393,7 +498,7 @@ export class ProfileComponent implements OnInit {
       }));
     }
 
-    // Testimonials/Recommendations
+    // Testimonials/Recommendations (for display)
     if (portfolio.testimonials && portfolio.testimonials.length > 0) {
       this.recommendations = portfolio.testimonials;
     }
@@ -408,15 +513,12 @@ export class ProfileComponent implements OnInit {
   // Toggle edit mode
   toggleEditMode(): void {
     this.isEditMode = !this.isEditMode;
-    if (!this.isEditMode) {
-      // On exit, save if changes made, but for simplicity, save on explicit save
-    }
   }
 
   // New: Toggle CV upload section
   toggleCVUpload(): void {
-  this.showCVUpload = !this.showCVUpload;
-}
+    this.showCVUpload = !this.showCVUpload;
+  }
 
   // Toggle skill selection
   toggleSkill(skill: string, event: any): void {
@@ -477,6 +579,7 @@ export class ProfileComponent implements OnInit {
     updates.preferred_locations = JSON.stringify(locations);
     updates.salary_expectation_min = this.profile.salaryMin || null;
     updates.salary_expectation_max = this.profile.salaryMax || null;
+    
     if (Object.keys(updates).length > 0) {
       this.profileService.updateProfile(updates).subscribe({
         next: (response) => {
@@ -484,9 +587,8 @@ export class ProfileComponent implements OnInit {
             alert('Profile updated successfully!');
             this.toggleEditMode();
            
-            // Reload both profile data and completion
+            // Reload profile data and recalculate completion
             this.loadProfileData();
-            this.loadProfileCompletion();
            
             // Update display
             this.buildSocialLinks();
@@ -576,9 +678,9 @@ export class ProfileComponent implements OnInit {
     }
   }
 
-  // NEW: Check if profile is complete (you can adjust the threshold as needed)
+  // NEW: Check if profile is complete (100% required to apply for jobs)
   isProfileComplete(): boolean {
-    return this.profile.profileCompletion >= 80; // 80% or higher considered complete
+    return this.profile.profileCompletion === 100;
   }
 
   // Image Upload Methods
@@ -588,15 +690,29 @@ export class ProfileComponent implements OnInit {
 
   handleImageUpload(event: any): void {
     const file = event.target.files[0];
+    console.log('📸 Image selected:', {
+      name: file?.name,
+      type: file?.type,
+      size: file?.size
+    });
+    
     if (file && file.type.startsWith('image/')) {
+      // Check file size (max 5MB)
+      if (file.size > 5 * 1024 * 1024) {
+        alert('Image file size must be less than 5MB.');
+        return;
+      }
+      
       // Preview the image locally
       const reader = new FileReader();
       reader.onload = (e: any) => {
         this.profile.profileImage = e.target.result; // Base64 for preview
+        console.log('✅ Image preview loaded (base64)');
       };
       reader.readAsDataURL(file);
 
       // Upload to server
+      console.log('⬆️ Starting image upload to server...');
       this.uploadProfileImage(file);
     } else {
       alert('Please select a valid image file.');
@@ -608,118 +724,145 @@ export class ProfileComponent implements OnInit {
     this.profileService.uploadProfileImage(file).subscribe({
       next: (response) => {
         if (response.success) {
-          this.profile.profileImage = response.imageUrl ?? 'assets/images/profile-placeholder.jpg'; // Update with server URL or fallback
-          // Reload completion after update
-          this.loadProfileCompletion();
-          alert('Profile image updated successfully!');
+          // Set the image URL from response
+          if (response.imageUrl) {
+            this.profile.profileImage = this.getFullImageUrl(response.imageUrl);
+          }
+          
+          // Reload profile data from backend to ensure we have the latest data
+          this.profileService.getMyProfile().subscribe({
+            next: (profileResponse) => {
+              if (profileResponse.success && profileResponse.data) {
+                // Update profile image from backend
+                const data = profileResponse.data;
+                if (data.profile_image || data.profileImage) {
+                  this.profile.profileImage = this.getFullImageUrl(
+                    data.profile_image || data.profileImage
+                  );
+                }
+                
+                // Recalculate completion after image update
+                this.calculateProfileCompletion();
+                
+                console.log('✅ Profile image updated:', {
+                  imageUrl: this.profile.profileImage,
+                  completion: this.profile.profileCompletion
+                });
+              }
+              
+              this.isLoading = false;
+              alert('Profile image updated successfully!');
+            },
+            error: (error) => {
+              console.error('Error reloading profile:', error);
+              // Still recalculate even if reload fails
+              this.calculateProfileCompletion();
+              this.isLoading = false;
+              alert('Profile image updated successfully!');
+            }
+          });
+        } else {
+          this.isLoading = false;
+          alert('Failed to upload image. Please try again.');
         }
-        this.isLoading = false;
       },
       error: (error) => {
         console.error('Error uploading image:', error);
-        alert('Failed to upload image. Please try again.');
         this.isLoading = false;
+        
+        let errorMessage = 'Failed to upload image. ';
+        if (error.status === 401) {
+          errorMessage += 'Please login again.';
+        } else if (error.status === 413) {
+          errorMessage += 'Image file is too large. Maximum size is 5MB.';
+        } else if (error.error?.message) {
+          errorMessage += error.error.message;
+        } else {
+          errorMessage += 'Please try again.';
+        }
+        
+        alert(errorMessage);
       }
     });
   }
 
   // CV Upload Methods
   triggerCVUpload(): void {
-  this.cvFileInput.nativeElement.click();
-}
+    this.cvFileInput.nativeElement.click();
+  }
 
   handleCVUpload(event: any): void {
-  const file = event.target.files[0];
-  if (file && (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf'))) {
-    // Check file size (max 5MB)
-    if (file.size > 5 * 1024 * 1024) {
-      alert('CV file size must be less than 5MB.');
-      return;
+    const file = event.target.files[0];
+    if (file && (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf'))) {
+      // Check file size (max 5MB)
+      if (file.size > 5 * 1024 * 1024) {
+        alert('CV file size must be less than 5MB.');
+        return;
+      }
+      
+      this.isUploadingCV = true;
+      this.uploadCV(file);
+    } else {
+      alert('Please select a valid PDF CV file.');
     }
-    
-    this.isUploadingCV = true;
-    this.uploadCV(file);
-  } else {
-    alert('Please select a valid PDF CV file.');
   }
-}
 
   private uploadCV(file: File): void {
-  console.log('Uploading CV file:', file.name, file.type, file.size);
-  
-  // Show loading message
-  const uploadNotification = 'Uploading and processing your CV. This may take 1-3 minutes depending on file size and content complexity. Please wait...';
-  alert(uploadNotification);
+    console.log('Uploading CV file:', file.name, file.type, file.size);
+    
+    // Show loading message
+    const uploadNotification = 'Uploading and processing your CV. This may take 1-3 minutes depending on file size and content complexity. Please wait...';
+    alert(uploadNotification);
 
-  this.profileService.uploadCV(file).subscribe({
-    next: (response: any) => {
-      console.log('CV upload response:', response);
-      this.isUploadingCV = false;
-      
-      if (response?.success) {
-        alert('CV uploaded successfully! Your profile sections are being updated...');
+    this.profileService.uploadCV(file).subscribe({
+      next: (response: any) => {
+        console.log('CV upload response:', response);
+        this.isUploadingCV = false;
         
-        // Reload profile and portfolio data
-        this.loadProfileData();
-        this.loadPortfolioData();
-        this.loadProfileCompletion();
+        if (response?.success) {
+          alert('CV uploaded successfully! Your portfolio sections are being updated...');
+          
+          // Reload profile and portfolio data (for display purposes)
+          this.loadProfileData();
+          this.loadPortfolioData();
+          
+          // Clear the file input
+          if (this.cvFileInput && this.cvFileInput.nativeElement) {
+            this.cvFileInput.nativeElement.value = '';
+          }
+          
+          // Show success message after data loads
+          setTimeout(() => {
+            alert('CV processing complete! Your portfolio has been updated with the extracted information.');
+          }, 2000);
+        } else {
+          alert('CV upload failed. Please try again or check the file format.');
+        }
+      },
+      error: (error: any) => {
+        console.error('Error uploading CV:', error);
+        this.isUploadingCV = false;
+        
+        let errorMessage = 'Failed to upload CV. ';
+        if (error.status === 401) {
+          errorMessage += 'Please login again.';
+          setTimeout(() => this.router.navigate(['/login']), 2000);
+        } else if (error.status === 413) {
+          errorMessage += 'File is too large. Maximum size is 5MB.';
+        } else if (error.error?.message) {
+          errorMessage += error.error.message;
+        } else {
+          errorMessage += 'Please try again or check file format.';
+        }
+        
+        alert(errorMessage);
         
         // Clear the file input
         if (this.cvFileInput && this.cvFileInput.nativeElement) {
           this.cvFileInput.nativeElement.value = '';
         }
-        
-        // Show success message after data loads
-        setTimeout(() => {
-          alert('CV processing complete! Your profile has been updated with the extracted information.');
-        }, 2000);
-      } else {
-        alert('CV upload failed. Please try again or check the file format.');
       }
-    },
-    error: (error: any) => {
-      console.error('Error uploading CV:', error);
-      this.isUploadingCV = false;
-      
-      let errorMessage = 'Failed to upload CV. ';
-      if (error.status === 401) {
-        errorMessage += 'Please login again.';
-        setTimeout(() => this.router.navigate(['/login']), 2000);
-      } else if (error.status === 413) {
-        errorMessage += 'File is too large. Maximum size is 5MB.';
-      } else if (error.error?.message) {
-        errorMessage += error.error.message;
-      } else {
-        errorMessage += 'Please try again or check file format.';
-      }
-      
-      alert(errorMessage);
-      
-      // Clear the file input
-      if (this.cvFileInput && this.cvFileInput.nativeElement) {
-        this.cvFileInput.nativeElement.value = '';
-      }
-    }
-  });
-  }
-
-
-  // New: Poll for portfolio updates after CV upload
-  private pollForPortfolioUpdate(retryCount: number, maxRetries: number): void {
-    this.loadPortfolioData();
-    // Check if portfolio is updated (e.g., cvData exists)
-    if (this.portfolioData && this.portfolioData.cvData) {
-      alert('CV processing complete! Your profile has been updated.');
-      return;
-    }
-
-    if (retryCount < maxRetries) {
-      setTimeout(() => {
-        this.pollForPortfolioUpdate(retryCount + 1, maxRetries);
-      }, 10000); // Wait 10 seconds before next poll
-    } else {
-      alert('CV upload complete, but processing may still be ongoing. Please refresh the page in a few minutes or try uploading again.');
-    }
+    });
   }
 
   private calculateDuration(startDate: string, endDate: string | undefined, isCurrent: boolean): string {

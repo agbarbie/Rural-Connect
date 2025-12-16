@@ -18,6 +18,7 @@ export interface PortfolioData {
 }
 
 export interface CVData {
+  user_id: string;
   updated_at: any;
   personal_info: {
     name: string;
@@ -228,16 +229,7 @@ export class ProfileService {
   /**
    * Upload profile image
    */
-  uploadProfileImage(file: File): Observable<ImageUploadResponse> {
-    const formData = new FormData();
-    formData.append('profile_image', file);
-
-    return this.http.post<ImageUploadResponse>(
-      `${environment.apiUrl}/upload/profile-image`,
-      formData,
-      { headers: this.getAuthHeaders() }
-    );
-  }
+  
 
   /**
    * Get current user's portfolio (authenticated)
@@ -248,6 +240,30 @@ export class ProfileService {
     });
   }
 
+  /**
+   * Upload profile image
+   * @param file - Image file to upload
+   * @returns Observable with upload response
+   */
+  uploadProfileImage(file: File): Observable<any> {
+    const formData = new FormData();
+    formData.append('image', file); // Must match backend field name
+
+    console.log('📤 Uploading profile image:', {
+      fileName: file.name,
+      fileSize: file.size,
+      fileType: file.type
+    });
+
+    return this.http.post<any>(`${this.profileUrl}/upload-image`, formData, {
+      headers: this.getAuthHeaders()
+    }).pipe(
+      map(response => {
+        console.log('✅ Image upload response:', response);
+        return response;
+      })
+    );
+  }
   /**
    * Get public portfolio by user ID or email
    */

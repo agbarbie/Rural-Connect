@@ -77,6 +77,10 @@ export class AiAssistantComponent implements OnInit, AfterViewInit {
   portfolioData: PortfolioData | null = null;
   lastInitTime: string | null = null;
   
+  // FIX: Add current user ID tracking
+  private currentUserId: string | null = null;
+  private currentUserEmail: string | null = null;
+  
   userData = {
     name: 'User',
     avatar: 'assets/images/profile-placeholder.jpg',
@@ -101,6 +105,8 @@ export class AiAssistantComponent implements OnInit, AfterViewInit {
   ) { }
 
   ngOnInit(): void {
+    // FIX: Get and store current user details FIRST
+    this.initializeCurrentUser();
     this.loadUserProfile();
   }
 
@@ -110,16 +116,41 @@ export class AiAssistantComponent implements OnInit, AfterViewInit {
     }, 500);
   }
 
+  // FIX: New method to initialize and verify current user
+  private initializeCurrentUser(): void {
+    const currentUser = this.authService.getCurrentUser();
+    
+    if (!currentUser) {
+      console.error('No authenticated user found');
+      this.router.navigate(['/auth']);
+      return;
+    }
+
+    // Store current user identifiers
+    this.currentUserId = currentUser.id || currentUser.user_id || null;
+    this.currentUserEmail = currentUser.email || null;
+    
+    console.log('Current authenticated user:', {
+      id: this.currentUserId,
+      email: this.currentUserEmail,
+      name: currentUser.name
+    });
+
+    // Set the user's name immediately
+    if (currentUser.name) {
+      this.userData.name = currentUser.name;
+    }
+  }
+
+  // FIX: Updated to verify cache belongs to current user
   loadUserProfile(): void {
     this.isInitializing = true;
     
-    const currentUser = this.authService.getCurrentUser();
-    if (currentUser?.name) {
-      this.userData.name = currentUser.name;
-    }
+    // FIX: Clear cache if it doesn't belong to current user
+    this.validateAndClearStaleCache();
     
-    // Optionally cache profile in localStorage for faster subsequent loads
-    const cachedProfile = localStorage.getItem('cached_portfolio');
+    // Try to load from cache only if it belongs to current user
+    const cachedProfile = this.getCachedProfileForCurrentUser();
     if (cachedProfile) {
       try {
         const parsed = JSON.parse(cachedProfile);
@@ -130,17 +161,28 @@ export class AiAssistantComponent implements OnInit, AfterViewInit {
         return;
       } catch (e) {
         console.warn('Cached profile invalid, loading fresh');
+        this.clearUserCache();
       }
     }
     
+    // Load fresh profile from server
     this.profileService.getMyPortfolio().subscribe({
       next: (response) => {
         if (response.success && response.data) {
           this.portfolioData = response.data;
-          // Cache the profile
-          localStorage.setItem('cached_portfolio', JSON.stringify(response.data));
-          this.populateUserDataFromPortfolio(response.data);
-          this.checkForProfileUpdates();
+          
+          // FIX: Verify this portfolio belongs to current user
+          if (this.verifyPortfolioBelongsToCurrentUser(response.data)) {
+            // Cache the profile with user identifier
+            this.cacheProfileForCurrentUser(response.data);
+            this.populateUserDataFromPortfolio(response.data);
+            this.checkForProfileUpdates();
+          } else {
+            console.error('Portfolio data does not belong to current user');
+            this.clearUserCache();
+            this.useDefaultData();
+            this.finishInitialization();
+          }
         } else {
           this.useDefaultData();
           this.finishInitialization();
@@ -154,10 +196,84 @@ export class AiAssistantComponent implements OnInit, AfterViewInit {
     });
   }
 
+  // FIX: New method to validate cache belongs to current user
+  private validateAndClearStaleCache(): void {
+    const cacheUserId = localStorage.getItem('cached_user_id');
+    const cacheUserEmail = localStorage.getItem('cached_user_email');
+    
+    // If cache exists but doesn't match current user, clear it
+    if (cacheUserId || cacheUserEmail) {
+      if (cacheUserId !== this.currentUserId || cacheUserEmail !== this.currentUserEmail) {
+        console.warn('Cache belongs to different user, clearing...');
+        this.clearUserCache();
+      }
+    }
+  }
+
+  // FIX: New method to get cached profile only if it belongs to current user
+  private getCachedProfileForCurrentUser(): string | null {
+    const cacheUserId = localStorage.getItem('cached_user_id');
+    const cacheUserEmail = localStorage.getItem('cached_user_email');
+    
+    // Only return cache if it belongs to current user
+    if (cacheUserId === this.currentUserId && cacheUserEmail === this.currentUserEmail) {
+      return localStorage.getItem('cached_portfolio');
+    }
+    
+    return null;
+  }
+
+  // FIX: New method to cache profile with user identifier
+  private cacheProfileForCurrentUser(portfolio: PortfolioData): void {
+    try {
+      localStorage.setItem('cached_portfolio', JSON.stringify(portfolio));
+      localStorage.setItem('cached_user_id', this.currentUserId || '');
+      localStorage.setItem('cached_user_email', this.currentUserEmail || '');
+      localStorage.setItem('cache_timestamp', new Date().toISOString());
+    } catch (e) {
+      console.error('Error caching portfolio:', e);
+    }
+  }
+
+  // FIX: New method to verify portfolio belongs to current user
+  private verifyPortfolioBelongsToCurrentUser(portfolio: PortfolioData): boolean {
+    // Check if portfolio has user identification
+    const portfolioUserId = portfolio.userId || portfolio.userId || portfolio.cvData?.user_id;
+    const portfolioEmail = portfolio.cvData?.personal_info?.email || 
+                          portfolio.cvData?.personal_info?.email;
+    
+    // If we have user ID, verify it matches
+    if (portfolioUserId && this.currentUserId) {
+      return portfolioUserId === this.currentUserId;
+    }
+    
+    // If we have email, verify it matches
+    if (portfolioEmail && this.currentUserEmail) {
+      return portfolioEmail.toLowerCase() === this.currentUserEmail.toLowerCase();
+    }
+    
+    // If no identification found, assume it's correct (backend should send correct data)
+    console.warn('Could not verify portfolio ownership - assuming correct');
+    return true;
+  }
+
+  // FIX: Enhanced method to clear all user-specific cache
+  private clearUserCache(): void {
+    localStorage.removeItem('cached_portfolio');
+    localStorage.removeItem('cached_user_id');
+    localStorage.removeItem('cached_user_email');
+    localStorage.removeItem('cache_timestamp');
+    localStorage.removeItem('ai_assistant_last_init');
+    localStorage.removeItem('cached_insights');
+  }
+
   private checkForProfileUpdates(): void {
     // Assume portfolio.cvData.updated_at exists; adjust if different
     const profileUpdatedAt = this.portfolioData?.cvData?.updated_at || this.portfolioData?.updatedAt || new Date().toISOString();
-    this.lastInitTime = localStorage.getItem('ai_assistant_last_init');
+    
+    // FIX: Use user-specific cache key
+    const cacheKey = `ai_assistant_last_init_${this.currentUserId}`;
+    this.lastInitTime = localStorage.getItem(cacheKey);
 
     if (!this.lastInitTime || new Date(profileUpdatedAt) > new Date(this.lastInitTime)) {
       // Profile updated or first time, load insights in background
@@ -205,17 +321,14 @@ export class AiAssistantComponent implements OnInit, AfterViewInit {
           });
         }
 
-        // Update last init time
+        // FIX: Update last init time with user-specific key
         if (updatedAt) {
-          localStorage.setItem('ai_assistant_last_init', updatedAt);
+          const cacheKey = `ai_assistant_last_init_${this.currentUserId}`;
+          localStorage.setItem(cacheKey, updatedAt);
         }
 
-        // Cache insights
-        localStorage.setItem('cached_insights', JSON.stringify({
-          jobRecommendations: this.jobRecommendations,
-          trainingRecommendations: this.trainingRecommendations,
-          conversationMessages: this.conversationMessages
-        }));
+        // FIX: Cache insights with user identifier
+        this.cacheInsightsForCurrentUser();
       }
     } catch (error) {
       console.error('Error getting Gemini recommendations:', error);
@@ -226,16 +339,47 @@ export class AiAssistantComponent implements OnInit, AfterViewInit {
     }
   }
 
+  // FIX: New method to cache insights with user identifier
+  private cacheInsightsForCurrentUser(): void {
+    try {
+      const insights = {
+        jobRecommendations: this.jobRecommendations,
+        trainingRecommendations: this.trainingRecommendations,
+        conversationMessages: this.conversationMessages,
+        userId: this.currentUserId,
+        userEmail: this.currentUserEmail,
+        timestamp: new Date().toISOString()
+      };
+      
+      const cacheKey = `cached_insights_${this.currentUserId}`;
+      localStorage.setItem(cacheKey, JSON.stringify(insights));
+    } catch (e) {
+      console.error('Error caching insights:', e);
+    }
+  }
+
+  // FIX: Updated to load insights only for current user
   private loadCachedInsights(): void {
-    const cachedInsights = localStorage.getItem('cached_insights');
+    const cacheKey = `cached_insights_${this.currentUserId}`;
+    const cachedInsights = localStorage.getItem(cacheKey);
+    
     if (cachedInsights) {
       try {
         const parsed = JSON.parse(cachedInsights);
-        this.jobRecommendations = parsed.jobRecommendations || [];
-        this.trainingRecommendations = parsed.trainingRecommendations || [];
-        this.conversationMessages = parsed.conversationMessages || [];
+        
+        // Verify cache belongs to current user
+        if (parsed.userId === this.currentUserId || parsed.userEmail === this.currentUserEmail) {
+          this.jobRecommendations = parsed.jobRecommendations || [];
+          this.trainingRecommendations = parsed.trainingRecommendations || [];
+          this.conversationMessages = parsed.conversationMessages || [];
+          console.log('Loaded cached insights for current user');
+        } else {
+          console.warn('Cached insights belong to different user, ignoring');
+          localStorage.removeItem(cacheKey);
+        }
       } catch (e) {
         console.warn('Cached insights invalid, skipping');
+        localStorage.removeItem(cacheKey);
       }
     }
   }
@@ -246,9 +390,14 @@ export class AiAssistantComponent implements OnInit, AfterViewInit {
 
   refreshInsights(): void {
     if (this.isLoading || this.isLoadingInsights) return;
-    // Force refresh by clearing cache and reloading
-    localStorage.removeItem('ai_assistant_last_init');
-    localStorage.removeItem('cached_insights');
+    
+    // FIX: Clear user-specific cache
+    const cacheKey = `ai_assistant_last_init_${this.currentUserId}`;
+    const insightsCacheKey = `cached_insights_${this.currentUserId}`;
+    
+    localStorage.removeItem(cacheKey);
+    localStorage.removeItem(insightsCacheKey);
+    
     this.conversationMessages = [];
     this.jobRecommendations = [];
     this.trainingRecommendations = [];
@@ -479,7 +628,7 @@ export class AiAssistantComponent implements OnInit, AfterViewInit {
   // Helper methods
   private useDefaultData(): void {
     this.userData = {
-      name: 'User',
+      name: this.userData.name || 'User', // Keep the name we got from auth
       avatar: 'assets/images/profile-placeholder.jpg',
       topSkills: [{ name: 'General Skills', level: 'medium' }]
     };

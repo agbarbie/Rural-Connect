@@ -1,4 +1,5 @@
 export interface User {
+  user_id: string;
   id: string;  // Changed from number to string to match your API
   name: string;
   email: string;

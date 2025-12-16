@@ -306,10 +306,11 @@
           <div class="form-section">
             <div class="section-header">
               <h4>Training Videos ({{ newTraining.videos.length }})</h4>
+              <!-- ✅ FIXED: Call openVideoFormForNewTraining() for new training creation -->
               <button 
                 type="button" 
                 class="btn-secondary btn-small" 
-                (click)="openVideoForm($any(newTraining))">
+                (click)="openVideoFormForNewTraining()">
                 <i class="fas fa-plus"></i>
                 Add Video
               </button>
@@ -439,6 +440,7 @@
                 <i class="fas fa-video"></i>
                 Videos ({{ training.videos?.length || training.video_count || 0 }})
               </h4>
+              <!-- ✅ FIXED: Call openVideoForm(training) for existing training -->
               <button class="btn-add-video" (click)="openVideoForm(training)">
                 <i class="fas fa-plus"></i>
                 Add Video
@@ -712,6 +714,7 @@
     </div>
 
     <!-- Video Form Modal -->
+    <!-- ✅ FIXED: Form calls addVideo() which handles both creation and editing -->
     <div class="modal-overlay" *ngIf="showVideoForm" (click)="showVideoForm = false">
       <div class="modal-content" (click)="$event.stopPropagation()">
         <div class="modal-header">
@@ -725,7 +728,8 @@
         </div>
         
         <div class="modal-body">
-          <form (ngSubmit)="saveVideo()">
+          <!-- ✅ KEY FIX: Form submission calls addVideo() -->
+          <form (ngSubmit)="addVideo()">
             <div class="form-group">
               <label for="videoTitle">Video Title *</label>
               <input 

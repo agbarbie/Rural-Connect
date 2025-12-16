@@ -1,10 +1,58 @@
-// src/routes/profile.routes.ts
+// src/routes/profile.routes.ts - Fixed with image upload
 import { Router } from "express";
+import multer from "multer";
+import path from "path";
+import fs from "fs";
 import profileController from "../controllers/profile.controller";
 import { authenticate } from "../middleware/auth.middleware";
-import { authorize } from "../middleware/role.middleware";
+import { requireJobseeker } from "../middleware/auth.middleware";
 
 const router = Router();
+
+// ✅ Configure multer for image uploads
+const uploadDir = path.join(__dirname, '../../uploads/profiles');
+
+// Ensure upload directory exists
+if (!fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir, { recursive: true });
+  console.log('📁 Created uploads/profiles directory');
+}
+
+// Configure multer storage
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, uploadDir);
+  },
+  filename: (req, file, cb) => {
+    // Generate unique filename: userId-timestamp-randomstring.ext
+    const userId = (req as any).user?.id || 'unknown';
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    const ext = path.extname(file.originalname);
+    cb(null, `${userId}-${uniqueSuffix}${ext}`);
+  }
+});
+
+// File filter to accept only images
+const fileFilter = (req: any, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
+  const allowedTypes = /jpeg|jpg|png|gif|webp/;
+  const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
+  const mimetype = allowedTypes.test(file.mimetype);
+
+  if (mimetype && extname) {
+    cb(null, true);
+  } else {
+    cb(new Error('Only image files are allowed (JPEG, PNG, GIF, WEBP)'));
+  }
+};
+
+// Multer upload instance
+const upload = multer({
+  storage: storage,
+  limits: {
+    fileSize: 5 * 1024 * 1024, // 5MB limit
+  },
+  fileFilter: fileFilter
+});
 
 /**
  * @route   GET /api/profile
@@ -14,7 +62,7 @@ const router = Router();
 router.get(
   "/",
   authenticate,
-  authorize("jobseeker"),
+  requireJobseeker,
   profileController.getMyProfile.bind(profileController)
 );
 
@@ -26,8 +74,22 @@ router.get(
 router.patch(
   "/",
   authenticate,
-  authorize("jobseeker"),
+  requireJobseeker,
   profileController.updateMyProfile.bind(profileController)
+);
+
+/**
+ * ✅ NEW: Upload profile image
+ * @route   POST /api/profile/upload-image
+ * @desc    Upload profile image
+ * @access  Private (Jobseeker)
+ */
+router.post(
+  "/upload-image",
+  authenticate,
+  requireJobseeker,
+  upload.single('image'), // Multer middleware - expects 'image' field
+  profileController.uploadProfileImage.bind(profileController)
 );
 
 /**
@@ -38,7 +100,7 @@ router.patch(
 router.get(
   "/cv/:cvId",
   authenticate,
-  authorize("jobseeker"),
+  requireJobseeker,
   profileController.getProfileByCVId.bind(profileController)
 );
 
@@ -50,19 +112,19 @@ router.get(
 router.get(
   "/completion",
   authenticate,
-  authorize("jobseeker"),
+  requireJobseeker,
   profileController.getProfileCompletion.bind(profileController)
 );
 
 /**
  * @route   PUT /api/profile/picture
- * @desc    Update profile picture
+ * @desc    Update profile picture (legacy - use /upload-image instead)
  * @access  Private (Jobseeker)
  */
 router.put(
   "/picture",
   authenticate,
-  authorize("jobseeker"),
+  requireJobseeker,
   profileController.updateProfilePicture.bind(profileController)
 );
 
@@ -74,7 +136,7 @@ router.put(
 router.post(
   "/share",
   authenticate,
-  authorize("jobseeker"),
+  requireJobseeker,
   profileController.shareProfile.bind(profileController)
 );
 

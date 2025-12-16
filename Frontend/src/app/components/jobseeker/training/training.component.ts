@@ -1220,4 +1220,12 @@ previewCertificate(enrollmentId: string): void {
   getVideoEmbedUrl(videoUrl: string): string {
     return this.trainingService.getVideoEmbedUrl(videoUrl);
   }
+  getVideosRemaining(training: any): number {
+  if (!training || !training.videos) return 0;
+  
+  const totalVideos = training.videos.length;
+  const completedVideos = training.videos.filter((v: any) => v.completed).length;
+  
+  return totalVideos - completedVideos;
+}
 }

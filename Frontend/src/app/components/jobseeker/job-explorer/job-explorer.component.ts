@@ -57,7 +57,7 @@ export class JobExplorerComponent implements OnInit, OnDestroy {
   isApplying: string | null = null;
   isSaving: string | null = null;
   
-  // Profile completion tracking
+  // Profile completion tracking - NOW BASED ON FORM FIELDS ONLY
   profileCompletion: number = 0;
   isProfileComplete: boolean = false;
   isCheckingProfile: boolean = false;
@@ -88,7 +88,7 @@ export class JobExplorerComponent implements OnInit, OnDestroy {
   ngOnInit(): void {
     console.log('🚀 JobExplorerComponent initialized');
     
-    // Check profile completion first
+    // Check profile completion first - NOW USES FORM-BASED CALCULATION
     this.checkProfileCompletion();
     
     // Load saved/applied jobs FIRST, then load jobs list
@@ -112,13 +112,14 @@ export class JobExplorerComponent implements OnInit, OnDestroy {
   }
 
   /**
-   * Check if jobseeker's profile is complete
+   * ✅ FIXED: Check profile completion based on FORM FIELDS ONLY
    * Profile must be 100% complete to apply for jobs
+   * No longer depends on CV upload
    */
   checkProfileCompletion(): void {
     this.isCheckingProfile = true;
     
-    this.profileService.getMyPortfolio()
+    this.profileService.getMyProfile()
       .pipe(
         takeUntil(this.destroy$),
         finalize(() => {
@@ -133,22 +134,22 @@ export class JobExplorerComponent implements OnInit, OnDestroy {
           // If error, assume profile is incomplete for safety
           this.profileCompletion = 0;
           this.isProfileComplete = false;
-          
-          if (error.status === 404) {
-            console.log('ℹ️ No CV found - profile is incomplete');
-          }
-          
           return of(null);
         })
       )
       .subscribe({
         next: (response) => {
           if (response && response.success && response.data) {
-            // Calculate profile completion percentage
+            // Calculate profile completion from form fields
             this.profileCompletion = this.calculateProfileCompletion(response.data);
             this.isProfileComplete = this.profileCompletion === 100;
+            
+            console.log('📊 Profile completion (form-based):', {
+              completion: this.profileCompletion,
+              isComplete: this.isProfileComplete
+            });
           } else {
-            // No portfolio found
+            // No profile found
             this.profileCompletion = 0;
             this.isProfileComplete = false;
           }
@@ -157,67 +158,110 @@ export class JobExplorerComponent implements OnInit, OnDestroy {
   }
 
   /**
-   * Calculate profile completion percentage based on portfolio data
+   * ✅ NEW: Calculate profile completion based on FORM FIELDS ONLY
+   * No dependency on CV upload or portfolio data
    */
-  private calculateProfileCompletion(portfolioData: any): number {
+  private calculateProfileCompletion(profileData: any): number {
     let totalFields = 0;
     let completedFields = 0;
+
+    // 1. Basic Contact Information (3 required fields)
+    totalFields += 3;
+    if (profileData.phone && profileData.phone.trim().length > 0) {
+      completedFields++;
+    }
+    if (profileData.location && profileData.location.trim().length > 0) {
+      completedFields++;
+    }
+    // Profile image is optional in job explorer calculation (or you can require it)
+    // For now, we'll count it as completed if it exists
+    if (profileData.profile_image || profileData.profileImage) {
+      completedFields++;
+    } else {
+      // Give them credit if they have any image set
+      completedFields++; // Make it lenient for now
+    }
+
+    // 2. Professional Summary (1 required field)
+    totalFields += 1;
+    if (profileData.bio && profileData.bio.trim().length >= 50) {
+      completedFields++;
+    }
+
+    // 3. Skills (1 required field - at least 3 skills)
+    totalFields += 1;
+    const skills = this.parseJsonArrayField(profileData.skills);
+    if (skills && skills.length >= 3) {
+      completedFields++;
+    }
+
+    // 4. Social Links (1 required field - at least one link)
+    totalFields += 1;
+    const hasLinkedIn = profileData.linkedin_url && profileData.linkedin_url.trim().length > 0;
+    const hasGithub = profileData.github_url && profileData.github_url.trim().length > 0;
+    const hasWebsite = profileData.website_url && profileData.website_url.trim().length > 0;
     
-    const cvData = portfolioData.cvData;
-    const personalInfo = cvData?.personal_info || cvData?.personalInfo;
-
-    // Basic Information (5 fields)
-    if (personalInfo) {
-      totalFields += 5;
-      if (personalInfo.full_name || personalInfo.fullName) completedFields++;
-      if (personalInfo.email) completedFields++;
-      if (personalInfo.phone) completedFields++;
-      if (personalInfo.profile_image || personalInfo.profileImage) completedFields++;
-      if (personalInfo.address) completedFields++;
+    if (hasLinkedIn || hasGithub || hasWebsite) {
+      completedFields++;
     }
 
-    // Professional Summary (1 field)
-    totalFields++;
-    if (personalInfo?.professional_summary || personalInfo?.professionalSummary) {
-      const summary = personalInfo.professional_summary || personalInfo.professionalSummary;
-      if (summary.trim().length > 0) completedFields++;
+    // 5. Career Preferences (3 required fields)
+    totalFields += 3;
+    if (profileData.years_of_experience > 0) {
+      completedFields++;
+    }
+    if (profileData.current_position && profileData.current_position.trim().length > 0) {
+      completedFields++;
+    }
+    const jobTypes = this.parseJsonArrayField(profileData.preferred_job_types);
+    if (jobTypes && jobTypes.length > 0) {
+      completedFields++;
     }
 
-    // Skills (1 field)
-    totalFields++;
-    if (cvData?.skills && cvData.skills.length > 0) completedFields++;
-
-    // Work Experience (1 field)
-    totalFields++;
-    if (cvData?.work_experience && cvData.work_experience.length > 0) completedFields++;
-
-    // Education (1 field)
-    totalFields++;
-    if (cvData?.education && cvData.education.length > 0) completedFields++;
-
-    // Certifications (1 field)
-    totalFields++;
-    if (cvData?.certifications && cvData.certifications.length > 0) completedFields++;
-
-    // Projects (1 field)
-    totalFields++;
-    if (cvData?.projects && cvData.projects.length > 0) completedFields++;
-
-    // Social Links (1 field)
-    totalFields++;
-    if (personalInfo?.linkedin_url || personalInfo?.github_url || personalInfo?.website_url) {
+    // 6. Salary Expectations (1 field - bonus if filled)
+    totalFields += 1;
+    if (profileData.salary_expectation_min > 0 || profileData.salary_expectation_max > 0) {
       completedFields++;
     }
 
     const percentage = totalFields > 0 ? Math.round((completedFields / totalFields) * 100) : 0;
     
-    console.log('📊 Profile completion calculation:', {
+    console.log('📊 Profile completion calculation (Form-based):', {
       totalFields,
       completedFields,
-      percentage
+      percentage,
+      fields: {
+        phone: !!profileData.phone,
+        location: !!profileData.location,
+        bio: profileData.bio?.length >= 50,
+        skills: skills?.length >= 3,
+        socialLinks: hasLinkedIn || hasGithub || hasWebsite,
+        yearsOfExperience: profileData.years_of_experience > 0,
+        currentPosition: !!profileData.current_position,
+        jobTypes: jobTypes?.length > 0,
+        salary: profileData.salary_expectation_min > 0 || profileData.salary_expectation_max > 0
+      }
     });
     
     return percentage;
+  }
+
+  /**
+   * Helper to parse JSON array fields
+   */
+  private parseJsonArrayField(field: any): string[] {
+    if (!field) return [];
+    try {
+      if (typeof field === 'string') {
+        return JSON.parse(field);
+      }
+      if (Array.isArray(field)) {
+        return field;
+      }
+      return [];
+    } catch {
+      return [];
+    }
   }
 
   /**
@@ -424,80 +468,78 @@ export class JobExplorerComponent implements OnInit, OnDestroy {
    * Load saved and applied jobs from backend to sync state on page refresh
    */
   loadSavedAndAppliedJobs(): void {
-  console.log('🔄 Loading saved and applied jobs from backend...');
-  
-  const savedJobs$ = this.jobService.getSavedJobs({ page: 1, limit: 1000 }).pipe(
-    catchError(error => {
-      console.error('❌ Error loading saved jobs:', error);
-      return of({ success: false, data: null });
-    })
-  );
-  
-  // ✅ FIX: Explicitly exclude withdrawn applications
-  const appliedJobs$ = this.jobService.getAppliedJobs({ 
-    page: 1, 
-    limit: 1000,
-    // Don't include withdrawn in the applied jobs list - use supported 'status' filter
-    status: 'active'
-  }).pipe(
-    catchError(error => {
-      console.error('❌ Error loading applied jobs:', error);
-      return of({ success: false, data: null });
-    })
-  );
-  
-  forkJoin({
-    saved: savedJobs$,
-    applied: appliedJobs$
-  }).pipe(
-    takeUntil(this.destroy$),
-    finalize(() => {
-      console.log('✅ Saved/Applied jobs load completed');
-      this.loadJobs();
-    })
-  )
-  .subscribe({
-    next: (results) => {
-      console.log('📦 Raw responses:', { saved: results.saved, applied: results.applied });
-      
-      // Process saved jobs
-      if (results.saved && results.saved.success && results.saved.data) {
-        const savedData = results.saved.data.data || results.saved.data.jobs || results.saved.data;
+    console.log('🔄 Loading saved and applied jobs from backend...');
+    
+    const savedJobs$ = this.jobService.getSavedJobs({ page: 1, limit: 1000 }).pipe(
+      catchError(error => {
+        console.error('❌ Error loading saved jobs:', error);
+        return of({ success: false, data: null });
+      })
+    );
+    
+    // ✅ FIX: Explicitly exclude withdrawn applications
+    const appliedJobs$ = this.jobService.getAppliedJobs({ 
+      page: 1, 
+      limit: 1000,
+      status: 'active'
+    }).pipe(
+      catchError(error => {
+        console.error('❌ Error loading applied jobs:', error);
+        return of({ success: false, data: null });
+      })
+    );
+    
+    forkJoin({
+      saved: savedJobs$,
+      applied: appliedJobs$
+    }).pipe(
+      takeUntil(this.destroy$),
+      finalize(() => {
+        console.log('✅ Saved/Applied jobs load completed');
+        this.loadJobs();
+      })
+    )
+    .subscribe({
+      next: (results) => {
+        console.log('📦 Raw responses:', { saved: results.saved, applied: results.applied });
         
-        if (Array.isArray(savedData)) {
-          this.savedJobIds = savedData
-            .map((item: any) => item.job_id || item.id || item.job?.id)
-            .filter(id => id);
+        // Process saved jobs
+        if (results.saved && results.saved.success && results.saved.data) {
+          const savedData = results.saved.data.data || results.saved.data.jobs || results.saved.data;
           
-          console.log('✅ Loaded saved job IDs:', this.savedJobIds.length);
+          if (Array.isArray(savedData)) {
+            this.savedJobIds = savedData
+              .map((item: any) => item.job_id || item.id || item.job?.id)
+              .filter(id => id);
+            
+            console.log('✅ Loaded saved job IDs:', this.savedJobIds.length);
+          }
         }
-      }
-      
-      // Process applied jobs - ✅ These should NOT include withdrawn
-      if (results.applied && results.applied.success && results.applied.data) {
-        const appliedData = results.applied.data.data || results.applied.data.jobs || results.applied.data;
         
-        if (Array.isArray(appliedData)) {
-          // ✅ Filter out any withdrawn that might slip through
-          this.appliedJobIds = appliedData
-            .filter((item: any) => {
-              const status = item.status || item.application_status || item.job?.application_status;
-              return status !== 'withdrawn';
-            })
-            .map((item: any) => item.job_id || item.id || item.job?.id)
-            .filter(id => id);
+        // Process applied jobs
+        if (results.applied && results.applied.success && results.applied.data) {
+          const appliedData = results.applied.data.data || results.applied.data.jobs || results.applied.data;
           
-          console.log('✅ Loaded applied job IDs (excluding withdrawn):', this.appliedJobIds.length);
+          if (Array.isArray(appliedData)) {
+            this.appliedJobIds = appliedData
+              .filter((item: any) => {
+                const status = item.status || item.application_status || item.job?.application_status;
+                return status !== 'withdrawn';
+              })
+              .map((item: any) => item.job_id || item.id || item.job?.id)
+              .filter(id => id);
+            
+            console.log('✅ Loaded applied job IDs (excluding withdrawn):', this.appliedJobIds.length);
+          }
         }
+        
+        console.log('📋 Final state:', {
+          savedJobIds: this.savedJobIds,
+          appliedJobIds: this.appliedJobIds
+        });
       }
-      
-      console.log('📋 Final state:', {
-        savedJobIds: this.savedJobIds,
-        appliedJobIds: this.appliedJobIds
-      });
-    }
-  });
-}
+    });
+  }
 
   /**
    * Get sort field for API query
@@ -565,225 +607,239 @@ export class JobExplorerComponent implements OnInit, OnDestroy {
   }
 
   /**
-   * Apply to a job - WITH PROFILE COMPLETION CHECK
+   * Apply to a job - WITH PROFILE COMPLETION CHECK (FORM-BASED)
    */
   applyToJob(jobId: string): void {
-  console.log('=== APPLY/WITHDRAW BUTTON CLICKED ===');
-  console.log('Job ID:', jobId);
-  console.log('Is already applied?', this.isJobApplied(jobId));
-  console.log('Profile completion:', this.profileCompletion);
-  
-  // ✅ IF ALREADY APPLIED - OFFER TO WITHDRAW
-  if (this.isJobApplied(jobId)) {
-    console.log('🔄 Job already applied - triggering withdrawal flow');
-    this.withdrawApplication(jobId);
-    return;
-  }
-
-  // Prevent double-click
-  if (this.isApplying === jobId) {
-    console.log('⏳ Already processing application');
-    return;
-  }
-
-  // CHECK PROFILE COMPLETION BEFORE ALLOWING APPLICATION
-  if (!this.isProfileComplete) {
-    console.log('❌ Profile is incomplete - blocking application');
+    console.log('=== APPLY/WITHDRAW BUTTON CLICKED ===');
+    console.log('Job ID:', jobId);
+    console.log('Is already applied?', this.isJobApplied(jobId));
+    console.log('Profile completion:', this.profileCompletion);
     
-    const missingPercentage = 100 - this.profileCompletion;
-    this.addNotification(
-      `⚠️ Profile ${this.profileCompletion}% complete. Need ${missingPercentage}% more to apply!`,
-      'warning'
-    );
-
-    const confirmComplete = confirm(
-      `⚠️ Your profile is only ${this.profileCompletion}% complete.\n\n` +
-      `You need 100% completion to apply for jobs.\n\n` +
-      `Would you like to complete your profile now?\n\n` +
-      `✅ Add missing information:\n` +
-      `• Professional Summary\n` +
-      `• Work Experience\n` +
-      `• Skills & Certifications\n` +
-      `• Education Background\n` +
-      `• Projects & Portfolio\n` +
-      `• Social Links`
-    );
-
-    if (confirmComplete) {
-      console.log('Redirecting to CV Manager...');
-      this.router.navigate(['/jobseeker/cv-manager']);
+    // ✅ IF ALREADY APPLIED - OFFER TO WITHDRAW
+    if (this.isJobApplied(jobId)) {
+      console.log('🔄 Job already applied - triggering withdrawal flow');
+      this.withdrawApplication(jobId);
+      return;
     }
+
+    // Prevent double-click
+    if (this.isApplying === jobId) {
+      console.log('⏳ Already processing application');
+      return;
+    }
+
+    // ✅ CHECK PROFILE COMPLETION BEFORE ALLOWING APPLICATION (FORM-BASED)
+    if (!this.isProfileComplete) {
+      console.log('❌ Profile is incomplete - blocking application');
+      
+      const missingPercentage = 100 - this.profileCompletion;
+      this.addNotification(
+        `⚠️ Profile ${this.profileCompletion}% complete. Need ${missingPercentage}% more to apply!`,
+        'warning'
+      );
+
+      const confirmComplete = confirm(
+        `⚠️ Your profile is only ${this.profileCompletion}% complete.\n\n` +
+        `You need 100% completion to apply for jobs.\n\n` +
+        `Would you like to complete your profile now?\n\n` +
+        `✅ Complete these fields in your Profile:\n` +
+        `• Contact Information (Phone & Location)\n` +
+        `• Professional Summary (50+ characters)\n` +
+        `• Skills (at least 3 skills)\n` +
+        `• Social Links (LinkedIn/GitHub/Website)\n` +
+        `• Career Preferences (Experience, Position, Job Types)\n` +
+        `• Salary Expectations (Optional but recommended)`
+      );
+
+      if (confirmComplete) {
+        console.log('Redirecting to Profile page...');
+        this.router.navigate(['/jobseeker/profile']);
+      }
+      
+      return;
+    }
+
+    // Profile is complete - proceed with application
+    console.log('✅ Profile is complete - proceeding with application');
+    this.isApplying = jobId;
     
-    return;
-  }
+    const applicationData = {
+      coverLetter: '',
+      resumeId: undefined,
+      portfolioUrl: undefined,
+      expectedSalary: undefined,
+      availabilityDate: undefined
+    };
 
-  // Profile is complete - proceed with application
-  console.log('✅ Profile is complete - proceeding with application');
-  this.isApplying = jobId;
-  
-  const applicationData = {
-    coverLetter: '',
-    resumeId: undefined,
-    portfolioUrl: undefined,
-    expectedSalary: undefined,
-    availabilityDate: undefined
-  };
-
-  this.jobService.applyToJob(jobId, applicationData)
-    .pipe(
-      takeUntil(this.destroy$),
-      finalize(() => {
-        console.log('🏁 Apply API call completed');
-        this.isApplying = null;
-      }),
-      catchError((error) => {
-        console.error('❌ Error applying to job:', error);
-        
-        let errorMsg = 'Failed to submit application. Please try again.';
-        
-        if (error.status === 401) {
-          errorMsg = '🔐 Please log in to apply to jobs';
-        } else if (error.status === 409) {
-          errorMsg = 'You have already applied to this job';
+    this.jobService.applyToJob(jobId, applicationData)
+      .pipe(
+        takeUntil(this.destroy$),
+        finalize(() => {
+          console.log('🏁 Apply API call completed');
+          this.isApplying = null;
+        }),
+        catchError((error) => {
+          console.error('❌ Error applying to job:', error);
+          
+          let errorMsg = 'Failed to submit application. Please try again.';
+          
+          if (error.status === 401) {
+            errorMsg = '🔐 Please log in to apply to jobs';
+          } else if (error.status === 409) {
+            errorMsg = 'You have already applied to this job';
+            if (!this.appliedJobIds.includes(jobId)) {
+              this.appliedJobIds.push(jobId);
+            }
+          } else if (error.status === 404) {
+            errorMsg = 'Job not found or no longer available';
+          } else if (error.status === 400) {
+            errorMsg = error.error?.message || 'Invalid application data';
+          } else if (error.error?.message) {
+            errorMsg = error.error.message;
+          }
+          
+          this.addNotification(errorMsg, 'error');
+          
+          return of({ success: false, message: errorMsg });
+        })
+      )
+      .subscribe({
+        next: (response: ApiResponse | any) => {
+          if (!response || !(response as ApiResponse).success) return;
+          
+          console.log('✅ Apply job response:', response);
+          
           if (!this.appliedJobIds.includes(jobId)) {
             this.appliedJobIds.push(jobId);
+            console.log('✅ Added to appliedJobIds:', jobId);
           }
-        } else if (error.status === 404) {
-          errorMsg = 'Job not found or no longer available';
-        } else if (error.status === 400) {
-          errorMsg = error.error?.message || 'Invalid application data';
-        } else if (error.error?.message) {
-          errorMsg = error.error.message;
+          
+          this.appliedJobsCount++;
+          
+          const job = this.jobs.find(j => this.getJobId(j) === jobId);
+          const jobTitle = job?.title || 'this position';
+          
+          this.addNotification(
+            `🎉 Application submitted successfully for ${jobTitle}!`, 
+            'success'
+          );
+          
+          console.log('📊 Updated state:', {
+            appliedJobIds: this.appliedJobIds,
+            appliedJobsCount: this.appliedJobsCount
+          });
+          
+          setTimeout(() => {
+            this.loadJobs(this.currentPage);
+            this.loadJobseekerStats();
+          }, 500);
         }
-        
-        this.addNotification(errorMsg, 'error');
-        
-        return of({ success: false, message: errorMsg });
-      })
-    )
-    .subscribe({
-      next: (response: ApiResponse | any) => {
-        if (!response || !(response as ApiResponse).success) return;
-        
-        console.log('✅ Apply job response:', response);
-        
-        if (!this.appliedJobIds.includes(jobId)) {
-          this.appliedJobIds.push(jobId);
-          console.log('✅ Added to appliedJobIds:', jobId);
-        }
-        
-        this.appliedJobsCount++;
-        
-        const job = this.jobs.find(j => this.getJobId(j) === jobId);
-        const jobTitle = job?.title || 'this position';
-        
-        this.addNotification(
-          `🎉 Application submitted successfully for ${jobTitle}!`, 
-          'success'
-        );
-        
-        console.log('📊 Updated state:', {
-          appliedJobIds: this.appliedJobIds,
-          appliedJobsCount: this.appliedJobsCount
-        });
-        
-        setTimeout(() => {
-          this.loadJobs(this.currentPage);
-          this.loadJobseekerStats();
-        }, 500);
-      }
-    });
-}
-
+      });
+  }
 
   /**
    * Withdraw/Unapply from a job
    */
-// src/app/components/job-explorer/job-explorer.component.ts - FIXED withdrawApplication method
-
-withdrawApplication(jobId: string): void {
-  console.log('=== WITHDRAW APPLICATION ===');
-  console.log('Job ID:', jobId);
-  
-  // Prevent double-click
-  if (this.isApplying === jobId) {
-    console.log('⏳ Already processing application action');
-    return;
-  }
-
-  // Get job details for confirmation
-  const job = this.jobs.find(j => this.getJobId(j) === jobId);
-  const jobTitle = job?.title || 'this position';
-  
-  // Check if already withdrawn
-  if (job && (job as any).application_status === 'withdrawn') {
-    console.log('ℹ️ Application already withdrawn');
-    this.addNotification(
-      `This application was already withdrawn from "${jobTitle}"`, 
-      'info'
-    );
+  withdrawApplication(jobId: string): void {
+    console.log('=== WITHDRAW APPLICATION ===');
+    console.log('Job ID:', jobId);
     
-    // Clean up local state
-    this.appliedJobIds = this.appliedJobIds.filter(id => id !== jobId);
-    this.appliedJobsCount = Math.max(0, this.appliedJobsCount - 1);
+    // Prevent double-click
+    if (this.isApplying === jobId) {
+      console.log('⏳ Already processing application action');
+      return;
+    }
+
+    // Get job details for confirmation
+    const job = this.jobs.find(j => this.getJobId(j) === jobId);
+    const jobTitle = job?.title || 'this position';
     
-    // ✅ FIX: If on Applied tab, remove job from view immediately
-    if (this.activeTab === 'applied') {
-      this.jobs = this.jobs.filter(j => this.getJobId(j) !== jobId);
-      this.filteredJobs = [...this.jobs];
+    // Check if already withdrawn
+    if (job && (job as any).application_status === 'withdrawn') {
+      console.log('ℹ️ Application already withdrawn');
+      this.addNotification(
+        `This application was already withdrawn from "${jobTitle}"`, 
+        'info'
+      );
+      
+      // Clean up local state
+      this.appliedJobIds = this.appliedJobIds.filter(id => id !== jobId);
+      this.appliedJobsCount = Math.max(0, this.appliedJobsCount - 1);
+      
+      // ✅ FIX: If on Applied tab, remove job from view immediately
+      if (this.activeTab === 'applied') {
+        this.jobs = this.jobs.filter(j => this.getJobId(j) !== jobId);
+        this.filteredJobs = [...this.jobs];
+      }
+      
+      // Refresh the view
+      setTimeout(() => {
+        this.loadJobs(this.currentPage);
+        this.loadJobseekerStats();
+      }, 1000);
+      
+      return;
     }
     
-    // Refresh the view
-    setTimeout(() => {
-      this.loadJobs(this.currentPage);
-      this.loadJobseekerStats();
-    }, 1000);
+    // Confirm withdrawal with user
+    const confirmWithdraw = confirm(
+      `⚠️ Withdraw Application?\n\n` +
+      `Are you sure you want to withdraw your application for "${jobTitle}"?\n\n` +
+      `✓ You can reapply anytime later\n` +
+      `✓ The job will return to your recommended list\n` +
+      `✓ The employer will be notified of your withdrawal\n\n` +
+      `Click OK to confirm withdrawal.`
+    );
     
-    return;
-  }
-  
-  // Confirm withdrawal with user
-  const confirmWithdraw = confirm(
-    `⚠️ Withdraw Application?\n\n` +
-    `Are you sure you want to withdraw your application for "${jobTitle}"?\n\n` +
-    `✓ You can reapply anytime later\n` +
-    `✓ The job will return to your recommended list\n` +
-    `✓ The employer will be notified of your withdrawal\n\n` +
-    `Click OK to confirm withdrawal.`
-  );
-  
-  if (!confirmWithdraw) {
-    console.log('❌ User cancelled withdrawal');
-    return;
-  }
+    if (!confirmWithdraw) {
+      console.log('❌ User cancelled withdrawal');
+      return;
+    }
 
-  this.isApplying = jobId;
-  console.log('🔄 Starting withdrawal process...');
-  
-  this.jobService.withdrawApplicationByJobId(jobId)
-    .pipe(
-      takeUntil(this.destroy$),
-      finalize(() => {
-        this.isApplying = null;
-        console.log('🏁 Withdrawal process completed');
-      }),
-      catchError((error) => {
-        console.error('❌ Error withdrawing application:', error);
-        
-        let errorMsg = 'Failed to withdraw application. Please try again.';
-        let shouldSync = false;
-        
-        if (error.status === 400) {
-          const backendMsg = error.error?.message || '';
+    this.isApplying = jobId;
+    console.log('🔄 Starting withdrawal process...');
+    
+    this.jobService.withdrawApplicationByJobId(jobId)
+      .pipe(
+        takeUntil(this.destroy$),
+        finalize(() => {
+          this.isApplying = null;
+          console.log('🏁 Withdrawal process completed');
+        }),
+        catchError((error) => {
+          console.error('❌ Error withdrawing application:', error);
           
-          // If already withdrawn, clean up and sync
-          if (backendMsg.includes('already withdrawn') || backendMsg.includes('not applied')) {
-            errorMsg = 'This application was already withdrawn';
-            shouldSync = true;
+          let errorMsg = 'Failed to withdraw application. Please try again.';
+          let shouldSync = false;
+          
+          if (error.status === 400) {
+            const backendMsg = error.error?.message || '';
             
-            // Clean up local state
+            // If already withdrawn, clean up and sync
+            if (backendMsg.includes('already withdrawn') || backendMsg.includes('not applied')) {
+              errorMsg = 'This application was already withdrawn';
+              shouldSync = true;
+              
+              // Clean up local state
+              this.appliedJobIds = this.appliedJobIds.filter(id => id !== jobId);
+              this.appliedJobsCount = Math.max(0, this.appliedJobsCount - 1);
+              
+              // ✅ FIX: Remove from Applied tab immediately
+              if (this.activeTab === 'applied') {
+                this.jobs = this.jobs.filter(j => this.getJobId(j) !== jobId);
+                this.filteredJobs = [...this.jobs];
+              }
+              
+            } else if (backendMsg.includes('accepted') || backendMsg.includes('rejected')) {
+              errorMsg = 'Cannot withdraw: Application has already been processed by employer';
+              
+            } else {
+              errorMsg = backendMsg || 'Cannot withdraw this application';
+            }
+          } else if (error.status === 404) {
+            errorMsg = 'Application not found';
+            shouldSync = true;
             this.appliedJobIds = this.appliedJobIds.filter(id => id !== jobId);
-            this.appliedJobsCount = Math.max(0, this.appliedJobsCount - 1);
             
             // ✅ FIX: Remove from Applied tab immediately
             if (this.activeTab === 'applied') {
@@ -791,109 +847,91 @@ withdrawApplication(jobId: string): void {
               this.filteredJobs = [...this.jobs];
             }
             
-          } else if (backendMsg.includes('accepted') || backendMsg.includes('rejected')) {
-            errorMsg = 'Cannot withdraw: Application has already been processed by employer';
+          } else if (error.status === 401) {
+            errorMsg = 'Please log in to withdraw applications';
+            this.authService.logout();
             
-          } else {
-            errorMsg = backendMsg || 'Cannot withdraw this application';
+          } else if (error.error?.message) {
+            errorMsg = error.error.message;
           }
-        } else if (error.status === 404) {
-          errorMsg = 'Application not found';
-          shouldSync = true;
-          this.appliedJobIds = this.appliedJobIds.filter(id => id !== jobId);
           
-          // ✅ FIX: Remove from Applied tab immediately
+          this.addNotification(`ℹ️ ${errorMsg}`, shouldSync ? 'info' : 'error');
+          
+          // Sync state if needed
+          if (shouldSync) {
+            setTimeout(() => {
+              this.loadJobs(this.currentPage);
+              this.loadJobseekerStats();
+            }, 1000);
+          }
+          
+          return throwError(() => error);
+        })
+      )
+      .subscribe({
+        next: (response: ApiResponse | any) => {
+          if (!response || !(response as ApiResponse).success) {
+            console.log('❌ Withdrawal failed');
+            return;
+          }
+          
+          console.log('✅ Withdrawal successful:', response);
+          
+          // ✅ FIX 1: Update local state - remove from applied jobs
+          this.appliedJobIds = this.appliedJobIds.filter(id => id !== jobId);
+          this.appliedJobsCount = Math.max(0, this.appliedJobsCount - 1);
+          
+          // ✅ FIX 2: If on Applied tab, remove the job from current view immediately
           if (this.activeTab === 'applied') {
             this.jobs = this.jobs.filter(j => this.getJobId(j) !== jobId);
             this.filteredJobs = [...this.jobs];
+            console.log('✅ Removed job from Applied tab view');
           }
           
-        } else if (error.status === 401) {
-          errorMsg = 'Please log in to withdraw applications';
-          this.authService.logout();
+          // ✅ FIX 3: Update the job in the local cache (for other tabs)
+          const jobIndex = this.jobs.findIndex(j => this.getJobId(j) === jobId);
+          if (jobIndex !== -1 && this.activeTab !== 'applied') {
+            this.jobs[jobIndex] = {
+              ...this.jobs[jobIndex],
+              has_applied: false,
+              application_status: 'withdrawn'
+            };
+            this.filteredJobs = [...this.jobs];
+          }
           
-        } else if (error.error?.message) {
-          errorMsg = error.error.message;
-        }
-        
-        this.addNotification(`ℹ️ ${errorMsg}`, shouldSync ? 'info' : 'error');
-        
-        // Sync state if needed
-        if (shouldSync) {
+          // Show success message
+          const wasAlreadyWithdrawn = response.message?.includes('already withdrawn');
+          const successMsg = wasAlreadyWithdrawn
+            ? `Application for "${jobTitle}" was already withdrawn`
+            : `✅ Successfully withdrawn from "${jobTitle}"`;
+          
+          this.addNotification(successMsg, 'success');
+          
+          // Add info about where to find the job
+          if (!wasAlreadyWithdrawn) {
+            setTimeout(() => {
+              this.addNotification(
+                `💡 You can now find "${jobTitle}" in your Recommended jobs`, 
+                'info'
+              );
+            }, 1500);
+          }
+          
+          console.log('📊 Updated state:', {
+            appliedJobIds: this.appliedJobIds,
+            appliedJobsCount: this.appliedJobsCount,
+            currentTab: this.activeTab,
+            jobsInView: this.jobs.length
+          });
+          
+          // ✅ FIX 4: Reload the current tab to sync with backend
           setTimeout(() => {
             this.loadJobs(this.currentPage);
             this.loadJobseekerStats();
-          }, 1000);
+          }, 500);
         }
-        
-        return throwError(() => error);
-      })
-    )
-    .subscribe({
-      next: (response: ApiResponse | any) => {
-        if (!response || !(response as ApiResponse).success) {
-          console.log('❌ Withdrawal failed');
-          return;
-        }
-        
-        console.log('✅ Withdrawal successful:', response);
-        
-        // ✅ FIX 1: Update local state - remove from applied jobs
-        this.appliedJobIds = this.appliedJobIds.filter(id => id !== jobId);
-        this.appliedJobsCount = Math.max(0, this.appliedJobsCount - 1);
-        
-        // ✅ FIX 2: If on Applied tab, remove the job from current view immediately
-        if (this.activeTab === 'applied') {
-          this.jobs = this.jobs.filter(j => this.getJobId(j) !== jobId);
-          this.filteredJobs = [...this.jobs];
-          console.log('✅ Removed job from Applied tab view');
-        }
-        
-        // ✅ FIX 3: Update the job in the local cache (for other tabs)
-        const jobIndex = this.jobs.findIndex(j => this.getJobId(j) === jobId);
-        if (jobIndex !== -1 && this.activeTab !== 'applied') {
-          this.jobs[jobIndex] = {
-            ...this.jobs[jobIndex],
-            has_applied: false,
-            application_status: 'withdrawn'
-          };
-          this.filteredJobs = [...this.jobs];
-        }
-        
-        // Show success message
-        const wasAlreadyWithdrawn = response.message?.includes('already withdrawn');
-        const successMsg = wasAlreadyWithdrawn
-          ? `Application for "${jobTitle}" was already withdrawn`
-          : `✅ Successfully withdrawn from "${jobTitle}"`;
-        
-        this.addNotification(successMsg, 'success');
-        
-        // Add info about where to find the job
-        if (!wasAlreadyWithdrawn) {
-          setTimeout(() => {
-            this.addNotification(
-              `💡 You can now find "${jobTitle}" in your Recommended jobs`, 
-              'info'
-            );
-          }, 1500);
-        }
-        
-        console.log('📊 Updated state:', {
-          appliedJobIds: this.appliedJobIds,
-          appliedJobsCount: this.appliedJobsCount,
-          currentTab: this.activeTab,
-          jobsInView: this.jobs.length
-        });
-        
-        // ✅ FIX 4: Reload the current tab to sync with backend
-        // This ensures the Recommended tab will now show the withdrawn job
-        setTimeout(() => {
-          this.loadJobs(this.currentPage);
-          this.loadJobseekerStats();
-        }, 500);
-      }
-    });
-}
+      });
+  }
 
   /**
    * Save/Bookmark a job with toggle functionality
@@ -1030,24 +1068,24 @@ withdrawApplication(jobId: string): void {
    * Check if job is applied
    */
   isJobApplied(jobId: string): boolean {
-  // First check the appliedJobIds array
-  if (!this.appliedJobIds.includes(jobId)) {
-    return false;
-  }
-  
-  // ✅ Double-check: If job is in the jobs array, verify its status
-  const job = this.jobs.find(j => this.getJobId(j) === jobId);
-  if (job) {
-    const status = (job as any).application_status;
-    // If withdrawn, remove from appliedJobIds and return false
-    if (status === 'withdrawn') {
-      this.appliedJobIds = this.appliedJobIds.filter(id => id !== jobId);
+    // First check the appliedJobIds array
+    if (!this.appliedJobIds.includes(jobId)) {
       return false;
     }
+    
+    // ✅ Double-check: If job is in the jobs array, verify its status
+    const job = this.jobs.find(j => this.getJobId(j) === jobId);
+    if (job) {
+      const status = (job as any).application_status;
+      // If withdrawn, remove from appliedJobIds and return false
+      if (status === 'withdrawn') {
+        this.appliedJobIds = this.appliedJobIds.filter(id => id !== jobId);
+        return false;
+      }
+    }
+    
+    return true;
   }
-  
-  return true;
-}
 
   /**
    * Check if job is saved
@@ -1176,92 +1214,94 @@ withdrawApplication(jobId: string): void {
   }
 
   getApplyButtonTitle(job: Job): string {
-  const jobId = this.getJobId(job);
-  
-  if (this.isApplying === jobId) {
-    return 'Processing your request...';
+    const jobId = this.getJobId(job);
+    
+    if (this.isApplying === jobId) {
+      return 'Processing your request...';
+    }
+    
+    if (this.isJobApplied(jobId)) {
+      return 'Click to withdraw your application for this job. You can reapply later if you change your mind.';
+    }
+    
+    if (!this.isProfileComplete) {
+      return `Complete your profile to apply (Currently ${this.profileCompletion}% complete, need 100%)`;
+    }
+    
+    return 'Click to apply for this job with your current profile';
   }
-  
-  if (this.isJobApplied(jobId)) {
-    return 'Click to withdraw your application for this job. You can reapply later if you change your mind.';
-  }
-  
-  if (!this.isProfileComplete) {
-    return `Complete your profile to apply (Currently ${this.profileCompletion}% complete, need 100%)`;
-  }
-  
-  return 'Click to apply for this job with your current profile';
-}
 
-getApplyButtonClass(job: Job): string {
-  const jobId = this.getJobId(job);
-  const classes: string[] = ['apply-btn'];
-  
-  if (this.isJobApplied(jobId)) {
-    classes.push('applied');
+  getApplyButtonClass(job: Job): string {
+    const jobId = this.getJobId(job);
+    const classes: string[] = ['apply-btn'];
+    
+    if (this.isJobApplied(jobId)) {
+      classes.push('applied');
+    }
+    
+    if (!this.isProfileComplete && !this.isJobApplied(jobId)) {
+      classes.push('disabled-incomplete');
+    }
+    
+    if (this.isApplying === jobId) {
+      classes.push('loading');
+    }
+    
+    return classes.join(' ');
   }
-  
-  if (!this.isProfileComplete && !this.isJobApplied(jobId)) {
-    classes.push('disabled-incomplete');
-  }
-  
-  if (this.isApplying === jobId) {
-    classes.push('loading');
-  }
-  
-  return classes.join(' ');
-}
-isApplyButtonDisabled(job: Job): boolean {
-  const jobId = this.getJobId(job);
-  
-  // Disabled if currently processing
-  if (this.isApplying === jobId) {
-    return true;
-  }
-  
-  // Disabled if profile incomplete AND not already applied
-  if (!this.isProfileComplete && !this.isJobApplied(jobId)) {
-    return true;
-  }
-  
-  // Otherwise, enabled (can apply or withdraw)
-  return false;
-}
-getApplyButtonText(job: Job): string {
-  const jobId = this.getJobId(job);
-  
-  if (this.isApplying === jobId) {
-    return 'Processing...';
-  }
-  
-  if (this.isJobApplied(jobId)) {
-    return 'Withdraw Application';
-  }
-  
-  if (!this.isProfileComplete) {
-    return 'Complete Profile First';
-  }
-  
-  return 'Apply Now';
-}
 
-getApplyButtonIcon(job: Job): string {
-  const jobId = this.getJobId(job);
-  
-  if (this.isApplying === jobId) {
-    return 'fa-spinner fa-spin';
+  isApplyButtonDisabled(job: Job): boolean {
+    const jobId = this.getJobId(job);
+    
+    // Disabled if currently processing
+    if (this.isApplying === jobId) {
+      return true;
+    }
+    
+    // Disabled if profile incomplete AND not already applied
+    if (!this.isProfileComplete && !this.isJobApplied(jobId)) {
+      return true;
+    }
+    
+    // Otherwise, enabled (can apply or withdraw)
+    return false;
   }
-  
-  if (this.isJobApplied(jobId)) {
-    return 'fa-times-circle';
+
+  getApplyButtonText(job: Job): string {
+    const jobId = this.getJobId(job);
+    
+    if (this.isApplying === jobId) {
+      return 'Processing...';
+    }
+    
+    if (this.isJobApplied(jobId)) {
+      return 'Withdraw Application';
+    }
+    
+    if (!this.isProfileComplete) {
+      return 'Complete Profile First';
+    }
+    
+    return 'Apply Now';
   }
-  
-  if (!this.isProfileComplete) {
-    return 'fa-lock';
+
+  getApplyButtonIcon(job: Job): string {
+    const jobId = this.getJobId(job);
+    
+    if (this.isApplying === jobId) {
+      return 'fa-spinner fa-spin';
+    }
+    
+    if (this.isJobApplied(jobId)) {
+      return 'fa-times-circle';
+    }
+    
+    if (!this.isProfileComplete) {
+      return 'fa-lock';
+    }
+    
+    return 'fa-paper-plane';
   }
-  
-  return 'fa-paper-plane';
-}
 
   getRating(job: Job): number {
     const jobId = this.getJobId(job);
@@ -1508,4 +1548,3 @@ getApplyButtonIcon(job: Job): string {
     }
   }
 }
-

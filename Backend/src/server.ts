@@ -179,7 +179,7 @@ app.use((req: Request, res: Response, next: NextFunction) => {
 app.use('/uploads/cvs', express.static(path.join(__dirname, '../uploads/cvs')));
 app.use('/uploads/profile-images', express.static(path.join(__dirname, '../uploads/profile-images')));
 app.use('/uploads/certificates', express.static(path.join(__dirname, '../uploads/certificates')));
-
+app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 // Debug route registration
 console.log('Registering routes:');
 console.log('- Auth routes: /api/auth/*');
