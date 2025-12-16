@@ -200,6 +200,7 @@ app.use('/api/portfolio', portfolioRoutes);
 app.use('/api/profile', profileRoutes);
 app.use('/api/gemini', geminiRoutes);
 app.use('/api/employer', candidatesRoutes);
+app.use('/api/profile', profileRoutes);
 
 // Root route
 app.get('/', (req: Request, res: Response) => {

@@ -1,4 +1,4 @@
-// src/routes/cv-builder.routes.ts - COMPLETE FIXED VERSION
+// src/routes/cv-builder.routes.ts - FIXED VERSION
 import { Router } from 'express';
 import { cvBuilderController } from '../controllers/cv-builder.controller';
 import { authenticateToken, requireJobseeker } from '../middleware/auth.middleware';
@@ -15,6 +15,7 @@ const profileImageDir = path.join(__dirname, '../../uploads/profile-images');
 [cvUploadDir, profileImageDir].forEach(dir => {
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true });
+    console.log(`📁 Created directory: ${dir}`);
   }
 });
 
@@ -43,6 +44,7 @@ const profileImageStorage = multer.diskStorage({
   }
 });
 
+// File filters
 const cvFileFilter = (req: any, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
   const allowedTypes = [
     'application/pdf',
@@ -68,12 +70,12 @@ const imageFileFilter = (req: any, file: Express.Multer.File, cb: multer.FileFil
   }
 };
 
-// FIXED: Accept both 'cv' and 'cvFile' field names
+// Multer upload instances
 const uploadCV = multer({
   storage: cvStorage,
   fileFilter: cvFileFilter,
   limits: {
-    fileSize: 10 * 1024 * 1024 // 10MB max file size
+    fileSize: 10 * 1024 * 1024 // 10MB max
   }
 });
 
@@ -81,116 +83,176 @@ const uploadProfileImage = multer({
   storage: profileImageStorage,
   fileFilter: imageFileFilter,
   limits: {
-    fileSize: 5 * 1024 * 1024 // 5MB max file size for images
+    fileSize: 5 * 1024 * 1024 // 5MB max
   }
 });
 
-// All CV routes require authentication and jobseeker role
+// All routes require authentication
 router.use(authenticateToken);
 router.use(requireJobseeker);
 
 /**
  * @route POST /api/cv/create
  * @desc Create a new CV
- * @access Private (Jobseeker only)
+ * @access Private (Jobseeker)
  */
 router.post('/create', cvBuilderController.createCV);
 
 /**
  * @route GET /api/cv/my-cvs
  * @desc Get all CVs for current user
- * @access Private (Jobseeker only)
+ * @access Private (Jobseeker)
  */
 router.get('/my-cvs', cvBuilderController.getMyCVs);
 
 /**
  * @route GET /api/cv/:id
  * @desc Get specific CV by ID
- * @access Private (Jobseeker only)
+ * @access Private (Jobseeker)
  */
 router.get('/:id', cvBuilderController.getCVById);
 
 /**
  * @route PUT /api/cv/:id
  * @desc Update CV
- * @access Private (Jobseeker only)
+ * @access Private (Jobseeker)
  */
 router.put('/:id', cvBuilderController.updateCV);
 
 /**
  * @route DELETE /api/cv/:id
  * @desc Delete CV
- * @access Private (Jobseeker only)
+ * @access Private (Jobseeker)
  */
 router.delete('/:id', cvBuilderController.deleteCV);
 
 /**
  * @route POST /api/cv/upload
  * @desc Upload and parse CV file
- * @access Private (Jobseeker only)
- * FIXED: Now accepts both 'cv' and 'cvFile' field names
+ * @access Private (Jobseeker)
+ * FIXED: Single middleware call with proper error handling
  */
 router.post('/upload', (req, res, next) => {
-  // Try 'cv' field first (what frontend is sending)
+  console.log('📤 CV Upload request received');
+  
   const uploadHandler = uploadCV.single('cv');
   
   uploadHandler(req, res, (err) => {
     if (err) {
-      // If 'cv' fails with "Unexpected field", try 'cvFile'
-      if (err.message === 'Unexpected field') {
-        const uploadHandlerAlt = uploadCV.single('cvFile');
-        uploadHandlerAlt(req, res, (err2) => {
-          if (err2) {
-            return next(err2);
-          }
-          cvBuilderController.uploadCV(req as any, res, next);
-        });
-      } else {
-        return next(err);
+      console.error('❌ Multer error:', err);
+      
+      if (err instanceof multer.MulterError) {
+        // Multer-specific errors
+        if (err.code === 'LIMIT_FILE_SIZE') {
+          res.status(400).json({
+            success: false,
+            message: 'File size exceeds 10MB limit'
+          });
+          return;
+        }
+        if (err.code === 'LIMIT_UNEXPECTED_FILE') {
+          res.status(400).json({
+            success: false,
+            message: 'Unexpected field name. Expected "cv" field.'
+          });
+          return;
+        }
       }
-    } else {
-      cvBuilderController.uploadCV(req as any, res, next);
+      
+      // Other errors (like file type)
+      res.status(400).json({
+        success: false,
+        message: err.message || 'File upload failed'
+      });
+      return;
     }
+    
+    // Check if file was uploaded
+    if (!req.file) {
+      console.error('❌ No file in request');
+      res.status(400).json({
+        success: false,
+        message: 'No file uploaded. Please select a file.'
+      });
+      return;
+    }
+    
+    console.log('✅ File uploaded:', {
+      filename: req.file.filename,
+      originalname: req.file.originalname,
+      mimetype: req.file.mimetype,
+      size: req.file.size
+    });
+    
+    // Pass to controller
+    cvBuilderController.uploadCV(req as any, res, next);
   });
 });
 
 /**
  * @route POST /api/cv/upload-profile-image
  * @desc Upload profile image for CV
- * @access Private (Jobseeker only)
+ * @access Private (Jobseeker)
  */
-router.post('/upload-profile-image', uploadProfileImage.single('profileImage'), (req, res, next) => {
-  cvBuilderController.uploadProfileImage(req as any, res, next);
-});
+router.post(
+  '/upload-profile-image',
+  uploadProfileImage.single('profileImage'),
+  (req, res, next) => {
+    console.log('📸 Profile image upload request');
+    
+    if (!req.file) {
+      res.status(400).json({
+        success: false,
+        message: 'No image file uploaded'
+      });
+      return;
+    }
+    
+    console.log('✅ Image uploaded:', {
+      filename: req.file.filename,
+      originalname: req.file.originalname,
+      size: req.file.size
+    });
+    
+    cvBuilderController.uploadProfileImage(req as any, res, next);
+  }
+);
 
 /**
  * @route POST /api/cv/:id/draft
  * @desc Save CV as draft
- * @access Private (Jobseeker only)
+ * @access Private (Jobseeker)
  */
 router.post('/:id/draft', cvBuilderController.saveAsDraft);
 
 /**
  * @route POST /api/cv/:id/final
  * @desc Save CV as final
- * @access Private (Jobseeker only)
+ * @access Private (Jobseeker)
  */
 router.post('/:id/final', cvBuilderController.saveAsFinal);
 
 /**
  * @route GET /api/cv/:id/export/pdf
  * @desc Export CV to PDF
- * @access Private (Jobseeker only)
+ * @access Private (Jobseeker)
  */
 router.get('/:id/export/pdf', cvBuilderController.exportToPDF);
 
 /**
+ * @route GET /api/cv/:id/export/docx
+ * @desc Export CV to Word
+ * @access Private (Jobseeker)
+ */
+router.get('/:id/export/docx', cvBuilderController.exportToWord);
+
+/**
  * @route POST /api/cv/:id/set-active
  * @desc Set CV as active/primary
- * @access Private (Jobseeker only)
+ * @access Private (Jobseeker)
  */
 router.post('/:id/set-active', cvBuilderController.setActiveCV);
 
-console.log('CV Builder routes registered');
+console.log('✅ CV Builder routes registered');
 
 export default router;

@@ -291,7 +291,7 @@ for (let i = 0; i < cvData.projects.length; i++) {
       cvId,
       project.project_name || project.name,  // ← Add fallback
       project.description ?? null,
-      project.technologies ?? null,
+      project.technologies || '',
       project.start_date || project.start_date || null,
       project.end_date || project.end_date || null,
       project.github_link || project.github_link || null,

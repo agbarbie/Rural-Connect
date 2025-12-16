@@ -372,7 +372,7 @@ export class ProfileService {
    * Get current user's profile
    */
   getMyProfile(): Observable<ProfileResponse> {
-    return this.http.get<ProfileResponse>(`${this.profileUrl}`, {
+  return this.http.get<ProfileResponse>(`${this.profileUrl}`, {
       headers: this.getHeaders()
     });
   }
