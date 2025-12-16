@@ -1,7 +1,7 @@
 // src/services/candidates.service.ts
 import { Injectable } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
-import { Observable } from 'rxjs';
+import { map, Observable } from 'rxjs';
 import { environment } from '../src/environments/environment.prod';
 
 export interface Candidate {
@@ -129,9 +129,41 @@ export class CandidatesService {
    * Get candidate full profile
    */
   getCandidateProfile(userId: string, jobId?: string): Observable<ApiResponse<any>> {
-    let params = new HttpParams();
-    if (jobId) params = params.set('jobId', jobId);
-    return this.http.get<ApiResponse<any>>(`${this.apiUrl}/candidates/${userId}`, { params });
+    const params = jobId ? new HttpParams().set('jobId', jobId) : new HttpParams();
+
+    return this.http.get<ApiResponse<any>>(
+      `${this.apiUrl}/candidates/${userId}`,
+      { headers: this.getHeaders(), params }
+    ).pipe(
+      map(response => {
+        // Ensure profile image has full URL
+        if (response?.success && response.data?.profile_image) {
+          response.data.profile_image = this.getFullImageUrl(response.data.profile_image);
+        }
+        // also normalize legacy field name if present
+        if (response?.success && response.data?.profile_picture) {
+          response.data.profile_picture = this.getFullImageUrl(response.data.profile_picture);
+        }
+        return response;
+      })
+    );
+  }
+
+  private getHeaders(): { [header: string]: string } {
+    // return any default headers required by your API (e.g. Authorization)
+    return {};
+  }
+
+  private getFullImageUrl(imagePath: string): string {
+    if (!imagePath) return '';
+    if (imagePath.startsWith('http')) return imagePath;
+
+    if (imagePath.startsWith('/uploads') || imagePath.startsWith('uploads')) {
+      const baseUrl = environment.apiUrl.replace('/api', '');
+      return `${baseUrl}${imagePath.startsWith('/') ? '' : '/'}${imagePath}`;
+    }
+
+    return imagePath;
   }
 
   /**

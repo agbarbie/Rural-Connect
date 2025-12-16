@@ -39,7 +39,10 @@ class ProfileController {
       }
 
       const query = `
-        SELECT u.id, u.name, u.email, u.profile_picture as profile_image, p.*
+        SELECT u.id, u.name, u.email, 
+               u.profile_picture as profile_image, 
+               u.profile_picture,
+               p.*
         FROM users u
         LEFT JOIN jobseeker_profiles p ON u.id = p.user_id
         WHERE u.id = $1
@@ -51,15 +54,16 @@ class ProfileController {
         return;
       }
 
-      // ✅ Ensure profile_image is included in response
       const profileData = rows[0];
       
+      // ✅ Ensure multiple image field names for compatibility
       res.status(200).json({ 
         success: true, 
         data: {
           ...profileData,
           profile_image: profileData.profile_image || profileData.profile_picture,
-          profileImage: profileData.profile_image || profileData.profile_picture
+          profileImage: profileData.profile_image || profileData.profile_picture,
+          profile_picture: profileData.profile_image || profileData.profile_picture
         }
       });
     } catch (error) {

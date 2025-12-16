@@ -166,35 +166,78 @@ export class AiAssistantComponent implements OnInit, AfterViewInit {
     }
     
     // Load fresh profile from server
-    this.profileService.getMyPortfolio().subscribe({
-      next: (response) => {
-        if (response.success && response.data) {
-          this.portfolioData = response.data;
-          
-          // FIX: Verify this portfolio belongs to current user
-          if (this.verifyPortfolioBelongsToCurrentUser(response.data)) {
-            // Cache the profile with user identifier
-            this.cacheProfileForCurrentUser(response.data);
-            this.populateUserDataFromPortfolio(response.data);
-            this.checkForProfileUpdates();
-          } else {
-            console.error('Portfolio data does not belong to current user');
-            this.clearUserCache();
-            this.useDefaultData();
-            this.finishInitialization();
-          }
-        } else {
-          this.useDefaultData();
-          this.finishInitialization();
-        }
-      },
-      error: (error) => {
-        console.error('Error loading portfolio:', error);
-        this.useDefaultData();
-        this.finishInitialization();
+    // NEW CODE - USE PROFILE API
+this.profileService.getMyProfile().subscribe({
+  next: (response) => {
+    console.log('📥 Profile loaded:', response);
+    
+    if (response.success && response.data) {
+      const data = response.data;
+      
+      // Set user name
+      this.userData.name = data.name || 'User';
+      
+      // ✅ Set profile image
+      const profileImage = data.profile_image || 
+                          data.profileImage || 
+                          data.profile_picture;
+      
+      if (profileImage) {
+        this.userData.avatar = this.getFullImageUrl(profileImage);
+        console.log('✅ Avatar set:', this.userData.avatar);
       }
-    });
+      
+      // ✅ Parse and set skills
+      const skillsArray = this.parseSkillsArray(data.skills);
+      if (skillsArray.length > 0) {
+        this.userData.topSkills = skillsArray.slice(0, 3).map(skill => ({
+          name: skill,
+          level: 'medium' // Can be enhanced later
+        }));
+        
+        // Set up chart data
+        this.skillsChartData.labels = skillsArray.slice(0, 6);
+        this.skillsChartData.userSkills = skillsArray.slice(0, 6).map(() => 70);
+        this.skillsChartData.marketDemand = skillsArray.slice(0, 6).map(() => 
+          Math.floor(Math.random() * 30) + 70
+        );
+        
+        // Set up progress data
+        this.skillsProgress = skillsArray.slice(0, 3).map(skill => ({
+          name: skill,
+          current: 70,
+          change: Math.floor(Math.random() * 20) + 5,
+          note: 'Core skill - Keep building!'
+        }));
+      }
+    }
+    
+    this.isInitializing = false;
+    this.loadInsightsInBackground();
+  },
+  error: (error) => {
+    console.error('❌ Error loading profile:', error);
+    this.useDefaultData();
+    this.isInitializing = false;
   }
+});
+  }
+
+  private parseSkillsArray(skills: any): string[] {
+  if (!skills) return [];
+  
+  try {
+    if (typeof skills === 'string') {
+      return JSON.parse(skills);
+    } else if (Array.isArray(skills)) {
+      return skills;
+    }
+    return [];
+  } catch (e) {
+    console.error('Error parsing skills:', e);
+    return [];
+  }
+}
 
   // FIX: New method to validate cache belongs to current user
   private validateAndClearStaleCache(): void {

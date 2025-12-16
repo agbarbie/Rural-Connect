@@ -620,176 +620,27 @@ export class CandidatesController {
     
     // 🔥 ENHANCED QUERY: Fetch complete candidate profile with CV data
     const query = `
-      SELECT
-        u.id as user_id,
-        u.first_name,
-        u.last_name,
-        u.email,
-        u.created_at as user_created_at,
-        
-        -- Jobseeker profile data
-        jp.bio,
-        jp.skills as profile_skills,
-        jp.phone,
-        jp.location,
-        jp.portfolio_url,
-        jp.linkedin_url,
-        jp.github_url,
-        jp.years_of_experience,
-        jp.current_position,
-        jp.availability_status,
-        jp.preferred_job_types,
-        jp.preferred_locations,
-        jp.salary_expectation_min,
-        jp.salary_expectation_max,
-        
-        -- CV data
-        cv.id as cv_id,
-        cv.status as cv_status,
-        cv.updated_at as cv_updated_at,
-        
-        -- Personal info from CV
-        pi.full_name,
-        pi.phone as cv_phone,
-        pi.address,
-        pi.linkedin_url as cv_linkedin,
-        pi.website_url as cv_website,
-        pi.portfolio_url as cv_portfolio,
-        pi.github_url as cv_github,
-        pi.professional_summary,
-        pi.profile_image,
-        
-        -- Application details if jobId provided
-        ja.id as application_id,
-        ja.status as application_status,
-        ja.cover_letter,
-        ja.expected_salary,
-        ja.availability_date,
-        ja.applied_at,
-        
-        -- Aggregated skills
-        COALESCE(
-          json_agg(DISTINCT jsonb_build_object(
-            'skill_name', s.skill_name,
-            'skill_level', s.skill_level,
-            'category', s.category
-          )) FILTER (WHERE s.id IS NOT NULL),
-          '[]'::json
-        ) as cv_skills,
-        
-        -- Aggregated work experience
-        COALESCE(
-          json_agg(DISTINCT jsonb_build_object(
-            'company', we.company,
-            'position', we.position,
-            'start_date', we.start_date,
-            'end_date', we.end_date,
-            'is_current', we.is_current,
-            'responsibilities', we.responsibilities,
-            'achievements', we.achievements
-          ) ORDER BY jsonb_build_object(
-            'company', we.company,
-            'position', we.position,
-            'start_date', we.start_date,
-            'end_date', we.end_date,
-            'is_current', we.is_current,
-            'responsibilities', we.responsibilities,
-            'achievements', we.achievements
-          )) FILTER (WHERE we.id IS NOT NULL),
-          '[]'::json
-        ) as work_experience,
-        
-        -- Aggregated certifications
-        COALESCE(
-          json_agg(DISTINCT jsonb_build_object(
-            'certification_name', cert.certification_name,
-            'issuer', cert.issuer,
-            'date_issued', cert.date_issued,
-            'credential_id', cert.credential_id
-          ) ORDER BY jsonb_build_object(
-            'certification_name', cert.certification_name,
-            'issuer', cert.issuer,
-            'date_issued', cert.date_issued,
-            'credential_id', cert.credential_id
-          )) FILTER (WHERE cert.id IS NOT NULL),
-          '[]'::json
-        ) as certifications,
-        
-        -- Aggregated education
-        COALESCE(
-          json_agg(DISTINCT jsonb_build_object(
-            'institution', edu.institution,
-            'degree', edu.degree,
-            'field_of_study', edu.field_of_study,
-            'start_year', edu.start_year,
-            'end_year', edu.end_year
-          ) ORDER BY jsonb_build_object(
-            'institution', edu.institution,
-            'degree', edu.degree,
-            'field_of_study', edu.field_of_study,
-            'start_year', edu.start_year,
-            'end_year', edu.end_year
-          )) FILTER (WHERE edu.id IS NOT NULL),
-          '[]'::json
-        ) as education,
-        
-        -- Aggregated projects
-        COALESCE(
-          json_agg(DISTINCT jsonb_build_object(
-            'project_name', proj.project_name,
-            'description', proj.description,
-            'technologies', proj.technologies,
-            'github_link', proj.github_link,
-            'demo_link', proj.demo_link
-          ) ORDER BY jsonb_build_object(
-            'project_name', proj.project_name,
-            'description', proj.description,
-            'technologies', proj.technologies,
-            'github_link', proj.github_link,
-            'demo_link', proj.demo_link
-          )) FILTER (WHERE proj.id IS NOT NULL),
-          '[]'::json
-        ) as projects
-        
+      SELECT 
+      u.id as user_id,
+      u.first_name,
+      u.last_name,
+      u.name,
+      u.email,
+      u.phone,
+      u.profile_picture as profile_image,  -- ✅ Select as profile_image
+      jp.location,
+      jp.bio,
+      jp.skills,
+      jp.years_of_experience,
+      jp.current_position,
+      jp.availability_status,
+      jp.linkedin_url,
+      jp.github_url,
+      jp.portfolio_url as website_url
       FROM users u
-      
-      -- Join jobseeker profile
       LEFT JOIN jobseeker_profiles jp ON u.id = jp.user_id
-      
-      -- Get primary or most recent CV
-      LEFT JOIN LATERAL (
-        SELECT id, status, updated_at
-        FROM cvs
-        WHERE user_id = u.id
-        ORDER BY is_primary DESC NULLS LAST, created_at DESC
-        LIMIT 1
-      ) cv ON true
-      
-      -- Join CV sections
-      LEFT JOIN cv_personal_info pi ON cv.id = pi.cv_id
-      LEFT JOIN cv_skills s ON cv.id = s.cv_id
-      LEFT JOIN cv_work_experience we ON cv.id = we.cv_id
-      LEFT JOIN cv_certifications cert ON cv.id = cert.cv_id
-      LEFT JOIN cv_education edu ON cv.id = edu.cv_id
-      LEFT JOIN cv_projects proj ON cv.id = proj.cv_id
-      
-      -- Join application if jobId provided
-      LEFT JOIN job_applications ja ON u.id = ja.user_id ${jobId ? 'AND ja.job_id = $3' : ''}
-      
-      WHERE u.id = $1
-      
-      GROUP BY
-        u.id, u.first_name, u.last_name, u.email, u.created_at,
-        jp.bio, jp.skills, jp.phone, jp.location, jp.portfolio_url,
-        jp.linkedin_url, jp.github_url, jp.years_of_experience,
-        jp.current_position, jp.availability_status, jp.preferred_job_types,
-        jp.preferred_locations, jp.salary_expectation_min, jp.salary_expectation_max,
-        cv.id, cv.status, cv.updated_at,
-        pi.full_name, pi.phone, pi.address, pi.linkedin_url,
-        pi.website_url, pi.portfolio_url, pi.github_url,
-        pi.professional_summary, pi.profile_image,
-        ja.id, ja.status, ja.cover_letter, ja.expected_salary,
-        ja.availability_date, ja.applied_at
+      WHERE u.id = $1 AND u.user_type = 'jobseeker'
+      LIMIT 1
     `;
     
     const queryParams = jobId ? [candidateUserId, employerId, jobId] : [candidateUserId, employerId];
