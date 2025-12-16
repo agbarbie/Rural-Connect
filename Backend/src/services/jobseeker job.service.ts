@@ -480,7 +480,14 @@ async getSavedJobs(userId: string, filters: { page: number; limit: number }): Pr
 // src/services/jobseeker-job.service.ts - FIXED applyToJob method
 
 // Apply to a job
-async applyToJob(userId: string, jobId: string, applicationData: ApplicationData): Promise<ServiceResponse<JobApplication>> {
+/**
+ * 🔥 ENHANCED: Apply to a job with complete applicant information
+ */
+async applyToJob(
+  userId: string, 
+  jobId: string, 
+  applicationData: ApplicationData
+): Promise<ServiceResponse<JobApplication>> {
   const client = await this.db.connect();
   
   try {
@@ -488,7 +495,7 @@ async applyToJob(userId: string, jobId: string, applicationData: ApplicationData
     
     console.log('🎯 Apply to job:', { userId, jobId });
     
-    // ✅ Get job details INCLUDING employer_id
+    // 1. Get job details INCLUDING employer_id
     const jobCheck = await client.query(
       `SELECT 
         j.id, 
@@ -518,19 +525,66 @@ async applyToJob(userId: string, jobId: string, applicationData: ApplicationData
       company: job.company_name
     });
     
-    // Get applicant name
+    // 2. ✅ CRITICAL FIX: Get user + profile data (jobseeker_profiles table)
     const applicantResult = await client.query(
-      'SELECT first_name, last_name FROM users WHERE id = $1',
+      `SELECT 
+        u.id,
+        u.name,
+        u.email,
+        u.profile_picture,
+        jp.phone,
+        jp.location,
+        jp.bio,
+        jp.skills,
+        jp.years_of_experience,
+        jp.current_position,
+        jp.linkedin_url,
+        jp.github_url,
+        jp.portfolio_url
+      FROM users u
+      LEFT JOIN jobseeker_profiles jp ON u.id = jp.user_id
+      WHERE u.id = $1`,
       [userId]
     );
     
-    const applicantName = applicantResult.rows.length > 0
-      ? `${applicantResult.rows[0].first_name || ''} ${applicantResult.rows[0].last_name || ''}`.trim() || 'Job Seeker'
-      : 'Job Seeker';
+    if (applicantResult.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return {
+        success: false,
+        message: 'User profile not found'
+      };
+    }
+
+    const applicant = applicantResult.rows[0];
     
-    console.log('✅ Applicant:', applicantName);
+    // Build applicant name with fallback
+    const applicantName = applicant.name?.trim() || 
+                         applicant.email?.split('@')[0] || 
+                         'Job Seeker';
     
-    // 🔥 FIX: Check for ACTIVE applications only (exclude withdrawn)
+    console.log('✅ Applicant details:', {
+      id: applicant.id,
+      name: applicantName,
+      email: applicant.email,
+      phone: applicant.phone,
+      location: applicant.location,
+      experience: applicant.years_of_experience
+    });
+    
+    // 3. ✅ CRITICAL: Check PROFILE completion (NOT CV)
+    const profileCompletion = this.calculateProfileCompletionPercentage(applicant);
+    
+    console.log('📊 Profile completion:', profileCompletion + '%');
+    
+    if (profileCompletion < 70) {
+      await client.query('ROLLBACK');
+      return {
+        success: false,
+        message: `Your profile is only ${profileCompletion}% complete. Please complete at least 70% of your profile before applying to jobs. Go to your Profile page to complete it.`
+      };
+    }
+    
+    // 4. Check for ACTIVE applications (exclude withdrawn)
     const existingApplication = await client.query(
       `SELECT id, status FROM job_applications 
        WHERE user_id = $1 AND job_id = $2 AND status != 'withdrawn'`,
@@ -541,18 +595,18 @@ async applyToJob(userId: string, jobId: string, applicationData: ApplicationData
       await client.query('ROLLBACK');
       return { 
         success: false, 
-        message: 'Already applied to this job' 
+        message: 'You have already applied to this job' 
       };
     }
     
-    // 🔥 NEW: If there's a withdrawn application, DELETE it before creating new one
+    // 5. Delete any withdrawn applications
     await client.query(
       `DELETE FROM job_applications 
        WHERE user_id = $1 AND job_id = $2 AND status = 'withdrawn'`,
       [userId, jobId]
     );
     
-    // Validate resume if provided
+    // 6. Validate resume if provided
     if (applicationData.resumeId) {
       const resumeCheck = await client.query(
         'SELECT id FROM resumes WHERE id = $1 AND user_id = $2',
@@ -568,7 +622,7 @@ async applyToJob(userId: string, jobId: string, applicationData: ApplicationData
       }
     }
     
-    // Create application
+    // 7. Create application
     const result = await client.query(
       `INSERT INTO job_applications (
         user_id, job_id, cover_letter, resume_id, portfolio_url,
@@ -577,10 +631,10 @@ async applyToJob(userId: string, jobId: string, applicationData: ApplicationData
       [
         userId,
         jobId,
-        applicationData.coverLetter,
-        applicationData.resumeId,
-        applicationData.portfolioUrl,
-        applicationData.expectedSalary,
+        applicationData.coverLetter || '',
+        applicationData.resumeId || null,
+        applicationData.portfolioUrl || null,
+        applicationData.expectedSalary || null,
         applicationData.availabilityDate ? new Date(applicationData.availabilityDate) : null
       ]
     );
@@ -588,17 +642,17 @@ async applyToJob(userId: string, jobId: string, applicationData: ApplicationData
     const newApplication = result.rows[0] as JobApplication;
     console.log('✅ Application created:', newApplication.id);
     
-    // 🔥 CRITICAL: Commit transaction BEFORE notification
+    // 8. ✅ CRITICAL: Commit transaction BEFORE notification
     await client.query('COMMIT');
-    console.log('✅ Transaction committed');
+    console.log('✅ Transaction committed successfully');
     
-    // 🔥 NOTIFY EMPLOYER
+    // 9. Notify employer (errors here won't fail the application)
     try {
-      console.log('📢 Calling notifyEmployerAboutApplication with:', {
+      console.log('📢 Notifying employer:', {
         employerId: job.employer_id,
         jobId: job.id,
         jobTitle: job.title,
-        applicantName,
+        applicantName: applicantName,
         applicationId: newApplication.id
       });
       
@@ -612,22 +666,104 @@ async applyToJob(userId: string, jobId: string, applicationData: ApplicationData
       
       console.log('✅ Employer notification sent successfully');
     } catch (notifyError: any) {
-      console.error('❌ CRITICAL: Notification failed:', {
+      console.error('❌ Notification failed (non-critical):', {
         error: notifyError.message,
-        stack: notifyError.stack,
-        employerId: job.employer_id,
-        jobId: job.id
+        employerId: job.employer_id
       });
+      // Don't fail the application if notification fails
     }
     
-    return { success: true, data: newApplication };
+    console.log('🎉 Job application completed successfully');
     
-  } catch (error) {
+    return { 
+      success: true, 
+      message: 'Application submitted successfully',
+      data: newApplication 
+    };
+    
+  } catch (error: any) {
     await client.query('ROLLBACK');
-    console.error('❌ Error applying to job:', error);
+    console.error('❌ Error applying to job:', {
+      message: error.message,
+      stack: error.stack,
+      userId,
+      jobId
+    });
     throw error;
   } finally {
     client.release();
+  }
+}
+
+/**
+ * ✅ Calculate profile completion based on PROFILE data (not CV)
+ * Uses jobseeker_profiles table structure
+ */
+private calculateProfileCompletionPercentage(profile: any): number {
+  let completed = 0;
+  let total = 0;
+  
+  // 1. Basic Info (3 fields = 30%)
+  total += 3;
+  if (profile.name && profile.email) completed++; // Name + Email = 1 point
+  if (profile.phone) completed++; // Phone = 1 point
+  if (profile.location) completed++; // Location = 1 point
+  
+  // 2. Professional Summary (1 field = 20%)
+  total += 1;
+  if (profile.bio && profile.bio.length >= 50) completed++;
+  
+  // 3. Skills (1 field = 25%)
+  total += 1;
+  const skills = this.parseJsonField(profile.skills);
+  if (skills.length >= 3) completed++;
+  
+  // 4. Social Links (1 field = 15%)
+  total += 1;
+  if (profile.linkedin_url || profile.github_url || profile.portfolio_url) {
+    completed++;
+  }
+  
+  // 5. Career Info (1 field = 10%)
+  total += 1;
+  if (profile.years_of_experience > 0 && profile.current_position) {
+    completed++;
+  }
+  
+  const percentage = Math.round((completed / total) * 100);
+  
+  console.log('📊 Profile completion breakdown:', {
+    completed,
+    total,
+    percentage,
+    hasName: !!profile.name,
+    hasEmail: !!profile.email,
+    hasPhone: !!profile.phone,
+    hasLocation: !!profile.location,
+    hasBio: !!(profile.bio && profile.bio.length >= 50),
+    skillsCount: skills.length,
+    hasSocialLinks: !!(profile.linkedin_url || profile.github_url || profile.portfolio_url),
+    hasCareerInfo: !!(profile.years_of_experience > 0 && profile.current_position)
+  });
+  
+  return percentage;
+}
+
+/**
+ * Helper to parse JSON fields
+ */
+private parseJsonField(field: any): any[] {
+  if (!field) return [];
+  try {
+    if (typeof field === 'string') {
+      return JSON.parse(field);
+    }
+    if (Array.isArray(field)) {
+      return field;
+    }
+    return [];
+  } catch {
+    return [];
   }
 }
 

@@ -2214,20 +2214,32 @@ async enrollUserInTraining(trainingId: string, userId: string): Promise<any> {
       WHERE id = $1
     `, [trainingId]);
 
+    // ✅ CRITICAL FIX: Fetch jobseeker's name for notification
+    const userResult = await client.query(
+      'SELECT first_name, last_name, email FROM users WHERE id = $1',
+      [userId]
+    );
+
     await client.query('COMMIT');
 
     const enrollment = enrollmentResult.rows[0];
+    const jobseeker = userResult.rows[0];
 
-    // ✅ Notify employer about new enrollment
+    // ✅ FIXED: Include jobseeker's full name in notification message
+    const jobseekerName = `${jobseeker.first_name || ''} ${jobseeker.last_name || ''}`.trim() || jobseeker.email;
+
+    // ✅ Notify employer about new enrollment WITH jobseeker name
     this.createNotification(
       training.provider_id,
       'new_enrollment',
-      `New enrollment in ${training.title}`,
+      `${jobseekerName} enrolled in ${training.title}`,
       {
         training_id: trainingId,
         training_title: training.title,
         user_id: userId,
-        enrollment_id: enrollment.id
+        enrollment_id: enrollment.id,
+        jobseeker_name: jobseekerName,  // ✅ Include name in metadata
+        jobseeker_email: jobseeker.email
       }
     ).catch(err => console.error('Failed to notify employer:', err));
 

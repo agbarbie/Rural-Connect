@@ -1,4 +1,4 @@
-// src/routes/profile.routes.ts - Fixed version
+// src/routes/profile.routes.ts - VERIFIED CORRECT VERSION
 import { Router } from 'express';
 import multer from 'multer';
 import path from 'path';
@@ -27,7 +27,7 @@ const storage = multer.diskStorage({
     const userId = (req as any).user?.id || 'unknown';
     const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
     const ext = path.extname(file.originalname);
-    cb(null, `${userId}-${uniqueSuffix}${ext}`);
+    cb(null, `profile-${userId}-${uniqueSuffix}${ext}`);
   }
 });
 
@@ -84,20 +84,8 @@ router.post(
   '/upload-image',
   authenticateToken,
   isJobseeker,
-  upload.single('image'),
+  upload.single('image'), // ✅ Field name MUST be 'image'
   profileController.uploadProfileImage.bind(profileController)
-);
-
-/**
- * @route   GET /api/profile/cv/:cvId
- * @desc    Get profile by specific CV ID
- * @access  Private (Jobseeker)
- */
-router.get(
-  '/cv/:cvId',
-  authenticateToken,
-  isJobseeker,
-  profileController.getProfileByCVId.bind(profileController)
 );
 
 /**
@@ -110,18 +98,6 @@ router.get(
   authenticateToken,
   isJobseeker,
   profileController.getProfileCompletion.bind(profileController)
-);
-
-/**
- * @route   PUT /api/profile/picture
- * @desc    Update profile picture (legacy endpoint)
- * @access  Private (Jobseeker)
- */
-router.put(
-  '/picture',
-  authenticateToken,
-  isJobseeker,
-  profileController.updateProfilePicture.bind(profileController)
 );
 
 /**
@@ -146,6 +122,10 @@ router.get(
   profileController.getSharedProfile.bind(profileController)
 );
 
-console.log('✅ Profile routes registered');
+// Legacy endpoints for backward compatibility
+router.get('/cv/:cvId', authenticateToken, isJobseeker, profileController.getProfileByCVId.bind(profileController));
+router.put('/picture', authenticateToken, isJobseeker, profileController.updateProfilePicture.bind(profileController));
+
+console.log('✅ Profile routes registered with multer upload');
 
 export default router;

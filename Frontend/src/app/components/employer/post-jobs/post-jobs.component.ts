@@ -1063,4 +1063,252 @@ getTimeSince(dateString: string): string {
     console.log('📋 Viewing all notifications');
     this.router.navigate(['/employer/notifications']);
   }
+  /**
+   * ✅ NEW: Get applicant name from notification
+   */
+  getApplicantName(notification: any): string {
+    if (notification.metadata?.applicant_name) {
+      return notification.metadata.applicant_name;
+    }
+    
+    // Fallback: try to extract from message
+    const message = notification.message || '';
+    const match = message.match(/^(.+?)\s+(?:has\s+)?applied/i);
+    if (match && match[1]) {
+      return match[1].trim();
+    }
+    
+    return 'A candidate';
+  }
+
+  /**
+   * ✅ NEW: Get job title from notification
+   */
+  getJobTitle(notification: any): string {
+    return notification.metadata?.job_title || 'a position';
+  }
+
+  /**
+   * ✅ NEW: Check if notification is about a new application
+   */
+  isNewApplicationNotification(notification: any): boolean {
+    return notification.type === 'application_received';
+  }
+
+  /**
+   * ✅ NEW: Format notification title based on type and metadata
+   */
+  formatNotificationTitle(notification: any): string {
+    switch (notification.type) {
+      case 'application_received':
+        const applicantName = this.getApplicantName(notification);
+        const jobTitle = this.getJobTitle(notification);
+        return `${applicantName} applied for "${jobTitle}"`;
+      
+      case 'job_updated':
+        return `Job Updated: ${notification.metadata?.job_title || 'Position'}`;
+      
+      case 'job_closed':
+        return `Job Closed: ${notification.metadata?.job_title || 'Position'}`;
+      
+      case 'job_filled':
+        return `Job Filled: ${notification.metadata?.job_title || 'Position'}`;
+      
+      default:
+        return notification.title || this.getNotificationTitle(notification.type);
+    }
+  }
+
+  /**
+   * ✅ ENHANCED: Alternative notification click handler that emphasizes application routing.
+   * Note: the class already contains handleNotificationClick; this method is named differently
+   * to avoid duplicate method definitions. You can call this from templates/controllers if needed.
+   */
+  handleNotificationClickEnhanced(notification: any): void {
+    console.log('📌 Enhanced Notification clicked:', notification);
+    
+    if (!notification.read) {
+      this.markNotificationAsRead(notification.id);
+    }
+    
+    // Route based on notification type
+    switch (notification.type) {
+      case 'application_received':
+        // Navigate to applications page for this specific job
+        if (notification.metadata?.job_id) {
+          this.router.navigate(['/employer/applications'], {
+            queryParams: { 
+              jobId: notification.metadata.job_id,
+              applicationId: notification.metadata.application_id,
+              highlight: 'true'
+            }
+          });
+        }
+        break;
+      
+      case 'new_job':
+        if (notification.metadata?.job_id) {
+          this.router.navigate(['/jobseeker/job-details', notification.metadata.job_id]);
+        }
+        break;
+      
+      case 'application_reviewed':
+      case 'application_shortlisted':
+      case 'application_accepted':
+      case 'application_rejected':
+        this.router.navigate(['/jobseeker/applications']);
+        break;
+      
+      case 'job_updated':
+      case 'job_deleted':
+      case 'job_closed':
+      case 'job_filled':
+        if (notification.metadata?.job_id) {
+          this.router.navigate(['/employer/jobs'], {
+            queryParams: { jobId: notification.metadata.job_id }
+          });
+        }
+        break;
+      
+      case 'certificate_issued':
+      case 'training_completed':
+        this.router.navigate(['/jobseeker/certificates']);
+        break;
+      
+      case 'training_updated':
+      case 'training_enrollment':
+        if (notification.metadata?.training_id) {
+          this.router.navigate(['/jobseeker/training', notification.metadata.training_id]);
+        } else {
+          this.router.navigate(['/jobseeker/trainings']);
+        }
+        break;
+      
+      default:
+        console.log('No specific action for notification type:', notification.type);
+    }
+    
+    this.showNotifications = false;
+  }
+
+  /**
+   * ✅ NEW: Show notification details in a modal/tooltip
+   */
+  showNotificationDetails(notification: any, event: Event): void {
+    event.stopPropagation();
+    
+    console.log('📋 Notification details:', {
+      id: notification.id,
+      type: notification.type,
+      title: notification.title,
+      message: notification.message,
+      metadata: notification.metadata,
+      created_at: notification.created_at,
+      read: notification.read
+    });
+    
+    // Simple modal/alert for now; replace with real modal if available
+    alert(`
+  Notification Details:
+
+  Type: ${notification.type}
+  Title: ${this.formatNotificationTitle(notification)}
+  Message: ${notification.message}
+
+  ${notification.metadata?.applicant_name ? `Applicant: ${notification.metadata.applicant_name}` : ''}
+  ${notification.metadata?.job_title ? `Job: ${notification.metadata.job_title}` : ''}
+
+  Time: ${new Date(notification.created_at).toLocaleString()}
+    `);
+  }
+
+  /**
+   * ✅ NEW: Play notification sound (optional)
+   */
+  playNotificationSound(): void {
+    if (this.unreadNotificationCount > 0) {
+      const audio = new Audio('/assets/sounds/notification.mp3');
+      audio.volume = 0.5;
+      audio.play().catch(err => console.log('Could not play notification sound:', err));
+    }
+  }
+
+  /**
+   * ✅ ENHANCED: Load notifications with sound on new notifications
+   */
+  loadNotificationsWithAlert(): void {
+    const previousUnreadCount = this.unreadNotificationCount;
+    
+    this.jobService.getNotifications({ read: false })
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (response) => {
+          if (response.success && response.data) {
+            const allNotifications = response.data.notifications || [];
+            this.jobNotifications = Array.isArray(allNotifications) ? allNotifications : [];
+            this.unreadNotificationCount = this.jobNotifications.filter(n => !n.read).length;
+            
+            // 🔥 Play sound if new notifications arrived
+            if (this.unreadNotificationCount > previousUnreadCount) {
+              this.playNotificationSound();
+              
+              // Show browser notification if supported
+              this.showBrowserNotification(
+                this.jobNotifications.find(n => !n.read)
+              );
+            }
+          }
+        }
+      });
+  }
+
+  /**
+   * ✅ NEW: Show browser notification
+   */
+  showBrowserNotification(notification: any): void {
+    if (!notification) return;
+    
+    if ('Notification' in window && Notification.permission === 'granted') {
+      const title = this.formatNotificationTitle(notification);
+      const options: any = {
+        body: notification.message,
+        icon: '/assets/logo.png',
+        badge: '/assets/badge.png',
+        tag: notification.id,
+        requireInteraction: notification.type === 'application_received',
+        vibrate: [200, 100, 200],
+        data: {
+          url: this.getNotificationUrl(notification)
+        }
+      };
+      
+      const browserNotification = new Notification(title, options);
+      
+      browserNotification.onclick = (event) => {
+        event.preventDefault();
+        window.focus();
+        // Use the existing handler (keeps single source of routing logic)
+        try {
+          this.handleNotificationClick(notification);
+        } catch (err) {
+          console.log('Fallback routing for notification click failed:', err);
+        }
+        browserNotification.close();
+      };
+    }
+  }
+
+  /**
+   * ✅ NEW: Get notification URL for deep linking
+   */
+  getNotificationUrl(notification: any): string {
+    switch (notification.type) {
+      case 'application_received':
+        return `/employer/applications?jobId=${notification.metadata?.job_id}`;
+      case 'new_job':
+        return `/jobseeker/job-details/${notification.metadata?.job_id}`;
+      default:
+        return '/';
+    }
+  }
 }

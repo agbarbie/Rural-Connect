@@ -1,4 +1,4 @@
-// src/services/job-notification.service.ts - COMPLETE FIX WITH ALL METHODS
+// src/services/job-notification.service.ts - FIXED VERSION WITH APPLICANT NAMES
 import { Pool } from 'pg';
 import pool from '../db/db.config';
 
@@ -12,118 +12,118 @@ export class JobNotificationService {
   /**
    * ✅ FIXED: Create a notification with better error handling
    */
- async createNotification(
-  userId: string,
-  type: string,
-  message: string,
-  metadata: any
-): Promise<void> {
-  try {
-    const title = this.generateNotificationTitle(type, message);
-    
-    console.log('📬 Creating notification:', {
-      userId,
-      type,
-      title,
-      messagePreview: message.substring(0, 50)
-    });
+  async createNotification(
+    userId: string,
+    type: string,
+    message: string,
+    metadata: any
+  ): Promise<void> {
+    try {
+      const title = this.generateNotificationTitle(type, message);
+      
+      console.log('📬 Creating notification:', {
+        userId,
+        type,
+        title,
+        messagePreview: message.substring(0, 50),
+        metadata
+      });
 
-    // Verify user exists and get user type
-    const userExists = await this.db.query(
-      'SELECT id, user_type, email FROM users WHERE id = $1',
-      [userId]
-    );
+      // Verify user exists and get user type
+      const userExists = await this.db.query(
+        'SELECT id, user_type, email FROM users WHERE id = $1',
+        [userId]
+      );
 
-    if (userExists.rows.length === 0) {
-      console.error('❌ User not found:', userId);
-      throw new Error(`User ${userId} not found`);
-    }
+      if (userExists.rows.length === 0) {
+        console.error('❌ User not found:', userId);
+        throw new Error(`User ${userId} not found`);
+      }
 
-    const user = userExists.rows[0];
-    console.log('✅ User found:', {
-      id: user.id,
-      email: user.email,
-      userType: user.user_type
-    });
+      const user = userExists.rows[0];
+      console.log('✅ User found:', {
+        id: user.id,
+        email: user.email,
+        userType: user.user_type
+      });
 
-    // Verify notification type is appropriate for user type
-    if (user.user_type === 'employer' && type === 'application_received') {
-      console.log('✅ Creating application_received notification for EMPLOYER');
-    } else if (user.user_type === 'jobseeker' && type === 'application_received') {
-      console.error('❌ ERROR: Attempting to create application_received for JOBSEEKER');
-      throw new Error('Invalid notification type for jobseeker');
-    }
+      // Verify notification type is appropriate for user type
+      if (user.user_type === 'employer' && type === 'application_received') {
+        console.log('✅ Creating application_received notification for EMPLOYER');
+      } else if (user.user_type === 'jobseeker' && type === 'application_received') {
+        console.error('❌ ERROR: Attempting to create application_received for JOBSEEKER');
+        throw new Error('Invalid notification type for jobseeker');
+      }
 
-    const relatedId = metadata?.job_id || 
-                      metadata?.application_id || 
-                      null;
+      const relatedId = metadata?.job_id || 
+                        metadata?.application_id || 
+                        null;
 
-    console.log('🔗 Notification data:', { 
-      userId, 
-      userType: user.user_type,
-      type, 
-      relatedId 
-    });
+      console.log('🔗 Notification data:', { 
+        userId, 
+        userType: user.user_type,
+        type, 
+        relatedId 
+      });
 
-    // Insert notification
-    const result = await this.db.query(`
-      INSERT INTO notifications (
-        user_id, 
+      // Insert notification
+      const result = await this.db.query(`
+        INSERT INTO notifications (
+          user_id, 
+          type, 
+          title, 
+          message, 
+          metadata, 
+          related_id,
+          created_at, 
+          read
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP, false)
+        RETURNING id, user_id, type, title, read, created_at
+      `, [
+        userId, 
         type, 
         title, 
         message, 
-        metadata, 
-        related_id,
-        created_at, 
-        read
-      )
-      VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP, false)
-      RETURNING id, user_id, type, title, read, created_at
-    `, [
-      userId, 
-      type, 
-      title, 
-      message, 
-      JSON.stringify(metadata),
-      relatedId
-    ]);
+        JSON.stringify(metadata),
+        relatedId
+      ]);
 
-    const createdNotification = result.rows[0];
-    console.log('✅ ✅ ✅ NOTIFICATION CREATED SUCCESSFULLY:', {
-      notificationId: createdNotification.id,
-      userId: createdNotification.user_id,
-      type: createdNotification.type,
-      title: createdNotification.title,
-      read: createdNotification.read,
-      createdAt: createdNotification.created_at
-    });
+      const createdNotification = result.rows[0];
+      console.log('✅ ✅ ✅ NOTIFICATION CREATED SUCCESSFULLY:', {
+        notificationId: createdNotification.id,
+        userId: createdNotification.user_id,
+        type: createdNotification.type,
+        title: createdNotification.title,
+        read: createdNotification.read,
+        createdAt: createdNotification.created_at
+      });
 
-    // VERIFY notification was actually created
-    const verifyResult = await this.db.query(
-      'SELECT id, user_id, type, read FROM notifications WHERE id = $1',
-      [createdNotification.id]
-    );
+      // VERIFY notification was actually created
+      const verifyResult = await this.db.query(
+        'SELECT id, user_id, type, read FROM notifications WHERE id = $1',
+        [createdNotification.id]
+      );
 
-    if (verifyResult.rows.length > 0) {
-      console.log('✅ ✅ VERIFICATION: Notification exists in database');
-    } else {
-      console.error('❌ ❌ CRITICAL: Notification NOT found in database after insert!');
+      if (verifyResult.rows.length > 0) {
+        console.log('✅ ✅ VERIFICATION: Notification exists in database');
+      } else {
+        console.error('❌ ❌ CRITICAL: Notification NOT found in database after insert!');
+      }
+
+    } catch (error: any) {
+      console.error('❌ CRITICAL: Error creating notification:', {
+        error: error.message,
+        code: error.code,
+        detail: error.detail,
+        userId,
+        type,
+        stack: error.stack
+      });
+      
+      throw error;
     }
-
-  } catch (error: any) {
-    console.error('❌ CRITICAL: Error creating notification:', {
-      error: error.message,
-      code: error.code,
-      detail: error.detail,
-      userId,
-      type,
-      stack: error.stack
-    });
-    
-    throw error; // Re-throw to ensure calling code knows notification failed
   }
-}
-
 
   /**
    * Generate notification title based on type
@@ -147,92 +147,95 @@ export class JobNotificationService {
   }
 
   /**
-   * 🔥 CRITICAL FIX: Notify employer about new application
-   * Changed signature to accept employer_id directly from job
+   * 🔥 FIXED: Notify employer about new application - WITH ENHANCED APPLICANT INFO
    */
-async notifyEmployerAboutApplication(
-  employerId: string,
-  jobId: string,
-  jobTitle: string,
-  applicantName: string,
-  applicationId: string
-): Promise<void> {
-  try {
-    console.log('📢 ========================================');
-    console.log('📢 NOTIFYING EMPLOYER ABOUT APPLICATION');
-    console.log('📢 ========================================');
-    console.log('📢 Input parameters:', {
-      employerId,
-      jobId,
-      jobTitle,
-      applicantName,
-      applicationId
-    });
+  async notifyEmployerAboutApplication(
+    employerId: string,
+    jobId: string,
+    jobTitle: string,
+    applicantName: string,
+    applicationId: string
+  ): Promise<void> {
+    try {
+      console.log('📢 ========================================');
+      console.log('📢 NOTIFYING EMPLOYER ABOUT APPLICATION');
+      console.log('📢 ========================================');
+      console.log('📢 Input parameters:', {
+        employerId,
+        jobId,
+        jobTitle,
+        applicantName,
+        applicationId
+      });
 
-    // Get employer's USER_ID from employer_id
-    const employerQuery = await this.db.query(`
-      SELECT e.id, e.user_id, u.email, u.first_name, u.last_name, u.user_type
-      FROM employers e
-      JOIN users u ON e.user_id = u.id
-      WHERE e.id = $1
-    `, [employerId]);
+      // Get employer's USER_ID from employer_id
+      const employerQuery = await this.db.query(`
+        SELECT e.id, e.user_id, u.email, u.first_name, u.last_name, u.user_type
+        FROM employers e
+        JOIN users u ON e.user_id = u.id
+        WHERE e.id = $1
+      `, [employerId]);
 
-    if (employerQuery.rows.length === 0) {
-      console.error('❌ Employer not found for employer_id:', employerId);
-      throw new Error(`Employer ${employerId} not found`);
-    }
-
-    const employer = employerQuery.rows[0];
-    const employerUserId = employer.user_id;
-
-    console.log('✅ Found employer:', {
-      employerId: employer.id,
-      userId: employerUserId,
-      email: employer.email,
-      name: `${employer.first_name} ${employer.last_name}`,
-      userType: employer.user_type
-    });
-
-    // Verify this is actually an employer user
-    if (employer.user_type !== 'employer') {
-      console.error('❌ User is not an employer:', employer.user_type);
-      throw new Error('User is not an employer');
-    }
-
-    console.log('✅ User type verified: EMPLOYER');
-    console.log('📬 Creating notification for employer user_id:', employerUserId);
-
-    // Create notification for employer's USER_ID
-    await this.createNotification(
-      employerUserId,
-      'application_received',
-      `${applicantName} applied for ${jobTitle}`,
-      {
-        job_id: jobId,
-        job_title: jobTitle,
-        applicant_name: applicantName,
-        application_id: applicationId,
-        action: 'new_application',
-        timestamp: new Date().toISOString()
+      if (employerQuery.rows.length === 0) {
+        console.error('❌ Employer not found for employer_id:', employerId);
+        throw new Error(`Employer ${employerId} not found`);
       }
-    );
 
-    console.log('✅ ✅ ✅ EMPLOYER NOTIFICATION CREATED SUCCESSFULLY');
-    console.log('📢 ========================================');
-    
-  } catch (error: any) {
-    console.error('❌ ❌ ❌ CRITICAL: Failed to notify employer');
-    console.error('❌ Error details:', {
-      message: error.message,
-      stack: error.stack,
-      employerId,
-      jobId
-    });
-    console.error('📢 ========================================');
-    
-    throw error; // Re-throw to ensure caller knows
+      const employer = employerQuery.rows[0];
+      const employerUserId = employer.user_id;
+
+      console.log('✅ Found employer:', {
+        employerId: employer.id,
+        userId: employerUserId,
+        email: employer.email,
+        name: `${employer.first_name} ${employer.last_name}`,
+        userType: employer.user_type
+      });
+
+      if (employer.user_type !== 'employer') {
+        console.error('❌ User is not an employer:', employer.user_type);
+        throw new Error('User is not an employer');
+      }
+
+      console.log('✅ User type verified: EMPLOYER');
+      console.log('📬 Creating notification for employer user_id:', employerUserId);
+
+      // 🔥 ENHANCED: Include applicant name in the message
+      const notificationMessage = `${applicantName} has applied for "${jobTitle}". Review their application now!`;
+
+      // 🔥 ENHANCED: Include more applicant details in metadata
+      await this.createNotification(
+        employerUserId,
+        'application_received',
+        notificationMessage,
+        {
+          job_id: jobId,
+          job_title: jobTitle,
+          applicant_name: applicantName, // ✅ Store in metadata
+          application_id: applicationId,
+          action: 'new_application',
+          timestamp: new Date().toISOString(),
+          // 🔥 NEW: Add action URL for quick navigation
+          action_url: `/employer/applications?jobId=${jobId}&applicationId=${applicationId}`
+        }
+      );
+
+      console.log('✅ ✅ ✅ EMPLOYER NOTIFICATION CREATED SUCCESSFULLY');
+      console.log('📢 ========================================');
+      
+    } catch (error: any) {
+      console.error('❌ ❌ ❌ CRITICAL: Failed to notify employer');
+      console.error('❌ Error details:', {
+        message: error.message,
+        stack: error.stack,
+        employerId,
+        jobId
+      });
+      console.error('📢 ========================================');
+      
+      throw error;
+    }
   }
-}
 
   /**
    * ✅ FIXED: Notify jobseeker about application status change
@@ -252,7 +255,6 @@ async notifyEmployerAboutApplication(
         status
       });
 
-      // Verify jobseeker exists
       const userCheck = await this.db.query(
         'SELECT id, user_type FROM users WHERE id = $1',
         [jobseekerId]
@@ -466,7 +468,6 @@ async notifyEmployerAboutApplication(
     console.log('🔔 Getting notifications:', { userId, page, limit, read });
 
     try {
-      // Get user type
       const userTypeResult = await this.db.query(
         'SELECT user_type FROM users WHERE id = $1',
         [userId]
@@ -483,7 +484,6 @@ async notifyEmployerAboutApplication(
       const userType = userTypeResult.rows[0].user_type;
       console.log('👤 User type:', userType);
 
-      // Define allowed notification types by user role
       let allowedNotificationTypes: string[] = [];
 
       if (userType === 'employer') {
@@ -515,14 +515,12 @@ async notifyEmployerAboutApplication(
       const queryParams: any[] = [userId];
       let paramIndex = 2;
 
-      // Filter by allowed types
       if (allowedNotificationTypes.length > 0) {
         whereClause += ` AND type = ANY($${paramIndex}::text[])`;
         queryParams.push(allowedNotificationTypes);
         paramIndex++;
       }
 
-      // Read filter
       if (read !== undefined) {
         const readBool = (read === true || read === 'true');
         whereClause += ` AND read = $${paramIndex++}`;
@@ -579,9 +577,6 @@ async notifyEmployerAboutApplication(
     }
   }
 
-  /**
-   * Mark notification as read
-   */
   async markNotificationRead(notificationId: string, userId: string): Promise<void> {
     await this.db.query(
       'UPDATE notifications SET read = true WHERE id = $1 AND user_id = $2',
@@ -589,9 +584,6 @@ async notifyEmployerAboutApplication(
     );
   }
 
-  /**
-   * Mark all notifications as read
-   */
   async markAllNotificationsRead(userId: string): Promise<void> {
     await this.db.query(
       'UPDATE notifications SET read = true WHERE user_id = $1 AND read = false',
@@ -599,9 +591,6 @@ async notifyEmployerAboutApplication(
     );
   }
 
-  /**
-   * Delete notification
-   */
   async deleteNotification(notificationId: string, userId: string): Promise<void> {
     await this.db.query(
       'DELETE FROM notifications WHERE id = $1 AND user_id = $2',
