@@ -45,7 +45,8 @@ export class SidebarComponent implements OnInit {
       title: 'Support',
       items: [
         { label: 'Settings', icon: 'fas fa-cog', route: '/jobseeker/settings' },
-        { label: 'Help & Support', icon: 'fas fa-question-circle', route: '/jobseeker/help' }
+        { label: 'Help & Support', icon: 'fas fa-question-circle', route: '/jobseeker/help' },
+        { label: 'Logout', icon: 'fas fa-sign-out-alt', route: '/logout' }
       ]
     }
   ];
@@ -67,7 +68,8 @@ export class SidebarComponent implements OnInit {
       title: 'Support',
       items: [
         { label: 'Settings', icon: 'fas fa-cog', route: '/employer/settings' },
-        { label: 'Help & Support', icon: 'fas fa-question-circle', route: '/employer/help' }
+        { label: 'Help & Support', icon: 'fas fa-question-circle', route: '/employer/help' },
+        { label: 'Logout', icon: 'fas fa-sign-out-alt', route: '/logout' }
       ]
     }
   ];
@@ -87,7 +89,8 @@ export class SidebarComponent implements OnInit {
       title: 'Support',
       items: [
         { label: 'Settings', icon: 'fas fa-cog', route: '/admin/settings' },
-        { label: 'Help & Support', icon: 'fas fa-question-circle', route: '/admin/help' }
+        { label: 'Help & Support', icon: 'fas fa-question-circle', route: '/admin/help' },
+        { label: 'Logout', icon: 'fas fa-sign-out-alt', route: '/logout' }
       ]
     }
   ];
