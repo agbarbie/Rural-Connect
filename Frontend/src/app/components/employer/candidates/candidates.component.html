@@ -615,10 +615,6 @@
                [class.fa-heart-o]="!currentProfileData.application || currentProfileData.application.status !== 'shortlisted'"></i>
             {{ currentProfileData.application && currentProfileData.application.status === 'shortlisted' ? 'Shortlisted' : 'Shortlist' }}
           </button>
-          <button class="btn btn-primary" (click)="scheduleInterviewFromModal()">
-            <i class="fas fa-calendar"></i>
-            Schedule Interview
-          </button>
         </div>
       </div>
 
