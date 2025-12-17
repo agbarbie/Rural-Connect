@@ -1,6 +1,10 @@
-import { Component, OnInit, signal, computed } from '@angular/core';
+import { Component, OnInit, signal, computed, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { SidebarComponent } from '../../shared/sidebar/sidebar.component';
+import { AuthService } from '../../../../../services/auth.service';
+import { User } from '../../../../Interfaces/users.types';
+import { Subscription } from 'rxjs';
+
 interface CompanyInfo {
   name: string;
   about: string;
@@ -49,8 +53,10 @@ interface AIInsights {
   templateUrl: './company-profile.component.html',
   styleUrls: ['./company-profile.component.css']
 })
-  export class CompanyProfileComponent implements OnInit {
+export class CompanyProfileComponent implements OnInit, OnDestroy {
   activeTab = signal<string>('overview');
+  currentUser: User | null = null;
+  private userSubscription?: Subscription;
   
   companyInfo = signal<CompanyInfo>({
     name: 'TechInnovate Solutions',
@@ -176,8 +182,64 @@ interface AIInsights {
     ]
   });
 
+  constructor(private authService: AuthService) {}
+
   ngOnInit() {
-    // Initialize component
+    console.log('Company Profile Component initialized');
+    
+    // Subscribe to current user data from auth service
+    this.userSubscription = this.authService.currentUser$.subscribe(user => {
+      console.log('Current user data received:', user);
+      this.currentUser = user;
+      
+      if (user && user.user_type === 'employer') {
+        console.log('Loading company info for employer:', user.email);
+        this.loadCompanyInfoFromUser(user);
+      }
+    });
+
+    // Alternative: Use the helper method
+    const companyInfo = this.authService.getCompanyInfo();
+    if (companyInfo) {
+      console.log('Company info from helper method:', companyInfo);
+    }
+  }
+
+  ngOnDestroy() {
+    // Clean up subscription
+    if (this.userSubscription) {
+      this.userSubscription.unsubscribe();
+    }
+  }
+
+  /**
+   * Load company information from logged-in user's data
+   * This method takes the user's signup data and populates the company profile
+   */
+  private loadCompanyInfoFromUser(user: User): void {
+    const currentInfo = this.companyInfo();
+    
+    console.log('Loading company info from user:', {
+      company_name: user.company_name,
+      role: user.role_in_company
+    });
+    
+    // Update company info with user's signup data
+    this.companyInfo.set({
+      ...currentInfo,
+      // Use the company name from signup, fallback to default if not available
+      name: user.company_name || currentInfo.name,
+      
+      // TODO: Add more fields as you collect them during signup
+      // For example:
+      // about: user.company_description || currentInfo.about,
+      // founded: user.company_founded || currentInfo.founded,
+      // size: user.company_size || currentInfo.size,
+      // industry: user.company_industry || currentInfo.industry,
+      // headquarters: user.company_location || currentInfo.headquarters,
+    });
+
+    console.log('Company info updated:', this.companyInfo());
   }
 
   setActiveTab(tab: string) {
@@ -186,15 +248,38 @@ interface AIInsights {
 
   editProfile() {
     console.log('Edit profile clicked');
+    // TODO: Implement profile editing functionality
+    // Example implementation:
+    /*
+    const updatedData = {
+      company_name: 'New Company Name',
+      company_description: 'Updated description',
+      company_size: '100-500'
+    };
+    
+    this.authService.updateCompanyProfile(updatedData).subscribe({
+      next: (response) => {
+        console.log('Profile updated successfully:', response);
+        // The currentUser$ observable will automatically update
+        // and trigger loadCompanyInfoFromUser()
+      },
+      error: (error) => {
+        console.error('Failed to update profile:', error);
+        // Show error message to user
+      }
+    });
+    */
   }
 
   onSearchChange(event: any) {
     const searchTerm = event.target.value;
     console.log('Search:', searchTerm);
+    // TODO: Implement search functionality
   }
 
   applyToJob(jobId: string) {
     console.log('Apply to job:', jobId);
+    // TODO: Implement job application functionality
   }
 
   getJobModeClass(mode: string): string {
@@ -210,5 +295,39 @@ interface AIInsights {
 
   handleImageError(event: any) {
     event.target.style.display = 'none';
+  }
+
+  /**
+   * Get the user's role in the company for display
+   * Falls back to 'Company Representative' if no role is set
+   */
+  getUserRole(): string {
+    const role = this.currentUser?.role_in_company;
+    console.log('Getting user role:', role);
+    return role || 'Company Representative';
+  }
+
+  /**
+   * Get the user's name for display
+   * Falls back to 'User' if no name is set
+   */
+  getUserName(): string {
+    const name = this.currentUser?.name;
+    console.log('Getting user name:', name);
+    return name || 'User';
+  }
+
+  /**
+   * Check if user is authenticated employer
+   */
+  isEmployer(): boolean {
+    return this.authService.isEmployer();
+  }
+
+  /**
+   * Get the email of current user
+   */
+  getUserEmail(): string {
+    return this.currentUser?.email || '';
   }
 }

@@ -44,6 +44,15 @@ export class AuthService {
           const user = JSON.parse(storedUser);
           this.currentUserSubject.next(user);
           console.log('Auth initialized from storage for user:', user.email);
+          
+          // 🔥 NEW: Log company info if employer
+          if (user.user_type === 'employer') {
+            console.log('Employer company info:', {
+              company_name: user.company_name,
+              company_id: user.company_id,
+              role_in_company: user.role_in_company
+            });
+          }
         } else {
           console.warn('Invalid token format in storage, clearing auth data');
           this.clearAuthData();
@@ -68,7 +77,12 @@ export class AuthService {
     console.log('Registration attempt:', {
       email: userData.email,
       name: userData.name,
-      user_type: userData.user_type
+      user_type: userData.user_type,
+      // 🔥 NEW: Log company info for employers (without password)
+      ...(userData.user_type === 'employer' && {
+        company_name: userData.company_name,
+        role_in_company: userData.role_in_company
+      })
     });
 
     return this.http.post<AuthResponse>(`${this.apiUrl}/auth/register`, userData)
@@ -88,6 +102,13 @@ export class AuthService {
               console.log('User type from data.user:', response.data.user.user_type);
               console.log('User email from data.user:', response.data.user.email);
               console.log('User ID from data.user:', response.data.user.id);
+              
+              // 🔥 NEW: Log company info if employer
+              if (response.data.user.user_type === 'employer') {
+                console.log('Company name:', response.data.user.company_name);
+                console.log('Company ID:', response.data.user.company_id);
+                console.log('Role in company:', response.data.user.role_in_company);
+              }
             }
           } else {
             console.log('No data found in response');
@@ -128,6 +149,14 @@ export class AuthService {
               console.log('User type from data.user:', response.data.user.user_type);
               console.log('User email from data.user:', response.data.user.email);
               console.log('User ID from data.user:', response.data.user.id);
+              console.log('User user_id from data.user:', response.data.user.user_id);
+              
+              // 🔥 NEW: Log company info if employer
+              if (response.data.user.user_type === 'employer') {
+                console.log('Company name:', response.data.user.company_name);
+                console.log('Company ID:', response.data.user.company_id);
+                console.log('Role in company:', response.data.user.role_in_company);
+              }
             }
           } else {
             console.log('No data found in response');
@@ -176,6 +205,15 @@ export class AuthService {
             this.currentUserSubject.next(response.data.user);
             // Also update localStorage
             localStorage.setItem('user', JSON.stringify(response.data.user));
+            
+            // 🔥 NEW: Log company info update if employer
+            if (response.data.user.user_type === 'employer') {
+              console.log('Updated employer profile:', {
+                company_name: response.data.user.company_name,
+                company_id: response.data.user.company_id,
+                role_in_company: response.data.user.role_in_company
+              });
+            }
           }
         }),
         catchError((error: HttpErrorResponse) => {
@@ -203,6 +241,15 @@ export class AuthService {
             // Update current user with updated profile data
             this.currentUserSubject.next(response.data.user);
             localStorage.setItem('user', JSON.stringify(response.data.user));
+            
+            // 🔥 NEW: Log company info update if employer
+            if (response.data.user.user_type === 'employer') {
+              console.log('Updated company profile:', {
+                company_name: response.data.user.company_name,
+                company_id: response.data.user.company_id,
+                role_in_company: response.data.user.role_in_company
+              });
+            }
           }
         }),
         catchError((error: HttpErrorResponse) => {
@@ -217,6 +264,38 @@ export class AuthService {
           return throwError(() => new Error(errorMessage));
         })
       );
+  }
+
+  // 🔥 NEW: Method to update company profile specifically
+  // SECURITY: Does NOT include company_password
+  updateCompanyProfile(companyData: {
+    company_name?: string;
+    role_in_company?: string;
+    company_description?: string;
+    company_size?: string;
+    industry?: string;
+    founded?: string;
+    headquarters?: string;
+  }): Observable<AuthResponse> {
+    return this.updateProfile(companyData);
+  }
+
+  // 🔥 NEW: Get company information from current user
+  // Returns company data for employers only
+  getCompanyInfo(): {
+    company_name: string | undefined;
+    company_id: string | undefined;
+    role_in_company: string | undefined;
+  } | null {
+    const user = this.getCurrentUser();
+    if (user?.user_type === 'employer') {
+      return {
+        company_name: user.company_name,
+        company_id: user.company_id,
+        role_in_company: user.role_in_company
+      };
+    }
+    return null;
   }
 
   private getAuthHeaders(): HttpHeaders {
@@ -239,8 +318,21 @@ export class AuthService {
       }
 
       localStorage.setItem('token', token);
-  localStorage.setItem('user', JSON.stringify(user));
-  localStorage.setItem('userId', user.id); // 🔥 Explicitly store user ID
+      localStorage.setItem('user', JSON.stringify(user));
+      localStorage.setItem('userId', user.id); // Store the string ID
+      localStorage.setItem('user_id', user.user_id); // Also store user_id if different
+      
+      // 🔥 NEW: Store company info separately for easy access
+      if (user.user_type === 'employer' && user.company_name) {
+        localStorage.setItem('company_name', user.company_name);
+        if (user.company_id) {
+          localStorage.setItem('company_id', user.company_id);
+        }
+        if (user.role_in_company) {
+          localStorage.setItem('role_in_company', user.role_in_company);
+        }
+      }
+      
       this.tokenSubject.next(token);
       this.currentUserSubject.next(user);
 
@@ -256,6 +348,13 @@ export class AuthService {
     try {
       localStorage.removeItem('token');
       localStorage.removeItem('user');
+      localStorage.removeItem('userId');
+      localStorage.removeItem('user_id');
+      // 🔥 NEW: Clear company info
+      localStorage.removeItem('company_name');
+      localStorage.removeItem('company_id');
+      localStorage.removeItem('role_in_company');
+      
       this.tokenSubject.next(null);
       this.currentUserSubject.next(null);
       console.log('Auth data cleared');
@@ -324,7 +423,22 @@ export class AuthService {
 
   getUserId(): string | null {
     const user = this.getCurrentUser();
-    return user?.id != null ? String(user.id) : null;
+    return user?.id || null;
+  }
+
+  // Get the user_id field specifically
+  getUserUserId(): string | null {
+    const user = this.getCurrentUser();
+    return user?.user_id || null;
+  }
+
+  // Get company_id for employers
+  getCompanyId(): string | null {
+    const user = this.getCurrentUser();
+    if (user?.user_type === 'employer') {
+      return user.company_id || null;
+    }
+    return null;
   }
 
   isJobseeker(): boolean {
