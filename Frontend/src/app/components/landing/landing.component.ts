@@ -274,11 +274,11 @@ export class LandingComponent implements OnInit {
 
   getSalaryForSkill(skill: string): string {
     const salaries: { [key: string]: string } = {
-      'Python': '₹50,000 - ₹1,20,000/month',
-      'React': '₹40,000 - ₹90,000/month',
-      'Node.js': '₹45,000 - ₹1,00,000/month'
+      'Python': 'Ksh 50,000 - Ksh 1,20,000/month',
+      'React': 'Ksh 40,000 - Ksh 90,000/month',
+      'Node.js': 'Ksh 45,000 - Ksh 1,00,000/month'
     };
-    return salaries[skill] || '₹30,000+/month';
+    return salaries[skill] || 'Ksh 30,000+/month';
   }
 
   subscribeToPremium(): void {
