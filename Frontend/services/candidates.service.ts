@@ -1,44 +1,78 @@
-// src/services/candidates.service.ts
+// src/app/services/candidates.service.ts - UPDATED WITH ALL FIELDS
+
 import { Injectable } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { map, Observable } from 'rxjs';
 import { environment } from '../src/environments/environment.prod';
 
+// ✅ UPDATED: Complete Candidate interface with ALL fields
 export interface Candidate {
-  email: any;
+  // Basic info
   id: string;
   application_id: string;
   name: string;
+  email: string;
+  phone?: string;
+  
+  // Profile info
   title: string;
   profile_picture: string | null;
+  bio?: string; // ✅ NEW
+  location: string;
+  
+  // Match and skills
   match_score: number;
   skills: string[];
   certifications: Certification[];
+  
+  // Experience
   experience: string;
+  years_of_experience?: number; // ✅ NEW
+  current_position?: string; // ✅ NEW
   recent_work: string;
-  location: string;
+  
+  // Availability
   availability: string;
+  availability_status?: string; // ✅ NEW
+  
+  // Application details
   application_status: string;
   applied_at: string;
   cover_letter: string;
   expected_salary: number;
+  
+  // Activity
   last_active: string;
   activity_status: string;
+  
+  // Job details
   job_id: string;
   job_title: string;
+  
+  // Social links
   portfolio_url: string | null;
   github_url: string | null;
   linkedin_url: string | null;
   website_url: string | null;
+  
+  // Status flags
   is_shortlisted: boolean;
   is_selected: boolean;
+  
+  // Education
   education: Education[];
+  
+  // Career preferences (NEW)
+  preferred_job_types?: string[];
+  preferred_locations?: string[];
+  salary_expectation_min?: number;
+  salary_expectation_max?: number;
 }
 
 export interface Certification {
   name: string;
   verified: boolean;
-  progress: number;
+  progress?: number;
   issued_date?: string;
   issuer?: string;
 }
@@ -50,11 +84,6 @@ export interface Education {
 }
 
 export interface JobPost {
-  location: any;
-  employment_type: any;
-  applications_count: number;
-  skills_required: any;
-  experience_level: string;
   id: string;
   title: string;
   status: string;
@@ -63,6 +92,11 @@ export interface JobPost {
   reviewed_count: number;
   shortlisted_count: number;
   created_at: string;
+  applications_count: number;
+  location?: string;
+  employment_type?: string;
+  skills_required?: string[];
+  experience_level?: string;
 }
 
 export interface CandidatesQuery {
@@ -115,6 +149,7 @@ export class CandidatesService {
     if (query.sort_by) params = params.set('sort_by', query.sort_by);
     if (query.page) params = params.set('page', query.page.toString());
     if (query.limit) params = params.set('limit', query.limit.toString());
+    
     return this.http.get<ApiResponse<PaginatedResponse<Candidate>>>(`${this.apiUrl}/candidates`, { params });
   }
 
@@ -140,7 +175,7 @@ export class CandidatesService {
         if (response?.success && response.data?.profile_image) {
           response.data.profile_image = this.getFullImageUrl(response.data.profile_image);
         }
-        // also normalize legacy field name if present
+        // Also normalize legacy field name if present
         if (response?.success && response.data?.profile_picture) {
           response.data.profile_picture = this.getFullImageUrl(response.data.profile_picture);
         }
@@ -150,7 +185,6 @@ export class CandidatesService {
   }
 
   private getHeaders(): { [header: string]: string } {
-    // return any default headers required by your API (e.g. Authorization)
     return {};
   }
 

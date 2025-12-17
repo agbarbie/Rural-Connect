@@ -1,4 +1,4 @@
-<!-- ai-assistant.component.html - WITH REAL DATA -->
+<!-- ai-assistant.component.html - COMPLETE WITH PROFILE MODAL -->
 <div class="ai-assistant-container">
   <!-- Sidebar Navigation -->
   <app-sidebar [userType]="'employer'"></app-sidebar>
@@ -119,6 +119,11 @@
               </div>
               
               <div class="candidate-body">
+                <!-- Bio Section -->
+                <div class="bio-section" *ngIf="candidate.bio && candidate.bio.length > 0">
+                  <p class="bio-preview">{{ candidate.bio.substring(0, 100) }}{{ candidate.bio.length > 100 ? '...' : '' }}</p>
+                </div>
+
                 <div class="skills-section">
                   <h4>Key Skills</h4>
                   <div class="skills-list">
@@ -368,20 +373,20 @@
           <i class="fas fa-spinner fa-spin" *ngIf="isLoading"></i>
         </button>
       </div>
-    </div>
-  </div>
 
-  <!-- Quick Actions Suggestions -->
-  <div class="quick-actions" *ngIf="isChatOpen && chatMessages.length === 1">
-    <button class="quick-action" (click)="currentChatMessage = 'Show me the top 5 candidates with the highest match scores'; sendChatMessage()">
-      Top candidates by match score
-    </button>
-    <button class="quick-action" (click)="currentChatMessage = 'Which training programs would help close our biggest skill gaps?'; sendChatMessage()">
-      Best trainings for skill gaps
-    </button>
-    <button class="quick-action" (click)="currentChatMessage = 'What are the most in-demand skills we should prioritize?'; sendChatMessage()">
-      Most in-demand skills
-    </button>
+      <!-- Quick Actions Suggestions -->
+      <div class="quick-actions" *ngIf="chatMessages.length === 1">
+        <button class="quick-action" (click)="currentChatMessage = 'Show me the top 5 candidates with the highest match scores'; sendChatMessage()">
+          Top candidates by match score
+        </button>
+        <button class="quick-action" (click)="currentChatMessage = 'Which training programs would help close our biggest skill gaps?'; sendChatMessage()">
+          Best trainings for skill gaps
+        </button>
+        <button class="quick-action" (click)="currentChatMessage = 'What are the most in-demand skills we should prioritize?'; sendChatMessage()">
+          Most in-demand skills
+        </button>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -454,6 +459,210 @@
         [disabled]="selectedCandidatesForAssignment.size === 0">
         <i class="fas fa-check"></i>
         Assign Training ({{ selectedCandidatesForAssignment.size }})
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Profile View Modal -->
+<div class="modal-overlay profile-modal-overlay" *ngIf="showProfileModal" (click)="closeProfileModal()">
+  <div class="profile-modal" (click)="$event.stopPropagation()">
+    <!-- Modal Header -->
+    <div class="modal-header">
+      <h3>
+        <i class="fas fa-user-circle"></i>
+        Candidate Profile
+      </h3>
+      <button class="close-btn" (click)="closeProfileModal()">
+        <i class="fas fa-times"></i>
+      </button>
+    </div>
+
+    <!-- Loading State -->
+    <div class="modal-loading" *ngIf="isLoadingProfile">
+      <div class="spinner"></div>
+      <p>Loading profile...</p>
+    </div>
+
+    <!-- Profile Content -->
+    <div class="modal-body" *ngIf="!isLoadingProfile && currentProfileData">
+      <!-- Profile Header -->
+      <div class="profile-modal-header">
+        <div class="profile-image-large">
+          <img 
+            [src]="getFullImageUrl(currentProfileData.profile_image, currentProfileData.name)" 
+            [alt]="currentProfileData.name"
+            (error)="handleImageError($event, currentProfileData.name)"
+          />
+        </div>
+        <div class="profile-header-info">
+          <h2>{{ currentProfileData.name }}</h2>
+          <p class="profile-title">{{ currentProfileData.title }}</p>
+          <p class="profile-location" *ngIf="currentProfileData.location">
+            <i class="fas fa-map-marker-alt"></i>
+            {{ currentProfileData.location }}
+          </p>
+          <div class="profile-contact">
+            <a [href]="'mailto:' + currentProfileData.email" class="contact-link">
+              <i class="fas fa-envelope"></i>
+              {{ currentProfileData.email }}
+            </a>
+            <a [href]="'tel:' + currentProfileData.phone" class="contact-link" *ngIf="currentProfileData.phone">
+              <i class="fas fa-phone"></i>
+              {{ currentProfileData.phone }}
+            </a>
+          </div>
+        </div>
+        
+        <!-- Action Buttons -->
+        <div class="profile-actions">
+          <button class="btn btn-primary" (click)="scheduleInterviewFromModal()">
+            <i class="fas fa-calendar"></i>
+            Schedule Interview
+          </button>
+          <button class="btn btn-secondary" (click)="inviteToApply(currentProfileData.user_id)" *ngIf="selectedJobRole">
+            <i class="fas fa-paper-plane"></i>
+            Invite to Apply
+          </button>
+        </div>
+      </div>
+
+      <!-- Bio Section -->
+      <div class="profile-section" *ngIf="currentProfileData.bio">
+        <h4>
+          <i class="fas fa-user"></i>
+          About
+        </h4>
+        <p class="bio-text">{{ currentProfileData.bio }}</p>
+      </div>
+
+      <!-- Application Details (if exists) -->
+      <div class="profile-section" *ngIf="currentProfileData.application">
+        <h4>
+          <i class="fas fa-file-alt"></i>
+          Application Details
+        </h4>
+        <div class="info-grid">
+          <div class="info-item">
+            <span class="label">Status</span>
+            <span class="value">
+              <span class="status-badge" [class]="currentProfileData.application.status">
+                {{ currentProfileData.application.status }}
+              </span>
+            </span>
+          </div>
+          <div class="info-item">
+            <span class="label">Applied</span>
+            <span class="value">{{ formatDate(currentProfileData.application.applied_at) }}</span>
+          </div>
+          <div class="info-item" *ngIf="currentProfileData.application.expected_salary">
+            <span class="label">Expected Salary</span>
+            <span class="value">${{ currentProfileData.application.expected_salary | number }}</span>
+          </div>
+          <div class="info-item" *ngIf="currentProfileData.application.availability_date">
+            <span class="label">Available From</span>
+            <span class="value">{{ formatDate(currentProfileData.application.availability_date) }}</span>
+          </div>
+        </div>
+        <div class="cover-letter" *ngIf="currentProfileData.application.cover_letter">
+          <h5>Cover Letter</h5>
+          <p>{{ currentProfileData.application.cover_letter }}</p>
+        </div>
+      </div>
+
+      <!-- Skills -->
+      <div class="profile-section" *ngIf="currentProfileData.skills.length > 0">
+        <h4>
+          <i class="fas fa-cogs"></i>
+          Skills
+        </h4>
+        <div class="skills-container">
+          <span class="skill-tag" *ngFor="let skill of currentProfileData.skills">{{ skill }}</span>
+        </div>
+      </div>
+
+      <!-- Career Info -->
+      <div class="profile-section">
+        <h4>
+          <i class="fas fa-briefcase"></i>
+          Career Information
+        </h4>
+        <div class="info-grid">
+          <div class="info-item" *ngIf="currentProfileData.years_of_experience">
+            <span class="label">Experience</span>
+            <span class="value">{{ currentProfileData.years_of_experience }} years</span>
+          </div>
+          <div class="info-item" *ngIf="currentProfileData.current_position">
+            <span class="label">Current Position</span>
+            <span class="value">{{ currentProfileData.current_position }}</span>
+          </div>
+          <div class="info-item">
+            <span class="label">Availability</span>
+            <span class="value">{{ currentProfileData.availability_status }}</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Preferences -->
+      <div class="profile-section" *ngIf="currentProfileData.preferences && (currentProfileData.preferences.job_types.length || currentProfileData.preferences.locations.length || currentProfileData.preferences.salary_min || currentProfileData.preferences.salary_max)">
+        <h4>
+          <i class="fas fa-list-check"></i>
+          Job Preferences
+        </h4>
+        <div class="preferences-grid">
+          <div class="pref-item" *ngIf="currentProfileData.preferences.job_types && currentProfileData.preferences.job_types.length > 0">
+            <strong>Job Types:</strong>
+            <span>{{ currentProfileData.preferences.job_types.join(', ') }}</span>
+          </div>
+          <div class="pref-item" *ngIf="currentProfileData.preferences.locations && currentProfileData.preferences.locations.length > 0">
+            <strong>Preferred Locations:</strong>
+            <span>{{ currentProfileData.preferences.locations.join(', ') }}</span>
+          </div>
+          <div class="pref-item" *ngIf="currentProfileData.preferences.salary_min || currentProfileData.preferences.salary_max">
+            <strong>Salary Range:</strong>
+            <span>
+              ${{ currentProfileData.preferences.salary_min | number }} - 
+              ${{ currentProfileData.preferences.salary_max | number }}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Social Links -->
+      <div class="profile-section" *ngIf="hasSocialLinks(currentProfileData)">
+        <h4>
+          <i class="fas fa-link"></i>
+          Professional Links
+        </h4>
+        <div class="social-links">
+          <a [href]="currentProfileData.social_links.linkedin" target="_blank" 
+             class="social-link" *ngIf="currentProfileData.social_links.linkedin">
+            <i class="fab fa-linkedin"></i>
+            LinkedIn Profile
+          </a>
+          <a [href]="currentProfileData.social_links.github" target="_blank" 
+             class="social-link" *ngIf="currentProfileData.social_links.github">
+            <i class="fab fa-github"></i>
+            GitHub Profile
+          </a>
+          <a [href]="currentProfileData.social_links.portfolio || currentProfileData.social_links.website" 
+             target="_blank" class="social-link" 
+             *ngIf="currentProfileData.social_links.portfolio || currentProfileData.social_links.website">
+            <i class="fas fa-globe"></i>
+            Portfolio Website
+          </a>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal Footer -->
+    <div class="modal-footer" *ngIf="!isLoadingProfile && currentProfileData">
+      <button class="btn btn-secondary" (click)="closeProfileModal()">
+        Close
+      </button>
+      <button class="btn btn-primary" (click)="messageCandidate(currentProfileData.user_id)">
+        <i class="fas fa-message"></i>
+        Send Message
       </button>
     </div>
   </div>

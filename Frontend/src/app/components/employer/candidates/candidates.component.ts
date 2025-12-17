@@ -1,32 +1,49 @@
-// src/app/employer/candidates/candidates.component.ts - COMPLETE FIXED VERSION
+// src/app/employer/candidates/candidates.component.ts - WITH PROFILE MODAL
 
 import { Component, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
-import { Subject, takeUntil, finalize, interval } from 'rxjs';
+import { Subject, takeUntil, finalize } from 'rxjs';
 import { SidebarComponent } from '../../shared/sidebar/sidebar.component';
 import { CandidatesService, Candidate, JobPost, CandidatesQuery } from '../../../../../services/candidates.service';
 import { environment } from '../../../../environments/environments';
 import { GeminiChatService, GeminiResponse } from '../../../../../services/gemini-chat.service';
 import { TrainingService, Training } from '../../../../../services/training.service';
 
-interface AIInsight {
-  reason: string;
-  skillOverlap: string[];
-  experienceRelevance: string;
-  trainingMatch: string;
-  isLoading: boolean;
-  isQualified: boolean;
-  recommendedTrainings?: Training[];
-  hiringSuggestion?: 'hire' | 'interview' | 'train' | 'reject';
-  confidenceScore?: number;
-}
-
-interface ChatMessage {
-  type: 'user' | 'ai';
-  content: string;
-  timestamp: Date;
+interface CandidateProfile {
+  user_id: string;
+  name: string;
+  email: string;
+  phone: string;
+  location: string;
+  profile_image: string;
+  bio: string;
+  title: string;
+  years_of_experience: number;
+  current_position: string;
+  availability_status: string;
+  skills: string[];
+  social_links: {
+    linkedin?: string;
+    github?: string;
+    portfolio?: string;
+    website?: string;
+  };
+  application?: {
+    id: string;
+    status: string;
+    cover_letter: string;
+    expected_salary: number;
+    availability_date: string;
+    applied_at: string;
+  };
+  preferences: {
+    job_types: string[];
+    locations: string[];
+    salary_min: number;
+    salary_max: number;
+  };
 }
 
 @Component({
@@ -71,20 +88,16 @@ export class CandidatesComponent implements OnInit, OnDestroy {
   
   // Modals
   showComparison = false;
-  currentInsight: AIInsight | null = null;
-  selectedCandidate: Candidate | null = null;
+  showProfileModal = false; // NEW: Profile modal
+  currentProfileData: CandidateProfile | null = null; // NEW: Profile data
+  isLoadingProfile = false; // NEW: Loading state for profile
   
-  // AI Chat
+  // Existing modals and chat
   isChatOpen = false;
   currentMessage = '';
-  chatMessages: ChatMessage[] = [];
+  chatMessages: any[] = [];
   isChatLoading = false;
   chatHistory: { role: 'user' | 'assistant'; content: string }[] = [];
-  
-  // Auto-refresh
-  private autoRefreshInterval = 30000;
-  showNewApplicationsBadge = false;
-  newApplicationsCount = 0;
   
   Math = Math;
   
@@ -108,7 +121,120 @@ export class CandidatesComponent implements OnInit, OnDestroy {
   }
 
   // ============================================
-  // LOAD EMPLOYER'S TRAININGS
+  // NEW: PROFILE MODAL FUNCTIONS
+  // ============================================
+  
+  /**
+   * Open profile modal and load full candidate data
+   */
+  viewFullProfile(candidateId: string): void {
+    console.log('📋 Loading full profile for candidate:', candidateId);
+    
+    this.showProfileModal = true;
+    this.isLoadingProfile = true;
+    this.currentProfileData = null;
+    
+    const jobId = this.selectedJob === 'all' ? undefined : this.selectedJob;
+    
+    this.candidatesService.getCandidateProfile(candidateId, jobId)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (response) => {
+          if (response.success && response.data) {
+            this.currentProfileData = response.data;
+            console.log('✅ Profile loaded:', this.currentProfileData);
+          } else {
+            console.error('❌ No profile data received');
+            alert('Failed to load candidate profile');
+            this.closeProfileModal();
+          }
+          this.isLoadingProfile = false;
+        },
+        error: (error) => {
+          console.error('❌ Error loading profile:', error);
+          alert('Failed to load candidate profile');
+          this.closeProfileModal();
+          this.isLoadingProfile = false;
+        }
+      });
+  }
+
+  /**
+   * Close profile modal
+   */
+  closeProfileModal(): void {
+    this.showProfileModal = false;
+    this.currentProfileData = null;
+    this.isLoadingProfile = false;
+  }
+
+  /**
+   * Toggle shortlist from modal
+   */
+  toggleShortlistFromModal(): void {
+    if (!this.currentProfileData || !this.selectedJob || this.selectedJob === 'all') {
+      alert('Please select a specific job to shortlist candidates');
+      return;
+    }
+    
+    this.candidatesService.toggleShortlist(this.currentProfileData.user_id, this.selectedJob)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (response) => {
+          if (response.success && this.currentProfileData?.application) {
+            this.currentProfileData.application.status = response.data.is_shortlisted ? 'shortlisted' : 'reviewed';
+            
+            // Update in candidates list
+            const candidate = this.candidates.find(c => c.id === this.currentProfileData?.user_id);
+            if (candidate) {
+              candidate.is_shortlisted = response.data.is_shortlisted;
+            }
+            
+            console.log('✅ Shortlist status updated');
+          }
+        },
+        error: (error) => {
+          console.error('❌ Error toggling shortlist:', error);
+          alert('Failed to update shortlist status');
+        }
+      });
+  }
+
+  /**
+   * Schedule interview from modal
+   */
+  scheduleInterviewFromModal(): void {
+    if (!this.currentProfileData) return;
+    
+    this.closeProfileModal();
+    this.router.navigate(['/employer/schedule-interview'], {
+      queryParams: {
+        candidateId: this.currentProfileData.user_id,
+        jobId: this.selectedJob === 'all' ? undefined : this.selectedJob
+      }
+    });
+  }
+
+  /**
+   * Check if profile has social links
+   */
+  hasSocialLinks(profile: CandidateProfile | null): boolean {
+    if (!profile) return false;
+    const links = profile.social_links;
+    return !!(links.linkedin || links.github || links.portfolio || links.website);
+  }
+
+  /**
+   * Format date for display
+   */
+  formatDate(dateString: string): string {
+    if (!dateString) return '';
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+  }
+
+  // ============================================
+  // EXISTING FUNCTIONS (keep all your existing functions)
   // ============================================
   
   loadEmployerTrainings(): void {
@@ -118,7 +244,7 @@ export class CandidatesComponent implements OnInit, OnDestroy {
       return;
     }
 
-    console.log('📚 Loading employer trainings for recommendations...');
+    console.log('📚 Loading employer trainings...');
     
     this.trainingService.getMyTrainings({ 
       status: 'published',
@@ -129,7 +255,7 @@ export class CandidatesComponent implements OnInit, OnDestroy {
         next: (response) => {
           if (response.success && response.data?.trainings) {
             this.availableTrainings = response.data.trainings;
-            console.log(`✅ Loaded ${this.availableTrainings.length} trainings for recommendations`);
+            console.log(`✅ Loaded ${this.availableTrainings.length} trainings`);
           }
         },
         error: (error) => {
@@ -138,495 +264,17 @@ export class CandidatesComponent implements OnInit, OnDestroy {
       });
   }
 
-  // ============================================
-  // AI INSIGHTS WITH TRAINING RECOMMENDATIONS
-  // ============================================
-  
-  showAIInsights(candidate: Candidate): void {
-    this.selectedCandidate = candidate;
-    console.log('🤖 Generating AI insights for:', candidate.name);
-    
-    this.currentInsight = {
-      reason: '🤖 AI is analyzing this candidate...',
-      skillOverlap: [],
-      experienceRelevance: 'Analyzing...',
-      trainingMatch: 'Analyzing...',
-      isLoading: true,
-      isQualified: false,
-      hiringSuggestion: undefined,
-      confidenceScore: 0
-    };
-
-    const job = this.jobPosts.find(j => j.id === this.selectedJob);
-    
-    if (!job) {
-      this.currentInsight = {
-        reason: 'Please select a specific job to get AI insights',
-        skillOverlap: candidate.skills.slice(0, 3),
-        experienceRelevance: candidate.experience,
-        trainingMatch: 'Select a job to see training recommendations',
-        isLoading: false,
-        isQualified: false
-      };
-      return;
-    }
-
-    const prompt = this.buildAIInsightPrompt(candidate, job);
-    
-    this.geminiService.sendMessage(prompt, [])
-      .pipe(takeUntil(this.destroy$))
-      .subscribe({
-        next: (response: GeminiResponse) => {
-          console.log('✅ AI response received:', response);
-          this.currentInsight = this.parseAIInsightResponse(response, candidate, job);
-        },
-        error: (error) => {
-          console.error('❌ AI insight error:', error);
-          this.currentInsight = this.generateFallbackInsight(candidate, job);
-        }
-      });
-  }
-
-  private buildAIInsightPrompt(candidate: Candidate, job: JobPost): string {
-    const trainingList = this.availableTrainings
-      .map(t => `- ${t.title} (${t.category}, ${t.level})`)
-      .join('\n');
-
-    return `You are an expert HR consultant analyzing a job candidate. Provide a detailed, structured assessment.
-
-**JOB POSTING:**
-Title: ${job.title}
-Required Skills: ${job.skills_required?.join(', ') || 'Not specified'}
-Experience Level: ${job.experience_level || 'Not specified'}
-
-**CANDIDATE:**
-Name: ${candidate.name}
-Title: ${candidate.title}
-Experience: ${candidate.experience}
-Skills: ${candidate.skills.join(', ')}
-Location: ${candidate.location}
-Match Score: ${candidate.match_score}%
-Cover Letter: ${candidate.cover_letter?.substring(0, 200) || 'Not provided'}
-
-**AVAILABLE TRAINING PROGRAMS:**
-${trainingList || 'No training programs currently available'}
-
-**INSTRUCTIONS:**
-Analyze this candidate and respond in this EXACT format:
-
-QUALIFIED: [Yes/No]
-CONFIDENCE: [0-100]
-HIRING_SUGGESTION: [HIRE/INTERVIEW/TRAIN/REJECT]
-
-REASON: [One clear sentence explaining your decision]
-
-SKILL_MATCHES: [List 2-4 matching skills, comma-separated]
-
-SKILL_GAPS: [List missing critical skills, comma-separated, or "None"]
-
-EXPERIENCE_ASSESSMENT: [One sentence about their experience relevance]
-
-RECOMMENDED_TRAININGS: [If underqualified, suggest 1-3 specific training programs from the list above, comma-separated, or "None needed"]
-
-ACTION_PLAN: [One sentence recommendation for the employer]
-
-**EVALUATION CRITERIA:**
-- Match score ≥80% + strong skill overlap = HIRE
-- Match score 65-79% + relevant experience = INTERVIEW  
-- Match score 50-64% + trainable gaps = TRAIN
-- Match score <50% or critical gaps = REJECT`;
-  }
-
-  private parseAIInsightResponse(response: GeminiResponse, candidate: Candidate, job: JobPost): AIInsight {
-    if (!response.success || !response.message) {
-      return this.generateFallbackInsight(candidate, job);
-    }
-
-    const text = response.message;
-    
-    const qualified = text.match(/QUALIFIED:\s*(Yes|No)/i)?.[1]?.toLowerCase() === 'yes';
-    const confidence = parseInt(text.match(/CONFIDENCE:\s*(\d+)/i)?.[1] || '0');
-    const suggestion = text.match(/HIRING_SUGGESTION:\s*(HIRE|INTERVIEW|TRAIN|REJECT)/i)?.[1]?.toLowerCase() as 'hire' | 'interview' | 'train' | 'reject' || 'interview';
-    
-    const reason = text.match(/REASON:\s*(.+?)(?=\n|$)/i)?.[1]?.trim() || 
-                   `${candidate.match_score}% match with relevant experience`;
-    
-    const skillMatches = text.match(/SKILL_MATCHES:\s*(.+?)(?=\n|$)/i)?.[1]
-      ?.split(',')
-      .map(s => s.trim())
-      .filter(s => s && s !== 'None') || 
-      candidate.skills.slice(0, 3);
-    
-    const skillGaps = text.match(/SKILL_GAPS:\s*(.+?)(?=\n|$)/i)?.[1]
-      ?.split(',')
-      .map(s => s.trim())
-      .filter(s => s && s !== 'None') || [];
-    
-    const experienceAssessment = text.match(/EXPERIENCE_ASSESSMENT:\s*(.+?)(?=\n|$)/i)?.[1]?.trim() || 
-                                 candidate.experience;
-    
-    const recommendedTrainingText = text.match(/RECOMMENDED_TRAININGS:\s*(.+?)(?=\n|$)/i)?.[1]?.trim() || '';
-    const recommendedTrainings = this.matchTrainingsFromText(recommendedTrainingText);
-    
-    const actionPlan = text.match(/ACTION_PLAN:\s*(.+?)$/is)?.[1]?.trim() || 
-                       'Review candidate profile and make hiring decision';
-
-    let trainingMatch = actionPlan;
-    if (recommendedTrainings.length > 0) {
-      trainingMatch = `${actionPlan}\n\n📚 Recommended Training:\n${recommendedTrainings.map(t => `• ${t.title}`).join('\n')}`;
-    } else if (!qualified && skillGaps.length > 0) {
-      trainingMatch = `${actionPlan}\n\n⚠️ Skill gaps: ${skillGaps.join(', ')}`;
-    }
-
-    return {
-      reason,
-      skillOverlap: skillMatches,
-      experienceRelevance: experienceAssessment,
-      trainingMatch,
-      isLoading: false,
-      isQualified: qualified,
-      recommendedTrainings,
-      hiringSuggestion: suggestion,
-      confidenceScore: confidence
-    };
-  }
-
-  private matchTrainingsFromText(text: string): Training[] {
-    if (!text || text.toLowerCase() === 'none needed' || text.toLowerCase() === 'none') {
-      return [];
-    }
-
-    const matches: Training[] = [];
-    const searchText = text.toLowerCase();
-
-    this.availableTrainings.forEach(training => {
-      const titleMatch = searchText.includes(training.title.toLowerCase());
-      const categoryMatch = searchText.includes(training.category.toLowerCase());
-      
-      if (titleMatch || categoryMatch) {
-        matches.push(training);
-      }
-    });
-
-    return matches.slice(0, 3);
-  }
-
-  private generateFallbackInsight(candidate: Candidate, job: JobPost): AIInsight {
-    const qualified = candidate.match_score >= 70;
-    const hasTrainings = this.availableTrainings.length > 0;
-    
-    let suggestion: 'hire' | 'interview' | 'train' | 'reject';
-    let trainingMatch: string;
-
-    if (candidate.match_score >= 80) {
-      suggestion = 'hire';
-      trainingMatch = '✅ Strong candidate - Ready for hiring process';
-    } else if (candidate.match_score >= 65) {
-      suggestion = 'interview';
-      trainingMatch = '📞 Good fit - Schedule interview to assess further';
-    } else if (candidate.match_score >= 50 && hasTrainings) {
-      suggestion = 'train';
-      const relevantTrainings = this.findRelevantTrainings(candidate, job);
-      trainingMatch = relevantTrainings.length > 0
-        ? `🎓 Potential candidate - Consider these training programs:\n${relevantTrainings.map(t => `• ${t.title}`).join('\n')}`
-        : '🎓 Potential with training - Check available programs';
-    } else {
-      suggestion = 'reject';
-      trainingMatch = '❌ Not a strong fit for this position';
-    }
-
-    return {
-      reason: `${candidate.match_score}% match - ${qualified ? 'Meets requirements' : 'Below threshold'}`,
-      skillOverlap: candidate.skills.slice(0, 3),
-      experienceRelevance: candidate.experience,
-      trainingMatch,
-      isLoading: false,
-      isQualified: qualified,
-      hiringSuggestion: suggestion,
-      confidenceScore: candidate.match_score
-    };
-  }
-
-  private findRelevantTrainings(candidate: Candidate, job: JobPost): Training[] {
-    if (this.availableTrainings.length === 0) return [];
-
-    const requiredSkills = job.skills_required || [];
-    const candidateSkills = candidate.skills.map(s => s.toLowerCase());
-    
-    const missingSkills = requiredSkills.filter(
-      (      skill: string) => !candidateSkills.includes(skill.toLowerCase())
-    );
-
-    return this.availableTrainings
-      .filter(training => {
-        const titleLower = training.title.toLowerCase();
-        const categoryLower = training.category.toLowerCase();
-        
-        return missingSkills.some((skill: string) => 
-          titleLower.includes(skill.toLowerCase()) ||
-          categoryLower.includes(skill.toLowerCase())
-        );
-      })
-      .slice(0, 3);
-  }
-
-  hideAIInsights(): void {
-    this.currentInsight = null;
-    this.selectedCandidate = null;
-  }
-
-  viewTrainingDetails(training: Training): void {
-    console.log('📚 Viewing training:', training.title);
-    window.open(`/employer/training/${training.id}`, '_blank');
-  }
-
-  inviteToTraining(candidate: Candidate | null): void {
-    if (!candidate || !this.currentInsight?.recommendedTrainings?.length) {
-      return;
-    }
-
-    const trainingTitles = this.currentInsight.recommendedTrainings
-      .map(t => t.title)
-      .join(', ');
-
-    const jobTitle = this.jobPosts.find(j => j.id === this.selectedJob)?.title || 'this position';
-    const message = `Based on our review, we'd like to invite you to participate in the following training program(s): ${trainingTitles}. This will help strengthen your skills for the ${jobTitle} position.`;
-
-    if (confirm(`Send training invitation to ${candidate.name}?\n\n${message}`)) {
-      alert('Training invitation feature coming soon!');
-    }
-  }
-
-  // ============================================
-  // AI CHAT ASSISTANT
-  // ============================================
-  
-  initializeChat(): void {
-    console.log('🤖 Initializing AI Chat Assistant...');
-    
-    this.chatMessages = [{
-      type: 'ai',
-      content: '👋 Hello! I\'m your AI hiring assistant. I can help you:\n\n' +
-               '• Analyze candidate qualifications\n' +
-               '• Find top matches for your jobs\n' +
-               '• Recommend training for underqualified candidates\n' +
-               '• Compare candidates side-by-side\n\n' +
-               'What would you like to know?',
-      timestamp: new Date()
-    }];
-  }
-
-  toggleChat(): void {
-    this.isChatOpen = !this.isChatOpen;
-    
-    if (this.isChatOpen && this.chatMessages.length === 0) {
-      this.initializeChat();
-    }
-  }
-
-  // REPLACE the sendMessage() method in candidates.component.ts with this:
-
-sendMessage(): void {
-  if (!this.currentMessage.trim() || this.isChatLoading) return;
-
-  const userMessage = this.currentMessage.trim();
-  console.log('💬 User message:', userMessage);
-  
-  // Add user message to chat
-  this.chatMessages.push({
-    type: 'user',
-    content: userMessage,
-    timestamp: new Date()
-  });
-  
-  this.currentMessage = '';
-  this.isChatLoading = true;
-
-  // Add to chat history
-  this.chatHistory.push({
-    role: 'user',
-    content: userMessage
-  });
-
-  const job = this.jobPosts.find(j => j.id === this.selectedJob);
-
-  // CRITICAL: Build context object to send to backend
-  const context = {
-    jobs: this.jobPosts.map(j => ({
-      id: j.id,
-      title: j.title,
-      skills_required: j.skills_required,
-      applications_count: j.applications_count,
-      status: j.status
-    })),
-    trainings: this.availableTrainings.map(t => ({
-      id: t.id,
-      title: t.title,
-      category: t.category,
-      level: t.level,
-      duration_hours: t.duration_hours,
-      cost_type: t.cost_type
-    })),
-    candidates: this.filteredCandidates.slice(0, 10).map(c => ({
-      id: c.id,
-      name: c.name,
-      title: c.title,
-      skills: c.skills,
-      match_score: c.match_score
-    })),
-    selectedJob: job ? {
-      id: job.id,
-      title: job.title,
-      skills_required: job.skills_required
-    } : null
-  };
-  
-  console.log('🚀 Calling sendEmployerMessage with:', {
-    userMessage,
-    historyLength: this.chatHistory.length,
-    contextJobs: context.jobs.length,
-    contextTrainings: context.trainings.length,
-    contextCandidates: context.candidates.length,
-    trainingTitles: context.trainings.map(t => t.title)
-  });
-  
-  // CRITICAL: Use sendEmployerMessage (not sendMessage!)
-  this.geminiService.sendEmployerMessage(userMessage, this.chatHistory, context)
-    .pipe(
-      takeUntil(this.destroy$),
-      finalize(() => this.isChatLoading = false)
-    )
-    .subscribe({
-      next: (response: GeminiResponse) => {
-        console.log('✅ AI chat response:', response);
-        
-        const aiMessage = response.message || 
-          'I apologize, but I couldn\'t process that request. Please try rephrasing.';
-        
-        this.chatMessages.push({
-          type: 'ai',
-          content: aiMessage,
-          timestamp: new Date()
-        });
-        
-        this.chatHistory.push({
-          role: 'assistant',
-          content: aiMessage
-        });
-
-        setTimeout(() => this.scrollChatToBottom(), 100);
-      },
-      error: (error) => {
-        console.error('❌ AI chat error:', error);
-        
-        this.chatMessages.push({
-          type: 'ai',
-          content: '❌ I encountered an error. Please try again or rephrase your question.',
-          timestamp: new Date()
-        });
-        
-        this.isChatLoading = false;
-      }
-    });
-}
-
-
-  private scrollChatToBottom(): void {
-    setTimeout(() => {
-      const chatContainer = document.querySelector('.chat-messages');
-      if (chatContainer) {
-        chatContainer.scrollTop = chatContainer.scrollHeight;
-      }
-    }, 100);
-  }
-
-  askQuickQuestion(question: string): void {
-    this.currentMessage = question;
-    this.sendMessage();
-  }
-
-  // ============================================
-  // DATA LOADING & REFRESH
-  // ============================================
-  
-  private setupAutoRefresh(): void {
-    console.log('⏱️ Setting up auto-refresh every', this.autoRefreshInterval / 1000, 'seconds');
-    
-    interval(this.autoRefreshInterval)
-      .pipe(takeUntil(this.destroy$))
-      .subscribe(() => {
-        console.log('🔄 Auto-refresh triggered at', new Date().toLocaleTimeString());
-        this.checkForNewApplications();
-      });
-  }
-  
-  private checkForNewApplications(): void {
-    const query: CandidatesQuery = {
-      job_id: this.selectedJob === 'all' ? undefined : this.selectedJob,
-      page: 1,
-      limit: 100
-    };
-    
-    this.candidatesService.getCandidates(query)
-      .pipe(takeUntil(this.destroy$))
-      .subscribe({
-        next: (response) => {
-          if (response.success && response.data) {
-            const currentTotal = response.data.pagination?.total || 0;
-            
-            if (currentTotal > this.totalCandidates) {
-              this.newApplicationsCount = currentTotal - this.totalCandidates;
-              this.showNewApplicationsBadge = true;
-              console.log('🔔 New applications detected:', this.newApplicationsCount);
-              this.showBrowserNotification(this.newApplicationsCount);
-            }
-          }
-        },
-        error: (error) => {
-          console.error('❌ Auto-refresh error:', error);
-        }
-      });
-  }
-  
-  private showBrowserNotification(count: number): void {
-    if ('Notification' in window && Notification.permission === 'granted') {
-      const jobTitle = this.selectedJob === 'all' 
-        ? 'all jobs' 
-        : this.jobPosts.find(j => j.id === this.selectedJob)?.title || 'your job';
-      
-      new Notification('New Job Applications!', {
-        body: `${count} new ${count === 1 ? 'application' : 'applications'} received for ${jobTitle}`,
-        icon: '/assets/logo.png',
-        badge: '/assets/logo.png'
-      });
-    } else if ('Notification' in window && Notification.permission !== 'denied') {
-      Notification.requestPermission();
-    }
-  }
-  
-  refreshCandidates(): void {
-    console.log('🔄 Manual refresh triggered by user');
-    this.showNewApplicationsBadge = false;
-    this.newApplicationsCount = 0;
-    this.loadCandidates();
-  }
-  
   loadJobPosts(): void {
     console.log('📋 Loading job posts...');
     
     this.candidatesService.getJobPosts()
-      .pipe(
-        takeUntil(this.destroy$),
-        finalize(() => console.log('✅ Job posts load completed'))
-      )
+      .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: (response) => {
           if (response.success && response.data) {
             this.jobPosts = response.data;
             console.log('✅ Job posts loaded:', this.jobPosts.length);
-            
             this.loadCandidates();
-            this.setupAutoRefresh();
           }
         },
         error: (error) => {
@@ -637,7 +285,7 @@ sendMessage(): void {
   }
   
   loadCandidates(): void {
-    console.log('🔄 Loading candidates with filters');
+    console.log('🔄 Loading candidates...');
     
     this.isLoading = true;
     this.lastRefreshTime = new Date();
@@ -670,6 +318,8 @@ sendMessage(): void {
             this.currentPage = response.data.pagination?.page || 1;
             
             this.applyClientSideFilters();
+            
+            console.log('✅ Candidates loaded:', this.candidates.length);
           } else {
             this.resetCandidatesState();
           }
@@ -708,10 +358,7 @@ sendMessage(): void {
     this.filteredCandidates = filtered;
   }
   
-  // ============================================
-  // FILTER & SEARCH ACTIONS
-  // ============================================
-  
+  // Filter actions
   applyFilters(): void {
     this.currentPage = 1;
     this.loadCandidates();
@@ -732,8 +379,6 @@ sendMessage(): void {
   onJobChange(): void {
     this.currentPage = 1;
     this.clearSelection();
-    this.showNewApplicationsBadge = false;
-    this.newApplicationsCount = 0;
     this.loadCandidates();
   }
   
@@ -754,10 +399,7 @@ sendMessage(): void {
     this.viewMode = this.viewMode === 'grid' ? 'list' : 'grid';
   }
   
-  // ============================================
-  // CANDIDATE SELECTION & BATCH ACTIONS
-  // ============================================
-  
+  // Selection
   toggleCandidateSelection(candidateId: string): void {
     const index = this.selectedCandidates.indexOf(candidateId);
     if (index > -1) {
@@ -805,7 +447,7 @@ sendMessage(): void {
       this.clearSelection();
     }).catch(error => {
       console.error('❌ Error in batch shortlist:', error);
-      alert('Failed to shortlist some candidates. Please try again.');
+      alert('Failed to shortlist some candidates');
     });
   }
   
@@ -815,8 +457,8 @@ sendMessage(): void {
       return;
     }
     
-    const message = prompt('Enter invitation message (optional):') ||
-      'You have been invited to apply for this position based on your profile.';
+    const message = prompt('Enter invitation message:') ||
+      'You have been invited to apply for this position.';
     
     this.candidatesService.sendBulkInvitations(this.selectedCandidates, this.selectedJob, message)
       .pipe(takeUntil(this.destroy$))
@@ -827,19 +469,9 @@ sendMessage(): void {
         },
         error: (error) => {
           console.error('❌ Error sending invites:', error);
-          alert('Failed to send invitations. Please try again.');
+          alert('Failed to send invitations');
         }
       });
-  }
-  
-  // ============================================
-  // INDIVIDUAL CANDIDATE ACTIONS
-  // ============================================
-  
-  viewFullProfile(candidateId: string): void {
-    this.router.navigate(['../candidate-profile', candidateId], {
-      queryParams: { jobId: this.selectedJob === 'all' ? undefined : this.selectedJob }
-    });
   }
   
   toggleShortlist(candidate: Candidate): void {
@@ -864,22 +496,22 @@ sendMessage(): void {
   
   inviteToApply(candidateId: string): void {
     if (this.selectedJob === 'all') {
-      alert('Please select a specific job to send invitation');
+      alert('Please select a specific job');
       return;
     }
     
-    const message = prompt('Enter invitation message (optional):') ||
-      'You have been invited to apply for this position based on your profile.';
+    const message = prompt('Enter invitation message:') ||
+      'You have been invited to apply.';
     
     this.candidatesService.inviteCandidate(candidateId, this.selectedJob, message)
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: () => {
-          alert('Invitation sent successfully!');
+          alert('Invitation sent!');
         },
         error: (error) => {
           console.error('❌ Error sending invitation:', error);
-          alert('Failed to send invitation. Please try again.');
+          alert('Failed to send invitation');
         }
       });
   }
@@ -901,10 +533,7 @@ sendMessage(): void {
     });
   }
   
-  // ============================================
-  // UTILITY METHODS
-  // ============================================
-  
+  // Utility
   getFullImageUrl(imagePath: string | null | undefined, candidateName: string): string {
     if (!imagePath) {
       return `https://ui-avatars.com/api/?name=${encodeURIComponent(candidateName)}&background=4285f4&color=fff&size=128`;
@@ -914,13 +543,9 @@ sendMessage(): void {
       return imagePath;
     }
     
-    if (imagePath.startsWith('/uploads') || imagePath.startsWith('uploads')) {
+    if (imagePath.startsWith('/uploads')) {
       const baseUrl = environment.apiUrl.replace('/api', '');
-      return `${baseUrl}${imagePath.startsWith('/') ? '' : '/'}${imagePath}`;
-    }
-    
-    if (imagePath.startsWith('assets/')) {
-      return imagePath;
+      return `${baseUrl}${imagePath}`;
     }
     
     return `https://ui-avatars.com/api/?name=${encodeURIComponent(candidateName)}&background=4285f4&color=fff&size=128`;
@@ -968,7 +593,7 @@ sendMessage(): void {
   }
   
   downloadReport(): void {
-    console.log('📥 Downloading candidate report...');
+    console.log('📥 Downloading report...');
   }
   
   toggleSelection(candidate: Candidate): void {
@@ -977,5 +602,84 @@ sendMessage(): void {
   
   promoteJob() {
     console.log('📢 Promoting job...');
+  }
+  
+  refreshCandidates(): void {
+    this.loadCandidates();
+  }
+
+  // Chat functions
+  initializeChat(): void {
+    this.chatMessages = [{
+      type: 'ai',
+      content: '👋 Hello! I\'m your AI hiring assistant. How can I help you today?',
+      timestamp: new Date()
+    }];
+  }
+
+  toggleChat(): void {
+    this.isChatOpen = !this.isChatOpen;
+  }
+
+  sendMessage(): void {
+    if (!this.currentMessage.trim() || this.isChatLoading) return;
+
+    const userMessage = this.currentMessage.trim();
+    this.chatMessages.push({
+      type: 'user',
+      content: userMessage,
+      timestamp: new Date()
+    });
+    
+    this.currentMessage = '';
+    this.isChatLoading = true;
+
+    this.chatHistory.push({
+      role: 'user',
+      content: userMessage
+    });
+
+    const job = this.jobPosts.find(j => j.id === this.selectedJob);
+    const context = {
+      jobs: this.jobPosts,
+      trainings: this.availableTrainings,
+      candidates: this.filteredCandidates.slice(0, 10),
+      selectedJob: job || null
+    };
+    
+    this.geminiService.sendEmployerMessage(userMessage, this.chatHistory, context)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (response: GeminiResponse) => {
+          const aiMessage = response.message || 'I couldn\'t process that request.';
+          
+          this.chatMessages.push({
+            type: 'ai',
+            content: aiMessage,
+            timestamp: new Date()
+          });
+          
+          this.chatHistory.push({
+            role: 'assistant',
+            content: aiMessage
+          });
+
+          this.isChatLoading = false;
+        },
+        error: (error) => {
+          console.error('❌ Chat error:', error);
+          this.chatMessages.push({
+            type: 'ai',
+            content: '❌ Error occurred. Please try again.',
+            timestamp: new Date()
+          });
+          this.isChatLoading = false;
+        }
+      });
+  }
+
+  askQuickQuestion(question: string): void {
+    this.currentMessage = question;
+    this.sendMessage();
   }
 }

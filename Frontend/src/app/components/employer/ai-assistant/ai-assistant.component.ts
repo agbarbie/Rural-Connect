@@ -1,13 +1,15 @@
-// ai-assistant.component.ts - COMPLETE WITH REAL DATA INTEGRATION
+// ai-assistant.component.ts - WITH PROFILE MODAL INTEGRATION
 import { Component, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { Router } from '@angular/router';
 import { Subject } from 'rxjs';
 import { takeUntil } from 'rxjs/operators';
 import { SidebarComponent } from '../../shared/sidebar/sidebar.component';
 import { CandidatesService, Candidate, JobPost } from '../../../../../services/candidates.service';
 import { TrainingService, Training } from '../../../../../services/training.service';
 import { GeminiChatService, GeminiResponse } from '../../../../../services/gemini-chat.service';
+import { environment } from '../../../../environments/environments';
 
 interface ChatMessage {
   id: string;
@@ -21,6 +23,42 @@ interface SkillGap {
   demandPercentage: number;
   candidatesWithSkill: number;
   totalCandidates: number;
+}
+
+// ✅ NEW: Profile interface (same as candidates component)
+interface CandidateProfile {
+  user_id: string;
+  name: string;
+  email: string;
+  phone: string;
+  location: string;
+  profile_image: string;
+  bio: string;
+  title: string;
+  years_of_experience: number;
+  current_position: string;
+  availability_status: string;
+  skills: string[];
+  social_links: {
+    linkedin?: string;
+    github?: string;
+    portfolio?: string;
+    website?: string;
+  };
+  application?: {
+    id: string;
+    status: string;
+    cover_letter: string;
+    expected_salary: number;
+    availability_date: string;
+    applied_at: string;
+  };
+  preferences: {
+    job_types: string[];
+    locations: string[];
+    salary_min: number;
+    salary_max: number;
+  };
 }
 
 @Component({
@@ -53,6 +91,11 @@ export class AiAssistantComponent implements OnInit, OnDestroy {
   isLoading: boolean = false;
   chatMessages: ChatMessage[] = [];
   
+  // ✅ NEW: Profile modal state
+  showProfileModal: boolean = false;
+  currentProfileData: CandidateProfile | null = null;
+  isLoadingProfile: boolean = false;
+  
   // Chat history for Gemini
   chatHistory: { role: 'user' | 'assistant'; content: string }[] = [];
   
@@ -70,7 +113,8 @@ export class AiAssistantComponent implements OnInit, OnDestroy {
   constructor(
     private candidatesService: CandidatesService,
     private trainingService: TrainingService,
-    private geminiService: GeminiChatService
+    private geminiService: GeminiChatService,
+    private router: Router
   ) {}
 
   ngOnInit(): void {
@@ -82,6 +126,94 @@ export class AiAssistantComponent implements OnInit, OnDestroy {
   ngOnDestroy(): void {
     this.destroy$.next();
     this.destroy$.complete();
+  }
+
+  // ============================================
+  // ✅ NEW: PROFILE MODAL FUNCTIONS
+  // ============================================
+  
+  /**
+   * Open profile modal and load full candidate data
+   */
+  viewProfile(candidateId: string): void {
+    console.log('📋 Loading full profile for candidate:', candidateId);
+    
+    this.showProfileModal = true;
+    this.isLoadingProfile = true;
+    this.currentProfileData = null;
+    
+    // Get job ID if a specific job role is selected
+    const jobId = this.selectedJobRole ? 
+      this.jobPosts.find(j => j.title === this.selectedJobRole)?.id : 
+      undefined;
+    
+    this.candidatesService.getCandidateProfile(candidateId, jobId)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (response) => {
+          if (response.success && response.data) {
+            this.currentProfileData = response.data;
+            console.log('✅ Profile loaded:', this.currentProfileData);
+          } else {
+            console.error('❌ No profile data received');
+            alert('Failed to load candidate profile');
+            this.closeProfileModal();
+          }
+          this.isLoadingProfile = false;
+        },
+        error: (error) => {
+          console.error('❌ Error loading profile:', error);
+          alert('Failed to load candidate profile');
+          this.closeProfileModal();
+          this.isLoadingProfile = false;
+        }
+      });
+  }
+
+  /**
+   * Close profile modal
+   */
+  closeProfileModal(): void {
+    this.showProfileModal = false;
+    this.currentProfileData = null;
+    this.isLoadingProfile = false;
+  }
+
+  /**
+   * Check if profile has social links
+   */
+  hasSocialLinks(profile: CandidateProfile | null): boolean {
+    if (!profile) return false;
+    const links = profile.social_links;
+    return !!(links.linkedin || links.github || links.portfolio || links.website);
+  }
+
+  /**
+   * Format date for display
+   */
+  formatDate(dateString: string): string {
+    if (!dateString) return '';
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+  }
+
+  /**
+   * Schedule interview from modal
+   */
+  scheduleInterviewFromModal(): void {
+    if (!this.currentProfileData) return;
+    
+    const jobId = this.selectedJobRole ? 
+      this.jobPosts.find(j => j.title === this.selectedJobRole)?.id : 
+      undefined;
+    
+    this.closeProfileModal();
+    this.router.navigate(['/employer/schedule-interview'], {
+      queryParams: {
+        candidateId: this.currentProfileData.user_id,
+        jobId: jobId
+      }
+    });
   }
 
   // ============================================
@@ -260,11 +392,6 @@ export class AiAssistantComponent implements OnInit, OnDestroy {
   // CANDIDATE ACTIONS
   // ============================================
   
-  viewProfile(candidateId: string): void {
-    console.log('Viewing profile for candidate:', candidateId);
-    window.open(`/employer/candidate-profile/${candidateId}`, '_blank');
-  }
-
   inviteToApply(candidateId: string): void {
     console.log('Inviting candidate to apply:', candidateId);
     
@@ -293,7 +420,9 @@ export class AiAssistantComponent implements OnInit, OnDestroy {
 
   messageCandidate(candidateId: string): void {
     console.log('Messaging candidate:', candidateId);
-    window.open(`/employer/messages?userId=${candidateId}`, '_blank');
+    this.router.navigate(['/employer/messages'], {
+      queryParams: { userId: candidateId }
+    });
   }
 
   // ============================================
@@ -540,6 +669,11 @@ export class AiAssistantComponent implements OnInit, OnDestroy {
     
     if (imagePath.startsWith('http') || imagePath.startsWith('data:')) {
       return imagePath;
+    }
+    
+    if (imagePath.startsWith('/uploads')) {
+      const baseUrl = environment.apiUrl.replace('/api', '');
+      return `${baseUrl}${imagePath}`;
     }
     
     return `https://ui-avatars.com/api/?name=${encodeURIComponent(candidateName)}&background=4285f4&color=fff&size=128`;
