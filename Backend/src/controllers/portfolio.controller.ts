@@ -1,11 +1,10 @@
-// src/controllers/portfolio.controller.ts - FINAL VERSION with SELECT * for CVs
+// src/controllers/portfolio.controller.ts - FINAL WORKING VERSION
 import { Request, Response } from 'express';
 import pool from '../db/db.config';
 
 export class PortfolioController {
   /**
-   * GET /api/portfolio/my-portfolio
-   * Returns merged profile + CV data for authenticated user
+   * ✅ FINAL WORKING VERSION
    */
   async getMyPortfolio(req: Request, res: Response): Promise<void> {
     try {
@@ -21,7 +20,7 @@ export class PortfolioController {
 
       console.log('📂 Fetching portfolio for user:', userId);
 
-      // 1. Get user's basic data
+      // Step 1: Get user's basic data from users table
       const userQuery = `
         SELECT id, name, email, profile_picture
         FROM users 
@@ -40,50 +39,90 @@ export class PortfolioController {
       const userData = userResult.rows[0];
       console.log('✅ User data loaded');
 
-      // 2. Get profile data from jobseeker_profiles table
+      // Step 2: Get profile data - use SELECT * to get all columns
       const profileQuery = `
         SELECT *
         FROM jobseeker_profiles 
         WHERE user_id = $1
       `;
       const profileResult = await pool.query(profileQuery, [userId]);
+
+      let profileData: any = {};
       
-      const profileData = profileResult.rows.length > 0 
-        ? profileResult.rows[0] 
-        : {};
-
-      console.log('✅ Profile data loaded');
-
-      // 3. Get user's latest CV - USE SELECT * to get all columns
-      const cvQuery = `
-        SELECT *
-        FROM cvs
-        WHERE user_id = $1
-        ORDER BY 
-          CASE WHEN status = 'final' THEN 0 ELSE 1 END,
-          updated_at DESC
-        LIMIT 1
-      `;
-      const cvResult = await pool.query(cvQuery, [userId]);
-
-      if (cvResult.rows.length === 0) {
-        console.log('⚠️ No CV found for user');
-        res.status(404).json({
-          success: false,
-          message: 'No CV found. Please create a CV in the CV Builder first.',
-          profileData: {
-            ...userData,
-            ...profileData
-          }
-        });
-        return;
+      if (profileResult.rows.length > 0) {
+        profileData = profileResult.rows[0];
+        console.log('✅ Profile data loaded, columns:', Object.keys(profileData));
+      } else {
+        console.log('ℹ️ No profile data found, creating defaults');
+        profileData = {
+          user_id: userId,
+          phone: null,
+          location: null,
+          bio: null,
+          linkedin_url: null,
+          github_url: null,
+          portfolio_url: null,
+          years_of_experience: 0,
+          current_position: null,
+          availability_status: 'open_to_opportunities',
+          preferred_job_types: null,
+          preferred_locations: null,
+          salary_expectation_min: null,
+          salary_expectation_max: null,
+          skills: null
+        };
       }
 
-      const cv = cvResult.rows[0];
-      console.log('✅ CV data loaded:', cv.id);
-      console.log('📋 CV columns available:', Object.keys(cv));
+      // Parse JSONB fields safely
+      const parseJsonField = (field: any): any[] => {
+        if (!field) return [];
+        try {
+          if (typeof field === 'string') return JSON.parse(field);
+          if (Array.isArray(field)) return field;
+          return [];
+        } catch {
+          return [];
+        }
+      };
 
-      // 4. Get portfolio settings
+      const skills = parseJsonField(profileData.skills);
+      const preferredJobTypes = parseJsonField(profileData.preferred_job_types);
+      const preferredLocations = parseJsonField(profileData.preferred_locations);
+
+      // Step 3: Try to get CV data (OPTIONAL)
+      let cvData: any = null;
+      let cvId: string | null = null;
+
+      try {
+        const cvQuery = `
+          SELECT id::text, status, cv_data, created_at, updated_at
+          FROM cvs
+          WHERE user_id = $1
+          ORDER BY 
+            CASE WHEN status = 'final' THEN 0 ELSE 1 END,
+            updated_at DESC
+          LIMIT 1
+        `;
+        
+        const cvResult = await pool.query(cvQuery, [userId]);
+
+        if (cvResult.rows.length > 0) {
+          const cv = cvResult.rows[0];
+          cvId = cv.id;
+          
+          cvData = typeof cv.cv_data === 'string' 
+            ? JSON.parse(cv.cv_data) 
+            : cv.cv_data;
+            
+          console.log('✅ CV data found:', cvId);
+        } else {
+          console.log('ℹ️ No CV found - using profile data only');
+        }
+      } catch (cvError) {
+        console.warn('⚠️ CV query failed:', cvError);
+      }
+
+      // Step 4: Get portfolio settings
       const settingsQuery = `
         SELECT * FROM portfolio_settings WHERE user_id = $1
       `;
@@ -103,7 +142,7 @@ export class PortfolioController {
             social_links: []
           };
 
-      // 5. Get testimonials
+      // Step 5: Get testimonials
       const testimonialsQuery = `
         SELECT 
           id, 
@@ -114,70 +153,127 @@ export class PortfolioController {
           author_company as company,
           created_at
         FROM portfolio_testimonials 
-        WHERE user_id = $1 
+        WHERE user_id = $1 AND is_approved = true
         ORDER BY created_at DESC
       `;
       const testimonialsResult = await pool.query(testimonialsQuery, [userId]);
 
-      // 6. Get view count
+      // Step 6: Get view count
       const viewCountQuery = `
         SELECT COUNT(*) as count FROM portfolio_views WHERE user_id = $1
       `;
       const viewCountResult = await pool.query(viewCountQuery, [userId]);
       const viewCount = parseInt(viewCountResult.rows[0]?.count || '0');
 
-      // 7. Merge all data
-      const mergedProfileData = {
-        // From users table
-        id: userData.id,
-        name: userData.name,
-        email: userData.email,
-        profile_image: userData.profile_picture,
-        profile_picture: userData.profile_picture,
+      // ✅ FIXED: Use helper function instead of this.categorizeSkill
+      const categorizeSkill = (skillName: string): string => {
+        const tech = skillName.toLowerCase();
         
-        // From jobseeker_profiles table (all columns)
-        ...profileData
+        const technicalKeywords = [
+          'javascript', 'python', 'java', 'c++', 'c#', 'php', 'ruby', 'go',
+          'react', 'angular', 'vue', 'node', 'sql', 'mongodb', 'aws', 'docker',
+          'kubernetes', 'typescript', 'html', 'css', 'git', 'linux'
+        ];
+
+        const softKeywords = [
+          'communication', 'leadership', 'teamwork', 'management', 'problem solving',
+          'analytical', 'critical thinking', 'creativity', 'adaptability'
+        ];
+
+        if (technicalKeywords.some(kw => tech.includes(kw))) {
+          return 'Technical';
+        }
+        if (softKeywords.some(kw => tech.includes(kw))) {
+          return 'Soft Skills';
+        }
+        
+        return 'General';
       };
 
-      // 8. Extract CV data - handle different possible column names
-      let cvData = null;
-      
-      // Try common CV data column names
-      if (cv.data) {
-        cvData = cv.data;
-      } else if (cv.cv_data) {
-        cvData = cv.cv_data;
-      } else if (cv.extracted_data) {
-        cvData = cv.extracted_data;
-      } else if (cv.parsed_data) {
-        cvData = cv.parsed_data;
-      } else {
-        // If no data column found, return the whole CV object
-        console.log('⚠️ No standard CV data column found, using entire CV object');
-        cvData = cv;
-      }
-
-      console.log('📊 CV data type:', typeof cvData);
-
-      // 9. Return enhanced portfolio data
-      const enhancedPortfolioData = {
+      // Step 7: Build portfolio response
+      const portfolioResponse = {
         success: true,
         message: 'Portfolio retrieved successfully',
         data: {
-          cvId: cv.id,
           userId: userId,
-          cvData: cvData, // Whatever CV data we found
-          profileData: mergedProfileData,
+          cvId: cvId,
+
+          // Personal info (combine users + profile data)
+          personalInfo: {
+            fullName: userData.name,
+            email: userData.email,
+            phone: profileData.phone || '',
+            location: profileData.location || '',
+            profileImage: userData.profile_picture || null,
+            bio: profileData.bio || '',
+            linkedIn: profileData.linkedin_url || '',
+            github: profileData.github_url || '',
+            website: profileData.portfolio_url || '',
+            yearsOfExperience: profileData.years_of_experience || 0,
+            currentPosition: profileData.current_position || '',
+            availabilityStatus: profileData.availability_status || 'open_to_opportunities'
+          },
+
+          // Skills from profile
+          skills: skills.map((skillName: string) => ({
+            skill_name: skillName,
+            name: skillName,
+            category: categorizeSkill(skillName), // ✅ FIXED: Use local function
+            skill_level: 'Intermediate'
+          })),
+
+          // Career preferences
+          careerPreferences: {
+            preferredJobTypes: preferredJobTypes,
+            preferredLocations: preferredLocations,
+            salaryMin: profileData.salary_expectation_min,
+            salaryMax: profileData.salary_expectation_max
+          },
+
+          // CV sections (optional)
+          workExperience: cvData?.work_experience || [],
+          education: cvData?.education || [],
+          projects: cvData?.projects || [],
+          certifications: cvData?.certifications || [],
+
+          // CV data for compatibility
+          cvData: cvData || {
+            personal_info: {
+              full_name: userData.name,
+              email: userData.email,
+              phone: profileData.phone,
+              professional_summary: profileData.bio
+            },
+            skills: skills.map((s: string) => ({
+              skill_name: s,
+              category: categorizeSkill(s) // ✅ FIXED: Use local function
+            })),
+            work_experience: [],
+            education: [],
+            projects: [],
+            certifications: []
+          },
+
+          // Complete profile data
+          profileData: {
+            name: userData.name,
+            email: userData.email,
+            ...profileData,
+            profile_image: userData.profile_picture,
+            profile_picture: userData.profile_picture
+          },
+
+          // Portfolio metadata
           settings: settings,
           testimonials: testimonialsResult.rows,
           viewCount: viewCount,
-          createdAt: cv.created_at,
-          updatedAt: cv.updated_at
+          createdAt: profileData.created_at || new Date(),
+          updatedAt: profileData.updated_at || new Date()
         }
       };
 
-      console.log('✅ Enhanced portfolio data prepared');
-      res.json(enhancedPortfolioData);
+      console.log('✅ Portfolio assembled successfully');
+      res.json(portfolioResponse);
 
     } catch (error) {
       console.error('❌ Error fetching portfolio:', error);
@@ -225,84 +321,18 @@ export class PortfolioController {
         return;
       }
 
-      const viewQuery = `
-        INSERT INTO portfolio_views (user_id, viewed_at, viewer_ip)
-        VALUES ($1, NOW(), $2)
-      `;
-      await pool.query(viewQuery, [userId, req.ip]);
-
-      const userDataQuery = `
-        SELECT 
-          u.id, u.name, u.email, u.profile_picture,
-          p.*
-        FROM users u
-        LEFT JOIN jobseeker_profiles p ON u.id = p.user_id
-        WHERE u.id = $1
-      `;
-      const userDataResult = await pool.query(userDataQuery, [userId]);
-      const profileData = userDataResult.rows[0];
-
-      const cvQuery = `
-        SELECT *
-        FROM cvs
-        WHERE user_id = $1
-        ORDER BY 
-          CASE WHEN status = 'final' THEN 0 ELSE 1 END,
-          updated_at DESC
-        LIMIT 1
-      `;
-      const cvResult = await pool.query(cvQuery, [userId]);
-
-      if (cvResult.rows.length === 0) {
-        res.status(404).json({
-          success: false,
-          message: 'No portfolio found for this user'
-        });
-        return;
+      try {
+        const viewQuery = `
+          INSERT INTO portfolio_views (user_id, viewed_at, viewer_ip)
+          VALUES ($1, NOW(), $2)
+        `;
+        await pool.query(viewQuery, [userId, req.ip]);
+      } catch (viewError) {
+        console.warn('Failed to track view:', viewError);
       }
 
-      const cv = cvResult.rows[0];
-
-      // Extract CV data using same logic
-      let cvData = cv.data || cv.cv_data || cv.extracted_data || cv.parsed_data || cv;
-
-      const testimonialsQuery = `
-        SELECT 
-          id, 
-          testimonial_text as text,
-          author_name as author, 
-          author_position as position,
-          author_company as company,
-          created_at
-        FROM portfolio_testimonials 
-        WHERE user_id = $1 
-        ORDER BY created_at DESC
-      `;
-      const testimonialsResult = await pool.query(testimonialsQuery, [userId]);
-
-      const viewCountQuery = `
-        SELECT COUNT(*) as count FROM portfolio_views WHERE user_id = $1
-      `;
-      const viewCountResult = await pool.query(viewCountQuery, [userId]);
-      const viewCount = parseInt(viewCountResult.rows[0]?.count || '0');
-
-      res.json({
-        success: true,
-        message: 'Public portfolio retrieved successfully',
-        data: {
-          cvId: cv.id,
-          userId: userId,
-          cvData: cvData,
-          profileData: {
-            ...profileData,
-            profile_image: profileData.profile_picture
-          },
-          testimonials: testimonialsResult.rows,
-          viewCount: viewCount,
-          createdAt: cv.created_at,
-          updatedAt: cv.updated_at
-        }
-      });
+      (req as any).user = { id: userId };
+      await this.getMyPortfolio(req, res);
 
     } catch (error) {
       console.error('❌ Error fetching public portfolio:', error);

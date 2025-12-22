@@ -141,15 +141,25 @@ export class CvService {
    * Upload and parse an existing CV file
    * FIXED: Using 'cv' as field name to match backend
    */
-  uploadCV(file: File): Observable<APIResponse<CV>> {
-    const formData = new FormData();
-    formData.append('cv', file); // FIXED: Changed from 'cvFile' to 'cv'
 
-    return this.http.post<APIResponse<CV>>(`${this.apiUrl}/upload`, formData)
-      .pipe(
-        catchError(this.handleError)
-      );
-  }
+  // ✅ CORRECT - Change to this
+uploadCV(file: File): Observable<APIResponse<CV>> {
+  const formData = new FormData();
+  formData.append('cv', file); // ✅ MUST match backend field name
+
+  console.log('📤 Uploading CV:', {
+    fileName: file.name,
+    fileSize: file.size,
+    fileType: file.type
+  });
+
+  return this.http.post<APIResponse<CV>>(
+    `${this.apiUrl}/upload`,
+    formData
+  ).pipe(
+    catchError(this.handleError)
+  );
+}
 
   /**
    * Upload profile image for CV

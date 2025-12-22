@@ -1,18 +1,11 @@
-// src/controllers/cv-builder.controller.ts
-import { Response, NextFunction, RequestHandler } from 'express';
+// src/controllers/cv-builder.controller.ts - FIXED VERSION
+import { Response, NextFunction } from 'express';
 import { AuthenticatedRequest } from '../middleware/auth.middleware';
-import { CVBuilderService } from '../services/cv-builder.service';
-import { CVData, CVExportOptions } from '../types/cv.type';
+import CVBuilderService from '../services/cv-builder.service';
+import { CVData } from '../types/cv.type';
 import { validate as isValidUUID } from 'uuid';
-import { ParamsDictionary } from 'express-serve-static-core';
-import { ParsedQs } from 'qs';
 
 export class CVBuilderController {
-  private cvBuilderService: CVBuilderService;
-
-  constructor() {
-    this.cvBuilderService = new CVBuilderService();
-  }
 
   // Upload profile image
   uploadProfileImage = async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
@@ -52,7 +45,6 @@ export class CVBuilderController {
     try {
       const userId = req.user?.id;
 
-      // Validate user ID
       if (!userId || !isValidUUID(userId)) {
         res.status(401).json({
           success: false,
@@ -61,7 +53,6 @@ export class CVBuilderController {
         return;
       }
 
-      // Validate body
       const cvData: CVData = req.body;
       if (!cvData || Object.keys(cvData).length === 0) {
         res.status(400).json({
@@ -71,8 +62,7 @@ export class CVBuilderController {
         return;
       }
 
-      // Call service
-      const createdCV = await this.cvBuilderService.createCV(userId, cvData);
+      const createdCV = await CVBuilderService.createCV(userId, cvData);
 
       if (!createdCV) {
         res.status(500).json({
@@ -82,7 +72,6 @@ export class CVBuilderController {
         return;
       }
 
-      // Respond with created CV
       res.status(201).json({
         success: true,
         message: 'CV created successfully',
@@ -106,7 +95,7 @@ export class CVBuilderController {
         return;
       }
 
-      const cvs = await this.cvBuilderService.getUserCVs(userId);
+      const cvs = await CVBuilderService.getUserCVs(userId);
 
       res.status(200).json({
         success: true,
@@ -141,7 +130,7 @@ export class CVBuilderController {
         return;
       }
 
-      const cv = await this.cvBuilderService.getCVById(cvId, userId);
+      const cv = await CVBuilderService.getCVById(cvId, userId);
 
       if (!cv) {
         res.status(404).json({
@@ -185,7 +174,7 @@ export class CVBuilderController {
 
       const cvData: CVData = req.body;
 
-      const result = await this.cvBuilderService.updateCV(cvId, userId, cvData);
+      const result = await CVBuilderService.updateCV(cvId, userId, cvData);
 
       if (!result) {
         res.status(404).json({
@@ -228,7 +217,7 @@ export class CVBuilderController {
         return;
       }
 
-      const result = await this.cvBuilderService.deleteCV(cvId, userId);
+      const result = await CVBuilderService.deleteCV(cvId, userId);
 
       if (!result) {
         res.status(404).json({
@@ -268,21 +257,35 @@ export class CVBuilderController {
         return;
       }
 
-      const result = await this.cvBuilderService.parseAndCreateCV(
+      console.log('📤 CV Upload - Controller:', {
+        userId,
+        filename: req.file.originalname,
+        mimetype: req.file.mimetype,
+        size: req.file.size
+      });
+
+      const result = await CVBuilderService.parseAndCreateCV(
         userId,
         req.file.path,
         req.file.originalname,
         req.file.mimetype
       );
 
-      // parseAndCreateCV should return a CV object
+      if (!result) {
+        res.status(500).json({
+          success: false,
+          message: 'Failed to process CV file'
+        });
+        return;
+      }
+
       res.status(201).json({
         success: true,
         message: 'CV uploaded and parsed successfully',
         data: result
       });
     } catch (error) {
-      console.error('Upload CV error:', error);
+      console.error('❌ Upload CV error:', error);
       next(error);
     }
   };
@@ -309,7 +312,7 @@ export class CVBuilderController {
         return;
       }
 
-      const result = await this.cvBuilderService.updateCVStatus(cvId, userId, 'draft');
+      const result = await CVBuilderService.updateCVStatus(cvId, userId, 'draft');
 
       if (!result) {
         res.status(404).json({
@@ -352,7 +355,7 @@ export class CVBuilderController {
         return;
       }
 
-      const result = await this.cvBuilderService.updateCVStatus(cvId, userId, 'final');
+      const result = await CVBuilderService.updateCVStatus(cvId, userId, 'final');
 
       if (!result) {
         res.status(404).json({
@@ -363,7 +366,7 @@ export class CVBuilderController {
       }
 
       // Update user's active CV
-      await this.cvBuilderService.setActiveCV(userId, cvId);
+      await CVBuilderService.setActiveCV(userId, cvId);
 
       res.status(200).json({
         success: true,
@@ -376,7 +379,7 @@ export class CVBuilderController {
     }
   };
 
-  // Export CV to PDF
+  // ✅ FIXED: Export CV to PDF with proper type checking
   exportToPDF = async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
       const userId = req.user?.id;
@@ -392,18 +395,23 @@ export class CVBuilderController {
         return;
       }
 
-      const pdfBuffer = await this.cvBuilderService.exportToPDF(cvId, userId);
+      const pdfBuffer = await CVBuilderService.exportToPDF(cvId, userId);
 
       if (!pdfBuffer) {
         res.status(404).json({ success: false, message: 'CV not found or export failed' });
         return;
       }
 
-      // Get CV to generate filename
-      const cv = await this.cvBuilderService.getCVById(cvId, userId);
-      const fullName = cv?.cv_data?.personal_info?.full_name || 'CV';
-      const filename = `${fullName}_${Date.now()}.pdf`
-        .replace(/\s+/g, '_');
+      // ✅ FIXED: Proper type checking for cv_data
+      const cv = await CVBuilderService.getCVById(cvId, userId);
+      
+      // Safe access to nested properties
+      let fullName = 'CV';
+      if (cv?.cv_data?.personal_info?.full_name) {
+        fullName = cv.cv_data.personal_info.full_name;
+      }
+      
+      const filename = `${fullName}_${Date.now()}.pdf`.replace(/\s+/g, '_');
 
       res.setHeader('Content-Type', 'application/pdf');
       res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
@@ -415,7 +423,7 @@ export class CVBuilderController {
     }
   };
 
-  // Export CV to Word
+  // ✅ FIXED: Export CV to Word with proper type checking
   exportToWord = async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
       const userId = req.user?.id;
@@ -431,16 +439,22 @@ export class CVBuilderController {
         return;
       }
 
-      const docBuffer = await this.cvBuilderService.exportToWord(cvId, userId);
+      const docBuffer = await CVBuilderService.exportToWord(cvId, userId);
 
       if (!docBuffer) {
         res.status(404).json({ success: false, message: 'CV not found or export failed' });
         return;
       }
 
-      const cv = await this.cvBuilderService.getCVById(cvId, userId);
-      const filename = `${cv?.cv_data?.personal_info?.full_name || 'CV'}_${Date.now()}.docx`
-        .replace(/\s+/g, '_');
+      // ✅ FIXED: Safe property access
+      const cv = await CVBuilderService.getCVById(cvId, userId);
+      
+      let fullName = 'CV';
+      if (cv?.cv_data?.personal_info?.full_name) {
+        fullName = cv.cv_data.personal_info.full_name;
+      }
+      
+      const filename = `${fullName}_${Date.now()}.docx`.replace(/\s+/g, '_');
 
       res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
       res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
@@ -474,7 +488,7 @@ export class CVBuilderController {
         return;
       }
 
-      const result = await this.cvBuilderService.setActiveCV(userId, cvId);
+      const result = await CVBuilderService.setActiveCV(userId, cvId);
 
       if (!result) {
         res.status(404).json({

@@ -807,63 +807,65 @@ export class ProfileComponent implements OnInit {
     }
   }
 
-  private uploadCV(file: File): void {
-    console.log('Uploading CV file:', file.name, file.type, file.size);
-    
-    // Show loading message
-    const uploadNotification = 'Uploading and processing your CV. This may take 1-3 minutes depending on file size and content complexity. Please wait...';
-    alert(uploadNotification);
+  // Look for this method around line 500+
+private uploadCV(file: File): void {
+  this.isUploadingCV = true;
+  
+  console.log('📤 Starting CV upload:', {
+    fileName: file.name,
+    fileSize: file.size,
+    fileType: file.type
+  });
 
-    this.profileService.uploadCV(file).subscribe({
-      next: (response: any) => {
-        console.log('CV upload response:', response);
-        this.isUploadingCV = false;
+  // ✅ Make sure you're calling the service correctly
+  this.profileService.uploadCV(file).subscribe({
+    next: (response: any) => {
+      console.log('✅ CV upload response:', response);
+      this.isUploadingCV = false;
+      
+      if (response?.success) {
+        alert('CV uploaded successfully! Your portfolio has been updated.');
         
-        if (response?.success) {
-          alert('CV uploaded successfully! Your portfolio sections are being updated...');
-          
-          // Reload profile and portfolio data (for display purposes)
-          this.loadProfileData();
-          this.loadPortfolioData();
-          
-          // Clear the file input
-          if (this.cvFileInput && this.cvFileInput.nativeElement) {
-            this.cvFileInput.nativeElement.value = '';
-          }
-          
-          // Show success message after data loads
-          setTimeout(() => {
-            alert('CV processing complete! Your portfolio has been updated with the extracted information.');
-          }, 2000);
-        } else {
-          alert('CV upload failed. Please try again or check the file format.');
-        }
-      },
-      error: (error: any) => {
-        console.error('Error uploading CV:', error);
-        this.isUploadingCV = false;
+        // Reload profile and portfolio data
+        this.loadProfileData();
+        this.loadPortfolioData();
         
-        let errorMessage = 'Failed to upload CV. ';
-        if (error.status === 401) {
-          errorMessage += 'Please login again.';
-          setTimeout(() => this.router.navigate(['/login']), 2000);
-        } else if (error.status === 413) {
-          errorMessage += 'File is too large. Maximum size is 5MB.';
-        } else if (error.error?.message) {
-          errorMessage += error.error.message;
-        } else {
-          errorMessage += 'Please try again or check file format.';
-        }
-        
-        alert(errorMessage);
-        
-        // Clear the file input
+        // Clear file input
         if (this.cvFileInput && this.cvFileInput.nativeElement) {
           this.cvFileInput.nativeElement.value = '';
         }
+      } else {
+        alert('CV upload failed. Please try again.');
       }
-    });
-  }
+    },
+    error: (error: any) => {
+      console.error('❌ CV upload error:', error);
+      this.isUploadingCV = false;
+      
+      let errorMessage = 'Failed to upload CV. ';
+      
+      if (error.status === 401) {
+        errorMessage += 'Please login again.';
+        setTimeout(() => this.router.navigate(['/login']), 2000);
+      } else if (error.status === 413) {
+        errorMessage += 'File is too large. Maximum size is 10MB.';
+      } else if (error.status === 400) {
+        errorMessage += error.error?.message || 'Invalid file or format.';
+      } else if (error.error?.message) {
+        errorMessage += error.error.message;
+      } else {
+        errorMessage += 'Please try again.';
+      }
+      
+      alert(errorMessage);
+      
+      // Clear file input
+      if (this.cvFileInput && this.cvFileInput.nativeElement) {
+        this.cvFileInput.nativeElement.value = '';
+      }
+    }
+  });
+}
 
   private calculateDuration(startDate: string, endDate: string | undefined, isCurrent: boolean): string {
     const start = new Date(startDate);

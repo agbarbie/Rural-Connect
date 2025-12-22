@@ -1,4 +1,4 @@
-// portfolio.component.ts - Fixed to sync with profile data
+// portfolio.component.ts - FINAL FIX (No TypeScript errors)
 import { Component, OnInit } from '@angular/core';
 import { DatePipe } from '@angular/common'; 
 import { CommonModule } from '@angular/common';
@@ -58,6 +58,7 @@ export class PortfolioComponent implements OnInit {
   
   isLoading = true;
   currentCV: CV | null = null;
+  hasCVData = false; // Track if CV exists
 
   // User Profile Data - Enhanced
   profileData = {
@@ -106,57 +107,85 @@ export class PortfolioComponent implements OnInit {
       next: (response: EnhancedPortfolioData) => {
         console.log('✅ Enhanced Portfolio Data Loaded:', response);
         
-        if (!response.cvId) {
-          console.error('No CV ID in response');
-          this.isLoading = false;
-          alert('No CV found. Please create a CV in the CV Builder first.');
-          return;
+        // ✅ FIXED: Just check if cvId exists (don't check success property)
+        if (response.cvId) {
+          console.log('✅ CV found:', response.cvId);
+          this.hasCVData = true;
+          
+          // Set current CV
+          this.currentCV = {
+            id: response.cvId,
+            userId: response.userId,
+            status: 'final',
+            cvData: response.cvData,
+            createdAt: response.createdAt,
+            updatedAt: response.updatedAt
+          };
+        } else {
+          console.log('ℹ️ No CV ID in response - using profile data only');
+          this.hasCVData = false;
         }
         
-        // Set current CV
-        this.currentCV = {
-          id: response.cvId,
-          userId: response.userId,
-          status: 'final',
-          cvData: response.cvData,
-          createdAt: response.createdAt,
-          updatedAt: response.updatedAt
-        };
-        
-        console.log('✅ Current CV set:', this.currentCV.id);
-        
-        // Populate portfolio with MERGED profile + CV data
+        // ✅ ALWAYS populate portfolio data (CV is optional)
         this.populatePortfolioFromData(response);
         this.viewCount = response.viewCount || 0;
         this.isLoading = false;
       },
       error: (error) => {
         console.error('❌ Error loading portfolio data:', error);
-        this.isLoading = false;
         
-        if (error.error?.message) {
-          alert(error.error.message);
+        // ✅ FIXED: Don't show alert for "No CV found" - it's expected!
+        const errorMessage = error.error?.message || error.message || '';
+        const isNoCVError = error.status === 404 || 
+                           errorMessage.includes('No CV found') || 
+                           errorMessage.includes('CV not found');
+        
+        if (isNoCVError) {
+          console.log('ℹ️ No CV found - this is normal, loading profile data only');
+          this.hasCVData = false;
+          
+          // Load basic profile data even without CV
+          this.loadBasicProfileData();
         } else {
-          alert('Failed to load portfolio. Please ensure you have created a CV in the CV Builder.');
+          // Only show alert for actual errors (not missing CV)
+          console.error('Unexpected error:', error);
+          alert('Failed to load portfolio. Please try again.');
         }
+        
+        this.isLoading = false;
       }
     });
   }
 
-  private populatePortfolioFromData(data: EnhancedPortfolioData): void {
-    const cvData = data.cvData;
-    const profileData = data.profileData;
+  // ✅ NEW: Load basic profile data when no CV exists
+  private loadBasicProfileData(): void {
+    const currentUser = this.authService.getCurrentUser();
+    if (currentUser) {
+      this.profileData.fullName = currentUser.name || '';
+      this.profileData.email = currentUser.email || '';
+      this.profileData.title = 'Professional';
+      this.profileData.location = 'Kenya';
+      
+      console.log('✅ Loaded basic profile data from auth');
+    }
+  }
+
+  private populatePortfolioFromData(data: any): void {
+    // ✅ FIXED: Handle case where data might not have all fields
+    const cvData = data.cvData || {};
+    const profileData = data.profileData || {};
 
     console.log('🔄 Populating portfolio...');
     console.log('Profile Data:', profileData);
     console.log('CV Data:', cvData);
+    console.log('Has CV:', this.hasCVData);
 
     // ✅ PRIORITY 1: Use profile data (from profile component) as primary source
     this.profileData.fullName = profileData.name || this.authService.getCurrentUser()?.name || '';
-    this.profileData.email = profileData.email || '';
+    this.profileData.email = profileData.email || this.authService.getCurrentUser()?.email || '';
     this.profileData.phone = profileData.phone || '';
     this.profileData.location = profileData.location || 'Kenya';
-    this.profileData.bio = profileData.bio || '';
+    this.profileData.bio = profileData.bio || 'Complete your profile to add a professional summary.';
     this.profileData.yearsOfExperience = profileData.years_of_experience || 0;
     
     // ✅ Social Links from profile
@@ -168,9 +197,9 @@ export class PortfolioComponent implements OnInit {
     if (profileData.profile_image) {
       this.profileData.profilePicture = this.getFullImageUrl(profileData.profile_image);
       console.log('✅ Using profile image:', this.profileData.profilePicture);
-    } else {
-      // Fallback to CV image if profile image doesn't exist
-      const cvPersonalInfo = cvData.personalInfo || cvData.personal_info;
+    } else if (this.hasCVData) {
+      // Fallback to CV image only if CV exists
+      const cvPersonalInfo = cvData.personalInfo || cvData.personal_info || {};
       if (cvPersonalInfo?.profileImage || cvPersonalInfo?.profile_image) {
         const cvImage = cvPersonalInfo.profileImage || cvPersonalInfo.profile_image;
         this.profileData.profilePicture = this.getFullImageUrl(cvImage);
@@ -179,6 +208,9 @@ export class PortfolioComponent implements OnInit {
         this.profileData.profilePicture = 'assets/images/default-avatar.png';
         console.log('ℹ️ Using default avatar');
       }
+    } else {
+      this.profileData.profilePicture = 'assets/images/default-avatar.png';
+      console.log('ℹ️ No CV, using default avatar');
     }
 
     // Generate title from profile or CV
@@ -188,7 +220,7 @@ export class PortfolioComponent implements OnInit {
       this.profileData.title = this.generateTitle(cvData, profileData);
     }
 
-    // ✅ Skills - Merge profile skills with CV skills
+    // ✅ Skills - Load from profile OR CV
     this.skills = [];
     
     // Add profile skills first (these are user-selected and more current)
@@ -200,8 +232,8 @@ export class PortfolioComponent implements OnInit {
       console.log('✅ Loaded skills from profile:', this.skills.length);
     }
     
-    // Add CV skills if profile skills are empty
-    if (this.skills.length === 0) {
+    // Add CV skills if profile skills are empty AND CV exists
+    if (this.skills.length === 0 && this.hasCVData) {
       let cvSkills = cvData.skills || cvData.skill || cvData.Skills || [];
       if (Array.isArray(cvSkills) && cvSkills.length > 0) {
         this.skills = cvSkills.map((skill: any) => ({
@@ -212,60 +244,65 @@ export class PortfolioComponent implements OnInit {
       }
     }
 
-    // Work Experience from CV
-    const workExp = cvData.work_experience || cvData.workExperience || [];
-    if (workExp.length > 0) {
-      this.trainingExperiences = workExp.map((work: any, index: number) => ({
-        id: index + 1,
-        title: work.position,
-        status: (work.is_current || work.current) ? 'in-progress' : 'completed',
-        trainer: work.company,
-        completionDate: (work.is_current || work.current) ? undefined : (work.end_date || work.endDate),
-        description: work.responsibilities || ''
-      }));
-      console.log('✅ Loaded work experiences:', this.trainingExperiences.length);
-    }
-
-    // Certifications from CV
-    const certs = cvData.certifications || [];
-    if (certs.length > 0) {
-      this.certificates = certs.map((cert: any, index: number): Certificate => ({
-        id: index + 1,
-        name: cert.name || cert.certification_name,
-        issuer: cert.issuer,
-        completionDate: cert.dateIssued || cert.date_issued || new Date().toISOString(),
-        downloadUrl: cert.credentialId || cert.credential_id || undefined
-      }));
-      console.log('✅ Loaded certifications:', this.certificates.length);
-    }
-
-    // Projects from CV
-    const projects = cvData.projects || [];
-    if (projects.length > 0) {
-      this.projects = projects.map((proj: any, index: number): Project => {
-        const techString = proj.technologies || proj.tech_stack || '';
-        const category: string = this.categorizeProject(techString);
-        
-        return {
+    // ✅ Only load CV-specific sections if CV exists
+    if (this.hasCVData) {
+      // Work Experience from CV
+      const workExp = cvData.work_experience || cvData.workExperience || [];
+      if (workExp.length > 0) {
+        this.trainingExperiences = workExp.map((work: any, index: number) => ({
           id: index + 1,
-          title: proj.name || proj.project_name || 'Untitled Project',
-          description: proj.description || '',
-          techStack: techString ? techString.split(',').map((t: string) => t.trim()) : [],
-          category: category,
-          thumbnail: '/assets/projects/default-project.jpg',
-          liveDemo: proj.demoLink || proj.demo_link || undefined,
-          githubLink: proj.githubLink || proj.github_link || undefined
-        };
-      });
+          title: work.position,
+          status: (work.is_current || work.current) ? 'in-progress' : 'completed',
+          trainer: work.company,
+          completionDate: (work.is_current || work.current) ? undefined : (work.end_date || work.endDate),
+          description: work.responsibilities || ''
+        }));
+        console.log('✅ Loaded work experiences:', this.trainingExperiences.length);
+      }
 
-      this.updateProjectCategories();
-      this.filteredProjects = this.projects;
-      console.log('✅ Loaded projects:', this.projects.length);
+      // Certifications from CV
+      const certs = cvData.certifications || [];
+      if (certs.length > 0) {
+        this.certificates = certs.map((cert: any, index: number): Certificate => ({
+          id: index + 1,
+          name: cert.name || cert.certification_name,
+          issuer: cert.issuer,
+          completionDate: cert.dateIssued || cert.date_issued || new Date().toISOString(),
+          downloadUrl: cert.credentialId || cert.credential_id || undefined
+        }));
+        console.log('✅ Loaded certifications:', this.certificates.length);
+      }
+
+      // Projects from CV
+      const projects = cvData.projects || [];
+      if (projects.length > 0) {
+        this.projects = projects.map((proj: any, index: number): Project => {
+          const techString = proj.technologies || proj.tech_stack || '';
+          const category: string = this.categorizeProject(techString);
+          
+          return {
+            id: index + 1,
+            title: proj.name || proj.project_name || 'Untitled Project',
+            description: proj.description || '',
+            techStack: techString ? techString.split(',').map((t: string) => t.trim()) : [],
+            category: category,
+            thumbnail: '/assets/projects/default-project.jpg',
+            liveDemo: proj.demoLink || proj.demo_link || undefined,
+            githubLink: proj.githubLink || proj.github_link || undefined
+          };
+        });
+
+        this.updateProjectCategories();
+        this.filteredProjects = this.projects;
+        console.log('✅ Loaded projects:', this.projects.length);
+      }
+    } else {
+      console.log('ℹ️ No CV data - skipping work experience, certifications, and projects');
     }
 
     // Testimonials
     if (data.testimonials && data.testimonials.length > 0) {
-      this.testimonials = data.testimonials.map((t, index) => ({
+      this.testimonials = data.testimonials.map((t: any, index: number) => ({
         id: t.id || index + 1,
         text: t.text || t.content || '',
         author: t.author || '',
@@ -315,10 +352,12 @@ export class PortfolioComponent implements OnInit {
       return profileData.current_position;
     }
 
-    // Priority 2: Latest work experience from CV
-    const workExp = cvData.workExperience || cvData.work_experience || [];
-    if (workExp.length > 0) {
-      return workExp[0].position;
+    // Priority 2: Latest work experience from CV (only if CV exists)
+    if (this.hasCVData) {
+      const workExp = cvData.workExperience || cvData.work_experience || [];
+      if (workExp.length > 0) {
+        return workExp[0].position;
+      }
     }
 
     // Priority 3: Generate from skills
@@ -327,7 +366,7 @@ export class PortfolioComponent implements OnInit {
       return `${topSkills.join(' | ')} Specialist`;
     }
 
-    if (cvData.skills && cvData.skills.length > 0) {
+    if (this.hasCVData && cvData.skills && cvData.skills.length > 0) {
       const topSkills = cvData.skills.slice(0, 3).map((s: any) => s.name || s.skill_name);
       return `${topSkills.join(' | ')} Specialist`;
     }
@@ -378,21 +417,23 @@ export class PortfolioComponent implements OnInit {
   private generateTestimonials(cvData: any): void {
     this.testimonials = [];
     
-    const workExp = cvData.workExperience || cvData.work_experience || [];
-    
-    if (workExp.length > 0) {
-      workExp.forEach((work: any, index: number) => {
-        const achievements = work.achievements || work.key_achievements;
-        if (achievements) {
-          const achievement = achievements.split('\n')[0] || achievements;
-          this.testimonials.push({
-            id: index + 1,
-            text: achievement,
-            author: `Colleague from ${work.company}`,
-            position: 'Team Member'
-          });
-        }
-      });
+    if (this.hasCVData) {
+      const workExp = cvData.workExperience || cvData.work_experience || [];
+      
+      if (workExp.length > 0) {
+        workExp.forEach((work: any, index: number) => {
+          const achievements = work.achievements || work.key_achievements;
+          if (achievements) {
+            const achievement = achievements.split('\n')[0] || achievements;
+            this.testimonials.push({
+              id: index + 1,
+              text: achievement,
+              author: `Colleague from ${work.company}`,
+              position: 'Team Member'
+            });
+          }
+        });
+      }
     }
 
     if (this.testimonials.length === 0) {
@@ -423,15 +464,20 @@ export class PortfolioComponent implements OnInit {
   }
 
   downloadCV(): void {
-    if (this.currentCV) {
+    if (this.currentCV && this.hasCVData) {
       const filename = `${this.profileData.fullName.replace(/\s+/g, '_')}_CV.pdf`;
       this.cvService.downloadCV(this.currentCV.id, 'pdf', filename);
     } else {
-      alert('No CV available. Please create one in the CV Builder.');
+      alert('No CV available. You can upload a CV in the CV Builder to enable this feature.');
     }
   }
 
   downloadPortfolioPDF(): void {
+    if (!this.hasCVData) {
+      alert('Upload a CV first to download portfolio as PDF. Go to CV Builder to upload your CV.');
+      return;
+    }
+
     this.portfolioService.downloadPortfolioPDF().subscribe({
       next: (blob: Blob) => {
         const url = window.URL.createObjectURL(blob);
