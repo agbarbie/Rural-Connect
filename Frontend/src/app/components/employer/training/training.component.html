@@ -58,27 +58,30 @@
         
         <div class="notification-list">
           <div class="notification-item" 
-               *ngFor="let notification of enrollmentNotifications"
-               [class]="'notification-' + notification.notification_type">
+            *ngFor="let notification of enrollmentNotifications"
+            [class]="'notification-' + notification.notification_type">
             <div class="notification-icon" [style.color]="getNotificationColor(notification.notification_type)">
               <i class="fas" [ngClass]="getNotificationIcon(notification.notification_type)"></i>
             </div>
             <div class="notification-content">
               <p class="notification-message">
-                <strong>{{ notification.first_name }} {{ notification.last_name }}</strong>
-                <span *ngIf="notification.notification_type === 'new'"> enrolled in </span>
-                <span *ngIf="notification.notification_type === 'completed'"> completed </span>
-                <span *ngIf="notification.notification_type === 'in_progress'"> is learning </span>
-                <strong>{{ notification.training_title }}</strong>
+             <strong>{{ getJobseekerDisplayName(notification) }}</strong>
+             <span *ngIf="notification.notification_type === 'new'"> just enrolled in </span>
+             <span *ngIf="notification.notification_type === 'completed'"> completed </span>
+             <span *ngIf="notification.notification_type === 'in_progress'"> is learning </span>
+             <strong>"{{ notification.training_title }}"</strong>
+             <span class="email-fallback" *ngIf="notification.email && !notification.first_name && !notification.last_name">
+               ({{ notification.email }})
+             </span>
               </p>
               <div class="notification-meta">
-                <span class="notification-time">{{ notification.enrolled_at | date:'short' }}</span>
-                <span class="notification-progress" *ngIf="notification.progress_percentage">
-                  Progress: {{ notification.progress_percentage }}%
-                </span>
+             <span class="notification-time">{{ notification.enrolled_at | date:'short' }}</span>
+             <span class="notification-progress" *ngIf="notification.progress_percentage">
+               Progress: {{ notification.progress_percentage }}%
+             </span>
               </div>
             </div>
-            
+
             <!-- Issue Certificate Button -->
             <button 
               *ngIf="notification.notification_type === 'completed' && !notification.certificate_issued"

@@ -913,41 +913,56 @@ async deleteTrainingVideo(
       queryParams = [employerId, employerProfileId];
     }
  
-    const query = `
-      SELECT
-        e.id as enrollment_id,
-        e.training_id,
-        e.user_id,
-        e.status,
-        e.progress_percentage,
-        e.enrolled_at,
-        e.completed_at,
-        e.certificate_issued,
-        t.title as training_title,
-        u.first_name,
-        u.last_name,
-        u.email,
-        CASE
-          WHEN e.completed_at IS NOT NULL THEN 'completed'
-          WHEN e.enrolled_at > CURRENT_TIMESTAMP - INTERVAL '24 hours' THEN 'new'
-          ELSE 'in_progress'
-        END as notification_type
-      FROM training_enrollments e
-      JOIN trainings t ON e.training_id = t.id
-      JOIN users u ON e.user_id = u.id
-      WHERE ${providerCondition}
-      ORDER BY
-        CASE
-          WHEN e.completed_at IS NOT NULL THEN e.completed_at
-          ELSE e.enrolled_at
-        END DESC
-    `;
-    const result = await this.db.query(query, queryParams);
- 
-    console.log(`✅ Found ${result.rows.length} enrollment notifications`);
- 
-    return result.rows;
-  }
+   const query = `
+    SELECT
+      e.id as enrollment_id,
+      e.training_id,
+      e.user_id,
+      e.status,
+      e.progress_percentage,
+      e.enrolled_at,
+      e.completed_at,
+      e.certificate_issued,
+      t.title as training_title,
+      -- ✅ ENHANCED: Robust name with email parsing fallback (e.g., "alice.test" -> "Alice Test")
+      CASE
+        WHEN COALESCE(TRIM(CONCAT(u.first_name, ' ', u.last_name)), '') != ''
+        THEN TRIM(CONCAT(COALESCE(u.first_name, ''), ' ', COALESCE(u.last_name, '')))
+        WHEN u.email IS NOT NULL
+        THEN -- Parse email: Split before '@', capitalize words
+          INITCAP(REGEXP_REPLACE(
+            SPLIT_PART(u.email, '@', 1),
+            '[_.-]',
+            ' ',
+            'g'
+          ))
+        ELSE 'Anonymous User'
+      END as jobseeker_name,
+      u.first_name,
+      u.last_name,
+      u.email,
+      CASE
+        WHEN e.completed_at IS NOT NULL THEN 'completed'
+        WHEN e.enrolled_at > CURRENT_TIMESTAMP - INTERVAL '24 hours' THEN 'new'
+        ELSE 'in_progress'
+      END as notification_type
+    FROM training_enrollments e
+    JOIN trainings t ON e.training_id = t.id
+    JOIN users u ON e.user_id = u.id
+    WHERE ${providerCondition}
+    ORDER BY
+      CASE
+        WHEN e.completed_at IS NOT NULL THEN e.completed_at
+        ELSE e.enrolled_at
+      END DESC
+  `;
+  const result = await this.db.query(query, queryParams);
+
+  console.log(`✅ Loaded ${result.rows.length} enrollment notifications with names:`, 
+    result.rows.map(r => ({ name: r.jobseeker_name, email: r.email, training: r.training_title })));
+
+  return result.rows;
+}
 
   // ============================================
   // JOBSEEKER-SPECIFIC TRAINING ACCESS
@@ -2159,11 +2174,13 @@ async suspendTraining(trainingId: string, employerId: string): Promise<any> {
   // ============================================
   // ENROLLMENT OPERATIONS
   // ============================================
-async enrollUserInTraining(trainingId: string, userId: string): Promise<any> {
+
+  async enrollUserInTraining(trainingId: string, userId: string): Promise<any> {
   const client = await this.db.connect();
   try {
     await client.query('BEGIN');
 
+    // Fetch training details
     const trainingCheck = await client.query(
       'SELECT id, title, max_participants, current_participants, status, provider_id, provider_name FROM trainings WHERE id = $1',
       [trainingId]
@@ -2181,6 +2198,28 @@ async enrollUserInTraining(trainingId: string, userId: string): Promise<any> {
       return { success: false, message: 'Training is not available for enrollment' };
     }
 
+    // ✅ CRITICAL FIX: Fetch jobseeker's name BEFORE checking enrollment
+    const userResult = await client.query(
+      'SELECT first_name, last_name, email FROM users WHERE id = $1',
+      [userId]
+    );
+
+    if (userResult.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return { success: false, message: 'User not found' };
+    }
+
+    const jobseeker = userResult.rows[0];
+    const jobseekerName = `${jobseeker.first_name || ''} ${jobseeker.last_name || ''}`.trim() || jobseeker.email;
+
+    console.log('✅ Enrolling user:', {
+      userId,
+      jobseekerName,
+      trainingId,
+      trainingTitle: training.title
+    });
+
+    // Check for existing enrollment
     const existingEnrollment = await client.query(
       'SELECT id, status FROM training_enrollments WHERE training_id = $1 AND user_id = $2',
       [trainingId, userId]
@@ -2195,17 +2234,20 @@ async enrollUserInTraining(trainingId: string, userId: string): Promise<any> {
       };
     }
 
+    // Check capacity
     if (training.max_participants && training.current_participants >= training.max_participants) {
       await client.query('ROLLBACK');
       return { success: false, message: 'Training is at full capacity' };
     }
 
+    // Create enrollment
     const enrollmentResult = await client.query(`
       INSERT INTO training_enrollments (training_id, user_id, status, enrolled_at, progress_percentage)
       VALUES ($1, $2, 'enrolled', CURRENT_TIMESTAMP, 0)
       RETURNING *
     `, [trainingId, userId]);
 
+    // Update training participant counts
     await client.query(`
       UPDATE trainings
       SET
@@ -2214,32 +2256,26 @@ async enrollUserInTraining(trainingId: string, userId: string): Promise<any> {
       WHERE id = $1
     `, [trainingId]);
 
-    // ✅ CRITICAL FIX: Fetch jobseeker's name for notification
-    const userResult = await client.query(
-      'SELECT first_name, last_name, email FROM users WHERE id = $1',
-      [userId]
-    );
-
     await client.query('COMMIT');
 
     const enrollment = enrollmentResult.rows[0];
-    const jobseeker = userResult.rows[0];
 
-    // ✅ FIXED: Include jobseeker's full name in notification message
-    const jobseekerName = `${jobseeker.first_name || ''} ${jobseeker.last_name || ''}`.trim() || jobseeker.email;
+    console.log('✅ Enrollment successful, sending notifications...');
 
-    // ✅ Notify employer about new enrollment WITH jobseeker name
+    // ✅ FIXED: Notify employer with jobseeker's FULL NAME in the message
     this.createNotification(
       training.provider_id,
       'new_enrollment',
-      `${jobseekerName} enrolled in ${training.title}`,
+      `${jobseekerName} has enrolled in "${training.title}"`,  // ✅ Clear message with name
       {
         training_id: trainingId,
         training_title: training.title,
         user_id: userId,
         enrollment_id: enrollment.id,
         jobseeker_name: jobseekerName,  // ✅ Include name in metadata
-        jobseeker_email: jobseeker.email
+        jobseeker_email: jobseeker.email,
+        jobseeker_first_name: jobseeker.first_name,
+        jobseeker_last_name: jobseeker.last_name
       }
     ).catch(err => console.error('Failed to notify employer:', err));
 
@@ -2247,13 +2283,15 @@ async enrollUserInTraining(trainingId: string, userId: string): Promise<any> {
     this.createNotification(
       userId,
       'enrollment_confirmed',
-      `You've successfully enrolled in ${training.title}`,
+      `You've successfully enrolled in "${training.title}"`,
       {
         training_id: trainingId,
         training_title: training.title,
         enrollment_id: enrollment.id
       }
     ).catch(err => console.error('Failed to notify jobseeker:', err));
+
+    console.log('✅ Notifications sent successfully');
 
     return {
       success: true,
@@ -2262,6 +2300,7 @@ async enrollUserInTraining(trainingId: string, userId: string): Promise<any> {
     };
   } catch (error: any) {
     await client.query('ROLLBACK');
+    console.error('❌ Enrollment error:', error);
     return {
       success: false,
       message: 'Failed to enroll in training. Please try again.',

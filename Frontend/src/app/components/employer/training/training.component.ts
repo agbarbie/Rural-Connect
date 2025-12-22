@@ -333,22 +333,49 @@ export class TrainingComponent implements OnInit, OnDestroy {
   }
 
   loadNotifications(): void {
-    this.trainingService.getEnrollmentNotifications(this.employerId)
-      .pipe(takeUntil(this.destroy$))
-      .subscribe({
-        next: (response) => {
-          if (response.success && response.data) {
-            this.enrollmentNotifications = response.data;
-            this.unreadNotificationCount = response.data.filter(
-              (n: any) => n.notification_type === 'new' || n.notification_type === 'completed'
-            ).length;
-          }
-        },
-        error: (error) => {
-          console.error('❌ Error loading notifications:', error);
+  this.trainingService.getEnrollmentNotifications(this.employerId)
+    .pipe(takeUntil(this.destroy$))
+    .subscribe({
+      next: (response) => {
+        console.log('📢 Raw enrollment notifications:', response.data?.length || 0);  // ✅ Log count
+        
+        if (response.success && response.data) {
+          this.enrollmentNotifications = response.data.map((n: any) => ({
+            ...n,
+            // ✅ ENHANCED: Ensure display_name is always set (from backend or fallback)
+            display_name: n.jobseeker_name || `${n.first_name || ''} ${n.last_name || ''}`.trim() || 
+                          (n.email ? n.email.split('@')[0].replace(/[_.-]/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase()) : 'Anonymous User')
+          }));
+          
+          // ✅ ENHANCED: Log sample names for debug (remove in prod)
+          console.log('✅ Names in notifications:', 
+            this.enrollmentNotifications.map(n => ({ 
+              name: n.display_name, 
+              email: n.email, 
+              type: n.notification_type 
+            })));
+          
+          this.unreadNotificationCount = this.enrollmentNotifications.filter(
+            (n: any) => n.notification_type === 'new'
+          ).length;
+        } else {
+          this.enrollmentNotifications = [];
+          this.unreadNotificationCount = 0;
         }
-      });
+      },
+      error: (error) => {
+        console.error('❌ Error loading notifications:', error);
+      }
+    });
+}
+
+getJobseekerDisplayName(notification: any): string {
+  let name = notification.display_name || notification.jobseeker_name || '';
+  if (!name || name === 'Anonymous User') {
+    name = notification.email ? notification.email.split('@')[0].replace(/[_.-]/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase()) : 'Anonymous User';
   }
+  return name.charAt(0).toUpperCase() + name.slice(1);  // Capitalize first letter
+}
 
   toggleNotifications(): void {
     this.showNotifications = !this.showNotifications;
