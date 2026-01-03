@@ -82,21 +82,37 @@
               </div>
             </div>
 
-            <!-- Issue Certificate Button -->
-            <button 
+            <div class="notification-actions">
+              <!-- Issue Certificate button for completed trainings -->
+              <button
               *ngIf="notification.notification_type === 'completed' && !notification.certificate_issued"
               class="btn-issue-cert"
-              (click)="issueCertificate(notification.enrollment_id); $event.stopPropagation()">
+              (click)="issueCertificateFromNotification(notification); $event.stopPropagation()"
+              title="Issue Certificate">
               <i class="fas fa-certificate"></i>
               Issue Certificate
-            </button>
-            
-            <span 
+              </button>
+              
+              <!-- Existing certificate badge -->
+              <span *ngIf="notification.certificate_issued" class="certificate-badge">
+              <i class="fas fa-check-circle"></i> Issued
+              </span>
+
+              <!-- ✅ NEW: Download button for issued certificates -->
+              <button
               *ngIf="notification.certificate_issued"
-              class="certificate-badge">
-              <i class="fas fa-check-circle"></i>
-              Certificate Issued
-            </span>
+              class="btn-download-cert"
+              (click)="downloadEmployerCertificate(notification.enrollment_id); $event.stopPropagation()"
+              title="Download Certificate PDF">
+              <i class="fas fa-download"></i>
+              Download PDF
+              </button>
+              
+              <!-- View Profile button -->
+              <button class="btn-view-profile" (click)="viewStudentProfile(notification); $event.stopPropagation()">
+              <i class="fas fa-user"></i> Profile
+              </button>
+            </div>
           </div>
           
           <div class="no-notifications" *ngIf="enrollmentNotifications.length === 0">

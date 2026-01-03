@@ -31,12 +31,60 @@
           >
         </div>
         
-        <button class="bulk-actions-btn" [disabled]="selectedUsers.length === 0">
+        <div class="bulk-actions-container" style="position: relative;">
+          <button 
+            class="bulk-actions-btn" 
+            [disabled]="selectedUsers.length === 0"
+            (click)="toggleBulkMenu($event)"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="3" y="3" width="18" height="18" rx="2"/>
+              <path d="m9 12 2 2 4-4"/>
+            </svg>
+            Bulk Actions ({{ selectedUsers.length }})
+          </button>
+          
+          <!-- Bulk Actions Dropdown -->
+          <div class="action-menu" *ngIf="showBulkMenu" style="position: absolute; right: 0; top: 100%; margin-top: 8px; z-index: 1000;">
+            <button class="action-menu-item" (click)="performBulkAction('activate')">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+                <polyline points="22 4 12 14.01 9 11.01"/>
+              </svg>
+              Activate Selected
+            </button>
+            <button class="action-menu-item" (click)="performBulkAction('suspend')">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10"/>
+                <line x1="15" y1="9" x2="9" y2="15"/>
+                <line x1="9" y1="9" x2="15" y2="15"/>
+              </svg>
+              Suspend Selected
+            </button>
+            <button class="action-menu-item" (click)="performBulkAction('verify')">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+                <polyline points="22 4 12 14.01 9 11.01"/>
+              </svg>
+              Verify Selected
+            </button>
+            <button class="action-menu-item danger" (click)="performBulkAction('delete')">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="3 6 5 6 21 6"/>
+                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+              </svg>
+              Delete Selected
+            </button>
+          </div>
+        </div>
+
+        <button class="export-btn" (click)="exportUsers()">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <rect x="3" y="3" width="18" height="18" rx="2"/>
-            <path d="m9 12 2 2 4-4"/>
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+            <polyline points="7 10 12 15 17 10"/>
+            <line x1="12" y1="15" x2="12" y2="3"/>
           </svg>
-          Bulk Actions
+          Export CSV
         </button>
       </div>
     </div>
@@ -74,7 +122,7 @@
         <div class="stat-info">
           <div class="stat-number">{{ stats.totalUsers }}</div>
           <div class="stat-label">Total Users</div>
-          <div class="stat-change positive">
+          <div class="stat-change positive" *ngIf="stats.totalUsersChange > 0">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <polyline points="22,12 18,8 14,12"/>
               <path d="M22 12H2"/>
@@ -98,7 +146,7 @@
         <div class="stat-info">
           <div class="stat-number">{{ stats.activeUsers }}</div>
           <div class="stat-label">Active Users</div>
-          <div class="stat-change positive">
+          <div class="stat-change positive" *ngIf="stats.activeUsersChange > 0">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <polyline points="22,12 18,8 14,12"/>
               <path d="M22 12H2"/>
@@ -121,7 +169,7 @@
         <div class="stat-info">
           <div class="stat-number">{{ stats.pendingVerification }}</div>
           <div class="stat-label">Pending Verification</div>
-          <div class="stat-change positive">
+          <div class="stat-change positive" *ngIf="stats.pendingVerificationChange > 0">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <polyline points="22,12 18,8 14,12"/>
               <path d="M22 12H2"/>
@@ -143,7 +191,7 @@
         <div class="stat-info">
           <div class="stat-number">{{ stats.suspendedAccounts }}</div>
           <div class="stat-label">Suspended Accounts</div>
-          <div class="stat-change negative">
+          <div class="stat-change negative" *ngIf="stats.suspendedAccountsChange < 0">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <polyline points="2,12 6,16 10,12"/>
               <path d="M2 12h20"/>
@@ -162,8 +210,14 @@
     </div>
   </div>
 
+  <!-- Loading State -->
+  <div class="loading-state" *ngIf="isLoading">
+    <div class="spinner"></div>
+    <p>Loading users...</p>
+  </div>
+
   <!-- Users Table -->
-  <div class="users-table">
+  <div class="users-table" *ngIf="!isLoading">
     <div class="table-header">
       <div class="table-row">
         <div class="table-cell checkbox-cell">
@@ -175,34 +229,10 @@
           >
         </div>
         <div class="table-cell user-cell">User</div>
-        <div class="table-cell email-cell">
-          Email
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1">
-            <path d="M7 15l5 5 5-5"/>
-            <path d="M7 9l5-5 5 5"/>
-          </svg>
-        </div>
-        <div class="table-cell role-cell">
-          Role
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1">
-            <path d="M7 15l5 5 5-5"/>
-            <path d="M7 9l5-5 5 5"/>
-          </svg>
-        </div>
-        <div class="table-cell status-cell">
-          Status
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1">
-            <path d="M7 15l5 5 5-5"/>
-            <path d="M7 9l5-5 5 5"/>
-          </svg>
-        </div>
-        <div class="table-cell created-cell">
-          Created
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1">
-            <path d="M7 15l5 5 5-5"/>
-            <path d="M7 9l5-5 5 5"/>
-          </svg>
-        </div>
+        <div class="table-cell email-cell">Email</div>
+        <div class="table-cell role-cell">Role</div>
+        <div class="table-cell status-cell">Status</div>
+        <div class="table-cell created-cell">Created</div>
         <div class="table-cell verification-cell">Verification</div>
         <div class="table-cell actions-cell">Actions</div>
       </div>
@@ -221,7 +251,9 @@
         
         <div class="table-cell user-cell">
           <div class="user-info">
-            <div class="user-avatar">{{ getUserInitials(user.name) }}</div>
+            <div class="user-avatar" [style.background-image]="user.avatar ? 'url(' + user.avatar + ')' : 'none'">
+              <span *ngIf="!user.avatar">{{ getUserInitials(user.name) }}</span>
+            </div>
             <div class="user-details">
               <div class="user-name">{{ user.name }}</div>
               <div class="user-id">ID: {{ user.id }}</div>
@@ -260,25 +292,97 @@
         </div>
         
         <div class="table-cell actions-cell">
-          <button class="action-btn" (click)="onUserAction(user, 'menu')">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <circle cx="12" cy="12" r="1"/>
-              <circle cx="12" cy="5" r="1"/>
-              <circle cx="12" cy="19" r="1"/>
-            </svg>
-          </button>
+          <div class="action-menu-container" style="position: relative;">
+            <button class="action-btn" (click)="toggleActionMenu(user.id, $event)">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="1"/>
+                <circle cx="12" cy="5" r="1"/>
+                <circle cx="12" cy="19" r="1"/>
+              </svg>
+            </button>
+            
+            <!-- Action Menu Dropdown -->
+            <div class="action-menu" *ngIf="isMenuActive(user.id)">
+              <button class="action-menu-item" (click)="performAction(user, 'view')">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                  <circle cx="12" cy="12" r="3"/>
+                </svg>
+                View Details
+              </button>
+              <button class="action-menu-item" (click)="performAction(user, 'edit')">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                  <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                </svg>
+                Edit User
+              </button>
+              <div class="menu-divider"></div>
+              <button class="action-menu-item" (click)="performAction(user, 'activate')" *ngIf="user.status !== 'Active'">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+                  <polyline points="22 4 12 14.01 9 11.01"/>
+                </svg>
+                Activate
+              </button>
+              <button class="action-menu-item" (click)="performAction(user, 'suspend')" *ngIf="user.status !== 'Suspended'">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <circle cx="12" cy="12" r="10"/>
+                  <line x1="15" y1="9" x2="9" y2="15"/>
+                  <line x1="9" y1="9" x2="15" y2="15"/>
+                </svg>
+                Suspend
+              </button>
+              <button class="action-menu-item" (click)="performAction(user, 'verify')" *ngIf="user.verification !== 'Verified'">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+                  <polyline points="22 4 12 14.01 9 11.01"/>
+                </svg>
+                Verify
+              </button>
+              <div class="menu-divider"></div>
+              <button class="action-menu-item danger" (click)="performAction(user, 'delete')">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <polyline points="3 6 5 6 21 6"/>
+                  <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                </svg>
+                Delete User
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     </div>
   </div>
 
   <!-- Empty State -->
-  <div class="empty-state" *ngIf="filteredUsers.length === 0">
+  <div class="empty-state" *ngIf="!isLoading && filteredUsers.length === 0">
     <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1">
       <circle cx="11" cy="11" r="8"/>
       <path d="m21 21-4.35-4.35"/>
     </svg>
     <h3>No users found</h3>
     <p>Try adjusting your search or filter criteria</p>
+  </div>
+
+  <!-- Pagination -->
+  <div class="pagination" *ngIf="!isLoading && totalPages > 1">
+    <button class="pagination-btn" (click)="previousPage()" [disabled]="currentPage === 1">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="m15 18-6-6 6-6"/>
+      </svg>
+      Previous
+    </button>
+    
+    <div class="pagination-info">
+      Page {{ currentPage }} of {{ totalPages }} ({{ totalUsers }} users)
+    </div>
+    
+    <button class="pagination-btn" (click)="nextPage()" [disabled]="currentPage === totalPages">
+      Next
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="m9 18 6-6-6-6"/>
+      </svg>
+    </button>
   </div>
 </div>

@@ -1,5 +1,5 @@
 import { Component, OnInit, OnDestroy, ViewChild, ElementRef } from '@angular/core';
-import { CommonModule, DatePipe, DecimalPipe } from '@angular/common'; // ✅ Add DatePipe and DecimalPipe
+import { CommonModule, DatePipe, DecimalPipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { Subject, interval, takeUntil } from 'rxjs';
@@ -12,6 +12,7 @@ import {
 } from '../../../../../services/training.service';
 import { AuthService } from '../../../../../services/auth.service';
 import { SidebarComponent } from '../../shared/sidebar/sidebar.component';
+
 interface FilterOptions {
   duration: string[];
   level: string[];
@@ -23,13 +24,13 @@ interface FilterOptions {
 @Component({
   selector: 'app-training',
   templateUrl: './training.component.html',
-  imports: [CommonModule, FormsModule, SidebarComponent], // DatePipe and DecimalPipe are included in CommonModule
+  imports: [CommonModule, FormsModule, SidebarComponent],
   styleUrls: ['./training.component.css']
 })
 export class TrainingComponent implements OnInit, OnDestroy {
   @ViewChild('videoPlayer', { static: false }) videoPlayer!: ElementRef<HTMLIFrameElement>;
   
-  // ✅ Make Math accessible in template
+  // Make Math accessible in template
   Math = Math;
   
   private destroy$ = new Subject<void>();
@@ -108,6 +109,7 @@ export class TrainingComponent implements OnInit, OnDestroy {
     this.loadCategories();
     this.loadNotifications();
     
+    // Auto-refresh trainings every 30 seconds
     interval(30000)
       .pipe(takeUntil(this.destroy$))
       .subscribe(() => {
@@ -115,6 +117,7 @@ export class TrainingComponent implements OnInit, OnDestroy {
         this.loadTrainings();
       });
     
+    // Auto-refresh notifications every 15 seconds
     interval(15000)
       .pipe(takeUntil(this.destroy$))
       .subscribe(() => {
@@ -122,6 +125,7 @@ export class TrainingComponent implements OnInit, OnDestroy {
         this.loadNotifications();
       });
 
+    // Request notification permission
     if ('Notification' in window && Notification.permission === 'default') {
       Notification.requestPermission().then(permission => {
         console.log('🔔 Notification permission:', permission);
@@ -139,9 +143,6 @@ export class TrainingComponent implements OnInit, OnDestroy {
   // UTILITY METHODS FOR TEMPLATE
   // ============================================
   
-  /**
-   * ✅ Safe method to format dates for template
-   */
   formatDate(date: any): string {
     if (!date) return 'N/A';
     try {
@@ -152,24 +153,15 @@ export class TrainingComponent implements OnInit, OnDestroy {
     }
   }
 
-  /**
-   * ✅ Safe method to format numbers for template
-   */
   formatNumber(num: any): string {
     if (num == null) return '0';
     return num.toLocaleString();
   }
 
-  /**
-   * ✅ Safe Math.min for template
-   */
   getMin(a: number, b: number): number {
     return Math.min(a, b);
   }
 
-  /**
-   * ✅ Safe Math.floor for template
-   */
   getFloor(num: number): number {
     return Math.floor(num);
   }
@@ -231,14 +223,57 @@ export class TrainingComponent implements OnInit, OnDestroy {
     return titleMap[type] || 'Training Update';
   }
   
+  // ✅ FIXED: Enhanced notification click handler with multiple enrollment_id sources
   handleNotificationClick(notification: any): void {
-    console.log('📌 Notification clicked:', notification);
+    console.log('🔔 Notification clicked:', notification);
     
+    // Mark as read
     if (!notification.read) {
       this.markNotificationAsRead(notification.id);
     }
     
     switch (notification.type) {
+      case 'certificate_issued':
+        console.log('📜 Certificate notification metadata:', notification.metadata);
+        
+        // ✅ CRITICAL FIX: Try multiple sources for enrollment_id
+        let enrollmentId = null;
+        
+        // Priority 1: related_id (from database trigger)
+        if (notification.related_id) {
+          enrollmentId = notification.related_id;
+          console.log('✅ Using related_id:', enrollmentId);
+        }
+        // Priority 2: metadata.enrollment_id
+        else if (notification.metadata?.enrollment_id) {
+          enrollmentId = notification.metadata.enrollment_id;
+          console.log('✅ Using metadata.enrollment_id:', enrollmentId);
+        }
+        // Priority 3: metadata.certificate_id (fallback)
+        else if (notification.metadata?.certificate_id) {
+          enrollmentId = notification.metadata.certificate_id;
+          console.log('✅ Using metadata.certificate_id:', enrollmentId);
+        }
+
+        if (enrollmentId) {
+          const trainingTitle = notification.metadata?.training_title || 'Training';
+          
+          // Show confirmation dialog
+          if (confirm(`Download certificate for "${trainingTitle}"?`)) {
+            this.downloadCertificate(enrollmentId, trainingTitle);
+          }
+          
+          // Close notification panel
+          this.showNotifications = false;
+        } else {
+          console.error('❌ No enrollment_id found in notification:', notification);
+          alert(
+            'Certificate download information is missing. ' +
+            'Please refresh the page or contact support.'
+          );
+        }
+        break;
+      
       case 'enrollment_confirmed':
       case 'new_training':
       case 'training_updated':
@@ -246,15 +281,6 @@ export class TrainingComponent implements OnInit, OnDestroy {
       case 'content_updated':
         if (notification.metadata?.training_id) {
           this.viewTrainingFromNotification(notification.metadata.training_id);
-        }
-        break;
-      
-      case 'certificate_issued':
-        if (notification.metadata?.enrollment_id) {
-          this.downloadCertificate(
-            notification.metadata.enrollment_id,
-            notification.metadata?.training_title || 'Training'
-          );
         }
         break;
       
@@ -266,7 +292,9 @@ export class TrainingComponent implements OnInit, OnDestroy {
         break;
       
       default:
-        console.log('No specific action for notification type:', notification.type);
+        console.log('ℹ️ No specific action for notification type:', notification.type);
+        this.showNotifications = false;
+        break;
     }
   }
   
@@ -348,8 +376,6 @@ export class TrainingComponent implements OnInit, OnDestroy {
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: (response) => {
-          console.log('📦 Raw notification response:', response);
-          
           if (response.success && response.data) {
             this.notifications = response.data.notifications || [];
             this.unreadNotificationCount = this.notifications.filter(n => !n.read).length;
@@ -647,30 +673,7 @@ export class TrainingComponent implements OnInit, OnDestroy {
         },
         error: (error) => {
           console.error('❌ Error saving progress:', error);
-          console.error('Error details:', {
-            status: error.status,
-            message: error.message,
-            error: error.error
-          });
-
-          if (error.status === 500 && error.error?.message?.includes('notifications')) {
-            console.warn('⚠️ Progress saved but notification failed (backend DB issue)');
-            
-            if (isCompleted && this.currentVideo) {
-              this.currentVideo.completed = true;
-              
-              if (this.selectedTraining?.videos) {
-                const videoInList = this.selectedTraining.videos.find(v => v.id === this.currentVideo!.id);
-                if (videoInList) {
-                  videoInList.completed = true;
-                }
-              }
-            }
-            
-            console.log('✓ Video progress saved (notification system needs DB fix)');
-            return;
-          }
-
+          
           let errorMessage = 'Failed to save progress.';
           
           if (error.status === 404) {
@@ -679,11 +682,11 @@ export class TrainingComponent implements OnInit, OnDestroy {
             errorMessage += ' Please log in again.';
           } else if (error.status === 403) {
             errorMessage += ' You must be enrolled to save progress.';
-          } else if (error.error?.message && !error.error.message.includes('notifications')) {
+          } else if (error.error?.message) {
             errorMessage += ` ${error.error.message}`;
           }
 
-          errorMessage += ' It will resume from here next time.';
+          errorMessage += ' Progress will resume from here next time.';
           alert(errorMessage);
         }
       });
@@ -693,198 +696,220 @@ export class TrainingComponent implements OnInit, OnDestroy {
   // CERTIFICATE DOWNLOAD
   // ============================================
   
-downloadCertificate(enrollmentId: string, trainingTitle: string): void {
-  console.log('📥 Component: Downloading certificate:', {
-    enrollmentId,
-    trainingTitle,
-    hasEnrollmentId: !!enrollmentId,
-    hasTitle: !!trainingTitle
-  });
-  
-  // Validate enrollment ID
-  if (!enrollmentId) {
-    console.error('❌ No enrollment ID provided');
-    alert('Cannot download certificate: Enrollment information is missing.');
-    return;
-  }
-  
-  // Provide default title if missing
-  const certificateTitle = trainingTitle || 'Training Certificate';
-  
-  console.log('📝 Proceeding with download:', {
-    enrollmentId,
-    title: certificateTitle
-  });
-  
-  // Show loading indicator
-  this.loading = true;
-  
-  // Call service method
-  this.trainingService.triggerCertificateDownload(enrollmentId, certificateTitle);
-  
-  // Reset loading after a delay (download happens asynchronously)
-  setTimeout(() => {
-    this.loading = false;
-  }, 2000);
-}
+  // ✅ FIXED: Main download method with proper error handling
+  downloadCertificate(enrollmentId: string, trainingTitle: string): void {
+    console.log('📥 Downloading certificate:', { enrollmentId, trainingTitle });
+    
+    if (!enrollmentId) {
+      console.error('❌ No enrollment ID provided');
+      alert('Cannot download certificate: Enrollment ID is missing');
+      return;
+    }
 
-canDownloadCertificate(training: Training): boolean {
-  const canDownload = !!(
-    training.enrolled && 
-    training.progress === 100 && 
-    training.certificate_issued &&
-    training.enrollment_id
-  );
-  
-  console.log('🔍 Can download certificate check:', {
-    trainingId: training.id,
-    title: training.title,
-    enrolled: training.enrolled,
-    progress: training.progress,
-    certificateIssued: training.certificate_issued,
-    hasEnrollmentId: !!training.enrollment_id,
-    canDownload
-  });
-  
-  return canDownload;
-}
-
-refreshTrainingDetails(): void {
-  if (!this.selectedTraining) {
-    console.warn('⚠️ No training selected');
-    return;
-  }
-  
-  console.log('🔄 Refreshing training details for certificate check...');
-  const trainingId = this.selectedTraining.id;
-  
-  this.loading = true;
-  
-  this.trainingService.getTrainingWithDetailsForJobseeker(trainingId, this.userId)
-    .pipe(takeUntil(this.destroy$))
-    .subscribe({
-      next: (response) => {
-        if (response.success && response.data) {
-          this.selectedTraining = response.data;
-          
-          console.log('✅ Training refreshed:', {
-            progress: this.selectedTraining.progress,
-            certificateIssued: this.selectedTraining.certificate_issued,
-            enrollmentId: this.selectedTraining.enrollment_id
-          });
-          
-          if (this.selectedTraining.certificate_issued) {
-            alert('✅ Certificate is now available for download!');
-          } else if (this.selectedTraining.progress === 100) {
-            alert('⏳ Certificate is being generated. Please check again in a moment.');
-          } else {
-            alert(`📊 Training progress: ${this.selectedTraining.progress}%. Complete all videos to earn your certificate.`);
-          }
-        }
-        this.loading = false;
-      },
-      error: (error) => {
-        console.error('❌ Error refreshing training:', error);
-        alert('Failed to refresh training details. Please try again.');
-        this.loading = false;
-      }
-    });
-}
-
-handleCertificateNotification(notification: any): void {
-  console.log('🎓 Handling certificate notification:', notification);
-  
-  if (!notification.metadata?.enrollment_id) {
-    console.error('❌ No enrollment ID in notification');
-    alert('Cannot download certificate: Missing enrollment information.');
-    return;
-  }
-  
-  const enrollmentId = notification.metadata.enrollment_id;
-  const trainingTitle = notification.metadata?.training_title || 
-                        notification.message?.match(/for "([^"]+)"/)?.[1] || 
-                        'Training';
-  
-  console.log('📥 Downloading certificate from notification:', {
-    enrollmentId,
-    trainingTitle
-  });
-  
-  this.downloadCertificate(enrollmentId, trainingTitle);
-  
-  // Mark notification as read
-  if (!notification.read) {
-    this.markNotificationAsRead(notification.id);
-  }
-}
-
-checkAndDownloadCertificate(enrollmentId: string, trainingTitle: string): void {
-  console.log('🔍 Checking certificate availability before download...');
-  
-  this.loading = true;
-  
-  this.trainingService.checkCertificateAvailability(enrollmentId)
-    .pipe(takeUntil(this.destroy$))
-    .subscribe({
-      next: (response) => {
+    this.loading = true;
+    
+    this.trainingService.downloadCertificate(enrollmentId).subscribe({
+      next: (blob: Blob) => {
         this.loading = false;
         
-        if (response.success && response.data?.available) {
-          console.log('✅ Certificate is available, proceeding with download');
-          this.downloadCertificate(enrollmentId, trainingTitle);
+        if (blob.size > 0) {
+          console.log('✅ Certificate downloaded:', blob.size, 'bytes');
+          
+          const url = window.URL.createObjectURL(blob);
+          const link = document.createElement('a');
+          link.href = url;
+          link.download = `${trainingTitle.replace(/[^a-z0-9]/gi, '_')}_Certificate.pdf`;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          window.URL.revokeObjectURL(url);
+          
+          alert(`Certificate for "${trainingTitle}" downloaded successfully!`);
         } else {
-          const reason = response.data?.reason || 'Certificate is not yet available';
-          console.warn('⚠️ Certificate not available:', reason);
-          alert(`Certificate not available: ${reason}`);
+          console.error('❌ Empty file received');
+          alert('Certificate file is empty. Please contact the training provider.');
         }
       },
       error: (error) => {
         this.loading = false;
-        console.error('❌ Error checking certificate:', error);
+        console.error('❌ Error downloading certificate:', error);
         
-        // Try to download anyway (fallback)
-        console.log('Attempting download anyway...');
-        this.downloadCertificate(enrollmentId, trainingTitle);
+        let errorMessage = 'Failed to download certificate. ';
+        
+        if (error.status === 404) {
+          errorMessage += 'Certificate file not found on server.';
+        } else if (error.status === 401) {
+          errorMessage += 'You are not authorized. Please log in again.';
+        } else if (error.status === 403) {
+          errorMessage += 'Access denied. This certificate may not belong to you.';
+        } else {
+          errorMessage += 'Please try again or contact support.';
+        }
+        
+        alert(errorMessage);
       }
     });
-}
+  }
 
-getCertificateStatusMessage(training: Training): string {
-  if (!training.enrolled) {
-    return 'Enroll in this training to earn a certificate';
+  // ✅ FIXED: Download from list view
+  downloadCertificateFromList(training: Training): void {
+    console.log('📥 List download - enrollment_id:', training.enrollment_id);
+    
+    if (!training.enrollment_id) {
+      console.error('❌ No enrollment_id in training object');
+      alert('Certificate information missing. Please refresh the page.');
+      this.loadTrainings(this.currentPage);
+      return;
+    }
+    
+    this.downloadCertificate(training.enrollment_id, training.title);
   }
-  
-  const progress = training.progress ?? 0;
-  
-  if (progress < 100) {
-    return `Complete all videos (${progress}% done) to earn your certificate`;
-  }
-  
-  if (progress === 100 && !training.certificate_issued) {
-    return 'Certificate is being generated...';
-  }
-  
-  if (training.certificate_issued && training.enrollment_id) {
-    return 'Certificate is ready for download!';
-  }
-  
-  return 'Certificate status unknown';
-}
 
-/**
- * Show certificate preview (if backend supports it)
- */
-previewCertificate(enrollmentId: string): void {
-  console.log('👁️ Previewing certificate:', enrollmentId);
-  
-  if (!enrollmentId) {
-    alert('Cannot preview certificate: Enrollment information is missing.');
-    return;
+  // ✅ FIXED: Button click handler with validation
+  handleCertificateDownloadClick(training: Training): void {
+    console.log('🖱️ Download button clicked:', {
+      id: training?.id,
+      title: training?.title,
+      enrolled: training?.enrolled,
+      progress: training?.progress,
+      certificateIssued: training?.certificate_issued,
+      enrollmentId: training?.enrollment_id
+    });
+
+    // Check if can download
+    if (this.canDownloadCertificate(training)) {
+      this.downloadCertificate(training.enrollment_id!, training.title || 'Training');
+      return;
+    }
+
+    // If enrollment_id missing, refresh training details
+    if (!training.enrollment_id && training.certificate_issued) {
+      console.warn('⚠️ enrollment_id missing but certificate issued, refreshing...');
+      this.refreshTrainingDetails();
+      return;
+    }
+
+    // Provide feedback
+    const statusMsg = this.getCertificateStatusMessage(training);
+    console.log('ℹ️ Cannot download:', statusMsg);
+    alert(statusMsg);
   }
-  
-  // Open in new tab using the service method
-  this.trainingService.openCertificateInNewTab(enrollmentId);
-}
+
+  canDownloadCertificate(training: Training): boolean {
+    const canDownload = !!(
+      training.enrolled && 
+      training.progress === 100 && 
+      training.certificate_issued &&
+      training.enrollment_id
+    );
+    
+    console.log('🔍 Can download check:', {
+      trainingId: training.id,
+      enrolled: training.enrolled,
+      progress: training.progress,
+      certificateIssued: training.certificate_issued,
+      hasEnrollmentId: !!training.enrollment_id,
+      result: canDownload
+    });
+    
+    return canDownload;
+  }
+
+  refreshTrainingDetails(): void {
+    if (!this.selectedTraining?.id) {
+      console.warn('⚠️ No selected training to refresh');
+      return;
+    }
+    
+    this.loading = true;
+    
+    this.trainingService.getTrainingWithDetailsForJobseeker(this.selectedTraining.id, this.userId)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (response) => {
+          this.loading = false;
+          if (response.success && response.data) {
+            this.selectedTraining = response.data;
+            console.log('✅ Refreshed enrollment_id:', this.selectedTraining.enrollment_id);
+            
+            if (this.selectedTraining.certificate_issued) {
+              alert('Certificate is ready! Click download again.');
+            }
+          }
+        },
+        error: (error) => {
+          this.loading = false;
+          console.error('❌ Error refreshing training:', error);
+          alert('Failed to refresh training details. Please reload the page.');
+        }
+      });
+  }
+
+  getCertificateStatusMessage(training: Training): string {
+    if (!training.enrolled) {
+      return 'Please enroll in this training to earn a certificate';
+    }
+    
+    const progress = training.progress ?? 0;
+    
+    if (progress < 100) {
+      return `Complete all videos (${progress}% done) to earn your certificate`;
+    }
+    
+    if (progress === 100 && !training.certificate_issued) {
+      return 'Training completed! Certificate is being generated...';
+    }
+    
+    if (training.certificate_issued && training.enrollment_id) {
+      return 'Certificate is ready for download!';
+    }
+    
+    return 'Certificate status unknown. Please refresh the page.';
+  }
+
+  // ✅ NEW: Check certificate availability
+  checkAndDownloadCertificate(enrollmentId: string, trainingTitle: string): void {
+    console.log('🔍 Checking certificate availability...');
+    
+    this.loading = true;
+    
+    this.trainingService.checkCertificateAvailability(enrollmentId)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (response) => {
+          this.loading = false;
+          
+          if (response.success && response.data?.available) {
+            console.log('✅ Certificate is available');
+            this.downloadCertificate(enrollmentId, trainingTitle);
+          } else {
+            const reason = response.data?.reason || 'Certificate is not yet available';
+            console.warn('⚠️ Certificate not available:', reason);
+            alert(`Certificate not available: ${reason}`);
+          }
+        },
+        error: (error) => {
+          this.loading = false;
+          console.error('❌ Error checking certificate:', error);
+          
+          // Try to download anyway
+          console.log('Attempting download anyway...');
+          this.downloadCertificate(enrollmentId, trainingTitle);
+        }
+      });
+  }
+
+  // ✅ NEW: Preview certificate (if supported)
+  previewCertificate(enrollmentId: string): void {
+    console.log('👁️ Previewing certificate:', enrollmentId);
+    
+    if (!enrollmentId) {
+      alert('Cannot preview: Enrollment information missing');
+      return;
+    }
+    
+    this.trainingService.openCertificateInNewTab(enrollmentId);
+  }
 
   // ============================================
   // DATA LOADING
@@ -896,19 +921,15 @@ previewCertificate(enrollmentId: string): void {
       return false;
     }
     if (training.status !== 'published') {
-      console.warn('❌ Not published:', training.title, 'Status:', training.status);
+      console.warn('❌ Not published:', training.title);
       return false;
     }
-    if (!training.provider_id || training.provider_id === 'null' || training.provider_id === 'undefined') {
-      console.warn('❌ Invalid provider_id:', training.title, 'Provider ID:', training.provider_id);
+    if (!training.provider_id) {
+      console.warn('❌ Invalid provider_id:', training.title);
       return false;
     }
     if (training.duration_hours <= 0) {
       console.warn('❌ Invalid duration:', training.title);
-      return false;
-    }
-    if (training.cost_type === 'Paid' && (!training.price || training.price <= 0)) {
-      console.warn('❌ Paid training with invalid price:', training.title);
       return false;
     }
     return true;
@@ -948,6 +969,8 @@ previewCertificate(enrollmentId: string): void {
             this.trainings = validTrainings;
             this.filteredTrainings = [...this.trainings];
             
+            console.log('✅ Loaded trainings:', this.trainings.length);
+            
             if (response.pagination) {
               this.currentPage = response.pagination.current_page;
               this.totalPages = response.pagination.total_pages;
@@ -960,6 +983,8 @@ previewCertificate(enrollmentId: string): void {
           console.error('❌ Error loading trainings:', error);
           this.error = 'Failed to load training programs. Please try again.';
           this.loading = false;
+          this.trainings = [];
+          this.filteredTrainings = [];
         }
       });
   }
@@ -971,10 +996,11 @@ previewCertificate(enrollmentId: string): void {
         next: (response) => {
           if (response.success && response.data) {
             this.categories = response.data.map((cat: any) => cat.name || cat);
+            console.log('✅ Categories loaded:', this.categories.length);
           }
         },
         error: (error) => {
-          console.error('Error loading categories:', error);
+          console.error('❌ Error loading categories:', error);
           this.categories = ['Data Science', 'Frontend Development', 'Marketing', 'Cloud Computing', 'Design'];
         }
       });
@@ -1000,19 +1026,19 @@ previewCertificate(enrollmentId: string): void {
                 videos: this.selectedTraining.videos?.length || 0,
                 progress: this.selectedTraining.progress,
                 enrolled: this.selectedTraining.enrolled,
-                certificateIssued: this.selectedTraining.certificate_issued
+                certificateIssued: this.selectedTraining.certificate_issued,
+                enrollmentId: this.selectedTraining.enrollment_id
               });
+              this.showTrainingDetail = true;
             } else {
-              console.error('❌ Training failed validation check');
+              console.error('❌ Training validation failed');
               this.error = 'This training is no longer available.';
             }
-            this.showVideoLoading = false;
-            this.showTrainingDetail = true;
           } else {
             this.error = 'Failed to load training details.';
-            this.showVideoLoading = false;
           }
           this.loading = false;
+          this.showVideoLoading = false;
         },
         error: (error) => {
           console.error('❌ Error loading training details:', error);
@@ -1060,7 +1086,10 @@ previewCertificate(enrollmentId: string): void {
     this.viewTrainingDetail(training);
   }
 
-  // Wishlist management
+  // ============================================
+  // WISHLIST MANAGEMENT
+  // ============================================
+  
   addToWishlist(trainingId: string): void {
     this.wishlistSet.add(trainingId);
     console.log('Added to wishlist:', trainingId);
@@ -1096,7 +1125,10 @@ previewCertificate(enrollmentId: string): void {
     }
   }
 
-  // Filter methods
+  // ============================================
+  // FILTER METHODS
+  // ============================================
+  
   filterByCategory(category: string): void {
     this.selectedCategory = category;
     this.currentPage = 1;
@@ -1149,7 +1181,10 @@ previewCertificate(enrollmentId: string): void {
     this.loadTrainings(1);
   }
 
-  // Utility methods
+  // ============================================
+  // UTILITY METHODS
+  // ============================================
+  
   getDurationText(duration_hours: number): string {
     if (duration_hours < 10) return 'Short Course';
     if (duration_hours <= 40) return 'Medium Course';
@@ -1175,7 +1210,27 @@ previewCertificate(enrollmentId: string): void {
     return this.trainingService.formatPrice(training.price, training.cost_type);
   }
 
-  // Pagination
+  isEnrolled(training: Training): boolean {
+    return training.enrolled || false;
+  }
+
+  getTrainingProgress(training: Training): number {
+    return training.progress || 0;
+  }
+
+  getVideosRemaining(training: any): number {
+    if (!training || !training.videos) return 0;
+    
+    const totalVideos = training.videos.length;
+    const completedVideos = training.videos.filter((v: any) => v.completed).length;
+    
+    return totalVideos - completedVideos;
+  }
+
+  // ============================================
+  // PAGINATION
+  // ============================================
+  
   goToPage(page: number): void {
     if (page >= 1 && page <= this.totalPages && page !== this.currentPage) {
       this.loadTrainings(page);
@@ -1194,18 +1249,6 @@ previewCertificate(enrollmentId: string): void {
     }
   }
 
-  refreshTrainings(): void {
-    this.loadTrainings(this.currentPage);
-  }
-
-  isEnrolled(training: Training): boolean {
-    return training.enrolled || false;
-  }
-
-  getTrainingProgress(training: Training): number {
-    return training.progress || 0;
-  }
-
   getPaginationPages(): (number | string)[] {
     const pages: (number | string)[] = [];
     const startPage = Math.max(1, this.currentPage - 2);
@@ -1217,15 +1260,11 @@ previewCertificate(enrollmentId: string): void {
     return pages;
   }
 
+  refreshTrainings(): void {
+    this.loadTrainings(this.currentPage);
+  }
+
   getVideoEmbedUrl(videoUrl: string): string {
     return this.trainingService.getVideoEmbedUrl(videoUrl);
   }
-  getVideosRemaining(training: any): number {
-  if (!training || !training.videos) return 0;
-  
-  const totalVideos = training.videos.length;
-  const completedVideos = training.videos.filter((v: any) => v.completed).length;
-  
-  return totalVideos - completedVideos;
-}
 }

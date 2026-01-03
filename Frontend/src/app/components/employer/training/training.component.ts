@@ -415,11 +415,66 @@ getJobseekerDisplayName(notification: any): string {
     return `${notification.progress_percentage}% Complete`;
   }
 
-  issueCertificateFromNotification(notification: any): void {
-    if (notification.enrollment_id) {
-      this.issueCertificate(notification.enrollment_id);
-    }
+// ✅ NEW: Issue certificate from notification
+issueCertificateFromNotification(notification: any): void {
+  if (!notification.enrollment_id) {
+    alert('No enrollment ID available');
+    return;
   }
+
+  if (confirm(`Issue certificate to ${this.getJobseekerDisplayName(notification)} for "${notification.training_title}"?`)) {
+    this.trainingService.issueCertificate(notification.enrollment_id, this.employerId)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (response) => {
+          if (response.success) {
+            alert('Certificate issued successfully! Jobseeker notified.');
+            notification.certificate_issued = true;  // Update UI immediately
+            this.unreadNotificationCount = Math.max(0, this.unreadNotificationCount - 1);
+            this.loadNotifications();  // Refresh list
+          }
+        },
+        error: (error) => {
+          console.error('Error issuing certificate:', error);
+          alert('Failed to issue certificate: ' + (error.message || 'Try again'));
+        }
+      });
+  }
+}
+
+// ✅ NEW: Employer certificate download from notification
+downloadEmployerCertificate(enrollmentId: string): void {
+  if (!enrollmentId) {
+    alert('No enrollment ID available');
+    return;
+  }
+  
+  console.log('📥 Employer downloading certificate:', enrollmentId);
+  
+  this.trainingService.downloadCertificate(enrollmentId)
+    .pipe(takeUntil(this.destroy$))
+    .subscribe({
+      next: (blob) => {
+        if (blob.size > 0) {
+          const url = window.URL.createObjectURL(blob);
+          const link = document.createElement('a');
+          link.href = url;
+          link.download = `employer-certificate-${enrollmentId}.pdf`;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          window.URL.revokeObjectURL(url);
+          console.log('✅ Employer certificate downloaded');
+        } else {
+          alert('Empty file – ask employer to re-issue.');
+        }
+      },
+      error: (error) => {
+        console.error('❌ Employer download failed:', error);
+        alert(`Download failed: ${error?.message || 'File not found. Re-issue if needed.'}`);
+      }
+    });
+}
 
   viewStudentProfile(notification: any): void {
     console.log('Viewing student profile:', notification.user_id);

@@ -9,6 +9,7 @@ import portfolioRoutes from './routes/portfolio.routes';
 import profileRoutes from './routes/profile.routes';
 import geminiRoutes from './routes/gemini.routes';
 import candidatesRoutes from './routes/candidates.routes';
+import userManagementRoutes from './routes/user-management.routes'; // NEW: Admin user management
 import pool from './db/db.config';
 import path from 'path';
 
@@ -53,12 +54,14 @@ pool.connect()
       
       await client.query('SELECT 1 FROM job_applications LIMIT 1');
       console.log('✓ Job applications table accessible');
+      
       // Test training-related tables
       await client.query('SELECT 1 FROM trainings LIMIT 1');
       console.log('✓ Trainings table accessible');
       
       await client.query('SELECT 1 FROM training_enrollments LIMIT 1');
       console.log('✓ Training enrollments table accessible');
+      
       // Test portfolio-related tables
       await client.query('SELECT 1 FROM portfolio_settings LIMIT 1');
       console.log('✓ Portfolio settings table accessible');
@@ -68,6 +71,7 @@ pool.connect()
       
       await client.query('SELECT 1 FROM portfolio_testimonials LIMIT 1');
       console.log('✓ Portfolio testimonials table accessible');
+      
       // Test candidates-related tables
       await client.query('SELECT 1 FROM shortlisted_candidates LIMIT 1');
       console.log('✓ Shortlisted candidates table accessible');
@@ -77,6 +81,14 @@ pool.connect()
       
       await client.query('SELECT 1 FROM notifications LIMIT 1');
       console.log('✓ Notifications table accessible');
+      
+      // NEW: Test activity logs table
+      try {
+        await client.query('SELECT 1 FROM activity_logs LIMIT 1');
+        console.log('✓ Activity logs table accessible');
+      } catch (activityLogError) {
+        console.warn('⚠ Activity logs table not found - run migration script for admin features');
+      }
       
     } catch (tableError: any) {
       console.warn('Database tables might need migration:', tableError.message);
@@ -88,7 +100,8 @@ pool.connect()
         'trainings', 'training_videos', 'training_outcomes',
         'training_enrollments', 'training_video_progress', 'training_reviews',
         'cvs', 'portfolio_settings', 'portfolio_views', 'portfolio_testimonials',
-        'shortlisted_candidates', 'job_invitations', 'notifications'
+        'shortlisted_candidates', 'job_invitations', 'notifications',
+        'activity_logs' // NEW
       ];
       console.warn('Expected tables:', expectedTables.join(', '));
     }
@@ -180,6 +193,7 @@ app.use('/uploads/cvs', express.static(path.join(__dirname, '../uploads/cvs')));
 app.use('/uploads/profile-images', express.static(path.join(__dirname, '../uploads/profile-images')));
 app.use('/uploads/certificates', express.static(path.join(__dirname, '../uploads/certificates')));
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
+
 // Debug route registration
 console.log('Registering routes:');
 console.log('- Auth routes: /api/auth/*');
@@ -190,6 +204,7 @@ console.log('- Portfolio routes: /api/portfolio/*');
 console.log('- Profile routes: /api/profile/*');
 console.log('- Gemini AI routes: /api/gemini/*');
 console.log('- Employer candidates routes: /api/employer/*');
+console.log('- Admin user management routes: /api/admin/users/*'); // NEW
 
 // API Routes
 app.use('/api/auth', authRoutes);
@@ -200,7 +215,7 @@ app.use('/api/portfolio', portfolioRoutes);
 app.use('/api/profile', profileRoutes);
 app.use('/api/gemini', geminiRoutes);
 app.use('/api/employer', candidatesRoutes);
-app.use('/api/profile', profileRoutes);
+app.use('/api/admin/users', userManagementRoutes); // NEW: Admin user management routes
 
 // Root route
 app.get('/', (req: Request, res: Response) => {
@@ -217,6 +232,7 @@ app.get('/', (req: Request, res: Response) => {
       profile: '/api/profile',
       gemini: '/api/gemini',
       employer: '/api/employer',
+      admin_users: '/api/admin/users', // NEW
       health: '/health',
       database_health: '/health/db'
     },
@@ -419,6 +435,51 @@ app.get('/api', (req: Request, res: Response) => {
           'Application status management',
           'AI-powered candidate insights'
         ]
+      },
+      // NEW: Admin user management endpoints
+      admin_users: {
+        base: '/api/admin/users',
+        routes: [
+          'GET /api/admin/users - Get all users with filtering and pagination',
+          'GET /api/admin/users/stats - Get user statistics',
+          'GET /api/admin/users/export - Export users as CSV',
+          'GET /api/admin/users/:id - Get user details',
+          'PUT /api/admin/users/:id - Update user information',
+          'POST /api/admin/users/:id/action - Perform action on user (activate, suspend, verify, etc.)',
+          'POST /api/admin/users/bulk-action - Perform bulk action on multiple users',
+          'DELETE /api/admin/users/:id/permanent - Permanently delete user'
+        ],
+        authentication: 'Required - Admin role only',
+        features: [
+          'User listing with advanced filtering (role, status, verification)',
+          'Search by name or email',
+          'Pagination support',
+          'User statistics dashboard',
+          'Single and bulk user actions',
+          'Activity logging and audit trail',
+          'CSV export functionality',
+          'User status management (activate, suspend, verify)',
+          'Permanent deletion with confirmation'
+        ],
+        query_params: {
+          search: 'string - Search by name or email',
+          role: 'string - Filter by role (Admin, Employer, Jobseeker)',
+          status: 'string - Filter by status (Active, Inactive, Suspended, Pending)',
+          verification: 'string - Filter by verification status (Verified, Pending, Rejected)',
+          page: 'number - Page number (default: 1)',
+          limit: 'number - Items per page (default: 10)',
+          sortBy: 'string - Sort field (default: created_at)',
+          sortOrder: 'string - Sort order (asc, desc)'
+        },
+        actions: [
+          'activate - Activate user account',
+          'deactivate - Deactivate user account',
+          'suspend - Suspend user account',
+          'unsuspend - Remove suspension',
+          'verify - Verify user account',
+          'reject - Reject user verification',
+          'delete - Soft delete user (mark as deleted)'
+        ]
       }
     },
     authentication: {
@@ -428,7 +489,7 @@ app.get('/api', (req: Request, res: Response) => {
       user_types: {
         jobseeker: 'Can manage CV, portfolio, enroll in trainings, apply for jobs, use AI assistant',
         employer: 'Can create jobs and trainings, manage applications and candidates',
-        admin: 'Full system access'
+        admin: 'Full system access including user management, platform administration'
       }
     }
   });
@@ -449,6 +510,7 @@ app.all('*', (req: Request, res: Response) => {
       '/api/profile/*',
       '/api/gemini/*',
       '/api/employer/*',
+      '/api/admin/users/*', // NEW
       '/health',
       '/health/db',
       '/api'
@@ -467,6 +529,7 @@ app.use((error: any, req: Request, res: Response, next: NextFunction): void => {
     body: req.body,
     timestamp: new Date().toISOString()
   });
+  
   // Database connection errors
   if (error.code && error.code.startsWith('28')) {
     res.status(500).json({
@@ -476,6 +539,7 @@ app.use((error: any, req: Request, res: Response, next: NextFunction): void => {
     });
     return;
   }
+  
   // JWT errors
   if (error.name === 'JsonWebTokenError') {
     res.status(401).json({
@@ -485,6 +549,7 @@ app.use((error: any, req: Request, res: Response, next: NextFunction): void => {
     });
     return;
   }
+  
   if (error.name === 'TokenExpiredError') {
     res.status(401).json({
       success: false,
@@ -493,6 +558,7 @@ app.use((error: any, req: Request, res: Response, next: NextFunction): void => {
     });
     return;
   }
+  
   // Validation errors
   if (error.name === 'ValidationError') {
     res.status(400).json({
@@ -503,6 +569,7 @@ app.use((error: any, req: Request, res: Response, next: NextFunction): void => {
     });
     return;
   }
+  
   // Database constraint errors
   if (error.code === '23505') { // Unique constraint violation
     res.status(409).json({
@@ -513,6 +580,7 @@ app.use((error: any, req: Request, res: Response, next: NextFunction): void => {
     });
     return;
   }
+  
   if (error.code === '23503') { // Foreign key constraint violation
     res.status(400).json({
       success: false,
@@ -522,6 +590,7 @@ app.use((error: any, req: Request, res: Response, next: NextFunction): void => {
     });
     return;
   }
+  
   // Default error response
   res.status(error.status || 500).json({
     success: false,
@@ -562,6 +631,7 @@ process.on('uncaughtException', (error) => {
   console.error('Uncaught Exception:', error);
   process.exit(1);
 });
+
 process.on('unhandledRejection', (reason, promise) => {
   console.error('Unhandled Rejection at:', promise, 'reason:', reason);
   process.exit(1);
@@ -584,9 +654,11 @@ app.listen(PORT, () => {
   console.log(` • Profile: http://localhost:${PORT}/api/profile`);
   console.log(` • Gemini AI: http://localhost:${PORT}/api/gemini`);
   console.log(` • Employer Candidates: http://localhost:${PORT}/api/employer`);
+  console.log(` • Admin User Management: http://localhost:${PORT}/api/admin/users`); // NEW
   console.log(`\n🎓 Features:`);
   console.log(` • Jobseekers: CV building, portfolio management, job applications, training enrollment`);
   console.log(` • Employers: Job postings, training creation, applicant management, candidate shortlisting`);
+  console.log(` • Admins: User management, platform administration, activity monitoring`); // NEW
   console.log(` • Portfolio: Public/private portfolios with analytics and PDF export`);
   console.log(` • AI Assistant: Personalized career guidance powered by Gemini AI`);
   console.log(`\n🔐 Remember to include 'Authorization: Bearer <token>' header for protected routes`);

@@ -117,7 +117,8 @@ router.post('/enrollments/:enrollmentId/issue-certificate', requireEmployer, (re
   trainingController.issueCertificate(req, res, next);
 });
 
-router.get('/enrollments/:enrollmentId/certificate', requireJobseeker, (req, res, next) => {
+// In Training.routes.ts - Updated certificate route (no middleware restriction)
+router.get('/enrollments/:enrollmentId/certificate', authenticateToken, (req, res, next) => {  // ✅ CHANGED: Only auth, no role middleware
   console.log('🎓 Route: GET /trainings/enrollments/:enrollmentId/certificate');
   trainingController.downloadCertificate(req, res, next);
 });

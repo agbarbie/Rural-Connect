@@ -653,6 +653,9 @@ checkCertificateAvailability(enrollmentId: string): Observable<ApiResponse<{ ava
     
     const processedTraining: Training = {
       ...training,
+      // ✅ FIXED: Explicitly preserve enrollment_id (was potentially lost)
+      enrollment_id: training.enrollment_id || training.enrollmentId || null,
+      certificate_issued: training.certificate_issued || false,
       videos: videosToSet,
       outcomes: outcomesToSet,
       video_count: videoCount,  // ENHANCED: Always set computed count
@@ -660,6 +663,8 @@ checkCertificateAvailability(enrollmentId: string): Observable<ApiResponse<{ ava
       progress: training.progress || 0
     };
 
+    console.log('Processed training enrollment_id:', processedTraining.enrollment_id); // ✅ Debug log
+    
     // FIXED: Clean up legacy fields to avoid type pollution
     delete (processedTraining as any).video_urls;
     if (Array.isArray(processedTraining.videos) && processedVideos.length === 0) {
@@ -1377,58 +1382,42 @@ checkCertificateAvailability(enrollmentId: string): Observable<ApiResponse<{ ava
     ).pipe(catchError(this.handleError.bind(this)));
   }
 
-downloadCertificate(enrollmentId: string): Observable<Blob> {
-  console.log('📥 Frontend: Downloading certificate for enrollment:', enrollmentId);
-  
-  if (!enrollmentId) {
-    console.error('❌ No enrollment ID provided');
-    return throwError(() => new Error('Enrollment ID is required'));
-  }
-  
-  return this.http.get(
-    `${this.TRAINING_ENDPOINT}/enrollments/${enrollmentId}/certificate`, 
-    {
-      responseType: 'blob',
-      headers: this.getAuthHeaders(),
-      observe: 'response'
+  downloadCertificate(enrollmentId: string): Observable<Blob> {
+    console.log('📥 Employer: Downloading certificate for enrollment:', enrollmentId);
+    
+    if (!enrollmentId) {
+      return throwError(() => new Error('Enrollment ID is required'));
     }
-  ).pipe(
-    map(response => {
-      console.log('✅ Certificate response received:', {
-        status: response.status,
-        contentType: response.headers.get('Content-Type'),
-        size: response.body?.size
-      });
-      
-      if (!response.body) {
-        throw new Error('Certificate data is empty');
+    
+    return this.http.get(
+      `${this.TRAINING_ENDPOINT}/enrollments/${enrollmentId}/certificate`,
+      {
+        responseType: 'blob',
+        headers: this.getAuthHeaders(),
+        observe: 'response'
       }
-      
-      return response.body;
-    }),
-    catchError((error) => {
-      console.error('❌ Certificate download error:', {
-        status: error.status,
-        message: error.message,
-        error: error.error,
-        url: error.url
-      });
-      
-      // Provide user-friendly error messages
-      let errorMessage = 'Failed to download certificate';
-      
-      if (error.status === 404) {
-        errorMessage = 'Certificate not found. Please ensure you have completed the training.';
-      } else if (error.status === 401) {
-        errorMessage = 'Authentication required. Please log in again.';
-      } else if (error.status === 403) {
-        errorMessage = 'You do not have permission to download this certificate.';
-      } else if (error.status === 500) {
-        errorMessage = 'Server error while generating certificate. Please try again later.';
-      }
-      
-      return throwError(() => new Error(errorMessage));
-    })
-  );
-}
+    ).pipe(
+      map(response => {
+        console.log('✅ Employer certificate response:', {
+          status: response.status,
+          contentType: response.headers.get('Content-Type'),
+          size: response.body?.size || 0
+        });
+        return response.body || new Blob();
+      }),
+      catchError((error) => {
+        console.error('❌ Employer certificate download error:', {
+          status: error?.status,
+          message: error?.message,
+          url: error?.url,
+          errorBody: error?.error
+        });
+        let msg = 'Failed to download certificate';
+        if (error?.status === 404) msg = 'Certificate not found – re-issue if needed.';
+        else if (error?.status === 403) msg = 'Access denied – check training ownership.';
+        else if (error?.status === 401) msg = 'Authentication required. Please log in again.';
+        return throwError(() => new Error(msg));
+      })
+    );
+  }
 }

@@ -1596,95 +1596,138 @@ async markNotificationRead(req: AuthenticatedRequest, res: Response, next: NextF
   // CERTIFICATE MANAGEMENT
   // ============================================
 
+// ✅ FIXED: Robust certificate download with proper path resolution
 async downloadCertificate(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
   try {
     const { enrollmentId } = req.params;
     const userId = req.user?.id;
+    const userType = req.user?.user_type;
 
-    console.log('📥 Certificate download request:', { enrollmentId, userId });
+    console.log('📥 Certificate download request:', { enrollmentId, userId, userType });
 
     if (!userId) {
       res.status(401).json({ success: false, message: 'Unauthorized' });
       return;
     }
 
-    // Fetch enrollment and verify ownership
-    const enrollment = await pool.query(
-      `SELECT 
-        te.certificate_url, 
-        te.certificate_issued,
-        t.title 
-      FROM training_enrollments te
-      JOIN trainings t ON te.training_id = t.id
-      WHERE te.id = $1 
-        AND te.user_id = $2 
-        AND te.certificate_issued = true`,
-      [enrollmentId, userId]
-    );
-    
-    if (enrollment.rows.length === 0) {
-      console.log('❌ Certificate not found or not issued');
-      res.status(404).json({ 
-        success: false, 
-        message: 'Certificate not yet issued. Please complete all training videos first.' 
-      });
+    // ✅ ENHANCED: Query based on user_type (jobseeker vs employer)
+    let query: string;
+    let queryParams: any[];
+
+    if (userType === 'jobseeker') {
+      // Jobseeker query: Own enrollment only
+      query = `
+        SELECT
+          te.certificate_url,
+          te.certificate_issued,
+          t.title
+        FROM training_enrollments te
+        JOIN trainings t ON te.training_id = t.id
+        WHERE te.id = $1
+          AND te.user_id = $2
+          AND te.certificate_issued = true
+      `;
+      queryParams = [enrollmentId, userId];
+    } else if (userType === 'employer') {
+      // ✅ NEW: Employer query with ownership check
+      query = `
+        SELECT
+          te.certificate_url,
+          te.certificate_issued,
+          t.title,
+          t.provider_id
+        FROM training_enrollments te
+        JOIN trainings t ON te.training_id = t.id
+        WHERE te.id = $1
+          AND te.certificate_issued = true
+          AND (t.provider_id = $2 OR EXISTS (
+            SELECT 1 FROM employers e WHERE e.user_id = $2 AND e.id = t.provider_id
+          ))
+      `;
+      queryParams = [enrollmentId, userId];
+    } else {
+      res.status(403).json({ success: false, message: 'Forbidden: Invalid user type' });
       return;
     }
-    
-    const certificateUrl = enrollment.rows[0].certificate_url;
-    const trainingTitle = enrollment.rows[0].title;
-    
-    console.log('Certificate URL from DB:', certificateUrl);
-    
-    // ✅ FIX: Handle both absolute and relative paths
-    let certificatePath: string;
-    
-    if (certificateUrl.startsWith('/certificates/')) {
-      // Relative path from DB (e.g., "/certificates/certificate-xyz.pdf")
-      certificatePath = path.join(__dirname, '../../uploads', certificateUrl);
-    } else if (certificateUrl.startsWith('certificates/')) {
-      // Path without leading slash
-      certificatePath = path.join(__dirname, '../../uploads', certificateUrl);
-    } else {
-      // Fallback: assume it's just the filename
-      certificatePath = path.join(__dirname, '../../uploads/certificates', certificateUrl);
+
+    const enrollment = await pool.query(query, queryParams);
+
+    if (enrollment.rows.length === 0) {
+      console.log('❌ Certificate not found or unauthorized for user_type:', userType);
+      const msg = userType === 'jobseeker'
+        ? 'Certificate not yet issued. Please complete all training videos first.'
+        : 'Certificate not found or you do not own this training.';
+      res.status(404).json({ success: false, message: msg });
+      return;
     }
-    
-    console.log('Resolved certificate path:', certificatePath);
-    
-    // Check if file exists
+
+    const { certificate_url: certificateUrl, title: trainingTitle } = enrollment.rows[0];
+
+    console.log('📜 Certificate URL from DB:', certificateUrl, 'for user_type:', userType);
+
+    // ✅ CRITICAL FIX: Robust path resolution
+    let certificatePath: string;
+    const baseUploadPath = path.join(__dirname, '../../uploads');
+
+    if (typeof certificateUrl !== 'string' || certificateUrl.trim() === '') {
+      console.error('❌ Invalid certificate URL value:', certificateUrl);
+      res.status(404).json({ success: false, message: 'Invalid certificate URL format' });
+      return;
+    }
+
+    // Handle different URL formats from database
+    if (certificateUrl.startsWith('/certificates/')) {
+      // Format: /certificates/filename.pdf
+      certificatePath = path.join(baseUploadPath, 'certificates', certificateUrl.replace('/certificates/', ''));
+    } else if (certificateUrl.startsWith('certificates/')) {
+      // Format: certificates/filename.pdf
+      certificatePath = path.join(baseUploadPath, certificateUrl);
+    } else if (certificateUrl.startsWith('/uploads/certificates/')) {
+      // Format: /uploads/certificates/filename.pdf
+      certificatePath = path.join(baseUploadPath, 'certificates', certificateUrl.replace('/uploads/certificates/', ''));
+    } else if (path.extname(certificateUrl) === '.pdf') {
+      // Format: filename.pdf (just the filename)
+      certificatePath = path.join(baseUploadPath, 'certificates', certificateUrl);
+    } else {
+      console.error('❌ Unrecognized certificate URL format:', certificateUrl);
+      res.status(404).json({ success: false, message: 'Invalid certificate URL format' });
+      return;
+    }
+
+    console.log('📂 Resolved certificate path:', certificatePath);
+
+    // ✅ Check if file exists
     const fs = require('fs');
     if (!fs.existsSync(certificatePath)) {
       console.error('❌ Certificate file not found at:', certificatePath);
-      res.status(404).json({ 
-        success: false, 
-        message: 'Certificate file not found on server. Please contact support.' 
+      res.status(404).json({
+        success: false,
+        message: 'Certificate file not found on server. Please re-issue or contact support.',
+        debug: process.env.NODE_ENV === 'development' ? { path: certificatePath, url: certificateUrl } : undefined
       });
       return;
     }
-    
-    // ✅ Set proper headers and download
-    const filename = `certificate-${trainingTitle.replace(/\s+/g, '-')}-${enrollmentId}.pdf`;
-    
+
+    // ✅ Set headers for PDF download
+    const safeTitle = (trainingTitle || 'training').toString().replace(/[^\w\s-]/g, '').trim();
+    const filename = `certificate-${safeTitle.replace(/\s+/g, '-')}-${enrollmentId}.pdf`;
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-    
-    console.log('✅ Sending certificate file:', filename);
-    
+
+    console.log(`✅ Sending certificate to ${userType}:`, filename);
+
+    // ✅ Stream the file
     res.download(certificatePath, filename, (err) => {
       if (err) {
         console.error('❌ Error sending file:', err);
         if (!res.headersSent) {
-          res.status(500).json({ 
-            success: false, 
-            message: 'Failed to download certificate' 
-          });
+          res.status(500).json({ success: false, message: 'Failed to download certificate' });
         }
       } else {
-        console.log('✅ Certificate download successful');
+        console.log(`✅ Certificate download successful for ${userType}: ${filename}`);
       }
     });
-    
+
   } catch (error: any) {
     console.error('❌ Error in downloadCertificate:', error);
     next(error);
@@ -1697,64 +1740,27 @@ async downloadCertificate(req: AuthenticatedRequest, res: Response, next: NextFu
       const userId = req.user?.id;
 
       if (!userId) {
-        res.status(401).json({ success: false, message: 'Unauthorized' });
-        return;
+      res.status(401).json({ success: false, message: 'Unauthorized' });
+      return;
       }
 
       if (req.user?.user_type !== 'employer') {
-        res.status(403).json({ success: false, message: 'Forbidden' });
-        return;
+      res.status(403).json({ success: false, message: 'Forbidden' });
+      return;
       }
 
-      // Get enrollment details
-      const enrollment = await pool.query(`
-        SELECT e.*, t.title, t.provider_id, u.id as user_id
-        FROM training_enrollments e
-        JOIN trainings t ON e.training_id = t.id
-        JOIN users u ON e.user_id = u.id
-        WHERE e.id = $1 AND t.provider_id = $2
-      `, [enrollmentId, userId]);
+      // Delegate certificate issuance to the service layer
+      const certResult = await this.trainingService.issueCertificate(enrollmentId, userId);
 
-      if (enrollment.rows.length === 0) {
-        res.status(404).json({ success: false, message: 'Enrollment not found' });
-        return;
-      }
-
-      const enrollmentData = enrollment.rows[0];
-
-      // Generate certificate
-      const certResult = await this.trainingService.generateCertificate(
-        enrollmentId,
-        enrollmentData.user_id,
-        enrollmentData.training_id,
-        enrollmentData.title
-      );
-
-      // Update enrollment
-      await pool.query(`
-        UPDATE training_enrollments
-        SET certificate_issued = true, certificate_url = $1, certificate_issued_at = CURRENT_TIMESTAMP
-        WHERE id = $2
-      `, [certResult.certificate_url, enrollmentId]);
-
-      // Create notification for jobseeker
-      await this.trainingService.createNotification(
-        enrollmentData.user_id,
-        'certificate_issued',
-        `Congratulations! You've earned a certificate for ${enrollmentData.title}`,
-        { 
-          training_id: enrollmentData.training_id, 
-          enrollment_id: enrollmentId, 
-          certificate_url: certResult.certificate_url 
-        }
-      );
+      console.log(`🎓 Certificate issued for enrollment ${enrollmentId} by employer ${userId}`);
 
       res.status(200).json({
-        success: true,
-        message: 'Certificate issued successfully',
-        data: certResult
+      success: true,
+      message: 'Certificate issued successfully',
+      data: certResult
       });
-    } catch (error) {
+    } catch (error: any) {
+      console.error('❌ Error in issueCertificate:', error);
       next(error);
     }
   }

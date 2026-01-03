@@ -19,6 +19,7 @@ export class TrainingService {
   // ============================================
   // NOTIFICATION SYSTEM
   // ============================================
+// ✅ FIXED: Always include related_id when creating notifications
 async createNotification(
   userId: string,
   type: string,
@@ -32,10 +33,11 @@ async createNotification(
       userId,
       type,
       title,
-      messagePreview: message.substring(0, 50)
+      messagePreview: message.substring(0, 50),
+      metadata
     });
 
-    // ✅ CRITICAL: Check if notifications table exists
+    // Check if notifications table exists
     const tableExists = await this.db.query(`
       SELECT EXISTS (
         SELECT FROM information_schema.tables 
@@ -49,16 +51,32 @@ async createNotification(
       return;
     }
 
-    // ✅ FIX: Extract related_id from metadata (training_id, enrollment_id, etc.)
-    const relatedId = metadata?.training_id || 
-                      metadata?.enrollment_id || 
-                      metadata?.certificate_id || 
-                      null;
+    // ✅ CRITICAL FIX: Extract related_id from metadata with priority
+    // The related_id column is UUID type in the database
+    let relatedId: string | null = null;
+    
+    // Try enrollment_id first (for certificate_issued notifications)
+    if (metadata?.enrollment_id) {
+      relatedId = metadata.enrollment_id;
+    }
+    // Then try training_id
+    else if (metadata?.training_id) {
+      relatedId = metadata.training_id;
+    }
+    // Then try certificate_id
+    else if (metadata?.certificate_id) {
+      relatedId = metadata.certificate_id;
+    }
 
-    console.log('🔗 Related ID for notification:', relatedId);
+    if (!relatedId) {
+      console.warn('⚠️ No related_id found in metadata:', metadata);
+    } else {
+      console.log('🔗 Related ID for notification:', relatedId);
+    }
 
-    // ✅ FIX: Include related_id in INSERT
-    await this.db.query(`
+    // ✅ CRITICAL FIX: Use parameterized query with proper UUID casting
+    // PostgreSQL will handle the UUID conversion automatically when we pass the string
+    const query = `
       INSERT INTO notifications (
         user_id, 
         type, 
@@ -69,27 +87,36 @@ async createNotification(
         created_at, 
         read
       )
-      VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP, false)
-    `, [
+      VALUES ($1, $2, $3, $4, $5, $6::UUID, CURRENT_TIMESTAMP, false)
+    `;
+    
+    const values = [
       userId, 
       type, 
       title, 
       message, 
       JSON.stringify(metadata),
-      relatedId  // ✅ Now passing related_id
-    ]);
+      relatedId  // Pass as string, PostgreSQL will cast to UUID
+    ];
 
-    console.log('✅ Notification created successfully');
+    await this.db.query(query, values);
+
+    console.log('✅ Notification created successfully with related_id:', relatedId);
   } catch (error: any) {
     console.error('❌ Error creating notification:', error);
     console.error('Error code:', error.code);
     console.error('Error detail:', error.detail);
     
-    // Don't throw - notifications are non-critical
-    // But log the full error for debugging
+    // Log specific errors
     if (error.code === '23502') {
       console.error('💥 NOT NULL constraint violation - check notifications table schema');
+    } else if (error.code === '22P02') {
+      console.error('💥 Invalid UUID format - check related_id value');
+    } else if (error.code === '23503') {
+      console.error('💥 Foreign key constraint violation - check related_id references');
     }
+    
+    // Don't throw - notifications are non-critical
   }
 }
 
@@ -532,23 +559,34 @@ async updateVideoProgress(
 
     const trainingCompleted = progressPercentage === 100;
     let certificateIssued = false;
-    let certificateUrl = null;
+    let certificateUrl: string | null = null;
 
     // Step 6: Check for certificate if completed
     if (trainingCompleted) {
       console.log('6️⃣ Checking certificate eligibility...');
-      const trainingResult = await client.query(
+      // Fetch training and user details for notifications and certificate logic
+      const trainingQuery = await client.query(
         'SELECT has_certificate, provider_id, title FROM trainings WHERE id = $1',
         [trainingId]
       );
+      const trainingRow = trainingQuery.rows[0];
 
-      if (trainingResult.rows[0].has_certificate) {
-        console.log('📜 Generating certificate...');
+      const userQuery = await client.query(
+        'SELECT first_name, last_name, email FROM users WHERE id = $1',
+        [userId]
+      );
+      const userRow = userQuery.rows[0];
+      const userName = `${(userRow.first_name || '').trim()} ${(userRow.last_name || '').trim()}`.trim() || userRow.email || 'User';
+      const trainingTitle = trainingRow.title;
+
+      // If training supports auto-certificate issuance, generate it
+      if (trainingRow.has_certificate) {
+        console.log('📜 Generating certificate (auto-issue)...');
         const certResult = await this.generateCertificate(
           enrollmentId,
           userId,
           trainingId,
-          trainingResult.rows[0].title
+          trainingTitle
         );
 
         certificateIssued = true;
@@ -560,23 +598,68 @@ async updateVideoProgress(
           WHERE id = $2
         `, [certificateUrl, enrollmentId]);
 
-        // Notify employer
-        await this.createNotification(
-          trainingResult.rows[0].provider_id,
-          'training_completed',
-          `A student has completed ${trainingResult.rows[0].title}`,
-          { training_id: trainingId, user_id: userId, enrollment_id: enrollmentId }
-        );
+        console.log('✅ Certificate generated and enrollment updated:', certificateUrl);
+      } else {
+        console.log('ℹ️ Training does not auto-issue certificates - manual issuance required');
+      }
 
-        // Notify jobseeker
+      // ✅ ENHANCED: Always notify employer on completion (even if no auto-certificate)
+      const employerNotificationMessage = `${userName} has completed "${trainingTitle}" – ready to issue certificate!`;
+      console.log(`📢 Notifying employer: ${employerNotificationMessage}`);
+
+      // Insert additional employer notification requested by user (adapted to available variables)
+      console.log('🎉 Training completed! Notifying employer...');
+
+      const jobseekerName = userName;
+
+      // ✅ NOTIFY EMPLOYER about training completion (additional detailed notification)
+      await this.createNotification(
+        trainingRow.provider_id,  // Employer user_id / provider id
+        'training_completed',
+        `${jobseekerName} completed "${trainingTitle}"! Ready for certificate issuance.`,
+        {
+          training_id: trainingId,
+          enrollment_id: enrollment.id,
+          jobseeker_id: userId,
+          jobseeker_name: jobseekerName,
+          jobseeker_email: userRow.email,
+          training_title: trainingTitle,
+          completed_at: new Date().toISOString()
+        }
+      );
+
+      console.log('✅ Employer notified of training completion');
+
+      await this.createNotification(
+        trainingRow.provider_id,
+        'training_completed',
+        employerNotificationMessage,
+        {
+          training_id: trainingId,
+          user_id: userId,
+          enrollment_id: enrollmentId,
+          user_name: userName,
+          training_title: trainingTitle
+        }
+      ).catch(err => console.error('Failed to notify employer about completion:', err));
+
+      // Notify jobseeker:
+      if (certificateIssued && certificateUrl) {
+        // If auto-issued, inform jobseeker of the certificate (certificate_issued)
         await this.createNotification(
           userId,
           'certificate_issued',
-          `Congratulations! You've earned a certificate for ${trainingResult.rows[0].title}`,
+          `Congratulations! You've earned a certificate for ${trainingTitle}`,
           { training_id: trainingId, enrollment_id: enrollmentId, certificate_url: certificateUrl }
-        );
-
-        console.log('✅ Certificate issued and notifications sent');
+        ).catch(err => console.error('Failed to notify jobseeker about certificate:', err));
+      } else {
+        // If manual issuance is required, notify the jobseeker that employer needs to issue the certificate
+        await this.createNotification(
+          userId,
+          'training_completed',
+          `You've completed "${trainingTitle}"! Awaiting certificate from employer.`,
+          { training_id: trainingId, enrollment_id: enrollmentId }
+        ).catch(err => console.error('Failed to notify jobseeker about completion awaiting certificate:', err));
       }
     }
 
@@ -605,6 +688,7 @@ async updateVideoProgress(
   // ============================================
   // CERTIFICATE GENERATION
   // ============================================
+// ✅ FIXED: Generate certificate with correct path
 async generateCertificate(
   enrollmentId: string,
   userId: string,
@@ -626,9 +710,14 @@ async generateCertificate(
   const path = require('path');
   const PDFDocument = require('pdfkit');
 
-  const certificateDir = path.join(__dirname, '../../uploads/certificates');
+  // ✅ CRITICAL FIX: Ensure correct path structure
+  const baseUploadPath = path.join(__dirname, '../../uploads');
+  const certificateDir = path.join(baseUploadPath, 'certificates');
+  
+  // ✅ Create directory if it doesn't exist
   if (!fs.existsSync(certificateDir)) {
     fs.mkdirSync(certificateDir, { recursive: true });
+    console.log('📁 Created certificates directory:', certificateDir);
   }
 
   const certificatePath = path.join(certificateDir, certificateFileName);
@@ -681,9 +770,16 @@ async generateCertificate(
 
   return new Promise((resolve, reject) => {
     writeStream.on('finish', () => {
-      resolve({ certificate_url: `/certificates/${certificateFileName}` });
+      // ✅ CRITICAL FIX: Return ONLY filename, not full path
+      // Frontend will prepend /uploads/certificates/ when needed
+      console.log('✅ Certificate generated:', certificateFileName);
+      console.log('📂 Full path:', certificatePath);
+      resolve({ certificate_url: certificateFileName });
     });
-    writeStream.on('error', reject);
+    writeStream.on('error', (error: any) => {
+      console.error('❌ Certificate generation error:', error);
+      reject(error);
+    });
   });
 }
 
@@ -967,84 +1063,129 @@ async deleteTrainingVideo(
   // ============================================
   // JOBSEEKER-SPECIFIC TRAINING ACCESS
   // ============================================
-  async getTrainingWithDetailsForJobseeker(trainingId: string, userId: string): Promise<any> {
-    // FIXED: Remove deleted_at check from query
-    let query = `
-      SELECT t.*,
-            CASE WHEN e.id IS NOT NULL THEN true ELSE false END as enrolled,
-            COALESCE(e.progress_percentage, 0) as progress,
-            e.status as enrollment_status,
-            e.id as enrollment_id
+ async getTrainingWithDetailsForJobseeker(
+  trainingId: string,
+  userId: string
+): Promise<any> {
+  try {
+    console.log('🔍 Getting training details for jobseeker:', { trainingId, userId });
+
+    // ===================================================
+    // STEP 1: Get basic training info
+    // ===================================================
+    const trainingQuery = `
+      SELECT 
+        t.*,
+        e.id as enrollment_id,
+        e.enrolled_at,
+        e.status as enrollment_status,
+        e.progress_percentage,
+        e.completed_at,
+        e.certificate_issued,
+        e.certificate_url,
+        e.certificate_issued_at,
+        CASE WHEN e.id IS NOT NULL THEN true ELSE false END as is_enrolled
       FROM trainings t
-      LEFT JOIN training_enrollments e ON t.id = e.training_id AND e.user_id = $2
-      WHERE t.id = $1
-        AND t.status = 'published'
-        AND t.provider_id IS NOT NULL
-        AND EXISTS (
-          SELECT 1 FROM employers emp
-          WHERE emp.id = t.provider_id
-        )
+      LEFT JOIN training_enrollments e 
+        ON t.id = e.training_id AND e.user_id = $2
+      WHERE t.id = $1 AND t.status = 'published'
     `;
-    const result = await this.db.query(query, [trainingId, userId]);
-    if (result.rows.length === 0) {
-      return null;
+
+    const trainingResult = await this.db.query(trainingQuery, [trainingId, userId]);
+    
+    if (trainingResult.rows.length === 0) {
+      throw new Error('Training not found or not published');
     }
-    const training = this.mapTrainingFromDb(result.rows[0]);
-    const isEnrolled = result.rows[0].enrolled;
-    const enrollmentId = result.rows[0].enrollment_id;
-    // Fetch videos (all for enrolled, only previews for not enrolled)
+
+    const training = trainingResult.rows[0];
+
+    // ===================================================
+    // STEP 2: Get videos (without progress if table missing)
+    // ===================================================
     const videosQuery = `
-      SELECT id, training_id, title, description, video_url, duration_minutes, order_index, is_preview, created_at
-      FROM training_videos
-      WHERE training_id = $1
-      ${isEnrolled ? '' : 'AND is_preview = true'}
-      ORDER BY order_index
+      SELECT 
+        v.id,
+        v.training_id,
+        v.title,
+        v.description,
+        v.video_url,
+        v.duration_minutes,
+        v.order_index,
+        v.is_preview,
+        false as watched,
+        0 as watch_time,
+        false as completed
+      FROM training_videos v
+      WHERE v.training_id = $1
+      ORDER BY v.order_index
     `;
+
     const videosResult = await this.db.query(videosQuery, [trainingId]);
-    // Fetch outcomes
-    const outcomesResult = await this.db.query(
-      `SELECT id, training_id, outcome_text, order_index, created_at
-      FROM training_outcomes
-      WHERE training_id = $1
-      ORDER BY order_index`,
-      [trainingId]
-    );
-    // Fetch video progress if enrolled
-    let videoProgress = [];
-    if (isEnrolled && enrollmentId) {
-      try {
-        const progressResult = await this.db.query(
-          `SELECT video_id, watch_time_seconds as watch_time_minutes, is_completed, completed_at
-          FROM training_video_progress
-          WHERE enrollment_id = $1`,
-          [enrollmentId]
-        );
-        videoProgress = progressResult.rows;
-      } catch (error) {
-        console.warn('Video progress table may not exist:', error);
-      }
+    training.videos = videosResult.rows;
+
+    // ===================================================
+    // STEP 3: Get learning outcomes (or empty array)
+    // ===================================================
+    try {
+      const outcomesQuery = `
+        SELECT 
+          id,
+          training_id,
+          outcome_text,
+          order_index
+        FROM learning_outcomes
+        WHERE training_id = $1
+        ORDER BY order_index
+      `;
+
+      const outcomesResult = await this.db.query(outcomesQuery, [trainingId]);
+      training.learning_outcomes = outcomesResult.rows;
+    } catch (error: any) {
+      console.warn('⚠️ Could not load learning outcomes:', error.message);
+      training.learning_outcomes = [];
     }
-    // Merge video progress
-    const videosWithProgress = videosResult.rows.map(video => {
-      const progress = videoProgress.find(p => p.video_id === video.id);
-      return {
-        ...video,
-        completed: progress?.is_completed || false,
-        watch_time: progress?.watch_time_minutes || 0,
-        accessible: isEnrolled || video.is_preview
-      };
+
+    // ===================================================
+    // STEP 4: Get provider info (safe way)
+    // ===================================================
+    try {
+      const providerQuery = `
+        SELECT 
+          id,
+          business_name,
+          logo_url,
+          industry
+        FROM employers
+        WHERE id = $1
+        LIMIT 1
+      `;
+
+      const providerResult = await this.db.query(providerQuery, [training.provider_id]);
+      
+      if (providerResult.rows.length > 0) {
+        training.provider_company_name = providerResult.rows[0].business_name;
+        training.provider_logo = providerResult.rows[0].logo_url;
+        training.provider_industry = providerResult.rows[0].industry;
+      }
+    } catch (error: any) {
+      console.warn('⚠️ Could not load provider details:', error.message);
+    }
+
+    console.log('✅ Training details retrieved:', {
+      trainingId: training.id,
+      title: training.title,
+      isEnrolled: training.is_enrolled,
+      videoCount: training.videos?.length || 0,
+      outcomesCount: training.learning_outcomes?.length || 0
     });
-    return {
-      ...training,
-      enrolled: isEnrolled,
-      progress: result.rows[0].progress || 0,
-      enrollment_status: result.rows[0].enrollment_status,
-      enrollment_id: enrollmentId,
-      videos: videosWithProgress,
-      outcomes: outcomesResult.rows,
-      can_enroll: !isEnrolled && training.status === 'published'
-    };
+
+    return training;
+  } catch (error: any) {
+    console.error('❌ Error getting training details:', error);
+    throw error;
   }
+}
+
 
   // ============================================
   // DATABASE MAINTENANCE
@@ -2120,56 +2261,62 @@ async suspendTraining(trainingId: string, employerId: string): Promise<any> {
   // ============================================
   // JOBSEEKER ENROLLED TRAININGS
   // ============================================
-  async getEnrolledTrainings(userId: string, params: TrainingSearchParams): Promise<TrainingListResponse> {
-    const {
-      page = 1,
-      limit = 10,
-      sort_by = 'enrolled_at',
-      sort_order = 'desc'
-    } = params;
-    const offset = (page - 1) * limit;
-    const query = `
-      SELECT
-        t.*,
-        e.progress_percentage as progress,
-        e.status as enrollment_status,
-        e.enrolled_at,
-        e.completed_at,
-        e.id as enrollment_id,
-        true as enrolled,
-        (SELECT COUNT(*) FROM training_videos WHERE training_id = t.id) as total_videos,
-        COUNT(*) OVER() as total_count
-      FROM training_enrollments e
-      JOIN trainings t ON e.training_id = t.id
-      WHERE e.user_id = $1
-      ORDER BY e.${sort_by} ${sort_order.toUpperCase()}
-      LIMIT $2 OFFSET $3
-    `;
-    const result = await this.db.query(query, [userId, limit, offset]);
-    const trainings = result.rows;
-    const totalCount = trainings.length > 0 ? parseInt(trainings[0].total_count) : 0;
-    return {
-      trainings: trainings.map(row => ({
-        ...this.mapTrainingFromDb(row),
-        enrolled: true,
-        progress: row.progress || 0,
-        enrollment_status: row.enrollment_status,
-        enrolled_at: row.enrolled_at,
-        completed_at: row.completed_at,
-        enrollment_id: row.enrollment_id,
-        total_videos: parseInt(row.total_videos || 0)
-      })),
-      pagination: {
-        current_page: page,
-        total_pages: Math.ceil(totalCount / limit),
-        page_size: limit,
-        total_count: totalCount,
-        has_next: page * limit < totalCount,
-        has_previous: page > 1
-      },
-      filters_applied: {}
-    };
-  }
+// In training.service.ts - BULLETPROOF getEnrolledTrainings
+// In training.service.ts - FIXED with quoted aliases
+async getEnrolledTrainings(userId: string, params: TrainingSearchParams): Promise<TrainingListResponse> {
+  const { page = 1, limit = 10, sort_by = 'enrolled_at', sort_order = 'desc' } = params;
+  const offset = (page - 1) * limit;
+  
+  const query = `
+    SELECT
+      t.*,
+      e.id AS "enrollment_id",
+      e.progress_percentage AS "progress",
+      e.status AS "enrollment_status",
+      e.enrolled_at,
+      e.completed_at,
+      e.certificate_issued,
+      e.certificate_url,
+      true AS enrolled,
+      (SELECT COUNT(*) FROM training_videos WHERE training_id = t.id) AS "video_count",
+      COUNT(*) OVER() AS total_count
+    FROM training_enrollments e
+    JOIN trainings t ON e.training_id = t.id
+    WHERE e.user_id = $1
+    ORDER BY e."${sort_by}" ${sort_order.toUpperCase()}
+    LIMIT $2 OFFSET $3
+  `;
+  
+  const result = await this.db.query(query, [userId, limit, offset]);
+  const trainings = result.rows;
+  const totalCount = trainings.length > 0 ? parseInt(trainings[0].total_count) : 0;
+  
+  console.log('✅ Enrolled - Sample ID:', trainings[0]?.enrollment_id);  // Verify on load
+  
+  return {
+    trainings: trainings.map(row => ({
+      ...this.mapTrainingFromDb(row),
+      enrolled: true,
+      progress: parseFloat(row.progress) || 0,
+      enrollment_status: row.enrollment_status,
+      enrolled_at: row.enrolled_at,
+      completed_at: row.completed_at,
+      enrollment_id: row.enrollment_id,  // Exact match now
+      certificate_issued: Boolean(row.certificate_issued),
+      certificate_url: row.certificate_url || null,
+      video_count: parseInt(row.video_count || 0)
+    })),
+    pagination: {
+      current_page: page,
+      total_pages: Math.ceil(totalCount / limit),
+      page_size: limit,
+      total_count: totalCount,
+      has_next: page * limit < totalCount,
+      has_previous: page > 1
+    },
+    filters_applied: {}
+  };
+}
 
   // ============================================
   // ENROLLMENT OPERATIONS
@@ -2563,6 +2710,177 @@ async suspendTraining(trainingId: string, employerId: string): Promise<any> {
       }))
     };
   }
+  // ✅ FIXED: Certificate issuance with proper notification
+async issueCertificate(enrollmentId: string, employerId: string): Promise<any> {
+  try {
+    console.log('🎓 Issuing certificate:', { enrollmentId, employerId });
+    
+    // Get enrollment details
+    const enrollmentRes = await this.db.query(
+      `SELECT 
+        en.*, 
+        tr.title AS training_title, 
+        tr.provider_id AS training_provider_id, 
+        tr.has_certificate AS supports_certificate, 
+        us.id AS jobseeker_id, 
+        us.email AS jobseeker_email, 
+        us.first_name, 
+        us.last_name
+       FROM training_enrollments en
+       JOIN trainings tr ON en.training_id = tr.id
+       JOIN users us ON en.user_id = us.id
+       WHERE en.id = $1`,
+      [enrollmentId]
+    );
+
+    if (enrollmentRes.rows.length === 0) {
+      throw new Error('Enrollment not found');
+    }
+
+    const row = enrollmentRes.rows[0];
+
+    // Verify employer ownership
+    const profileCheck = await this.db.query(
+      'SELECT id FROM employers WHERE user_id = $1',
+      [employerId]
+    );
+    const profileId = profileCheck.rows.length > 0 ? profileCheck.rows[0].id : null;
+
+    const ownerMatch = row.training_provider_id === employerId || 
+                      row.training_provider_id === profileId;
+    
+    if (!ownerMatch) {
+      throw new Error('Unauthorized: You can only issue certificates for your own trainings');
+    }
+
+    if (!row.supports_certificate) {
+      throw new Error('This training does not provide certificates');
+    }
+
+    if (row.certificate_issued) {
+      console.log('ℹ️ Certificate already issued');
+      return { 
+        success: true, 
+        message: 'Certificate already issued', 
+        certificate_url: row.certificate_url,
+        enrollment_id: enrollmentId  // ✅ Return enrollment_id
+      };
+    }
+
+    // Generate certificate PDF
+    const cert = await this.generateCertificate(
+      enrollmentId, 
+      row.user_id, 
+      row.training_id, 
+      row.training_title
+    );
+
+    console.log('📄 Certificate generated:', cert.certificate_url);
+
+    // Update database with certificate info
+    await this.db.query(
+      `UPDATE training_enrollments
+       SET certificate_issued = true, 
+           certificate_url = $1, 
+           certificate_issued_at = CURRENT_TIMESTAMP
+       WHERE id = $2`,
+      [cert.certificate_url, enrollmentId]
+    );
+
+    console.log('✅ Database updated with certificate URL');
+
+    const jobseekerName = `${row.first_name || ''} ${row.last_name || ''}`.trim() || 
+                          row.jobseeker_email;
+
+    // ✅ CRITICAL: Notify jobseeker with ALL required metadata
+    console.log('📬 Sending notification to jobseeker...');
+    await this.createNotification(
+      row.user_id,  // jobseeker user_id
+      'certificate_issued',
+      `🎉 Certificate issued for "${row.training_title}"! Click to download.`,
+      {
+        training_id: row.training_id,
+        enrollment_id: enrollmentId,           // ✅ CRITICAL - This becomes related_id
+        certificate_url: cert.certificate_url,
+        training_title: row.training_title,
+        issued_by: employerId,
+        issued_at: new Date().toISOString()
+      }
+    );
+
+    console.log('✅ Jobseeker notification sent');
+
+    // Notify employer
+    console.log('📬 Sending notification to employer...');
+    await this.createNotification(
+      employerId,
+      'certificate_issued',
+      `Certificate issued to ${jobseekerName} for "${row.training_title}".`,
+      { 
+        enrollment_id: enrollmentId,
+        training_id: row.training_id,
+        jobseeker_id: row.user_id,
+        jobseeker_name: jobseekerName,
+        training_title: row.training_title
+      }
+    );
+
+    console.log('✅ Employer notification sent');
+    console.log('✅ Certificate issuance complete');
+
+    return { 
+      success: true, 
+      message: 'Certificate issued successfully', 
+      certificate_url: cert.certificate_url,
+      enrollment_id: enrollmentId  // ✅ Return enrollment_id
+    };
+  } catch (err: any) {
+    console.error('❌ Error issuing certificate:', err);
+    throw err;
+  }
+}
+
+
+async debugNotifications(): Promise<void> {
+  try {
+    console.log('🔍 Debugging notifications...');
+    
+    // Check column types
+    const columnInfo = await this.db.query(`
+      SELECT 
+        column_name, 
+        data_type, 
+        udt_name
+      FROM information_schema.columns
+      WHERE table_name = 'notifications'
+      ORDER BY ordinal_position
+    `);
+    
+    console.log('📋 Notifications table structure:');
+    console.table(columnInfo.rows);
+    
+    // Check recent certificate notifications
+    const recentNotifications = await this.db.query(`
+      SELECT 
+        id,
+        user_id,
+        type,
+        related_id,
+        metadata->>'enrollment_id' as enrollment_id_from_metadata,
+        created_at
+      FROM notifications
+      WHERE type = 'certificate_issued'
+      ORDER BY created_at DESC
+      LIMIT 5
+    `);
+    
+    console.log('📋 Recent certificate notifications:');
+    console.table(recentNotifications.rows);
+    
+  } catch (error) {
+    console.error('❌ Debug error:', error);
+  }
+}
 
   // In training.service.ts - ensure this exists
 async manuallyIssueCertificate(enrollmentId: string, employerId: string): Promise<any> {
