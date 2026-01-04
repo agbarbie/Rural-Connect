@@ -21,7 +21,7 @@ import {
   TrainingService,
   Training,
 } from '../../../../../services/training.service';
-import { RatingComponent } from '../rating/rating.component';
+import { RatingComponent } from '../rating/rating.component'; 
 import { RatingService } from '../../../../../services/rating.service';
 
 interface CandidateProfile {
@@ -177,19 +177,30 @@ export class CandidatesComponent implements OnInit, OnDestroy {
       });
   }
   openRatingModal(candidate: any): void {
-    this.candidateToRate = {
-      user_id: candidate.id,
-      name: candidate.name,
-      email: candidate.email,
-      profile_image: candidate.profile_picture,
-      job_id: this.selectedJob !== 'all' ? this.selectedJob : undefined,
-      job_title:
-        this.selectedJob !== 'all'
-          ? this.jobPosts.find((j) => j.id === this.selectedJob)?.title
-          : undefined,
-    };
-    this.showRatingModal = true;
+  console.log('📝 Opening rating modal for candidate:', candidate.name);
+  
+  this.candidateToRate = {
+    user_id: candidate.id,
+    name: candidate.name,
+    email: candidate.email,
+    profile_image: candidate.profile_picture,
+    // ✅ job_id is optional
+    job_id: this.selectedJob !== 'all' ? this.selectedJob : candidate.job_id,
+    // ✅ Get job title from selected job or candidate's application
+    job_title: this.getJobTitleForCandidate(candidate),
+    // ✅ Pass application_id if available
+    application_id: candidate.application_id
+  };
+  
+  this.showRatingModal = true;
+}
+private getJobTitleForCandidate(candidate: any): string | undefined {
+  if (this.selectedJob !== 'all') {
+    const selectedJobPost = this.jobPosts.find(j => j.id === this.selectedJob);
+    return selectedJobPost?.title;
   }
+  return candidate.job_title;
+}
 
   closeRatingModal(): void {
     this.showRatingModal = false;

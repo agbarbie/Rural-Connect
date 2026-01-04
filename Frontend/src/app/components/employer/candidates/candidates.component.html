@@ -389,19 +389,13 @@
             Chat
           </button>
           <button
-            class="btn btn-warning"
-            (click)="openRatingModal(candidate)"
-            [disabled]="selectedJob === 'all'"
-            [title]="
-              selectedJob === 'all'
-                ? 'Select a specific job first'
-                : 'Rate this candidate'
-            "
-            style="background: #f59e0b; color: white"
-          >
-            <i class="fas fa-star"></i>
-            Rate
-          </button>
+  class="btn btn-warning"
+  (click)="openRatingModal(candidate)"
+  title="Rate this candidate"
+  style="background: #f59e0b; color: white">
+  <i class="fas fa-star"></i>
+  Rate
+</button>
         </div>
       </div>
 
@@ -1019,17 +1013,10 @@
   </div>
 </div>
 
-<!-- Rating Modal -->
-<div
-  class="modal-overlay"
+<app-rating
   *ngIf="showRatingModal && candidateToRate"
-  (click)="closeRatingModal()"
->
-  <div class="rating-modal-wrapper" (click)="$event.stopPropagation()">
-    <app-rating
-      [candidate]="candidateToRate"
-      (ratingSubmitted)="onRatingSubmitted($event)"
-      (cancelled)="closeRatingModal()"
-    ></app-rating>
-  </div>
-</div>
+  [candidate]="candidateToRate"
+  [showModal]="showRatingModal"
+  (closeModal)="closeRatingModal()"
+  (ratingSubmitted)="onRatingSubmitted($event)">
+</app-rating>

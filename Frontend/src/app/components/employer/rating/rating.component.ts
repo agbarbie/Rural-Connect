@@ -1,6 +1,6 @@
-// src/app/employer/components/rating-modal/rating-modal.component.ts
+// rating.component.ts - COMPLETE WORKING VERSION
 
-import { Component, Input, Output, EventEmitter, OnInit } from '@angular/core';
+import { Component, Input, Output, EventEmitter, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RatingService, CreateRatingRequest } from '../../../../../services/rating.service';
@@ -23,7 +23,7 @@ interface CandidateToRate {
   templateUrl: './rating.component.html',
   styleUrls: ['./rating.component.css']
 })
-export class RatingComponent implements OnInit {
+export class RatingComponent implements OnInit, OnDestroy {
   private destroy$ = new Subject<void>();
 
   @Input() candidate!: CandidateToRate;
@@ -61,7 +61,12 @@ export class RatingComponent implements OnInit {
   constructor(private ratingService: RatingService) {}
 
   ngOnInit(): void {
-    console.log('Rating Modal initialized for candidate:', this.candidate);
+    console.log('📝 Rating Modal initialized for candidate:', this.candidate);
+    console.log('📋 Job context:', {
+      hasJobId: !!this.candidate.job_id,
+      jobId: this.candidate.job_id,
+      jobTitle: this.candidate.job_title
+    });
   }
 
   ngOnDestroy(): void {
@@ -243,19 +248,23 @@ export class RatingComponent implements OnInit {
   }
 
   /**
-   * Submit rating
+   * Submit rating - ENHANCED WITH LOGGING
    */
   submitRating(): void {
+    console.log('🚀 Submit rating clicked');
+    
     if (!this.validateForm()) {
+      console.log('❌ Form validation failed:', this.errorMessage);
       return;
     }
 
     this.isSubmitting = true;
     this.errorMessage = '';
 
+    // ✅ Build rating request - job_id is optional
     const ratingData: CreateRatingRequest = {
       jobseeker_id: this.candidate.user_id,
-      job_id: this.candidate.job_id,
+      job_id: this.candidate.job_id, // ✅ Can be undefined
       application_id: this.candidate.application_id,
       rating: this.overallRating,
       feedback: this.feedback.trim(),
@@ -275,7 +284,14 @@ export class RatingComponent implements OnInit {
       };
     }
 
-    console.log('Submitting rating:', ratingData);
+    console.log('📤 Submitting rating data:', {
+      jobseeker_id: ratingData.jobseeker_id,
+      job_id: ratingData.job_id || 'none',
+      hasJobId: !!ratingData.job_id,
+      rating: ratingData.rating,
+      has_skills_rating: !!ratingData.skills_rating,
+      feedback_length: ratingData.feedback.length
+    });
 
     this.ratingService.createRating(ratingData)
       .pipe(
@@ -286,18 +302,36 @@ export class RatingComponent implements OnInit {
       )
       .subscribe({
         next: (response) => {
+          console.log('📥 Rating API response:', response);
+          
           if (response.success) {
             console.log('✅ Rating submitted successfully');
             this.ratingSubmitted.emit(response.data);
             this.resetForm();
             this.close();
           } else {
+            console.log('⚠️ Rating submission returned success=false');
             this.errorMessage = response.message || 'Failed to submit rating';
           }
         },
         error: (error) => {
-          console.error('❌ Error submitting rating:', error);
-          this.errorMessage = error.message || 'Failed to submit rating. Please try again.';
+          console.error('❌ Rating API error:', error);
+          console.error('Error details:', {
+            status: error.status,
+            message: error.message,
+            error: error.error
+          });
+          
+          // Better error message based on status code
+          if (error.status === 400) {
+            this.errorMessage = error.message || 'Invalid rating data. Please check all fields.';
+          } else if (error.status === 409) {
+            this.errorMessage = 'You have already rated this candidate for this job.';
+          } else if (error.status === 401) {
+            this.errorMessage = 'You must be logged in to submit a rating.';
+          } else {
+            this.errorMessage = error.message || 'Failed to submit rating. Please try again.';
+          }
         }
       });
   }

@@ -1,3 +1,5 @@
+// rating.controller.ts - FIXED: Make job_id optional
+
 import { Response } from 'express';
 import pool from '../db/db.config';
 import { AuthenticatedRequest } from '../middleware/auth.middleware';
@@ -9,20 +11,24 @@ export class RatingController {
       const {
         jobseeker_id,
         job_id,
+        application_id,
         rating,
         feedback,
         would_hire_again,
-        skills_rating
+        skills_rating,
+        task_description
       } = req.body;
 
       if (!employer_id) {
         return res.status(401).json({ success: false, message: 'Unauthorized' });
       }
 
-      if (!jobseeker_id || !job_id || !rating || !feedback) {
+      // ✅ FIXED: Only jobseeker_id, rating, and feedback are required
+      // job_id is now optional
+      if (!jobseeker_id || !rating || !feedback) {
         return res.status(400).json({
           success: false,
-          message: 'Missing required fields: jobseeker_id, job_id, rating, feedback'
+          message: 'Missing required fields: jobseeker_id, rating, feedback'
         });
       }
 
@@ -33,68 +39,109 @@ export class RatingController {
         });
       }
 
-      // Check for duplicate
-      const existingRatingQuery = `
-        SELECT id FROM ratings 
-        WHERE employer_id = $1 AND jobseeker_id = $2 AND job_id = $3
-      `;
-      const existingRating = await pool.query(existingRatingQuery, [
-        employer_id,
-        jobseeker_id,
-        job_id
-      ]);
+      // ✅ FIXED: Check for duplicate - only if job_id is provided
+      if (job_id) {
+        const existingRatingQuery = `
+          SELECT id FROM ratings 
+          WHERE employer_id = $1 AND jobseeker_id = $2 AND job_id = $3
+        `;
+        const existingRating = await pool.query(existingRatingQuery, [
+          employer_id,
+          jobseeker_id,
+          job_id
+        ]);
 
-      if (existingRating.rows.length > 0) {
-        return res.status(409).json({
-          success: false,
-          message: 'You have already rated this candidate for this job'
-        });
+        if (existingRating.rows.length > 0) {
+          return res.status(409).json({
+            success: false,
+            message: 'You have already rated this candidate for this job'
+          });
+        }
+      } else {
+        // Check if employer already rated this jobseeker (without specific job)
+        const existingRatingQuery = `
+          SELECT id FROM ratings 
+          WHERE employer_id = $1 AND jobseeker_id = $2 AND job_id IS NULL
+        `;
+        const existingRating = await pool.query(existingRatingQuery, [
+          employer_id,
+          jobseeker_id
+        ]);
+
+        if (existingRating.rows.length > 0) {
+          return res.status(409).json({
+            success: false,
+            message: 'You have already rated this candidate'
+          });
+        }
       }
 
-      // Get job title and employer name
-      const jobQuery = `SELECT title FROM jobs WHERE id = $1`;
-      const jobResult = await pool.query(jobQuery, [job_id]);
-      const job_title = jobResult.rows[0]?.title || null;
+      // ✅ FIXED: Get job title only if job_id is provided
+      let job_title = null;
+      if (job_id) {
+        const jobQuery = `SELECT title FROM jobs WHERE id = $1`;
+        const jobResult = await pool.query(jobQuery, [job_id]);
+        job_title = jobResult.rows[0]?.title || null;
+      }
 
+      // Get employer name
       const employerQuery = `SELECT name FROM users WHERE id = $1`;
       const employerResult = await pool.query(employerQuery, [employer_id]);
       const employer_name = employerResult.rows[0]?.name || 'Employer';
 
-      // Insert rating
+      // ✅ FIXED: Insert rating with optional job_id
       const insertQuery = `
         INSERT INTO ratings (
           employer_id, jobseeker_id, job_id, job_title, employer_name,
-          rating, feedback, would_hire_again, skills_rating, created_at
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW())
+          rating, feedback, would_hire_again, skills_rating, task_description, created_at
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW())
         RETURNING *
       `;
 
       const result = await pool.query(insertQuery, [
         employer_id,
         jobseeker_id,
-        job_id,
+        job_id || null, // ✅ Allow NULL
         job_title,
         employer_name,
         rating,
         feedback,
         would_hire_again || false,
-        JSON.stringify(skills_rating || {})
+        JSON.stringify(skills_rating || {}),
+        task_description || null
       ]);
 
       // Create notification
       try {
+        const notificationMessage = job_title 
+          ? `You received a ${rating}-star rating from ${employer_name} for ${job_title}`
+          : `You received a ${rating}-star rating from ${employer_name}`;
+
         await pool.query(
           `INSERT INTO notifications (user_id, type, title, message, metadata)
            VALUES ($1, 'rating_received', 'New Rating Received', $2, $3)`,
           [
             jobseeker_id,
-            `You received a ${rating}-star rating from ${employer_name}`,
-            JSON.stringify({ rating_id: result.rows[0].id, job_id, job_title, rating })
+            notificationMessage,
+            JSON.stringify({ 
+              rating_id: result.rows[0].id, 
+              job_id: job_id || null, 
+              job_title: job_title || null, 
+              rating 
+            })
           ]
         );
       } catch (notifError) {
         console.error('Failed to create notification (non-critical):', notifError);
       }
+
+      console.log('✅ Rating created successfully:', {
+        rating_id: result.rows[0].id,
+        employer_id,
+        jobseeker_id,
+        job_id: job_id || 'none',
+        rating
+      });
 
       return res.status(201).json({
         success: true,
@@ -103,7 +150,7 @@ export class RatingController {
       });
 
     } catch (error) {
-      console.error('Error creating rating:', error);
+      console.error('❌ Error creating rating:', error);
       return res.status(500).json({
         success: false,
         message: 'Failed to create rating',
