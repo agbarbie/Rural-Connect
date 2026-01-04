@@ -6,7 +6,6 @@ import asyncHandler from '../middleware/asyncHandler';
 const router = Router();
 const authController = new AuthController();
 
-// Debug route registration
 console.log('Registering auth routes:');
 console.log('- POST /api/auth/register');
 console.log('- POST /api/auth/login');
@@ -17,13 +16,10 @@ console.log('- PUT /api/auth/profile');
 // Public routes
 router.post('/register', asyncHandler(authController.register));
 router.post('/login', asyncHandler(authController.login));
-router.post('/logout', asyncHandler(authController.logout));
 
-// Protected routes
+// Protected routes (require authentication)
+router.post('/logout', authenticateToken, asyncHandler(authController.logout));
 router.get('/profile', authenticateToken, asyncHandler(authController.getProfile));
 router.put('/profile', authenticateToken, requireJobseeker, asyncHandler(authController.updateProfile));
-
-// ADD THIS DEBUG ROUTE (temporary - remove after fixing)
-router.get('/debug-token', authController.debugJWT);
 
 export default router;

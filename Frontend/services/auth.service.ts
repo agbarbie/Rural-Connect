@@ -177,23 +177,23 @@ export class AuthService {
       );
   }
 
-  logout(): Observable<AuthResponse> {
-    const headers = this.getAuthHeaders();
-    return this.http.post<AuthResponse>(`${this.apiUrl}/auth/logout`, {}, { headers })
-      .pipe(
-        tap(() => {
-          console.log('Logout successful');
-          this.clearAuthData();
-        }),
-        catchError((error: HttpErrorResponse) => {
-          console.error('Logout error:', error);
-          // Clear auth data even if logout request fails
-          this.clearAuthData();
-          const errorMessage = this.extractErrorMessage(error);
-          return throwError(() => new Error(errorMessage));
-        })
-      );
-  }
+ logout(): Observable<any> {
+  const headers = this.getAuthHeaders();
+  
+  return this.http.post<AuthResponse>(`${this.apiUrl}/auth/logout`, {}, { headers })
+    .pipe(
+      tap(() => {
+        console.log('Logout successful');
+        this.clearAuthData();
+      }),
+      catchError((error: HttpErrorResponse) => {
+        console.error('Logout error:', error);
+        // Clear auth data even if logout request fails
+        this.clearAuthData();
+        return throwError(() => error);
+      })
+    );
+}
 
   getProfile(): Observable<AuthResponse> {
     const headers = this.getAuthHeaders();
@@ -345,23 +345,25 @@ export class AuthService {
   }
 
   private clearAuthData(): void {
-    try {
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
-      localStorage.removeItem('userId');
-      localStorage.removeItem('user_id');
-      // 🔥 NEW: Clear company info
-      localStorage.removeItem('company_name');
-      localStorage.removeItem('company_id');
-      localStorage.removeItem('role_in_company');
-      
-      this.tokenSubject.next(null);
-      this.currentUserSubject.next(null);
-      console.log('Auth data cleared');
-    } catch (error) {
-      console.error('Error clearing auth data:', error);
-    }
+  try {
+    // Clear all auth-related items from localStorage
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    localStorage.removeItem('userId');
+    localStorage.removeItem('user_id');
+    localStorage.removeItem('company_name');
+    localStorage.removeItem('company_id');
+    localStorage.removeItem('role_in_company');
+    
+    // Clear BehaviorSubjects
+    this.tokenSubject.next(null);
+    this.currentUserSubject.next(null);
+    
+    console.log('Auth data cleared successfully');
+  } catch (error) {
+    console.error('Error clearing auth data:', error);
   }
+}
 
   private extractErrorMessage(error: HttpErrorResponse): string {
     // Handle connection errors first

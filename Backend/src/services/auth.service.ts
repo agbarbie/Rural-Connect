@@ -186,6 +186,47 @@ if (userData.user_type === 'employer') {
       client.release();
     }
   }
+  async logout(userId: string): Promise<boolean> {
+    const client = await pool.connect();
+
+    try {
+      const trimmedUserId = userId.trim();
+      if (!isValidUUID(trimmedUserId)) {
+        console.log(`DEBUG - Invalid UUID format: ${trimmedUserId}`);
+        return false;
+      }
+
+      // Try to record a logout timestamp on the user record if the column exists.
+      // If the column doesn't exist or the update fails, fall back to treating logout
+      // as successful since JWTs are stateless (future token blacklist can be added).
+      try {
+        const now = new Date();
+        const result = await client.query(
+          "UPDATE users SET last_logout_at = $1, updated_at = $2 WHERE id = $3::uuid RETURNING id",
+          [now, now, trimmedUserId]
+        );
+        if (result.rowCount && result.rowCount > 0) {
+          console.log(`User ${trimmedUserId} logged out (timestamp recorded)`);
+          return true;
+        }
+        console.log(`User ${trimmedUserId} logout: user not found`);
+        return false;
+      } catch (innerErr: any) {
+        // Likely the last_logout_at column doesn't exist; log and return success for now.
+        console.warn(
+          `Logout DB update failed for user ${trimmedUserId}, treating as success:`,
+          innerErr.message
+        );
+        console.log(`User ${trimmedUserId} logged out`);
+        return true;
+      }
+    } catch (error: any) {
+      console.error(`Logout error for id ${userId}:`, error.message);
+      return false;
+    } finally {
+      client.release();
+    }
+  }
 
   async getUserById(userId: string): Promise<User | null> {
     const client = await pool.connect();

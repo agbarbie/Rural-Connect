@@ -97,79 +97,83 @@ export class AuthController {
   };
 
   login = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-    try {
-      console.log('Login attempt for:', req.body.email);
-      console.log('Requested user type:', req.body.user_type);
-      
-      const loginData: LoginRequestWithUserType = req.body;
-      
-      // Validate required fields
-      if (!loginData.email || !loginData.password) {
-        res.status(400).json({
-          success: false,
-          message: 'Email and password are required'
-        });
-        return;
-      }
-
-      // CRITICAL FIX: Call login WITHOUT user_type first to get actual user
-      const basicLoginData: LoginRequest = {
-        email: loginData.email,
-        password: loginData.password
-      };
-
-      const result = await this.authService.login(basicLoginData);
-      
-      if (!result.success) {
-        res.status(401).json(result);
-        return;
-      }
-
-      // CRITICAL FIX: NOW validate user type AFTER successful authentication
-      if (loginData.user_type && result.user && result.user.user_type !== loginData.user_type) {
-        console.log(`User type mismatch: requested ${loginData.user_type}, actual ${result.user.user_type}`);
-        res.status(400).json({
-          success: false,
-          message: `Account type mismatch. This account is registered as a ${result.user.user_type}, but you selected ${loginData.user_type}. Please select the correct user type to continue.`,
-          data: {
-            actualUserType: result.user.user_type,
-            requestedUserType: loginData.user_type
-          }
-        });
-        return;
-      }
-
-      // SUCCESS: User authenticated and type matches (or no type specified)
-      console.log(`Login successful - User type: ${result.user?.user_type}, Requested: ${loginData.user_type || 'none'}`);
-      
-      // Ensure consistent response format
-      res.status(200).json({
-        success: true,
-        message: 'Login successful',
-        data: {
-          user: result.user,
-          token: result.token
-        }
-      });
-    } catch (error) {
-      console.error('Login controller error:', error);
-      res.status(500).json({
+  try {
+    console.log('Login attempt for:', req.body.email);
+    console.log('Requested user type:', req.body.user_type);
+    
+    const loginData: LoginRequestWithUserType = req.body;
+    
+    if (!loginData.email || !loginData.password) {
+      res.status(400).json({
         success: false,
-        message: 'Internal server error during login'
+        message: 'Email and password are required'
       });
+      return;
     }
-  };
 
-  logout = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-    try {
-      res.status(200).json({
-        success: true,
-        message: 'Logged out successfully'
+    const basicLoginData: LoginRequest = {
+      email: loginData.email,
+      password: loginData.password
+    };
+
+    const result = await this.authService.login(basicLoginData);
+    
+    if (!result.success) {
+      res.status(401).json({
+        success: false,
+        message: result.message || 'Invalid credentials'
       });
-    } catch (error) {
-      next(error);
+      return;
     }
-  };
+
+    // Validate user type if provided
+    if (loginData.user_type && result.user && result.user.user_type !== loginData.user_type) {
+      console.log(`User type mismatch: requested ${loginData.user_type}, actual ${result.user.user_type}`);
+      res.status(400).json({
+        success: false,
+        message: `Account type mismatch. This account is registered as ${result.user.user_type}, but you selected ${loginData.user_type}. Please select the correct user type.`
+      });
+      return;
+    }
+
+    console.log(`Login successful - User type: ${result.user?.user_type}`);
+    
+    res.status(200).json({
+      success: true,
+      message: 'Login successful',
+      data: {
+        user: result.user,
+        token: result.token
+      }
+    });
+  } catch (error) {
+    console.error('Login controller error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error during login'
+    });
+  }
+};
+
+  logout = async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const userId = req.user?.id;
+    
+    if (userId) {
+      await this.authService.logout(userId);
+      console.log(`Logout successful for user: ${userId}`);
+    }
+    
+    res.status(200).json({
+      success: true,
+      message: 'Logged out successfully',
+      data: null
+    });
+  } catch (error) {
+    console.error('Logout controller error:', error);
+    next(error);
+  }
+};
 
   getProfile = async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
     try {

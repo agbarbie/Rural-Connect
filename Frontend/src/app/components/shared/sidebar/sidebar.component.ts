@@ -94,6 +94,8 @@ export class SidebarComponent implements OnInit {
       ]
     }
   ];
+  authService: any;
+  isLoggingOut: boolean | undefined;
 
   constructor(private router: Router) {}
 
@@ -136,5 +138,28 @@ export class SidebarComponent implements OnInit {
       event.preventDefault();
     }
     this.router.navigate([route]);
+  }
+  logout(): void {
+    if (this.isLoggingOut) return; // Prevent multiple clicks
+    
+    console.log('🔓 Initiating logout...');
+    this.isLoggingOut = true;
+    
+    this.authService.logout().subscribe({
+      next: () => {
+        console.log('✅ Logout successful');
+        this.isLoggingOut = false;
+        // Navigate to auth page
+        this.router.navigate(['/auth']).then(() => {
+          console.log('✅ Redirected to auth page');
+        });
+      },
+      error: (error: any) => {
+        console.error('❌ Logout error:', error);
+        this.isLoggingOut = false;
+        // Even if server logout fails, navigate to auth
+        this.router.navigate(['/auth']);
+      }
+    });
   }
 }

@@ -17,7 +17,7 @@ interface CandidateToRate {
 }
 
 @Component({
-  selector: 'app-rating-modal',
+  selector: 'app-rating',
   standalone: true,
   imports: [CommonModule, FormsModule],
   templateUrl: './rating.component.html',

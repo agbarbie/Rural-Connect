@@ -62,7 +62,7 @@ interface CandidateProfile {
 @Component({
   selector: 'app-candidates',
   standalone: true,
-  imports: [CommonModule, FormsModule, SidebarComponent],
+  imports: [CommonModule, FormsModule, SidebarComponent, RatingComponent],
   templateUrl: './candidates.component.html',
   styleUrls: ['./candidates.component.css'],
 })
@@ -201,12 +201,7 @@ export class CandidatesComponent implements OnInit, OnDestroy {
     this.closeRatingModal();
     this.loadCandidates();
   }
-  testRating(candidate: any): void {
-    alert(
-      `Rating feature for ${candidate.name}\n\nThis will open the rating modal once integrated.`
-    );
-    console.log('Candidate to rate:', candidate);
-  }
+  
 
   /**
    * Close profile modal

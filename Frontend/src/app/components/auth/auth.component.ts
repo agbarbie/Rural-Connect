@@ -101,146 +101,159 @@ export class AuthComponent {
   }
 
   // Helper method to navigate based on user type
-  private navigateToUserDashboard(userType: string): void {
-    console.log('Navigating for user type:', userType);
+private navigateToUserDashboard(userType: string): void {
+  console.log('Navigating for user type:', userType);
+  
+  if (!userType) {
+    console.error('No user type provided for navigation');
+    this.error = 'Invalid user type';
+    return;
+  }
+  
+  // Check if there's a stored redirect URL
+  const redirectUrl = localStorage.getItem('redirectUrl');
+  if (redirectUrl) {
+    console.log('Found stored redirect URL:', redirectUrl);
+    localStorage.removeItem('redirectUrl');
     
-    // Ensure we have a valid user type
-    if (!userType) {
-      console.error('No user type provided for navigation');
-      this.router.navigate(['/']);
+    // Verify the redirect URL matches the user's role
+    if (
+      (userType === 'jobseeker' && redirectUrl.startsWith('/jobseeker')) ||
+      (userType === 'employer' && redirectUrl.startsWith('/employer')) ||
+      (userType === 'admin' && redirectUrl.startsWith('/admin'))
+    ) {
+      this.router.navigate([redirectUrl]).then(success => {
+        if (success) {
+          console.log('✅ Redirected to stored URL:', redirectUrl);
+        } else {
+          console.warn('❌ Failed to redirect to stored URL, using default');
+          this.navigateToDefaultDashboard(userType);
+        }
+      });
       return;
     }
-    
-    // Add a small delay to ensure the success message is visible
-    setTimeout(() => {
-      switch (userType.toLowerCase()) {
-        case 'jobseeker':
-          console.log('Navigating to jobseeker dashboard');
-          this.router.navigate(['/jobseeker/dashboard']).then(success => {
-            if (!success) {
-              console.error('Navigation to jobseeker dashboard failed');
-              this.router.navigate(['/jobseeker']);
-            }
-          });
-          break;
-        case 'employer':
-          console.log('Navigating to employer dashboard');
-          this.router.navigate(['/employer/employer-dashboard']).then(success => {
-            if (!success) {
-              console.error('Navigation to employer dashboard failed');
-              this.router.navigate(['/employer']);
-            }
-          });
-          break;
-        case 'admin':
-          console.log('Navigating to admin dashboard');
-          this.router.navigate(['/admin/dashboard']).then(success => {
-            if (!success) {
-              console.error('Navigation to admin dashboard failed');
-              this.router.navigate(['/admin']);
-            }
-          });
-          break;
-        default:
-          console.log('Unknown user type:', userType, 'redirecting to landing');
-          this.router.navigate(['/']);
-          break;
-      }
-    }, 500);
   }
+  
+  // Default navigation
+  this.navigateToDefaultDashboard(userType);
+}
+
+private navigateToDefaultDashboard(userType: string): void {
+  setTimeout(() => {
+    switch (userType.toLowerCase()) {
+      case 'jobseeker':
+        console.log('Navigating to jobseeker dashboard');
+        this.router.navigate(['/jobseeker/dashboard']).then(success => {
+          if (!success) {
+            console.error('Navigation to jobseeker dashboard failed');
+            this.error = 'Navigation failed. Please try again.';
+          }
+        });
+        break;
+      case 'employer':
+        console.log('Navigating to employer dashboard');
+        this.router.navigate(['/employer/employer-dashboard']).then(success => {
+          if (!success) {
+            console.error('Navigation to employer dashboard failed');
+            this.error = 'Navigation failed. Please try again.';
+          }
+        });
+        break;
+      case 'admin':
+        console.log('Navigating to admin dashboard');
+        this.router.navigate(['/admin/dashboard']).then(success => {
+          if (!success) {
+            console.error('Navigation to admin dashboard failed');
+            this.error = 'Navigation failed. Please try again.';
+          }
+        });
+        break;
+      default:
+        console.log('Unknown user type:', userType);
+        this.error = 'Invalid user type';
+        break;
+    }
+  }, 500);
+}
 
   onLogin(): void {
-    // Validation
-    if (!this.loginEmail || !this.loginPassword) {
-      this.error = 'Email and password are required';
-      return;
-    }
+  // Validation
+  if (!this.loginEmail || !this.loginPassword) {
+    this.error = 'Email and password are required';
+    return;
+  }
 
-    this.loading = true;
-    this.clearMessages();
+  this.loading = true;
+  this.clearMessages();
 
-    // FIXED: Include expected role in login request for validation
-    const loginData: RoleSpecificLoginRequest = {
-      email: this.loginEmail.trim(),
-      password: this.loginPassword,
-      expected_role: this.activeUserType // This is the key addition
-    };
+  const loginData: RoleSpecificLoginRequest = {
+    email: this.loginEmail.trim(),
+    password: this.loginPassword,
+    expected_role: this.activeUserType
+  };
 
-    console.log('Login attempt:', { 
-      email: loginData.email, 
-      expected_role: loginData.expected_role 
-    });
+  console.log('Login attempt:', { 
+    email: loginData.email, 
+    expected_role: loginData.expected_role 
+  });
 
-    this.authService.login(loginData).subscribe({
-      next: (response) => {
-        console.log('Full login response:', response);
+  this.authService.login(loginData).subscribe({
+    next: (response) => {
+      console.log('Full login response:', response);
+      
+      if (response.success) {
+        this.success = 'Login successful! Redirecting...';
         
-        if (response.success) {
-          this.success = 'Login successful! Redirecting...';
-
-          
-          
-          // Get user type from response
-          let userType = (response.data as any)?.user?.user_type || null;
-          
-          console.log('Full response:', response);
-          console.log('Response.data:', response.data);
-          console.log('User type from response.data.user.user_type:', userType);
-          
-          if (!userType) {
-            // Try alternative access patterns
-            userType = (response.data as any)?.user_type || null;
-            console.log('Fallback 1 - response.data.user_type:', userType);
-          }
-          
-          if (!userType) {
-            // Another fallback
-            userType = (response as any).user?.user_type || null;
-            console.log('Fallback 2 - response.user.user_type:', userType);
-          }
-          
-          // IMPORTANT: Validate that the returned user type matches the expected role
-          if (userType && userType !== this.activeUserType) {
-            this.error = `Account type mismatch. This account is registered as ${userType}, but you're trying to login as ${this.activeUserType}. Please select the correct role or use the appropriate credentials.`;
-            this.loading = false;
-            return;
-          }
-          
-          if (userType) {
-            console.log('Successfully validated user type:', userType);
-            this.navigateToUserDashboard(userType);
-          } else {
-            console.error('No user type detected, staying on auth page');
-            this.error = 'Unable to determine user type. Please try again.';
-          }
-          
-        } else {
-          this.error = response.message || 'Login failed';
+        let userType = (response.data as any)?.user?.user_type || null;
+        
+        console.log('User type from response:', userType);
+        
+        // IMPORTANT: Validate that the returned user type matches the expected role
+        if (userType && userType !== this.activeUserType) {
+          this.error = `Account type mismatch. This account is registered as ${userType}, but you're trying to login as ${this.activeUserType}. Please select the correct role.`;
+          this.loading = false;
+          // Don't navigate anywhere - stay on auth page
+          return;
         }
         
-        this.loading = false;
-      },
-      error: (error) => {
-        this.loading = false;
-        console.error('Login error:', error);
-        
-        // Handle specific role mismatch error from backend
-        if (error.status === 403 && error.error?.message?.includes('role mismatch')) {
-          this.error = error.error.message;
-        } else if (error.error?.data?.user?.user_type) {
-          // If user info is in error response, still validate role
-          const userType = error.error.data.user.user_type;
-          if (userType !== this.activeUserType) {
-            this.error = `Account type mismatch. This account is registered as ${userType}, but you're trying to login as ${this.activeUserType}.`;
-          } else {
-            this.navigateToUserDashboard(userType);
-          }
+        if (userType) {
+          console.log('Successfully validated user type:', userType);
+          this.navigateToUserDashboard(userType);
         } else {
-          this.error = error.error?.message || error.message || 'Login failed. Please try again.';
+          console.error('No user type detected');
+          this.error = 'Unable to determine user type. Please try again.';
+          this.loading = false;
+          // Stay on auth page
+        }
+        
+      } else {
+        this.error = response.message || 'Login failed';
+        this.loading = false;
+        // Stay on auth page
+      }
+    },
+    error: (error) => {
+      this.loading = false;
+      console.error('Login error:', error);
+      
+      // Handle specific role mismatch error from backend
+      if (error.status === 403 || error.status === 400) {
+        if (error.error?.message?.includes('mismatch') || error.error?.message?.includes('type')) {
+          this.error = error.error.message;
+          // Stay on auth page - don't navigate anywhere
+          return;
         }
       }
-    });
-  }
+      
+      // For any other error, show message and stay on auth page
+      this.error = error.error?.message || error.message || 'Login failed. Please check your credentials and try again.';
+      
+      // DO NOT navigate to landing page on error
+      // User should stay on auth page to retry login
+    }
+  });
+}
+
 
   onSignUp(): void {
     // Basic validation
