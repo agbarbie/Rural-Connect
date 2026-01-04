@@ -1303,21 +1303,6 @@ export class JobExplorerComponent implements OnInit, OnDestroy {
     return 'fa-paper-plane';
   }
 
-  getRating(job: Job): number {
-    const jobId = this.getJobId(job);
-    
-    if (this.ratingCache.has(jobId)) {
-      return this.ratingCache.get(jobId)!;
-    }
-    
-    const baseRating = 4.0;
-    const bonus = Math.min(job.applications_count * 0.01, 0.9);
-    const rating = Math.min(baseRating + bonus, 5.0);
-    
-    this.ratingCache.set(jobId, rating);
-    return rating;
-  }
-
   loadNotifications(): void {
     if (typeof (this.jobService as any).getNotifications !== 'function') {
       console.warn('getNotifications method not found in JobService');

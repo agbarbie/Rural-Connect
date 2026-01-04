@@ -242,16 +242,6 @@
             <i class="fas fa-dollar-sign"></i>
             <span>{{ formatSalary(job) }}</span>
           </div>
-          <div class="rating">
-            <div class="stars">
-              <span *ngFor="let star of getStarArray(getRating(job))" class="star">
-                <i class="fas fa-star" *ngIf="star === 1"></i>
-                <i class="fas fa-star-half-alt" *ngIf="star === 0.5"></i>
-                <i class="far fa-star" *ngIf="star === 0"></i>
-              </span>
-            </div>
-            <span class="rating-number">{{ getRating(job) }}</span>
-          </div>
         </div>
       </div>
 
