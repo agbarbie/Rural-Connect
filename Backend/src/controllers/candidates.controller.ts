@@ -308,6 +308,19 @@ export class CandidatesController {
           message: 'User ID not found'
         });
       }
+      try {
+      const trackViewQuery = `
+        INSERT INTO profile_views (viewer_id, viewed_profile_id, viewed_at)
+        VALUES ($1, $2, NOW())
+        ON CONFLICT (viewer_id, viewed_profile_id) 
+        DO UPDATE SET viewed_at = NOW()
+      `;
+      await pool.query(trackViewQuery, [userId, candidateUserId]);
+      console.log(`✅ Tracked profile view: ${userId} viewed ${candidateUserId}`);
+    } catch (viewError) {
+      // Don't fail the request if view tracking fails
+      console.error('Failed to track profile view (non-critical):', viewError);
+    }
       
       const employerQuery = `SELECT id as employer_id FROM employers WHERE user_id = $1`;
       const employerResult = await pool.query(employerQuery, [userId]);

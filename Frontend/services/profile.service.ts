@@ -368,6 +368,51 @@ export class ProfileService {
     );
   }
 
+  // Add these methods to your profile.service.ts
+
+/**
+ * Track profile view (when employer views jobseeker profile)
+ */
+trackProfileView(viewedProfileId: string): Observable<any> {
+  return this.http.post(
+    `${this.profileUrl}/view`,
+    { viewed_profile_id: viewedProfileId },
+    { headers: this.getHeaders() }
+  ).pipe(
+    map(response => {
+      console.log('✅ Profile view tracked');
+      return response;
+    })
+  );
+}
+
+/**
+ * Get who viewed my profile
+ */
+getProfileViewers(params?: { limit?: number; offset?: number }): Observable<any> {
+  let url = `${this.profileUrl}/viewers`;
+  
+  if (params) {
+    const queryParams = new URLSearchParams();
+    if (params.limit) queryParams.append('limit', params.limit.toString());
+    if (params.offset) queryParams.append('offset', params.offset.toString());
+    
+    const queryString = queryParams.toString();
+    if (queryString) url += `?${queryString}`;
+  }
+
+  return this.http.get(url, { headers: this.getHeaders() });
+}
+
+/**
+ * Get profile view count
+ */
+getProfileViewCount(): Observable<any> {
+  return this.http.get(`${this.profileUrl}/view-count`, {
+    headers: this.getHeaders()
+  });
+}
+
   /**
    * Get current user's profile
    */

@@ -100,6 +100,34 @@ interface RatingStats {
   totalRatings: number;
   ratingDistribution: RatingDistribution;
 }
+// In profile.component.ts (NOT in users.types.ts)
+
+interface ProfileViewer {
+  // Basic user info (from User interface)
+  id: string;
+  name: string;
+  email: string;
+  user_type: string;
+  profile_image: string;
+  
+  
+  // Company info (from backend query)
+  company_name: string;
+  role_in_company: string;
+  
+  // Additional company details (from companies table join)
+  company_description?: string;
+  company_industry?: string;
+  company_size?: string;
+  company_website?: string;
+  company_logo?: string;
+  
+  // ✅ Added location (optional)
+  location?: string;
+  
+  // View info
+  viewed_at: string;
+}
 
 @Component({
   selector: 'app-profile',
@@ -224,7 +252,7 @@ export class ProfileComponent implements OnInit {
   missingFields: string[] = [];
   completionRecommendations: string[] = [];
   // Profile views tracking
-  profileViews: any[] = [];
+  profileViews: ProfileViewer[] = []; 
   showViewersModal: boolean = false;
 
   @ViewChild('fileInput') fileInput!: ElementRef<HTMLInputElement>;
@@ -653,6 +681,19 @@ export class ProfileComponent implements OnInit {
     // Portfolio settings
     this.isPublic = portfolio.settings?.is_public || false;
   }
+  /**
+ * Get initials from name for avatar
+ */
+getInitials(name: string): string {
+  if (!name) return '?';
+  
+  const names = name.trim().split(' ');
+  if (names.length === 1) {
+    return names[0].charAt(0).toUpperCase();
+  }
+  
+  return (names[0].charAt(0) + names[names.length - 1].charAt(0)).toUpperCase();
+}
 
   // Toggle edit mode
   toggleEditMode(): void {
@@ -759,22 +800,54 @@ export class ProfileComponent implements OnInit {
   /**
  * Format view time (e.g., "2 hours ago", "3 days ago")
  */
+/**
+ * ✅ FIXED: Format view time with accurate timing
+ * Replace this in profile.component.ts
+ */
 formatViewTime(dateString: string): string {
   const date = new Date(dateString);
   const now = new Date();
   const diffTime = Math.abs(now.getTime() - date.getTime());
-  const diffMinutes = Math.ceil(diffTime / (1000 * 60));
-  const diffHours = Math.ceil(diffTime / (1000 * 60 * 60));
-  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
   
-  if (diffMinutes < 60) {
-    return `${diffMinutes} minute${diffMinutes > 1 ? 's' : ''} ago`;
+  // Use Math.floor for more accurate timing (not rounding up)
+  const diffSeconds = Math.floor(diffTime / 1000);
+  const diffMinutes = Math.floor(diffTime / (1000 * 60));
+  const diffHours = Math.floor(diffTime / (1000 * 60 * 60));
+  const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+  const diffWeeks = Math.floor(diffDays / 7);
+  const diffMonths = Math.floor(diffDays / 30);
+  
+  // More precise time ranges
+  if (diffSeconds < 60) {
+    return 'Just now';
+  } else if (diffMinutes < 1) {
+    return 'Just now';
+  } else if (diffMinutes === 1) {
+    return '1 minute ago';
+  } else if (diffMinutes < 60) {
+    return `${diffMinutes} minutes ago`;
+  } else if (diffHours === 1) {
+    return '1 hour ago';
   } else if (diffHours < 24) {
-    return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`;
+    return `${diffHours} hours ago`;
+  } else if (diffDays === 1) {
+    return 'Yesterday';
   } else if (diffDays < 7) {
-    return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
+    return `${diffDays} days ago`;
+  } else if (diffWeeks === 1) {
+    return '1 week ago';
+  } else if (diffWeeks < 4) {
+    return `${diffWeeks} weeks ago`;
+  } else if (diffMonths === 1) {
+    return '1 month ago';
+  } else if (diffMonths < 12) {
+    return `${diffMonths} months ago`;
   } else {
-    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    return date.toLocaleDateString('en-US', { 
+      year: 'numeric', 
+      month: 'short', 
+      day: 'numeric' 
+    });
   }
 }
   /**
@@ -801,27 +874,18 @@ getSuccessRate(): number {
  * Load profile viewers (who viewed my profile)
  */
 private loadProfileViewers(): void {
-  // TODO: Implement backend endpoint to track profile views
-  // GET /api/profile/viewers
-  
-  // For now, mock data (replace with real API call)
-  this.profileViews = [
-    // Will be populated from backend
-  ];
-  
-  // Example API call (uncomment when backend is ready):
-  /*
-  this.profileService.getProfileViewers().subscribe({
+  this.profileService.getProfileViewers({ limit: 50 }).subscribe({
     next: (response) => {
       if (response.success && response.data) {
         this.profileViews = response.data.viewers || [];
+        console.log('✅ Loaded profile viewers:', this.profileViews.length);
       }
     },
     error: (error) => {
       console.error('Error loading profile viewers:', error);
+      this.profileViews = [];
     }
   });
-  */
 }
 
 /**

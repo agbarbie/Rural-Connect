@@ -1,9 +1,11 @@
-// src/routes/profile.routes.ts - VERIFIED CORRECT VERSION
+// src/routes/profile.routes.ts - FIXED VERSION
+
 import { Router } from 'express';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
 import profileController from '../controllers/profile.controller';
+import profileViewsController from '../controllers/profile-views.controller';
 import { authenticateToken } from '../middleware/auth.middleware';
 import { isJobseeker } from '../middleware/role.middleware';
 
@@ -84,7 +86,7 @@ router.post(
   '/upload-image',
   authenticateToken,
   isJobseeker,
-  upload.single('image'), // ✅ Field name MUST be 'image'
+  upload.single('image'),
   profileController.uploadProfileImage.bind(profileController)
 );
 
@@ -99,6 +101,49 @@ router.get(
   isJobseeker,
   profileController.getProfileCompletion.bind(profileController)
 );
+
+// ========================================
+// ✅ PROFILE VIEWS ENDPOINTS
+// ========================================
+
+/**
+ * @route   POST /api/profile/view
+ * @desc    Track profile view (when employer views jobseeker)
+ * @access  Private (Any authenticated user)
+ */
+router.post(
+  '/view',
+  authenticateToken,
+  profileViewsController.trackProfileView.bind(profileViewsController)
+);
+
+/**
+ * @route   GET /api/profile/viewers
+ * @desc    Get who viewed my profile
+ * @access  Private (Jobseeker)
+ */
+router.get(
+  '/viewers',
+  authenticateToken,
+  isJobseeker,
+  profileViewsController.getProfileViewers.bind(profileViewsController)
+);
+
+/**
+ * @route   GET /api/profile/view-count
+ * @desc    Get profile view statistics
+ * @access  Private (Jobseeker)
+ */
+router.get(
+  '/view-count',
+  authenticateToken,
+  isJobseeker,
+  profileViewsController.getProfileViewCount.bind(profileViewsController)
+);
+
+// ========================================
+// END PROFILE VIEWS ENDPOINTS
+// ========================================
 
 /**
  * @route   POST /api/profile/share
@@ -126,6 +171,6 @@ router.get(
 router.get('/cv/:cvId', authenticateToken, isJobseeker, profileController.getProfileByCVId.bind(profileController));
 router.put('/picture', authenticateToken, isJobseeker, profileController.updateProfilePicture.bind(profileController));
 
-console.log('✅ Profile routes registered with multer upload');
+console.log('✅ Profile routes registered with profile views tracking');
 
 export default router;

@@ -76,7 +76,65 @@
     </span>
   </div>
   
-  <!-- ✅ Profile Views -->
+  <!-- Profile Viewers Modal -->
+  @if (showViewersModal) {
+  <div class="modal-overlay" (click)="closeViewersModal()">
+    <div class="modal-content viewers-modal" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <h3>
+          <i class="fas fa-eye"></i>
+          Profile Viewers
+        </h3>
+        <button class="close-btn" (click)="closeViewersModal()">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+      
+      <div class="modal-body">
+        @if (profileViews.length > 0) {
+          <div class="viewers-list">
+            @for (viewer of profileViews; track viewer.id) {
+            <div class="viewer-card">
+              <!-- Initials Avatar (NO IMAGE NEEDED) -->
+              <div class="viewer-avatar">
+                <span>{{ getInitials(viewer.name) }}</span>
+              </div>
+              
+              <!-- Employer Info -->
+              <div class="viewer-info">
+                <h4 class="viewer-name">{{ viewer.name }}</h4>
+                <p class="viewer-role">{{ viewer.role_in_company }}</p>
+                
+                <div class="viewer-company">
+                  <i class="fas fa-building"></i>
+                  <span>{{ viewer.company_name }}</span>
+                </div>
+                
+                @if (viewer.location) {
+                <div class="viewer-location">
+                  <i class="fas fa-map-marker-alt"></i>
+                  <span>{{ viewer.location }}</span>
+                </div>
+                }
+                
+                <div class="viewer-time">
+                  <i class="fas fa-clock"></i>
+                  <span>{{ formatViewTime(viewer.viewed_at) }}</span>
+                </div>
+              </div>
+            </div>
+            }
+          </div>
+        } @else {
+          <div class="no-viewers">
+            <i class="fas fa-eye-slash"></i>
+            <p>No profile views yet. Share your profile to get more visibility!</p>
+          </div>
+        }
+      </div>
+    </div>
+  </div>
+  }
   @if (profileViews.length > 0) {
   <div class="profile-views">
     <i class="fas fa-eye"></i>
