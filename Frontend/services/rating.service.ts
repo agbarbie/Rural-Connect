@@ -7,6 +7,9 @@ import { catchError } from 'rxjs/operators';
 import { environment } from '../src/environments/environment.prod';
 
 export interface Rating {
+employer_image: any;
+company_name: any;
+role_in_company: any;
   id: string;
   employer_id: string;
   jobseeker_id: string;

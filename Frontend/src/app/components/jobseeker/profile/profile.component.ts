@@ -1650,4 +1650,19 @@ closeViewersModal(): void {
   hideToast() {
     throw new Error('Method not implemented.');
   }
+  /**
+   * Check if skills rating exists and has values
+   */
+  hasSkillsRating(skills_rating: any): boolean {
+    if (!skills_rating) return false;
+
+    // Consider a rating present only if numerical value > 0
+    return !!(
+      (typeof skills_rating.technical === 'number' && skills_rating.technical > 0) ||
+      (typeof skills_rating.communication === 'number' && skills_rating.communication > 0) ||
+      (typeof skills_rating.professionalism === 'number' && skills_rating.professionalism > 0) ||
+      (typeof skills_rating.quality === 'number' && skills_rating.quality > 0) ||
+      (typeof skills_rating.timeliness === 'number' && skills_rating.timeliness > 0)
+    );
+  }
 }

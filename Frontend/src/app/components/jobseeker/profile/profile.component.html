@@ -745,46 +745,257 @@
   </div>
   <!-- Profile Viewers Modal -->
 @if (showViewersModal) {
-<div class="modal-overlay" (click)="closeViewersModal()">
-  <div class="modal-content viewers-modal" (click)="$event.stopPropagation()">
-    <div class="modal-header">
-      <h3>
-        <i class="fas fa-eye"></i>
-        Profile Viewers
-      </h3>
-      <button class="close-btn" (click)="closeViewersModal()">
-        <i class="fas fa-times"></i>
-      </button>
-    </div>
-    
-    <div class="modal-body">
-      @if (profileViews.length > 0) {
-        <div class="viewers-list">
-          @for (viewer of profileViews; track viewer.id) {
-          <div class="viewer-card">
-            <div class="viewer-avatar">
-              @if (viewer.profile_image) {
-                <img [src]="viewer.profile_image" [alt]="viewer.name" />
-              } @else {
-                <span>{{ viewer.name.charAt(0).toUpperCase() }}</span>
-              }
-            </div>
-            <div class="viewer-info">
-              <h4>{{ viewer.name }}</h4>
-              <p>{{ viewer.company_name || 'Employer' }}</p>
-              <span class="view-time">{{ formatViewTime(viewer.viewed_at) }}</span>
-            </div>
-          </div>
+@if (ratingStats.totalRatings > 0) {
+<div class="content-card ratings-card">
+  <h2 class="card-title">
+    <i class="fas fa-star"></i>
+    Ratings & Reviews
+  </h2>
+
+  <!-- Rating Summary -->
+  <div class="rating-summary">
+    <div class="rating-overview">
+      <div class="rating-score">
+        <span class="score-number">{{ ratingStats.averageRating | number: '1.1-1' }}</span>
+        <div class="rating-stars-large">
+          @for (star of getStarArray(ratingStats.averageRating); track $index) {
+            @if (star === 1) {
+              <i class="fas fa-star"></i>
+            } @else if (star === 0.5) {
+              <i class="fas fa-star-half-alt"></i>
+            } @else {
+              <i class="far fa-star"></i>
+            }
           }
         </div>
-      } @else {
-        <div class="no-viewers">
-          <i class="fas fa-eye-slash"></i>
-          <p>No profile views yet. Share your profile to get more visibility!</p>
+        <p class="rating-count">{{ ratingStats.totalRatings }} {{ ratingStats.totalRatings === 1 ? 'rating' : 'ratings' }}</p>
+      </div>
+
+      <!-- Rating Distribution -->
+      <div class="rating-distribution">
+        @for (rating of [5, 4, 3, 2, 1]; track rating) {
+        <div class="distribution-row">
+          <span class="distribution-label">{{ rating }} <i class="fas fa-star"></i></span>
+          <div class="distribution-bar">
+            <div 
+              class="distribution-fill" 
+              [style.width.%]="getRatingPercentage(ratingStats.ratingDistribution[rating])">
+            </div>
+          </div>
+          <span class="distribution-count">{{ ratingStats.ratingDistribution[rating] }}</span>
         </div>
-      }
+        }
+      </div>
     </div>
   </div>
+
+  <!-- Individual Reviews -->
+  <div class="reviews-section">
+    <h3 class="reviews-heading">
+      <i class="fas fa-comment-dots"></i>
+      What Employers Say About Me
+    </h3>
+
+    @if (myRatings.length > 0) {
+    <div class="reviews-list">
+      @for (rating of myRatings; track rating.id) {
+      <div class="review-card">
+        <!-- ✅ ENHANCED: Show WHO rated with company info -->
+        <div class="review-header">
+          <div class="reviewer-info">
+            <!-- Reviewer Avatar -->
+            <div class="reviewer-avatar">
+              @if (rating.employer_image) {
+                <img [src]="rating.employer_image" [alt]="rating.employer_name" />
+              } @else {
+                <span>{{ getInitials(rating.employer_name || 'Employer') }}</span>
+              }
+            </div>
+            
+            <!-- Reviewer Details -->
+            <div class="reviewer-details">
+              <h4 class="reviewer-name">{{ rating.employer_name || 'Employer' }}</h4>
+              
+              <!-- ✅ NEW: Company and Role Information -->
+              <div class="reviewer-company-info">
+                @if (rating.company_name) {
+                  <span class="company-name">
+                    <i class="fas fa-building"></i>
+                    {{ rating.company_name }}
+                  </span>
+                }
+                
+                @if (rating.role_in_company) {
+                  <span class="company-role">
+                    <i class="fas fa-user-tie"></i>
+                    {{ rating.role_in_company }}
+                  </span>
+                }
+              </div>
+              
+              <p class="review-date">
+                <i class="fas fa-clock"></i>
+                {{ formatRatingDate(rating.created_at) }}
+              </p>
+            </div>
+          </div>
+          
+          <!-- Rating Stars -->
+          <div class="review-rating">
+            <div class="rating-stars-small">
+              @for (i of [1,2,3,4,5]; track i) {
+                @if (i <= rating.rating) {
+                  <i class="fas fa-star"></i>
+                } @else {
+                  <i class="far fa-star"></i>
+                }
+              }
+            </div>
+            <span class="rating-number">{{ rating.rating }}.0</span>
+          </div>
+        </div>
+
+        <!-- Job Title (if applicable) -->
+        @if (rating.job_title) {
+        <div class="review-job">
+          <i class="fas fa-briefcase"></i>
+          <span>{{ rating.job_title }}</span>
+        </div>
+        }
+
+        <!-- Task Description (if provided) -->
+        @if (rating.task_description) {
+        <div class="review-task">
+          <strong>Project:</strong> {{ rating.task_description }}
+        </div>
+        }
+
+        <!-- Feedback Content -->
+        <div class="review-content">
+          <p class="review-text">{{ rating.feedback }}</p>
+        </div>
+
+        <!-- Would Hire Again Badge -->
+        @if (rating.would_hire_again) {
+        <div class="review-badge would-hire-again">
+          <i class="fas fa-check-circle"></i>
+          <span>Would hire again</span>
+        </div>
+        }
+
+        <!-- Skills Breakdown -->
+        @if (rating.skills_rating && hasSkillsRating(rating.skills_rating)) {
+        <div class="skills-breakdown">
+          <h5><i class="fas fa-chart-bar"></i> Skills Assessment:</h5>
+          <div class="skills-ratings">
+            @if (rating.skills_rating.technical) {
+            <div class="skill-rating-item">
+              <span class="skill-label">
+                <i class="fas fa-code"></i>
+                Technical:
+              </span>
+              <div class="skill-stars">
+                @for (i of [1,2,3,4,5]; track i) {
+                  @if (i <= rating.skills_rating.technical) {
+                    <i class="fas fa-star"></i>
+                  } @else {
+                    <i class="far fa-star"></i>
+                  }
+                }
+              </div>
+              <span class="skill-value">{{ rating.skills_rating.technical }}/5</span>
+            </div>
+            }
+            
+            @if (rating.skills_rating.communication) {
+            <div class="skill-rating-item">
+              <span class="skill-label">
+                <i class="fas fa-comments"></i>
+                Communication:
+              </span>
+              <div class="skill-stars">
+                @for (i of [1,2,3,4,5]; track i) {
+                  @if (i <= rating.skills_rating.communication) {
+                    <i class="fas fa-star"></i>
+                  } @else {
+                    <i class="far fa-star"></i>
+                  }
+                }
+              </div>
+              <span class="skill-value">{{ rating.skills_rating.communication }}/5</span>
+            </div>
+            }
+            
+            @if (rating.skills_rating.professionalism) {
+            <div class="skill-rating-item">
+              <span class="skill-label">
+                <i class="fas fa-user-tie"></i>
+                Professionalism:
+              </span>
+              <div class="skill-stars">
+                @for (i of [1,2,3,4,5]; track i) {
+                  @if (i <= rating.skills_rating.professionalism) {
+                    <i class="fas fa-star"></i>
+                  } @else {
+                    <i class="far fa-star"></i>
+                  }
+                }
+              </div>
+              <span class="skill-value">{{ rating.skills_rating.professionalism }}/5</span>
+            </div>
+            }
+            
+            @if (rating.skills_rating.quality) {
+            <div class="skill-rating-item">
+              <span class="skill-label">
+                <i class="fas fa-medal"></i>
+                Quality:
+              </span>
+              <div class="skill-stars">
+                @for (i of [1,2,3,4,5]; track i) {
+                  @if (i <= rating.skills_rating.quality) {
+                    <i class="fas fa-star"></i>
+                  } @else {
+                    <i class="far fa-star"></i>
+                  }
+                }
+              </div>
+              <span class="skill-value">{{ rating.skills_rating.quality }}/5</span>
+            </div>
+            }
+            
+            @if (rating.skills_rating.timeliness) {
+            <div class="skill-rating-item">
+              <span class="skill-label">
+                <i class="fas fa-clock"></i>
+                Timeliness:
+              </span>
+              <div class="skill-stars">
+                @for (i of [1,2,3,4,5]; track i) {
+                  @if (i <= rating.skills_rating.timeliness) {
+                    <i class="fas fa-star"></i>
+                  } @else {
+                    <i class="far fa-star"></i>
+                  }
+                }
+              </div>
+              <span class="skill-value">{{ rating.skills_rating.timeliness }}/5</span>
+            </div>
+            }
+          </div>
+        </div>
+        }
+      </div>
+      }
+    </div>
+    } @else {
+    <div class="no-reviews">
+      <i class="fas fa-star-half-alt"></i>
+      <p>No ratings yet. Complete your first job to receive ratings from employers!</p>
+    </div>
+    }
+  </div>
 </div>
+}
 }
 </div>
