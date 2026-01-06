@@ -7,9 +7,6 @@ import { catchError } from 'rxjs/operators';
 import { environment } from '../src/environments/environment.prod';
 
 export interface Rating {
-employer_image: any;
-company_name: any;
-role_in_company: any;
   id: string;
   employer_id: string;
   jobseeker_id: string;
@@ -29,12 +26,33 @@ role_in_company: any;
   is_public: boolean;
   created_at: string;
   updated_at: string;
-  // Populated fields
+  
+  // Populated jobseeker fields
   jobseeker_name?: string;
   jobseeker_email?: string;
   jobseeker_profile_image?: string;
+  
+  // Populated employer fields
   employer_name?: string;
+  employer_email?: string;
+  employer_image?: string;
+  
+  // Job information
   job_title?: string;
+  
+  // ✅ Company information fields
+  company_name?: string;
+  role_in_company?: string;
+  company_industry?: string;
+  company_location?: string;
+  company_description?: string;
+  company_size?: string;
+  company_website?: string;
+  company_logo?: string;
+  
+  // ✅ Additional employer verification fields
+  verified_employer?: boolean;
+  contract_type?: string;
 }
 
 export interface RatingStats {

@@ -39,7 +39,7 @@ interface ProfileDisplay {
   preferredLocations: string;
   salaryMin: number | null;
   salaryMax: number | null;
-  selectedSkills: string[]; // Array for selected skills
+  selectedSkills: string[];
   socialLinksInput: { linkedin: string; github: string; website: string };
 }
 
@@ -91,6 +91,7 @@ interface Field {
   value?: any;
   required?: boolean;
 }
+
 interface RatingDistribution {
   [key: number]: number;
 }
@@ -100,32 +101,21 @@ interface RatingStats {
   totalRatings: number;
   ratingDistribution: RatingDistribution;
 }
-// In profile.component.ts (NOT in users.types.ts)
 
 interface ProfileViewer {
-  // Basic user info (from User interface)
   id: string;
   name: string;
   email: string;
   user_type: string;
   profile_image: string;
-  
-  
-  // Company info (from backend query)
   company_name: string;
   role_in_company: string;
-  
-  // Additional company details (from companies table join)
   company_description?: string;
   company_industry?: string;
   company_size?: string;
   company_website?: string;
   company_logo?: string;
-  
-  // ✅ Added location (optional)
   location?: string;
-  
-  // View info
   viewed_at: string;
 }
 
@@ -139,78 +129,31 @@ interface ProfileViewer {
 export class ProfileComponent implements OnInit {
   isLoading = true;
   isEditMode = false;
-  isUploadingCV = false; // New: Track CV upload state
-  showCVUpload = false; // New: Toggle for optional CV upload
+  isUploadingCV = false;
+  showCVUpload = false;
   portfolioData: PortfolioData | null = null;
   shareableUrl: string = '';
   isPublic: boolean = false;
 
-  // Predefined available skills
   availableTechnicalSkills: string[] = [
-    'JavaScript',
-    'Python',
-    'Java',
-    'C++',
-    'React',
-    'Angular',
-    'Vue.js',
-    'Node.js',
-    'SQL',
-    'MongoDB',
-    'AWS',
-    'Docker',
-    'Git',
-    'HTML',
-    'CSS',
-    'TypeScript',
-    'PHP',
-    'Ruby',
-    'Go',
-    'Rust',
-    'Swift',
-    'Kotlin',
-    'C#',
-    '.NET',
-    'PostgreSQL',
-    'MySQL',
-    'Redis',
-    'Firebase',
-    'GraphQL',
-    'REST API',
-    'Kubernetes',
-    'Jenkins',
-    'CI/CD',
-    'Agile',
-    'Scrum',
-    'DevOps',
+    'JavaScript', 'Python', 'Java', 'C++', 'React', 'Angular', 'Vue.js',
+    'Node.js', 'SQL', 'MongoDB', 'AWS', 'Docker', 'Git', 'HTML', 'CSS',
+    'TypeScript', 'PHP', 'Ruby', 'Go', 'Rust', 'Swift', 'Kotlin', 'C#',
+    '.NET', 'PostgreSQL', 'MySQL', 'Redis', 'Firebase', 'GraphQL', 'REST API',
+    'Kubernetes', 'Jenkins', 'CI/CD', 'Agile', 'Scrum', 'DevOps',
   ];
 
   availableSoftSkills: string[] = [
-    'Communication',
-    'Leadership',
-    'Teamwork',
-    'Problem Solving',
-    'Time Management',
-    'Adaptability',
-    'Critical Thinking',
-    'Creativity',
-    'Emotional Intelligence',
-    'Public Speaking',
-    'Negotiation',
-    'Conflict Resolution',
-    'Project Management',
-    'Customer Service',
-    'Analytical Thinking',
-    'Attention to Detail',
-    'Organization',
-    'Resilience',
-    'Empathy',
-    'Networking',
+    'Communication', 'Leadership', 'Teamwork', 'Problem Solving',
+    'Time Management', 'Adaptability', 'Critical Thinking', 'Creativity',
+    'Emotional Intelligence', 'Public Speaking', 'Negotiation',
+    'Conflict Resolution', 'Project Management', 'Customer Service',
+    'Analytical Thinking', 'Attention to Detail', 'Organization',
+    'Resilience', 'Empathy', 'Networking',
   ];
 
   newSkill: string = '';
 
-  // Profile Data
   profile: ProfileDisplay = {
     fullName: '',
     title: '',
@@ -247,31 +190,24 @@ export class ProfileComponent implements OnInit {
   showToast: boolean = false;
   private toastTimeout: any;
 
-  // Completion Data - now from backend
   completedSections: CompletedSection[] = [];
   missingFields: string[] = [];
   completionRecommendations: string[] = [];
-  // Profile views tracking
-  profileViews: ProfileViewer[] = []; 
+
+  profileViews: ProfileViewer[] = [];
   showViewersModal: boolean = false;
 
   @ViewChild('fileInput') fileInput!: ElementRef<HTMLInputElement>;
   @ViewChild('cvFileInput') cvFileInput!: ElementRef<HTMLInputElement>;
 
-  // Rating properties
   myRatings: Rating[] = [];
   ratingStats: RatingStats = {
     averageRating: 0,
     totalRatings: 0,
-    ratingDistribution: {
-      1: 0,
-      2: 0,
-      3: 0,
-      4: 0,
-      5: 0,
-    },
+    ratingDistribution: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 },
   };
   isLoadingRatings = false;
+  rating: any;
 
   constructor(
     private profileService: ProfileService,
@@ -284,10 +220,9 @@ export class ProfileComponent implements OnInit {
     this.loadProfileData();
     this.loadMyRatings();
     this.loadPortfolioData();
-    this.loadProfileViewers();  
+    this.loadProfileViewers();
   }
 
-  // Load profile data from backend
   private loadProfileData(): void {
     this.profileService.getMyProfile().subscribe({
       next: (response: ProfileResponse) => {
@@ -299,17 +234,11 @@ export class ProfileComponent implements OnInit {
           this.profile.location = data.location || '';
           this.profile.about = data.bio || '';
 
-          // ✅ Load profile image from backend
           if (data.profile_image || data.profileImage) {
             const imageUrl = data.profile_image || data.profileImage;
             this.profile.profileImage = this.getFullImageUrl(imageUrl);
-            console.log('✅ Profile image loaded:', {
-              rawUrl: imageUrl,
-              fullUrl: this.profile.profileImage,
-            });
           } else {
             this.profile.profileImage = 'assets/images/profile-placeholder.jpg';
-            console.log('ℹ️ No profile image found, using placeholder');
           }
 
           this.profile.linkedIn = data.linkedin_url || '';
@@ -317,33 +246,23 @@ export class ProfileComponent implements OnInit {
           this.profile.github = data.github_url || '';
           this.profile.yearsOfExperience = data.years_of_experience || 0;
           this.profile.currentPosition = data.current_position || '';
-          this.profile.availabilityStatus =
-            data.availability_status || 'open_to_opportunities';
-          // Parse JSONB/JSON fields
-          this.profile.preferredJobTypes = this.parseJsonField(
-            data.preferred_job_types,
-            '\n'
-          );
-          this.profile.preferredLocations = this.parseJsonField(
-            data.preferred_locations,
-            '\n'
-          );
+          this.profile.availabilityStatus = data.availability_status || 'open_to_opportunities';
 
+          this.profile.preferredJobTypes = this.parseJsonField(data.preferred_job_types, '\n');
+          this.profile.preferredLocations = this.parseJsonField(data.preferred_locations, '\n');
           this.profile.salaryMin = data.salary_expectation_min || null;
           this.profile.salaryMax = data.salary_expectation_max || null;
-          // Skills
+
           let skills: string[] = this.parseJsonArrayField(data.skills);
           this.profile.selectedSkills = skills;
           this.populateSkills(skills);
-          // Social links input
+
           this.profile.socialLinksInput = {
             linkedin: this.profile.linkedIn || '',
             github: this.profile.github || '',
             website: this.profile.website || '',
           };
           this.buildSocialLinks();
-
-          // ✅ CALCULATE PROFILE COMPLETION BASED ON FORM FIELDS
           this.calculateProfileCompletion();
         }
       },
@@ -353,225 +272,95 @@ export class ProfileComponent implements OnInit {
     });
   }
 
-  // Helper to parse JSON array fields
   private parseJsonArrayField(field: any): string[] {
     if (!field) return [];
     try {
-      if (typeof field === 'string') {
-        return JSON.parse(field);
-      }
-      if (Array.isArray(field)) {
-        return field;
-      }
+      if (typeof field === 'string') return JSON.parse(field);
+      if (Array.isArray(field)) return field;
       return [];
     } catch {
       return [];
     }
   }
 
-  // Helper to parse JSON field and join with separator
   private parseJsonField(field: any, separator: string = ', '): string {
     const arr = this.parseJsonArrayField(field);
     return arr.join(separator);
   }
 
-  // Populate skills from array with proper categorization
   private populateSkills(skills: string[]): void {
     this.technicalSkills = skills
       .filter((s) => this.availableTechnicalSkills.includes(s.trim()))
-      .map((s) => ({
-        name: s.trim(),
-        type: 'technical' as const,
-        category: 'Technical',
-      }));
+      .map((s) => ({ name: s.trim(), type: 'technical' as const, category: 'Technical' }));
 
     this.softSkills = skills
       .filter((s) => this.availableSoftSkills.includes(s.trim()))
-      .map((s) => ({
-        name: s.trim(),
-        type: 'soft' as const,
-        category: 'Soft',
-      }));
+      .map((s) => ({ name: s.trim(), type: 'soft' as const, category: 'Soft' }));
 
     this.otherSkills = skills
-      .filter(
-        (s) =>
-          !this.availableTechnicalSkills.includes(s.trim()) &&
-          !this.availableSoftSkills.includes(s.trim())
-      )
-      .map((s) => ({
-        name: s.trim(),
-        type: 'other' as const,
-        category: 'Other',
-      }));
+      .filter((s) => !this.availableTechnicalSkills.includes(s.trim()) && !this.availableSoftSkills.includes(s.trim()))
+      .map((s) => ({ name: s.trim(), type: 'other' as const, category: 'Other' }));
   }
 
-  /**
-   * ✅ NEW: Calculate profile completion based on form fields only
-   * This ensures profile completion is 100% independent of CV upload
-   */
-  private calculateProfileCompletion(): void {
-    let totalFields = 0;
-    let completedFields = 0;
+  calculateProfileCompletion(): void {
+    const fields: { [key: string]: number } = {
+      name: this.profile?.fullName ? 10 : 0,
+      email: this.profile?.email ? 10 : 0,
+      phone: this.profile?.phone ? 10 : 0,
+      location: this.profile?.location ? 10 : 0,
+      profile_image: this.hasProfileImage() ? 15 : 0,
+      bio: this.profile?.about ? 15 : 0,
+      skills: this.profile?.selectedSkills && this.profile.selectedSkills.length > 0 ? 10 : 0,
+      experience: this.experiences && this.experiences.length > 0 ? 10 : 0,
+      education: this.education && this.education.length > 0 ? 10 : 0,
+    };
+
+    const totalScore = Object.values(fields).reduce((sum, score) => sum + (typeof score === 'number' ? score : 0), 0);
+    this.profile.profileCompletion = totalScore;
+
     this.missingFields = [];
+    if (!this.profile?.fullName) this.missingFields.push('Full Name');
+    if (!this.profile?.email) this.missingFields.push('Email');
+    if (!this.profile?.phone) this.missingFields.push('Phone Number');
+    if (!this.profile?.location) this.missingFields.push('Location');
+    if (!this.hasProfileImage()) this.missingFields.push('Profile Image');
+    if (!this.profile?.about) this.missingFields.push('Bio/Summary');
+    if (!this.profile?.selectedSkills || this.profile.selectedSkills.length === 0) this.missingFields.push('Skills');
+    if (!this.experiences || this.experiences.length === 0) this.missingFields.push('Work Experience');
+    if (!this.education || this.education.length === 0) this.missingFields.push('Education');
 
-    // 1. Basic Contact Information (3 required fields)
-    totalFields += 3;
-    if (this.profile.phone && this.profile.phone.trim().length > 0) {
-      completedFields++;
-    } else {
-      this.missingFields.push('Phone Number');
-    }
-
-    if (this.profile.location && this.profile.location.trim().length > 0) {
-      completedFields++;
-    } else {
-      this.missingFields.push('Location');
-    }
-
-    // Check if profile image is uploaded (not the default placeholder)
-    const hasCustomImage =
-      this.profile.profileImage &&
-      this.profile.profileImage !== 'assets/images/profile-placeholder.jpg' &&
-      !this.profile.profileImage.includes('profile-placeholder') &&
-      (this.profile.profileImage.startsWith('http') ||
-        this.profile.profileImage.startsWith('/uploads') ||
-        this.profile.profileImage.startsWith('data:image'));
-
-    if (hasCustomImage) {
-      completedFields++;
-    } else {
-      this.missingFields.push('Profile Image');
-    }
-
-    // 2. Professional Summary (1 required field)
-    totalFields += 1;
-    if (this.profile.about && this.profile.about.trim().length > 50) {
-      completedFields++;
-    } else {
-      this.missingFields.push('Professional Summary (minimum 50 characters)');
-    }
-
-    // 3. Skills (1 required field - at least 3 skills)
-    totalFields += 1;
-    if (
-      this.profile.selectedSkills &&
-      this.profile.selectedSkills.length >= 3
-    ) {
-      completedFields++;
-    } else {
-      this.missingFields.push(
-        `Skills (${this.profile.selectedSkills.length}/3 minimum)`
-      );
-    }
-
-    // 4. Social Links (1 required field - at least one link)
-    totalFields += 1;
-    const hasLinkedIn =
-      this.profile.socialLinksInput.linkedin &&
-      this.profile.socialLinksInput.linkedin.trim().length > 0;
-    const hasGithub =
-      this.profile.socialLinksInput.github &&
-      this.profile.socialLinksInput.github.trim().length > 0;
-    const hasWebsite =
-      this.profile.socialLinksInput.website &&
-      this.profile.socialLinksInput.website.trim().length > 0;
-
-    if (hasLinkedIn || hasGithub || hasWebsite) {
-      completedFields++;
-    } else {
-      this.missingFields.push(
-        'At least one Social Link (LinkedIn, GitHub, or Website)'
-      );
-    }
-
-    // 5. Career Preferences (3 required fields)
-    totalFields += 3;
-    if (this.profile.yearsOfExperience > 0) {
-      completedFields++;
-    } else {
-      this.missingFields.push('Years of Experience');
-    }
-
-    if (
-      this.profile.currentPosition &&
-      this.profile.currentPosition.trim().length > 0
-    ) {
-      completedFields++;
-    } else {
-      this.missingFields.push('Current Position');
-    }
-
-    if (
-      this.profile.preferredJobTypes &&
-      this.profile.preferredJobTypes.trim().length > 0
-    ) {
-      completedFields++;
-    } else {
-      this.missingFields.push('Preferred Job Types');
-    }
-
-    // 6. Salary Expectations (1 optional field - bonus points if filled)
-    totalFields += 1;
-    if (
-      (this.profile.salaryMin && this.profile.salaryMin > 0) ||
-      (this.profile.salaryMax && this.profile.salaryMax > 0)
-    ) {
-      completedFields++;
-    } else {
-      this.missingFields.push('Salary Expectations (optional but recommended)');
-    }
-
-    // Calculate percentage
-    const percentage =
-      totalFields > 0 ? Math.round((completedFields / totalFields) * 100) : 0;
-    this.profile.profileCompletion = percentage;
-
-    // Update completion recommendations
     this.completionRecommendations = [];
-    if (percentage < 100) {
-      this.completionRecommendations.push(
-        `Complete the following ${this.missingFields.length} field(s) to reach 100%:`
-      );
+    if (this.profile.profileCompletion < 100) {
+      this.completionRecommendations.push(`Complete the following ${this.missingFields.length} field(s) to reach 100%:`);
       this.completionRecommendations.push(...this.missingFields);
     } else {
-      this.completionRecommendations.push(
-        '✅ Your profile is 100% complete! You can now apply for jobs.'
-      );
+      this.completionRecommendations.push('✅ Your profile is 100% complete! You can now apply for jobs.');
     }
+  }
 
-    console.log('📊 Profile completion calculation (Form-based):', {
-      totalFields,
-      completedFields,
-      percentage,
-      missingFields: this.missingFields,
-    });
+  hasProfileImage(): boolean {
+    const img = this.profile?.profileImage;
+    if (!img) return false;
+    const trimmed = (img || '').toString().trim();
+    if (trimmed === '' || trimmed.includes('profile-placeholder') || trimmed === 'assets/images/profile-placeholder.jpg') {
+      return false;
+    }
+    return true;
   }
 
   private loadPortfolioData(): void {
     this.isLoading = true;
-
     this.profileService.getMyPortfolio().subscribe({
       next: (response) => {
         if (response.success && response.data) {
           this.portfolioData = response.data;
-          this.populatePortfolioFromData(response.data); // For display purposes only
+          this.populatePortfolioFromData(response.data);
           this.loadShareableUrl();
-        } else {
-          console.log('No portfolio data found - CV not uploaded yet');
         }
         this.isLoading = false;
       },
       error: (error) => {
         console.error('Error loading portfolio:', error);
-        if (
-          error.status === 404 ||
-          error.error?.message?.includes('No CV found')
-        ) {
-          console.log(
-            'No CV found - user can still complete profile without CV'
-          );
-        }
         this.isLoading = false;
       },
     });
@@ -580,73 +369,49 @@ export class ProfileComponent implements OnInit {
   private populatePortfolioFromData(portfolio: PortfolioData): void {
     const cvData = portfolio.cvData;
     const personalInfo = cvData.personal_info || {};
-
-    // Override profile with CV data where applicable (e.g., title from experience)
     const workExp = cvData.work_experience || [];
+
     if (workExp.length > 0) {
       this.profile.title = workExp[0].position;
     }
 
-    // Populate CV-based sections (non-editable here, for display only)
     if (personalInfo.profile_image) {
-      this.profile.profileImage = this.getFullImageUrl(
-        personalInfo.profile_image
-      );
+      this.profile.profileImage = this.getFullImageUrl(personalInfo.profile_image);
     }
 
-    // Skills from CV if profile skills empty (for display)
-    if (
-      this.technicalSkills.length === 0 &&
-      this.softSkills.length === 0 &&
-      this.otherSkills.length === 0 &&
-      cvData.skills
-    ) {
+    if (this.technicalSkills.length === 0 && this.softSkills.length === 0 && this.otherSkills.length === 0 && cvData.skills) {
       const cvSkills: Skill[] = cvData.skills;
       const allSkills = cvSkills.map((s) => s.skill_name);
       this.profile.selectedSkills = allSkills;
       this.populateSkills(allSkills);
     }
 
-    // Education (for display)
     if (cvData.education && cvData.education.length > 0) {
       this.education = cvData.education.map((edu) => ({
         degree: edu.degree,
         institution: edu.institution,
         graduationDate: edu.end_date || edu.start_date,
         gpa: edu.gpa,
-        coursework: edu.coursework
-          ? edu.coursework.split(',').map((c) => c.trim())
-          : undefined,
+        coursework: edu.coursework ? edu.coursework.split(',').map((c) => c.trim()) : undefined,
       }));
     }
 
-    // Work Experience (for display)
     if (cvData.work_experience && cvData.work_experience.length > 0) {
       this.experiences = cvData.work_experience.map((work) => {
-        const duration = this.calculateDuration(
-          work.start_date,
-          work.end_date,
-          work.is_current
-        );
-
+        const duration = this.calculateDuration(work.start_date, work.end_date, work.is_current);
         return {
           title: work.position,
           company: work.company,
           duration: duration,
           startDate: work.start_date,
           endDate: work.is_current ? 'Present' : work.end_date || '',
-          responsibilities: work.responsibilities
-            ? work.responsibilities.split('\n').filter((r) => r.trim())
-            : [],
-          achievements: work.achievements
-            ? work.achievements.split('\n').filter((a) => a.trim())
-            : [],
+          responsibilities: work.responsibilities ? work.responsibilities.split('\n').filter((r) => r.trim()) : [],
+          achievements: work.achievements ? work.achievements.split('\n').filter((a) => a.trim()) : [],
           companyLogo: work.company_logo,
         };
       });
     }
 
-    // Certifications (for display)
     if (cvData.certifications && cvData.certifications.length > 0) {
       this.certifications = cvData.certifications.map((cert) => ({
         degree: cert.certification_name,
@@ -656,71 +421,51 @@ export class ProfileComponent implements OnInit {
       }));
     }
 
-    // Projects (for display)
     if (cvData.projects && cvData.projects.length > 0) {
       this.projects = cvData.projects.map((proj) => ({
         title: proj.project_name,
         description: proj.description || '',
-        technologies: proj.technologies
-          ? proj.technologies.split(',').map((t) => t.trim())
-          : [],
+        technologies: proj.technologies ? proj.technologies.split(',').map((t) => t.trim()) : [],
         githubUrl: proj.github_url,
         liveUrl: proj.project_url,
         imageUrl: proj.image_url,
       }));
     }
 
-    // Testimonials/Recommendations (for display)
     if (portfolio.testimonials && portfolio.testimonials.length > 0) {
       this.recommendations = portfolio.testimonials;
     }
 
-    // View count
     this.viewCount = portfolio.viewCount || 0;
-
-    // Portfolio settings
     this.isPublic = portfolio.settings?.is_public || false;
   }
-  /**
- * Get initials from name for avatar
- */
-getInitials(name: string): string {
-  if (!name) return '?';
-  
-  const names = name.trim().split(' ');
-  if (names.length === 1) {
-    return names[0].charAt(0).toUpperCase();
-  }
-  
-  return (names[0].charAt(0) + names[names.length - 1].charAt(0)).toUpperCase();
-}
 
-  // Toggle edit mode
+  getInitials(name: string): string {
+    if (!name) return '?';
+    const names = name.trim().split(' ');
+    if (names.length === 1) return names[0].charAt(0).toUpperCase();
+    return (names[0].charAt(0) + names[names.length - 1].charAt(0)).toUpperCase();
+  }
+
   toggleEditMode(): void {
     this.isEditMode = !this.isEditMode;
   }
 
-  // New: Toggle CV upload section
   toggleCVUpload(): void {
     this.showCVUpload = !this.showCVUpload;
   }
 
-  // Toggle skill selection
   toggleSkill(skill: string, event: any): void {
     if (event.target.checked) {
       if (!this.profile.selectedSkills.includes(skill)) {
         this.profile.selectedSkills.push(skill);
       }
     } else {
-      this.profile.selectedSkills = this.profile.selectedSkills.filter(
-        (s) => s !== skill
-      );
+      this.profile.selectedSkills = this.profile.selectedSkills.filter((s) => s !== skill);
     }
-    // Re-populate to update categories
     this.populateSkills(this.profile.selectedSkills);
   }
 
-  // Add custom skill
   addCustomSkill(): void {
     if (this.newSkill.trim()) {
       const skill = this.newSkill.trim();
@@ -728,45 +473,33 @@ getInitials(name: string): string {
         this.profile.selectedSkills.push(skill);
       }
       this.newSkill = '';
-      // Re-populate to update categories
       this.populateSkills(this.profile.selectedSkills);
     }
   }
 
-  // Save profile with completion refresh
   saveProfile(): void {
     const updates: any = {};
-    // Basic info
-    if (this.profile.phone !== undefined)
-      updates.phone = this.profile.phone || null;
-    if (this.profile.location !== undefined)
-      updates.location = this.profile.location || null;
-    // Summary
-    if (this.profile.about !== undefined)
-      updates.bio = this.profile.about || null;
-    // Skills - handle as array
+    if (this.profile.phone !== undefined) updates.phone = this.profile.phone || null;
+    if (this.profile.location !== undefined) updates.location = this.profile.location || null;
+    if (this.profile.about !== undefined) updates.bio = this.profile.about || null;
+
     const skillsArray = this.profile.selectedSkills || [];
     updates.skills = JSON.stringify(skillsArray);
-    // Social links
+
     updates.linkedin_url = this.profile.socialLinksInput.linkedin || null;
     updates.github_url = this.profile.socialLinksInput.github || null;
     updates.website_url = this.profile.socialLinksInput.website || null;
-    // Career preferences
+
     updates.years_of_experience = this.profile.yearsOfExperience || null;
     updates.current_position = this.profile.currentPosition || null;
     updates.availability_status = this.profile.availabilityStatus || null;
-    // Parse job types from textarea (newline separated)
-    const jobTypes = this.profile.preferredJobTypes
-      .split('\n')
-      .map((t) => t.trim())
-      .filter((t) => t);
+
+    const jobTypes = this.profile.preferredJobTypes.split('\n').map((t) => t.trim()).filter((t) => t);
     updates.preferred_job_types = JSON.stringify(jobTypes);
-    // Parse locations from textarea (newline separated)
-    const locations = this.profile.preferredLocations
-      .split('\n')
-      .map((l) => l.trim())
-      .filter((l) => l);
+
+    const locations = this.profile.preferredLocations.split('\n').map((l) => l.trim()).filter((l) => l);
     updates.preferred_locations = JSON.stringify(locations);
+
     updates.salary_expectation_min = this.profile.salaryMin || null;
     updates.salary_expectation_max = this.profile.salaryMax || null;
 
@@ -776,11 +509,7 @@ getInitials(name: string): string {
           if (response.success) {
             alert('Profile updated successfully!');
             this.toggleEditMode();
-
-            // Reload profile data and recalculate completion
             this.loadProfileData();
-
-            // Update display
             this.buildSocialLinks();
             this.populateSkills(skillsArray);
           } else {
@@ -797,119 +526,69 @@ getInitials(name: string): string {
       this.toggleEditMode();
     }
   }
-  /**
- * Format view time (e.g., "2 hours ago", "3 days ago")
- */
-/**
- * ✅ FIXED: Format view time with accurate timing
- * Replace this in profile.component.ts
- */
-formatViewTime(dateString: string): string {
-  const date = new Date(dateString);
-  const now = new Date();
-  const diffTime = Math.abs(now.getTime() - date.getTime());
-  
-  // Use Math.floor for more accurate timing (not rounding up)
-  const diffSeconds = Math.floor(diffTime / 1000);
-  const diffMinutes = Math.floor(diffTime / (1000 * 60));
-  const diffHours = Math.floor(diffTime / (1000 * 60 * 60));
-  const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
-  const diffWeeks = Math.floor(diffDays / 7);
-  const diffMonths = Math.floor(diffDays / 30);
-  
-  // More precise time ranges
-  if (diffSeconds < 60) {
-    return 'Just now';
-  } else if (diffMinutes < 1) {
-    return 'Just now';
-  } else if (diffMinutes === 1) {
-    return '1 minute ago';
-  } else if (diffMinutes < 60) {
-    return `${diffMinutes} minutes ago`;
-  } else if (diffHours === 1) {
-    return '1 hour ago';
-  } else if (diffHours < 24) {
-    return `${diffHours} hours ago`;
-  } else if (diffDays === 1) {
-    return 'Yesterday';
-  } else if (diffDays < 7) {
-    return `${diffDays} days ago`;
-  } else if (diffWeeks === 1) {
-    return '1 week ago';
-  } else if (diffWeeks < 4) {
-    return `${diffWeeks} weeks ago`;
-  } else if (diffMonths === 1) {
-    return '1 month ago';
-  } else if (diffMonths < 12) {
-    return `${diffMonths} months ago`;
-  } else {
-    return date.toLocaleDateString('en-US', { 
-      year: 'numeric', 
-      month: 'short', 
-      day: 'numeric' 
-    });
+
+  formatViewTime(dateString: string): string {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffTime = Math.abs(now.getTime() - date.getTime());
+    const diffSeconds = Math.floor(diffTime / 1000);
+    const diffMinutes = Math.floor(diffTime / (1000 * 60));
+    const diffHours = Math.floor(diffTime / (1000 * 60 * 60));
+    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+    const diffWeeks = Math.floor(diffDays / 7);
+    const diffMonths = Math.floor(diffDays / 30);
+
+    if (diffSeconds < 60) return 'Just now';
+    if (diffMinutes < 1) return 'Just now';
+    if (diffMinutes === 1) return '1 minute ago';
+    if (diffMinutes < 60) return `${diffMinutes} minutes ago`;
+    if (diffHours === 1) return '1 hour ago';
+    if (diffHours < 24) return `${diffHours} hours ago`;
+    if (diffDays === 1) return 'Yesterday';
+    if (diffDays < 7) return `${diffDays} days ago`;
+    if (diffWeeks === 1) return '1 week ago';
+    if (diffWeeks < 4) return `${diffWeeks} weeks ago`;
+    if (diffMonths === 1) return '1 month ago';
+    if (diffMonths < 12) return `${diffMonths} months ago`;
+
+    return date.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
   }
-}
-  /**
- * Get success rate (percentage based on ratings)
- */
-getSuccessRate(): number {
-  if (this.ratingStats.totalRatings > 0) {
-    // Calculate success rate based on average rating
-    // 5 stars = 100%, 4+ stars = 80-99%, etc.
-    if (this.ratingStats.averageRating >= 4.5) {
-      return 100;
-    } else if (this.ratingStats.averageRating >= 4.0) {
-      return Math.round(85 + (this.ratingStats.averageRating - 4.0) * 30);
-    } else if (this.ratingStats.averageRating >= 3.0) {
-      return Math.round(60 + (this.ratingStats.averageRating - 3.0) * 25);
-    } else {
+
+  getSuccessRate(): number {
+    if (this.ratingStats.totalRatings > 0) {
+      if (this.ratingStats.averageRating >= 4.5) return 100;
+      if (this.ratingStats.averageRating >= 4.0) return Math.round(85 + (this.ratingStats.averageRating - 4.0) * 30);
+      if (this.ratingStats.averageRating >= 3.0) return Math.round(60 + (this.ratingStats.averageRating - 3.0) * 25);
       return Math.round((this.ratingStats.averageRating / 5) * 100);
     }
+    return 0;
   }
-  return 0;
-}
 
-/**
- * Load profile viewers (who viewed my profile)
- */
-private loadProfileViewers(): void {
-  this.profileService.getProfileViewers({ limit: 50 }).subscribe({
-    next: (response) => {
-      if (response.success && response.data) {
-        this.profileViews = response.data.viewers || [];
-        console.log('✅ Loaded profile viewers:', this.profileViews.length);
-      }
-    },
-    error: (error) => {
-      console.error('Error loading profile viewers:', error);
-      this.profileViews = [];
-    }
-  });
-}
+  private loadProfileViewers(): void {
+    this.profileService.getProfileViewers({ limit: 50 }).subscribe({
+      next: (response) => {
+        if (response.success && response.data) {
+          this.profileViews = response.data.viewers || [];
+        }
+      },
+      error: (error) => {
+        console.error('Error loading profile viewers:', error);
+        this.profileViews = [];
+      },
+    });
+  }
 
-/**
- * Show modal with list of profile viewers
- */
-showProfileViewers(): void {
-  this.showViewersModal = true;
-}
+  showProfileViewers(): void {
+    this.showViewersModal = true;
+  }
 
-/**
- * Close viewers modal
- */
-closeViewersModal(): void {
-  this.showViewersModal = false;
-}
+  closeViewersModal(): void {
+    this.showViewersModal = false;
+  }
 
-  /**
-   * Load jobseeker's ratings from employers
-   */
   private loadMyRatings(): void {
     this.isLoadingRatings = true;
-
-    // Get current user ID
-    const userId = this.authService.getUserId(); // Adjust based on your auth service
+    const userId = this.authService.getUserId();
 
     if (!userId) {
       console.error('User ID not found');
@@ -917,29 +596,28 @@ closeViewersModal(): void {
       return;
     }
 
-    this.ratingService
-      .getJobseekerRatings(userId, { page: 1, limit: 100 })
-      .subscribe({
-        next: (response) => {
-          if (response.success && response.data) {
-            this.myRatings = response.data.ratings || [];
-            console.log('✅ Loaded ratings:', this.myRatings.length);
-
-            // Calculate statistics
-            this.calculateRatingStats();
+    this.ratingService.getJobseekerRatings(userId, { page: 1, limit: 100 }).subscribe({
+      next: (response) => {
+        if (response.success && response.data) {
+          this.myRatings = response.data.ratings || [];
+          console.log('✅ Loaded ratings count:', this.myRatings.length);
+          
+          // Debug: Check what fields are available
+          if (this.myRatings.length > 0) {
+            console.log('📊 Full rating object:', JSON.stringify(this.myRatings[0], null, 2));
           }
-          this.isLoadingRatings = false;
-        },
-        error: (error) => {
-          console.error('Error loading ratings:', error);
-          this.isLoadingRatings = false;
-        },
-      });
+          
+          this.calculateRatingStats();
+        }
+        this.isLoadingRatings = false;
+      },
+      error: (error) => {
+        console.error('❌ Error loading ratings:', error);
+        this.isLoadingRatings = false;
+      },
+    });
   }
 
-  /**
-   * Calculate rating statistics
-   */
   private calculateRatingStats(): void {
     if (this.myRatings.length === 0) {
       this.ratingStats = {
@@ -950,12 +628,10 @@ closeViewersModal(): void {
       return;
     }
 
-    // Calculate average
     const sum = this.myRatings.reduce((acc, rating) => acc + rating.rating, 0);
     this.ratingStats.averageRating = sum / this.myRatings.length;
     this.ratingStats.totalRatings = this.myRatings.length;
 
-    // Calculate distribution
     this.ratingStats.ratingDistribution = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
     this.myRatings.forEach((rating) => {
       const ratingValue = rating.rating;
@@ -963,48 +639,26 @@ closeViewersModal(): void {
         this.ratingStats.ratingDistribution[ratingValue]++;
       }
     });
-
-    console.log('📊 Rating stats:', this.ratingStats);
   }
 
-  /**
-   * Get array of filled/empty stars for display
-   */
   getStarArray(rating: number): number[] {
     const stars = [];
     const fullStars = Math.floor(rating);
     const hasHalfStar = rating % 1 >= 0.5;
 
-    // Full stars
-    for (let i = 0; i < fullStars; i++) {
-      stars.push(1);
-    }
-
-    // Half star
-    if (hasHalfStar && fullStars < 5) {
-      stars.push(0.5);
-    }
-
-    // Empty stars
+    for (let i = 0; i < fullStars; i++) stars.push(1);
+    if (hasHalfStar && fullStars < 5) stars.push(0.5);
     const remaining = 5 - stars.length;
-    for (let i = 0; i < remaining; i++) {
-      stars.push(0);
-    }
+    for (let i = 0; i < remaining; i++) stars.push(0);
 
     return stars;
   }
 
-  /**
-   * Get percentage for rating distribution bar
-   */
   getRatingPercentage(count: number): number {
     if (this.ratingStats.totalRatings === 0) return 0;
     return (count / this.ratingStats.totalRatings) * 100;
   }
 
-  /**
-   * Format date for display
-   */
   formatRatingDate(dateString: string): string {
     const date = new Date(dateString);
     const now = new Date();
@@ -1016,117 +670,74 @@ closeViewersModal(): void {
     if (diffDays < 7) return `${diffDays} days ago`;
     if (diffDays < 30) return `${Math.floor(diffDays / 7)} weeks ago`;
     if (diffDays < 365) return `${Math.floor(diffDays / 30)} months ago`;
-    return date.toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-    });
+    return date.toLocaleDateString('en-US', { year: 'numeric', month: 'short' });
   }
 
-  // Cancel edit
   cancelEdit(): void {
-    this.loadProfileData(); // Reload original data
+    this.loadProfileData();
     this.toggleEditMode();
   }
 
-  // Add helper method to get full image URL
   private getFullImageUrl(imagePath: string): string {
     if (!imagePath) return 'assets/images/profile-placeholder.jpg';
-
-    // If it's already a full URL, return as is
-    if (imagePath.startsWith('http')) {
-      return imagePath;
-    }
-
-    // If it's a relative path, construct full URL
+    if (imagePath.startsWith('http')) return imagePath;
     if (imagePath.startsWith('/uploads') || imagePath.startsWith('uploads')) {
       const baseUrl = environment.apiUrl.replace('/api', '');
       return `${baseUrl}${imagePath.startsWith('/') ? '' : '/'}${imagePath}`;
     }
-
     return imagePath;
   }
 
-  // Add image error handler
   handleImageError(event: any): void {
-    console.log('Profile image load error, using fallback');
     event.target.src = 'assets/images/profile-placeholder.jpg';
   }
 
   getCompletedFieldsCount(section: CompletedSection): number {
-    // Since backend sections may not have fields array, fallback to simple count
     return section.completed ? 1 : 0;
   }
 
   getTotalFields(section: CompletedSection): number {
-    return 1; // Simplified for backend sections without fields
+    return 1;
   }
 
   getIncompleteFields(section: CompletedSection): Field[] {
-    // Simplified, return empty if no fields detail
     return [];
   }
 
-  // Build social links for display
   private buildSocialLinks(): void {
     this.socialLinks = [];
     if (this.profile.linkedIn) {
-      this.socialLinks.push({
-        platform: 'LinkedIn',
-        url: this.profile.linkedIn,
-        icon: 'fab fa-linkedin',
-      });
+      this.socialLinks.push({ platform: 'LinkedIn', url: this.profile.linkedIn, icon: 'fab fa-linkedin' });
     }
     if (this.profile.github) {
-      this.socialLinks.push({
-        platform: 'GitHub',
-        url: this.profile.github,
-        icon: 'fab fa-github',
-      });
+      this.socialLinks.push({ platform: 'GitHub', url: this.profile.github, icon: 'fab fa-github' });
     }
     if (this.profile.website) {
-      this.socialLinks.push({
-        platform: 'Website',
-        url: this.profile.website,
-        icon: 'fas fa-globe',
-      });
+      this.socialLinks.push({ platform: 'Website', url: this.profile.website, icon: 'fas fa-globe' });
     }
   }
 
-  // NEW: Check if profile is complete (100% required to apply for jobs)
   isProfileComplete(): boolean {
     return this.profile.profileCompletion === 100;
   }
 
-  // Image Upload Methods
   triggerImageUpload(): void {
     this.fileInput.nativeElement.click();
   }
 
   handleImageUpload(event: any): void {
     const file = event.target.files[0];
-    console.log('📸 Image selected:', {
-      name: file?.name,
-      type: file?.type,
-      size: file?.size,
-    });
-
     if (file && file.type.startsWith('image/')) {
-      // Check file size (max 5MB)
       if (file.size > 5 * 1024 * 1024) {
         alert('Image file size must be less than 5MB.');
         return;
       }
 
-      // Preview the image locally
       const reader = new FileReader();
       reader.onload = (e: any) => {
-        this.profile.profileImage = e.target.result; // Base64 for preview
-        console.log('✅ Image preview loaded (base64)');
+        this.profile.profileImage = e.target.result;
       };
       reader.readAsDataURL(file);
-
-      // Upload to server
-      console.log('⬆️ Starting image upload to server...');
       this.uploadProfileImage(file);
     } else {
       alert('Please select a valid image file.');
@@ -1138,38 +749,23 @@ closeViewersModal(): void {
     this.profileService.uploadProfileImage(file).subscribe({
       next: (response) => {
         if (response.success) {
-          // Set the image URL from response
           if (response.imageUrl) {
             this.profile.profileImage = this.getFullImageUrl(response.imageUrl);
           }
-
-          // Reload profile data from backend to ensure we have the latest data
           this.profileService.getMyProfile().subscribe({
             next: (profileResponse) => {
               if (profileResponse.success && profileResponse.data) {
-                // Update profile image from backend
                 const data = profileResponse.data;
                 if (data.profile_image || data.profileImage) {
-                  this.profile.profileImage = this.getFullImageUrl(
-                    data.profile_image || data.profileImage
-                  );
+                  this.profile.profileImage = this.getFullImageUrl(data.profile_image || data.profileImage);
                 }
-
-                // Recalculate completion after image update
                 this.calculateProfileCompletion();
-
-                console.log('✅ Profile image updated:', {
-                  imageUrl: this.profile.profileImage,
-                  completion: this.profile.profileCompletion,
-                });
               }
-
               this.isLoading = false;
               alert('Profile image updated successfully!');
             },
             error: (error) => {
               console.error('Error reloading profile:', error);
-              // Still recalculate even if reload fails
               this.calculateProfileCompletion();
               this.isLoading = false;
               alert('Profile image updated successfully!');
@@ -1183,7 +779,6 @@ closeViewersModal(): void {
       error: (error) => {
         console.error('Error uploading image:', error);
         this.isLoading = false;
-
         let errorMessage = 'Failed to upload image. ';
         if (error.status === 401) {
           errorMessage += 'Please login again.';
@@ -1194,30 +789,22 @@ closeViewersModal(): void {
         } else {
           errorMessage += 'Please try again.';
         }
-
         alert(errorMessage);
       },
     });
   }
 
-  // CV Upload Methods
   triggerCVUpload(): void {
     this.cvFileInput.nativeElement.click();
   }
 
   handleCVUpload(event: any): void {
     const file = event.target.files[0];
-    if (
-      file &&
-      (file.type === 'application/pdf' ||
-        file.name.toLowerCase().endsWith('.pdf'))
-    ) {
-      // Check file size (max 5MB)
+    if (file && (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf'))) {
       if (file.size > 5 * 1024 * 1024) {
         alert('CV file size must be less than 5MB.');
         return;
       }
-
       this.isUploadingCV = true;
       this.uploadCV(file);
     } else {
@@ -1225,30 +812,15 @@ closeViewersModal(): void {
     }
   }
 
-  // Look for this method around line 500+
   private uploadCV(file: File): void {
     this.isUploadingCV = true;
-
-    console.log('📤 Starting CV upload:', {
-      fileName: file.name,
-      fileSize: file.size,
-      fileType: file.type,
-    });
-
-    // ✅ Make sure you're calling the service correctly
     this.profileService.uploadCV(file).subscribe({
       next: (response: any) => {
-        console.log('✅ CV upload response:', response);
         this.isUploadingCV = false;
-
         if (response?.success) {
           alert('CV uploaded successfully! Your portfolio has been updated.');
-
-          // Reload profile and portfolio data
           this.loadProfileData();
           this.loadPortfolioData();
-
-          // Clear file input
           if (this.cvFileInput && this.cvFileInput.nativeElement) {
             this.cvFileInput.nativeElement.value = '';
           }
@@ -1259,9 +831,7 @@ closeViewersModal(): void {
       error: (error: any) => {
         console.error('❌ CV upload error:', error);
         this.isUploadingCV = false;
-
         let errorMessage = 'Failed to upload CV. ';
-
         if (error.status === 401) {
           errorMessage += 'Please login again.';
           setTimeout(() => this.router.navigate(['/login']), 2000);
@@ -1274,10 +844,7 @@ closeViewersModal(): void {
         } else {
           errorMessage += 'Please try again.';
         }
-
         alert(errorMessage);
-
-        // Clear file input
         if (this.cvFileInput && this.cvFileInput.nativeElement) {
           this.cvFileInput.nativeElement.value = '';
         }
@@ -1285,28 +852,15 @@ closeViewersModal(): void {
     });
   }
 
-  private calculateDuration(
-    startDate: string,
-    endDate: string | undefined,
-    isCurrent: boolean
-  ): string {
+  private calculateDuration(startDate: string, endDate: string | undefined, isCurrent: boolean): string {
     const start = new Date(startDate);
-    const end = isCurrent
-      ? new Date()
-      : endDate
-      ? new Date(endDate)
-      : new Date();
-
-    const months =
-      (end.getFullYear() - start.getFullYear()) * 12 +
-      (end.getMonth() - start.getMonth());
+    const end = isCurrent ? new Date() : endDate ? new Date(endDate) : new Date();
+    const months = (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth());
     const years = Math.floor(months / 12);
     const remainingMonths = months % 12;
 
     if (years > 0 && remainingMonths > 0) {
-      return `${years} year${years > 1 ? 's' : ''} ${remainingMonths} month${
-        remainingMonths > 1 ? 's' : ''
-      }`;
+      return `${years} year${years > 1 ? 's' : ''} ${remainingMonths} month${remainingMonths > 1 ? 's' : ''}`;
     } else if (years > 0) {
       return `${years} year${years > 1 ? 's' : ''}`;
     } else {
@@ -1326,33 +880,23 @@ closeViewersModal(): void {
     });
   }
 
-  // Action Methods - Updated to toggle edit mode
   editProfile(): void {
     this.toggleEditMode();
   }
 
-  // Updated to save
   completeProfile(): void {
     this.saveProfile();
   }
 
   shareProfile(): void {
-    // Check if profile is complete before allowing sharing
     if (!this.isProfileComplete()) {
-      const proceed = confirm(
-        'Your profile is not complete yet. A complete profile makes a better impression on employers. Would you like to complete your profile first?'
-      );
+      const proceed = confirm('Your profile is not complete yet. A complete profile makes a better impression on employers. Would you like to complete your profile first?');
       if (proceed) {
         this.completeProfile();
         return;
       }
     }
 
-    console.log('Share Profile clicked');
-    console.log('Current shareableUrl:', this.shareableUrl);
-    console.log('Is Public:', this.isPublic);
-
-    // If URL is not generated yet, try to load it
     if (!this.shareableUrl) {
       alert('Generating your shareable link. Please wait a moment...');
       this.loadShareableUrl();
@@ -1360,26 +904,19 @@ closeViewersModal(): void {
         if (this.shareableUrl) {
           this.shareProfile();
         } else {
-          alert(
-            'Unable to generate shareable link. Please try again or contact support.'
-          );
+          alert('Unable to generate shareable link. Please try again or contact support.');
         }
       }, 2000);
       return;
     }
 
-    // If portfolio is private, ask to make it public
     if (!this.isPublic) {
-      const makePublic = confirm(
-        'Your portfolio is currently private. Would you like to make it public to share it?'
-      );
+      const makePublic = confirm('Your portfolio is currently private. Would you like to make it public to share it?');
       if (makePublic) {
         this.profileService.togglePortfolioVisibility(true).subscribe({
           next: (response) => {
             if (response.success) {
               this.isPublic = true;
-              console.log('Portfolio is now public');
-              // Reload shareable URL after making public
               this.loadShareableUrl();
               setTimeout(() => {
                 this.copyShareLink();
@@ -1395,59 +932,35 @@ closeViewersModal(): void {
       return;
     }
 
-    // Portfolio is public and URL is ready, proceed with sharing
     this.copyShareLink();
   }
 
   private copyShareLink(): void {
-    console.log('Attempting to share/copy:', this.shareableUrl);
-
-    // Try native share API first (works on mobile and some desktop browsers)
     if (navigator.share && this.isMobileDevice()) {
-      console.log('Using native share API');
-      navigator
-        .share({
-          title: `${this.profile.fullName} - Professional Portfolio`,
-          text: `Check out ${this.profile.fullName}'s professional portfolio`,
-          url: this.shareableUrl,
-        })
-        .then(() => {
-          console.log('Successfully shared via native API');
-        })
-        .catch((err) => {
-          console.log('Native share cancelled or failed:', err);
-          // User cancelled or share failed, fall back to clipboard
-          this.copyToClipboard();
-        });
+      navigator.share({
+        title: `${this.profile.fullName} - Professional Portfolio`,
+        text: `Check out ${this.profile.fullName}'s professional portfolio`,
+        url: this.shareableUrl,
+      }).catch((err) => {
+        this.copyToClipboard();
+      });
     } else {
-      console.log('Native share not available, using clipboard');
       this.copyToClipboard();
     }
   }
 
   private isMobileDevice(): boolean {
-    return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
-      navigator.userAgent
-    );
+    return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
   }
 
   private copyToClipboard(): void {
-    console.log('Attempting clipboard copy');
-
-    // Modern Clipboard API (most secure and recommended)
     if (navigator.clipboard && window.isSecureContext) {
-      navigator.clipboard
-        .writeText(this.shareableUrl)
-        .then(() => {
-          console.log('Clipboard copy successful');
-          this.showSuccessMessage();
-        })
-        .catch((err) => {
-          console.error('Clipboard API failed:', err);
-          this.fallbackCopyTextToClipboard(this.shareableUrl);
-        });
+      navigator.clipboard.writeText(this.shareableUrl).then(() => {
+        this.showSuccessMessage();
+      }).catch((err) => {
+        this.fallbackCopyTextToClipboard(this.shareableUrl);
+      });
     } else {
-      console.log('Clipboard API not available, using fallback');
       this.fallbackCopyTextToClipboard(this.shareableUrl);
     }
   }
@@ -1458,39 +971,24 @@ closeViewersModal(): void {
   }
 
   private fallbackCopyTextToClipboard(text: string): void {
-    console.log('Using fallback copy method');
-
     const textArea = document.createElement('textarea');
     textArea.value = text;
-
-    // Make the textarea invisible and out of viewport
     textArea.style.position = 'fixed';
     textArea.style.top = '0';
     textArea.style.left = '0';
-    textArea.style.width = '2em';
-    textArea.style.height = '2em';
-    textArea.style.padding = '0';
-    textArea.style.border = 'none';
-    textArea.style.outline = 'none';
-    textArea.style.boxShadow = 'none';
-    textArea.style.background = 'transparent';
     textArea.style.opacity = '0';
-
     document.body.appendChild(textArea);
     textArea.focus();
     textArea.select();
 
     try {
       const successful = document.execCommand('copy');
-      console.log('Fallback copy result:', successful);
-
       if (successful) {
         this.showSuccessMessage();
       } else {
         this.showLinkManually(text);
       }
     } catch (err) {
-      console.error('Fallback copy failed:', err);
       this.showLinkManually(text);
     } finally {
       document.body.removeChild(textArea);
@@ -1498,27 +996,21 @@ closeViewersModal(): void {
   }
 
   private showLinkManually(text: string): void {
-    const message = `📋 Your shareable portfolio link:\n\n${text}\n\n⚠️ Automatic copy failed. Please copy this link manually by:\n1. Selecting the link above\n2. Press Ctrl+C (Windows) or Cmd+C (Mac)\n3. Paste it wherever you want to share\n\nShare with recruiters, employers, and your network!`;
-
-    // Create a prompt with the link for easy manual copying
+    const message = `📋 Your shareable portfolio link:\n\n${text}\n\n⚠️ Automatic copy failed. Please copy this link manually.`;
     const userAction = prompt(message, text);
     if (userAction !== null) {
-      alert(
-        'Great! Now you can paste the link wherever you want to share your portfolio.'
-      );
+      alert('Great! Now you can paste the link wherever you want to share your portfolio.');
     }
   }
 
   togglePortfolioVisibility(): void {
     const newVisibility = !this.isPublic;
-
     this.profileService.togglePortfolioVisibility(newVisibility).subscribe({
       next: (response) => {
         if (response.success) {
           this.isPublic = newVisibility;
           alert(`Portfolio is now ${newVisibility ? 'public' : 'private'}`);
           if (newVisibility) {
-            // Reload shareable URL after making public
             this.loadShareableUrl();
           }
         }
@@ -1536,8 +1028,6 @@ closeViewersModal(): void {
       if (url && url !== '#') {
         window.open(url, '_blank');
       }
-    } else {
-      console.log('Certificate URL not available for:', certification.degree);
     }
   }
 
@@ -1550,15 +1040,11 @@ closeViewersModal(): void {
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-    } else {
-      console.log('File URL not available:', fileUrl);
     }
   }
 
-  // UI Helper Methods
   getSkillColor(level?: string): string {
     if (!level) return '#6b7280';
-
     switch (level.toLowerCase()) {
       case 'expert':
       case 'advanced':
@@ -1575,28 +1061,20 @@ closeViewersModal(): void {
 
   getFileIcon(type: string): string {
     switch (type.toLowerCase()) {
-      case 'pdf':
-        return 'fas fa-file-pdf';
-      case 'zip':
-        return 'fas fa-file-archive';
-      case 'figma':
-        return 'fab fa-figma';
+      case 'pdf': return 'fas fa-file-pdf';
+      case 'zip': return 'fas fa-file-archive';
+      case 'figma': return 'fab fa-figma';
       case 'doc':
-      case 'docx':
-        return 'fas fa-file-word';
+      case 'docx': return 'fas fa-file-word';
       case 'xls':
-      case 'xlsx':
-        return 'fas fa-file-excel';
+      case 'xlsx': return 'fas fa-file-excel';
       case 'ppt':
-      case 'pptx':
-        return 'fas fa-file-powerpoint';
+      case 'pptx': return 'fas fa-file-powerpoint';
       case 'jpg':
       case 'jpeg':
       case 'png':
-      case 'gif':
-        return 'fas fa-file-image';
-      default:
-        return 'fas fa-file';
+      case 'gif': return 'fas fa-file-image';
+      default: return 'fas fa-file';
     }
   }
 
@@ -1608,17 +1086,13 @@ closeViewersModal(): void {
 
   getSkillsByCategory(): Map<string, SkillDisplay[]> {
     const categorized = new Map<string, SkillDisplay[]>();
-
-    [...this.technicalSkills, ...this.softSkills, ...this.otherSkills].forEach(
-      (skill) => {
-        const category = skill.category || 'General';
-        if (!categorized.has(category)) {
-          categorized.set(category, []);
-        }
-        categorized.get(category)!.push(skill);
+    [...this.technicalSkills, ...this.softSkills, ...this.otherSkills].forEach((skill) => {
+      const category = skill.category || 'General';
+      if (!categorized.has(category)) {
+        categorized.set(category, []);
       }
-    );
-
+      categorized.get(category)!.push(skill);
+    });
     return categorized;
   }
 
@@ -1633,30 +1107,25 @@ closeViewersModal(): void {
   }
 
   getCompletionColor(percentage: number): string {
-    // Red until 100% complete, then green
     if (percentage === 100) return 'completion-green';
     return 'completion-red';
   }
 
   getProgressColor(percentage: number): string {
-    // Red until 100% complete
-    if (percentage === 100) return '#10b981'; // Green when complete
-    return '#ef4444'; // Red when incomplete
+    if (percentage === 100) return '#10b981';
+    return '#ef4444';
   }
 
-  copyLinkDirect(_t96: HTMLInputElement) {
+  copyLinkDirect(_t96: HTMLInputElement): void {
     throw new Error('Method not implemented.');
   }
-  hideToast() {
+
+  hideToast(): void {
     throw new Error('Method not implemented.');
   }
-  /**
-   * Check if skills rating exists and has values
-   */
+
   hasSkillsRating(skills_rating: any): boolean {
     if (!skills_rating) return false;
-
-    // Consider a rating present only if numerical value > 0
     return !!(
       (typeof skills_rating.technical === 'number' && skills_rating.technical > 0) ||
       (typeof skills_rating.communication === 'number' && skills_rating.communication > 0) ||
