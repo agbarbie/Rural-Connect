@@ -198,56 +198,99 @@
       </div>
 
       <!-- Profile Completion Card -->
-      <div
-        class="completion-card"
-        [class.complete]="profile.profileCompletion === 100"
-      >
-        <div class="completion-content">
-          <div class="completion-icon">
-            @if (profile.profileCompletion === 100) {
-            <i class="fas fa-check-circle"></i>
-            } @else {
-            <i class="fas fa-exclamation-circle"></i>
-            }
-          </div>
-          <div class="completion-info">
-            <h3>Profile Completion</h3>
-            <p class="completion-message">
-              @if (profile.profileCompletion === 100) { 🎉 Perfect! Your profile
-              is 100% complete and ready to impress employers. } @else if
-              (profile.profileCompletion >= 80) { Almost there! Just
-              {{ 100 - profile.profileCompletion }}% more to go. } @else if
-              (profile.profileCompletion >= 50) { You're halfway there! Complete
-              your profile to stand out. } @else { ⚠️ Your profile needs
-              attention. Complete it to attract employers. }
-            </p>
-          </div>
-          <div class="completion-percentage">
-            <span class="percentage-number"
-              >{{ profile.profileCompletion }}%</span
-            >
-          </div>
-        </div>
-        <div class="progress-bar">
-          <div
-            class="progress-fill"
-            [style.width.%]="profile.profileCompletion"
-            [class.complete]="profile.profileCompletion === 100"
-          ></div>
-        </div>
-
-        <!-- Missing Fields -->
-        @if (missingFields.length > 0) {
-        <div class="missing-fields">
-          <h4><i class="fas fa-list-check"></i> Complete These Fields:</h4>
-          <div class="fields-grid">
-            @for (field of missingFields; track field) {
-            <span class="field-tag">{{ field }}</span>
-            }
-          </div>
-        </div>
+<div
+  class="completion-card"
+  [class.complete]="profile.profileCompletion === 100"
+>
+  <div class="completion-content">
+    <div class="completion-icon">
+      @if (profile.profileCompletion === 100) {
+      <i class="fas fa-check-circle"></i>
+      } @else {
+      <i class="fas fa-exclamation-circle"></i>
+      }
+    </div>
+    <div class="completion-info">
+      <h3>Profile Completion</h3>
+      <p class="completion-message">
+        @if (profile.profileCompletion === 100) { 
+          🎉 Perfect! Your profile is 100% complete and ready to impress employers. 
+        } @else if (profile.profileCompletion >= 80) { 
+          Almost there! Just {{ 100 - profile.profileCompletion }}% more to go. 
+        } @else if (profile.profileCompletion >= 50) { 
+          You're halfway there! Complete your profile to stand out. 
+        } @else { 
+          ⚠️ Your profile needs attention. Complete it to attract employers. 
         }
+      </p>
+    </div>
+    <div class="completion-percentage">
+      <span class="percentage-number"
+        >{{ profile.profileCompletion }}%</span
+      >
+    </div>
+  </div>
+  <div class="progress-bar">
+    <div
+      class="progress-fill"
+      [style.width.%]="profile.profileCompletion"
+      [class.complete]="profile.profileCompletion === 100"
+    ></div>
+  </div>
+
+  <!-- Missing Fields - UPDATED TO SHOW ONLY PROFILE FIELDS -->
+  @if (missingFields.length > 0 && profile.profileCompletion < 100) {
+  <div class="missing-fields">
+    <h4><i class="fas fa-list-check"></i> Complete Your Profile:</h4>
+    <div class="fields-grid">
+      @for (field of missingFields; track field) {
+      <span class="field-tag">{{ field }}</span>
+      }
+    </div>
+    <div class="completion-tips">
+      <p class="tip-text">
+        <i class="fas fa-lightbulb"></i>
+        @if (!profile.about || profile.about.length < 50) {
+          <strong>Quick Tip:</strong> Add a professional summary (50+ words) to make a great first impression
+        } @else if (!profile.selectedSkills || profile.selectedSkills.length < 3) {
+          <strong>Quick Tip:</strong> Add at least 3 skills that match your expertise
+        } @else if (!hasProfileImage()) {
+          <strong>Quick Tip:</strong> Upload a professional photo to increase profile views
+        } @else {
+          <strong>Almost done!</strong> Just fill in the remaining fields to complete your profile
+        }
+      </p>
+    </div>
+  </div>
+  } @else if (profile.profileCompletion === 100) {
+  <div class="completion-success">
+    <div class="success-message">
+      <i class="fas fa-trophy"></i>
+      <div>
+        <h4>Excellent! Your profile is complete</h4>
+        <p>Your profile is now optimized to attract top employers. Keep it updated!</p>
       </div>
+    </div>
+    <div class="next-steps">
+      <h5><i class="fas fa-rocket"></i> Next Steps:</h5>
+      <ul>
+        <li>
+          <i class="fas fa-search"></i>
+          <a routerLink="/jobseeker/jobs-explorer">Browse available jobs</a>
+        </li>
+        <li>
+          <i class="fas fa-graduation-cap"></i>
+          <a routerLink="/jobseeker/training">Explore training programs</a>
+        </li>
+        <li>
+          <i class="fas fa-share-alt"></i>
+          <button class="link-btn" (click)="shareProfile()">Share your profile</button>
+        </li>
+      </ul>
+    </div>
+  </div>
+  }
+</div>
 
       <!-- Profile Content -->
       <div class="profile-content">
@@ -605,6 +648,9 @@
         }
 
        <!-- ✅ RATINGS & REVIEWS SECTION - FIXED -->
+        <!-- FIXED RATINGS SECTION - Replace lines 530-740 in your profile.component.html -->
+
+       <!-- ✅ RATINGS & REVIEWS SECTION - FIXED WITH MATCHING PROFILE VIEWERS LAYOUT -->
 @if (ratingStats.totalRatings > 0) {
 <div class="content-card ratings-card">
   <h2 class="card-title">
@@ -667,59 +713,45 @@
     <div class="reviews-list">
       @for (rating of myRatings; track rating.id) {
       <div class="review-card">
-        <!-- Review Header -->
+        <!-- Review Header - MATCHING PROFILE VIEWERS LAYOUT -->
         <div class="review-header">
           <div class="reviewer-info">
-            <!-- Reviewer Avatar -->
+            <!-- Reviewer Avatar (Initials Only - NO IMAGE) -->
             <div class="reviewer-avatar">
-              @if (rating.employer_image) {
-                <img [src]="rating.employer_image" [alt]="rating.employer_name" />
-              } @else {
-                <span>{{ getInitials(rating.employer_name || "Employer") }}</span>
-              }
+              <span>{{ getInitials(rating.employer_name || "Employer") }}</span>
             </div>
 
-            <!-- Reviewer Details -->
+            <!-- Reviewer Details - MATCHING VIEWER-INFO STRUCTURE -->
             <div class="reviewer-details">
               <h4 class="reviewer-name">
                 {{ rating.employer_name || "Employer" }}
               </h4>
+              
+              <p class="reviewer-role">{{ rating.role_in_company || "Employer" }}</p>
 
-              <!-- ✅ COMPANY INFORMATION - PROPERLY DISPLAYED -->
-              <div class="company-meta">
-                @if (rating.company_name) {
-                <div class="company-info-item">
-                  <i class="fas fa-building"></i>
-                  <span class="company-name-text">{{ rating.company_name }}</span>
-                </div>
-                }
-
-                @if (rating.role_in_company) {
-                <div class="company-info-item">
-                  <i class="fas fa-user-tie"></i>
-                  <span class="role-text">{{ rating.role_in_company }}</span>
-                </div>
-                }
-
-                @if (rating.company_industry) {
-                <div class="company-info-item">
-                  <i class="fas fa-industry"></i>
-                  <span>{{ rating.company_industry }}</span>
-                </div>
-                }
-
-                @if (rating.company_location) {
-                <div class="company-info-item">
-                  <i class="fas fa-map-marker-alt"></i>
-                  <span>{{ rating.company_location }}</span>
-                </div>
-                }
+              <div class="viewer-company">
+                <i class="fas fa-building"></i>
+                <span>{{ rating.company_name || "Company" }}</span>
               </div>
 
-              <p class="review-date">
+              @if (rating.company_industry) {
+              <div class="viewer-location">
+                <i class="fas fa-industry"></i>
+                <span>{{ rating.company_industry }}</span>
+              </div>
+              }
+
+              @if (rating.company_location) {
+              <div class="viewer-location">
+                <i class="fas fa-map-marker-alt"></i>
+                <span>{{ rating.company_location }}</span>
+              </div>
+              }
+
+              <div class="viewer-time">
                 <i class="fas fa-clock"></i>
-                {{ formatRatingDate(rating.created_at) }}
-              </p>
+                <span>{{ formatRatingDate(rating.created_at) }}</span>
+              </div>
             </div>
           </div>
 

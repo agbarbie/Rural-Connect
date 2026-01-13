@@ -302,41 +302,82 @@ export class ProfileComponent implements OnInit {
       .map((s) => ({ name: s.trim(), type: 'other' as const, category: 'Other' }));
   }
 
-  calculateProfileCompletion(): void {
-    const fields: { [key: string]: number } = {
-      name: this.profile?.fullName ? 10 : 0,
-      email: this.profile?.email ? 10 : 0,
-      phone: this.profile?.phone ? 10 : 0,
-      location: this.profile?.location ? 10 : 0,
-      profile_image: this.hasProfileImage() ? 15 : 0,
-      bio: this.profile?.about ? 15 : 0,
-      skills: this.profile?.selectedSkills && this.profile.selectedSkills.length > 0 ? 10 : 0,
-      experience: this.experiences && this.experiences.length > 0 ? 10 : 0,
-      education: this.education && this.education.length > 0 ? 10 : 0,
-    };
+ // profile.component.ts - FIXED calculateProfileCompletion method
+// Replace your existing calculateProfileCompletion() method with this
 
-    const totalScore = Object.values(fields).reduce((sum, score) => sum + (typeof score === 'number' ? score : 0), 0);
-    this.profile.profileCompletion = totalScore;
+calculateProfileCompletion(): void {
+  const fields: { [key: string]: number } = {
+    // Basic Information (40%)
+    name: this.profile?.fullName ? 10 : 0,
+    email: this.profile?.email ? 10 : 0,
+    phone: this.profile?.phone ? 10 : 0,
+    location: this.profile?.location ? 10 : 0,
+    
+    // Profile Image (15%)
+    profile_image: this.hasProfileImage() ? 15 : 0,
+    
+    // Professional Summary (15%)
+    bio: this.profile?.about && this.profile.about.length >= 50 ? 15 : 0,
+    
+    // Skills (20%)
+    skills: this.profile?.selectedSkills && this.profile.selectedSkills.length >= 3 ? 20 : 0,
+    
+    // Career Preferences (10%)
+    career_info: (
+      this.profile?.yearsOfExperience > 0 || 
+      this.profile?.currentPosition || 
+      this.profile?.availabilityStatus
+    ) ? 10 : 0,
+  };
 
-    this.missingFields = [];
-    if (!this.profile?.fullName) this.missingFields.push('Full Name');
-    if (!this.profile?.email) this.missingFields.push('Email');
-    if (!this.profile?.phone) this.missingFields.push('Phone Number');
-    if (!this.profile?.location) this.missingFields.push('Location');
-    if (!this.hasProfileImage()) this.missingFields.push('Profile Image');
-    if (!this.profile?.about) this.missingFields.push('Bio/Summary');
-    if (!this.profile?.selectedSkills || this.profile.selectedSkills.length === 0) this.missingFields.push('Skills');
-    if (!this.experiences || this.experiences.length === 0) this.missingFields.push('Work Experience');
-    if (!this.education || this.education.length === 0) this.missingFields.push('Education');
+  const totalScore = Object.values(fields).reduce((sum, score) => sum + (typeof score === 'number' ? score : 0), 0);
+  this.profile.profileCompletion = totalScore;
 
-    this.completionRecommendations = [];
-    if (this.profile.profileCompletion < 100) {
-      this.completionRecommendations.push(`Complete the following ${this.missingFields.length} field(s) to reach 100%:`);
-      this.completionRecommendations.push(...this.missingFields);
-    } else {
-      this.completionRecommendations.push('✅ Your profile is 100% complete! You can now apply for jobs.');
-    }
+  // Update missing fields list (ONLY profile fields, not CV fields)
+  this.missingFields = [];
+  if (!this.profile?.fullName) this.missingFields.push('Full Name');
+  if (!this.profile?.email) this.missingFields.push('Email');
+  if (!this.profile?.phone) this.missingFields.push('Phone Number');
+  if (!this.profile?.location) this.missingFields.push('Location');
+  if (!this.hasProfileImage()) this.missingFields.push('Profile Image');
+  if (!this.profile?.about || this.profile.about.length < 50) this.missingFields.push('Professional Summary (50+ characters)');
+  if (!this.profile?.selectedSkills || this.profile.selectedSkills.length < 3) this.missingFields.push('Skills (at least 3)');
+  if (!this.profile?.yearsOfExperience && !this.profile?.currentPosition && !this.profile?.availabilityStatus) {
+    this.missingFields.push('Career Information (experience, position, or availability)');
   }
+
+  // Generate recommendations based on profile fields only
+  this.completionRecommendations = [];
+  if (this.profile.profileCompletion < 100) {
+    if (this.missingFields.length > 0) {
+      this.completionRecommendations.push(`Complete ${this.missingFields.length} remaining field(s):`);
+      this.completionRecommendations.push(...this.missingFields.slice(0, 3)); // Show top 3
+      if (this.missingFields.length > 3) {
+        this.completionRecommendations.push(`...and ${this.missingFields.length - 3} more`);
+      }
+    }
+    
+    // Specific recommendations
+    if (!this.profile.about || this.profile.about.length < 50) {
+      this.completionRecommendations.push('💡 Tip: Add a professional summary to stand out');
+    }
+    if (!this.profile.selectedSkills || this.profile.selectedSkills.length < 3) {
+      this.completionRecommendations.push('💡 Tip: Add your top skills to attract employers');
+    }
+    if (!this.hasProfileImage()) {
+      this.completionRecommendations.push('💡 Tip: Upload a professional photo');
+    }
+  } else {
+    this.completionRecommendations.push('🎉 Perfect! Your profile is 100% complete!');
+    this.completionRecommendations.push('💼 You can now apply for jobs with confidence');
+  }
+
+  console.log('Profile completion calculated:', {
+    score: this.profile.profileCompletion,
+    missingFields: this.missingFields.length,
+    fields: fields
+  });
+}
 
   hasProfileImage(): boolean {
     const img = this.profile?.profileImage;
