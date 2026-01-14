@@ -696,13 +696,19 @@ async updateVideoProgress(
 // SIMPLIFIED: Certificate using 'name' column
 // ============================================
 
+// =============================================
+// FIXED: Certificate Generation with Correct Company Name
+// Location: Backend/src/services/training.service.ts
+// Replace the generateCertificate method
+// =============================================
+
 async generateCertificate(
   enrollmentId: string,
   userId: string,
   trainingId: string,
   trainingTitle: string
 ): Promise<{ certificate_url: string }> {
-  // ✅ Get jobseeker details - using 'name' column
+  // Get jobseeker details
   const userResult = await this.db.query(
     'SELECT name, email FROM users WHERE id = $1',
     [userId]
@@ -710,19 +716,29 @@ async generateCertificate(
   const user = userResult.rows[0];
   const userName = user.name || user.email.split('@')[0];
 
-  // ✅ SIMPLIFIED: Get employer details using 'name' column
+  // ✅ FIXED QUERY: Get ACTUAL company name from companies table
   const trainingResult = await this.db.query(`
     SELECT 
       t.provider_name,
       t.provider_id,
+      
+      -- Direct join (provider_id = user_id)
       COALESCE(u_direct.name, '') as direct_name,
       COALESCE(u_direct.email, '') as direct_email,
+      
+      -- Indirect join (provider_id = employer_id → user_id)
       COALESCE(u_indirect.name, '') as indirect_name,
-      COALESCE(u_indirect.email, '') as indirect_email
+      COALESCE(u_indirect.email, '') as indirect_email,
+      
+      -- ✅ CRITICAL: Get actual company name from companies table
+      COALESCE(c.name, '') as actual_company_name,
+      e.company_id
+      
     FROM trainings t
     LEFT JOIN users u_direct ON u_direct.id = t.provider_id
     LEFT JOIN employers e ON e.id = t.provider_id
     LEFT JOIN users u_indirect ON u_indirect.id = e.user_id
+    LEFT JOIN companies c ON c.id = e.company_id
     WHERE t.id = $1
   `, [trainingId]);
 
@@ -732,33 +748,43 @@ async generateCertificate(
     throw new Error('Training not found');
   }
   
-  // ✅ Build employer display name with smart fallback
+  // ✅ Build company and employer names with smart priority
   let companyName = '';
   let employerPersonalName = '';
   
-  // Priority 1: Use provider_name as company name
-  if (trainingData.provider_name && trainingData.provider_name.trim()) {
+  // ========================================
+  // PRIORITY 1: Use actual company name from companies table
+  // ========================================
+  if (trainingData.actual_company_name && trainingData.actual_company_name.trim()) {
+    companyName = trainingData.actual_company_name.trim();
+    console.log('✅ Using company from companies table:', companyName);
+  }
+  // FALLBACK: Use provider_name from training
+  else if (trainingData.provider_name && trainingData.provider_name.trim()) {
     companyName = trainingData.provider_name.trim();
+    console.log('⚠️ Using provider_name as fallback:', companyName);
   }
   
-  // Priority 2: Try direct join first (provider_id = user_id)
+  // ========================================
+  // Get employer personal name
+  // ========================================
+  // Priority 1: Try direct join first (provider_id = user_id)
   if (trainingData.direct_name && trainingData.direct_name.trim()) {
     employerPersonalName = trainingData.direct_name.trim();
   }
-  // Priority 3: Try indirect join through employers table
+  // Priority 2: Try indirect join through employers table
   else if (trainingData.indirect_name && trainingData.indirect_name.trim()) {
     employerPersonalName = trainingData.indirect_name.trim();
   }
-  
-  // Priority 4: Parse email from direct join
-  if (!employerPersonalName && trainingData.direct_email && trainingData.direct_email.trim()) {
+  // Priority 3: Parse email from direct join
+  else if (trainingData.direct_email && trainingData.direct_email.trim()) {
     const username = trainingData.direct_email.split('@')[0];
     employerPersonalName = username
       .replace(/[_.-]/g, ' ')
       .replace(/\b\w/g, (letter: string) => letter.toUpperCase());
   }
-  // Priority 5: Parse email from indirect join
-  else if (!employerPersonalName && trainingData.indirect_email && trainingData.indirect_email.trim()) {
+  // Priority 4: Parse email from indirect join
+  else if (trainingData.indirect_email && trainingData.indirect_email.trim()) {
     const username = trainingData.indirect_email.split('@')[0];
     employerPersonalName = username
       .replace(/[_.-]/g, ' ')
@@ -775,7 +801,10 @@ async generateCertificate(
     company: companyName,
     employer: employerPersonalName,
     training: trainingTitle,
-    provider_id: trainingData.provider_id
+    provider_id: trainingData.provider_id,
+    company_id: trainingData.company_id,
+    actual_company: trainingData.actual_company_name,
+    provider_name: trainingData.provider_name
   });
 
   const certificateFileName = `certificate-${enrollmentId}-${Date.now()}.pdf`;
@@ -884,10 +913,11 @@ async generateCertificate(
 
   return new Promise((resolve, reject) => {
     writeStream.on('finish', () => {
-      console.log('✅ Certificate generated with employer info:', {
+      console.log('✅ Certificate generated successfully:', {
         file: certificateFileName,
         company: companyName,
-        employer: employerPersonalName
+        employer: employerPersonalName,
+        company_source: trainingData.actual_company_name ? 'companies table' : 'provider_name fallback'
       });
       resolve({ certificate_url: certificateFileName });
     });
