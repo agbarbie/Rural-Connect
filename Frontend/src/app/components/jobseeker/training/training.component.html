@@ -296,38 +296,36 @@
           </div>
         </div>
 
-<!-- Certificate Button (Card View) -->
-  <!-- ✅ FIXED: Add enrollment_id check -->
-  <!-- ✅ Non-null assertion safe now -->
-  <!-- In enrolled card - Add debug attr (remove in prod) -->
-  <!-- ✅ Debug: Inspect element for ID -->
-  <!-- In enrolled card-footer - Clean version -->
-<div class="card-cert-section">
-  <!-- Download when certificate record + enrollment id + url exist -->
-  <button
-    *ngIf="training.enrolled && training.certificate_issued && training.enrollment_id && training.certificate_url"
-    class="btn-certificate"
-    (click)="downloadCertificateFromList(training)"
-    [disabled]="loading">
-    <i class="fas fa-download"></i>
-    {{ loading ? 'Downloading...' : 'Download Certificate' }}
-  </button>
+<!-- Certificate Section (Card View) -->
+<div class="card-cert-section" *ngIf="training.enrolled">
+  <div *ngIf="training.progress === 100">
+    <!-- Download when certificate record + enrollment id + url exist -->
+    <button
+      *ngIf="training.certificate_issued && training.enrollment_id && training.certificate_url"
+      class="btn-certificate"
+      (click)="downloadCertificateFromList(training)"
+      [disabled]="loading">
+      <i class="fas fa-download"></i>
+      {{ loading ? 'Downloading...' : 'Download Certificate' }}
+    </button>
 
-  <!-- Certificate issued but download URL not yet available -->
-  <div *ngIf="training.enrolled && training.certificate_issued && training.enrollment_id && !training.certificate_url" class="certificate-pending">
-    <span>Certificate is being prepared. <button class="btn-small" (click)="refreshTrainingDetails()">Check status</button></span>
+    <!-- Certificate issued but URL missing -->
+    <div *ngIf="training.certificate_issued && !training.certificate_url" class="certificate-pending">
+      <i class="fas fa-sync"></i>
+      <span>Certificate ready. <button class="btn-small" (click)="refreshTrainingDetails()">Refresh</button></span>
+    </div>
+
+    <!-- Certificate not yet issued -->
+    <div *ngIf="!training.certificate_issued" class="certificate-pending">
+      <i class="fas fa-clock"></i>
+      <span>Certificate pending - Awaiting employer issuance</span>
+    </div>
   </div>
 
-  <!-- Enrollment id missing (fallback shown elsewhere) -->
-  <div *ngIf="training.enrolled && training.certificate_issued && !training.enrollment_id" class="cert-missing-id">
+  <!-- Edge case: certificate issued but missing enrollment id -->
+  <div *ngIf="training.progress !== 100 && training.certificate_issued && !training.enrollment_id" class="cert-missing-id">
     <span>⏳ Certificate ready but details loading... <button (click)="refreshTrainingDetails()" class="btn-small">Refresh</button></span>
   </div>
-</div>
-
-<!-- Fallback message if ID missing but cert issued -->
-<div *ngIf="training.enrolled && training.certificate_issued && !training.enrollment_id" class="cert-missing-id">
-  <span>⏳ Certificate ready but details loading... <button (click)="refreshTrainingDetails()" class="btn-small">Refresh</button></span>
-</div>
 </div>
 
       <div class="card-footer">
@@ -356,7 +354,72 @@
       </div>
     </div>
   </div>
+  <!-- ✅ STEP 3: JOBSEEKER UI - Certificate status in training card -->
+  <!-- Replace certificate section in jobseeker training.component.html -->
 
+  <!-- In Training Card (List View) -->
+  <div class="card-cert-section" *ngIf="selectedTraining && selectedTraining.enrolled && (selectedTraining.progress || 0) === 100">
+    <!-- ✅ Certificate Issued - Download Available -->
+  <!-- duplicate certificate block removed (handled inside the training card) -->
+    <div *ngIf="selectedTraining.certificate_issued" class="certificate-ready">
+      <div class="status-badge success">
+        <i class="fas fa-check-circle"></i>
+        <span>Certificate Issued</span>
+      </div>
+      <button
+        class="btn-certificate primary"
+        (click)="downloadCertificateFromList(selectedTraining)"
+        [disabled]="loading">
+        <i class="fas fa-download"></i>
+        {{ loading ? 'Downloading...' : 'Download Certificate' }}
+      </button>
+    </div>
+    
+    <!-- ✅ Awaiting Certificate -->
+    <div *ngIf="!selectedTraining.certificate_issued" class="certificate-awaiting">
+      <div class="status-badge pending">
+        <i class="fas fa-clock"></i>
+        <span>Awaiting Certificate</span>
+      </div>
+      <p class="status-message">
+        🎉 Congratulations on completing the training! Your certificate will be issued by the employer soon.
+      </p>
+      <button class="btn-outline btn-small" (click)="refreshTrainingDetails()">
+        <i class="fas fa-sync"></i>
+        Check Status
+      </button>
+    </div>
+  </div>
+
+  <!-- In Notifications (for certificate_issued) -->
+  <div class="notification-item certificate-notification" 
+       *ngIf="notifications.length > 0 && notifications[0]?.type === 'certificate_issued'"
+       (click)="handleNotificationClick(notifications[0])">
+    
+    <div class="notification-icon certificate">
+      <i class="fas fa-certificate"></i>
+    </div>
+    
+    <div class="notification-content">
+      <h4 class="notification-title">🎓 Certificate Ready!</h4>
+      <p class="notification-message">{{ notifications[0]?.message }}</p>
+      <span class="notification-time">
+        <i class="fas fa-clock"></i>
+        {{ formatDate(notifications[0]?.created_at) }}
+      </span>
+    </div>
+    
+    <!-- ✅ Download Button in Notification -->
+    <div class="notification-actions">
+      <button
+        class="btn-notification-action btn-download primary"
+        (click)="downloadCertificate(notifications[0]?.related_id || notifications[0]?.metadata?.enrollment_id, notifications[0]?.metadata?.training_title); $event.stopPropagation()"
+        title="Download Certificate">
+        <i class="fas fa-download"></i>
+        Download
+      </button>
+    </div>
+  </div>
   <!-- Pagination -->
   <div class="pagination-container" *ngIf="!loading && !error && totalPages > 1">
     <div class="pagination-info">

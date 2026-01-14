@@ -49,6 +49,36 @@ interface AnalyticsData {
   styleUrls: ['./employer-dashboard.component.css']
 })
 export class EmployerDashboardComponent implements OnInit, OnDestroy {
+toggleNotifications() {
+throw new Error('Method not implemented.');
+}
+viewStudentProfile(_t129: any) {
+throw new Error('Method not implemented.');
+}
+getNotificationColor(arg0: any) {
+throw new Error('Method not implemented.');
+}
+getNotificationIcon(arg0: any): string|string[]|Set<string>|{ [klass: string]: any; }|null|undefined {
+throw new Error('Method not implemented.');
+}
+getJobseekerDisplayName(_t129: any) {
+throw new Error('Method not implemented.');
+}
+issueCertificateFromNotification(_t129: any) {
+throw new Error('Method not implemented.');
+}
+downloadEmployerCertificate(arg0: any) {
+throw new Error('Method not implemented.');
+}
+markAllEnrollmentNotificationsRead() {
+throw new Error('Method not implemented.');
+}
+loadMoreEnrollmentNotifications() {
+throw new Error('Method not implemented.');
+}
+confirmClearEnrollmentNotifications() {
+throw new Error('Method not implemented.');
+}
   employerName: string = 'Tech Innovators Ltd'; // Fallback
   profileCompletion = 85;
   
@@ -158,6 +188,9 @@ export class EmployerDashboardComponent implements OnInit, OnDestroy {
   };
 
   private authSubscription: Subscription | null = null;
+showNotifications: any;
+enrollmentNotifications: any;
+hasMoreEnrollmentNotifications: any;
 
   constructor(
     private router: Router,

@@ -434,9 +434,7 @@ async getNotifications(
     return result.rows.length > 0;
   }
 
-  // ============================================
-  // VIDEO PROGRESS TRACKING (Backend)
-  // ============================================
+  
 async updateVideoProgress(
   trainingId: string,
   userId: string,
@@ -456,8 +454,7 @@ async updateVideoProgress(
 
     await client.query('BEGIN');
 
-    // Step 1: Check if user is enrolled
-    console.log('1️⃣ Checking enrollment...');
+    // Step 1: Check enrollment
     const enrollmentResult = await client.query(
       'SELECT id FROM training_enrollments WHERE training_id = $1 AND user_id = $2',
       [trainingId, userId]
@@ -471,8 +468,7 @@ async updateVideoProgress(
     const enrollmentId = enrollmentResult.rows[0].id;
     console.log('✅ Enrollment found:', enrollmentId);
 
-    // Step 2: Check if video exists
-    console.log('2️⃣ Checking video exists...');
+    // Step 2: Check video exists
     const videoCheck = await client.query(
       'SELECT id, title FROM training_videos WHERE id = $1 AND training_id = $2',
       [videoId, trainingId]
@@ -486,7 +482,6 @@ async updateVideoProgress(
     console.log('✅ Video found:', videoCheck.rows[0].title);
 
     // Step 3: Upsert video progress
-    console.log('3️⃣ Upserting video progress...');
     const progressResult = await client.query(`
       INSERT INTO training_video_progress
         (enrollment_id, video_id, watch_time_seconds, is_completed, completed_at, last_updated)
@@ -508,8 +503,7 @@ async updateVideoProgress(
 
     console.log('✅ Video progress saved:', progressResult.rows[0]);
 
-    // Step 4: Recalculate overall progress
-    console.log('4️⃣ Calculating overall progress...');
+    // Step 4: Calculate overall progress
     const progressCalc = await client.query(`
       SELECT
         COUNT(*) as total_videos,
@@ -532,7 +526,6 @@ async updateVideoProgress(
     });
 
     // Step 5: Update enrollment
-    console.log('5️⃣ Updating enrollment...');
     const enrollmentUpdate = await client.query(`
       UPDATE training_enrollments
       SET
@@ -558,13 +551,12 @@ async updateVideoProgress(
     });
 
     const trainingCompleted = progressPercentage === 100;
-    let certificateIssued = false;
-    let certificateUrl: string | null = null;
 
-    // Step 6: Check for certificate if completed
+    // Step 6: ✅ FIXED - NO AUTO-CERTIFICATE, only notifications
     if (trainingCompleted) {
-      console.log('6️⃣ Checking certificate eligibility...');
-      // Fetch training and user details for notifications and certificate logic
+      console.log('🎉 Training completed! Notifying parties...');
+
+      // Fetch training and user details for notifications
       const trainingQuery = await client.query(
         'SELECT has_certificate, provider_id, title FROM trainings WHERE id = $1',
         [trainingId]
@@ -579,88 +571,40 @@ async updateVideoProgress(
       const userName = `${(userRow.first_name || '').trim()} ${(userRow.last_name || '').trim()}`.trim() || userRow.email || 'User';
       const trainingTitle = trainingRow.title;
 
-      // If training supports auto-certificate issuance, generate it
-      if (trainingRow.has_certificate) {
-        console.log('📜 Generating certificate (auto-issue)...');
-        const certResult = await this.generateCertificate(
-          enrollmentId,
-          userId,
-          trainingId,
-          trainingTitle
-        );
-
-        certificateIssued = true;
-        certificateUrl = certResult.certificate_url;
-
-        await client.query(`
-          UPDATE training_enrollments
-          SET certificate_issued = true, certificate_url = $1, certificate_issued_at = CURRENT_TIMESTAMP
-          WHERE id = $2
-        `, [certificateUrl, enrollmentId]);
-
-        console.log('✅ Certificate generated and enrollment updated:', certificateUrl);
-      } else {
-        console.log('ℹ️ Training does not auto-issue certificates - manual issuance required');
-      }
-
-      // ✅ ENHANCED: Always notify employer on completion (even if no auto-certificate)
-      const employerNotificationMessage = `${userName} has completed "${trainingTitle}" – ready to issue certificate!`;
-      console.log(`📢 Notifying employer: ${employerNotificationMessage}`);
-
-      // Insert additional employer notification requested by user (adapted to available variables)
-      console.log('🎉 Training completed! Notifying employer...');
-
-      const jobseekerName = userName;
-
-      // ✅ NOTIFY EMPLOYER about training completion (additional detailed notification)
-      await this.createNotification(
-        trainingRow.provider_id,  // Employer user_id / provider id
-        'training_completed',
-        `${jobseekerName} completed "${trainingTitle}"! Ready for certificate issuance.`,
-        {
-          training_id: trainingId,
-          enrollment_id: enrollment.id,
-          jobseeker_id: userId,
-          jobseeker_name: jobseekerName,
-          jobseeker_email: userRow.email,
-          training_title: trainingTitle,
-          completed_at: new Date().toISOString()
-        }
-      );
-
-      console.log('✅ Employer notified of training completion');
-
+      // ✅ NOTIFY EMPLOYER: Jobseeker completed training, ready for certificate
+      console.log('📢 Notifying employer about completion...');
       await this.createNotification(
         trainingRow.provider_id,
         'training_completed',
-        employerNotificationMessage,
+        `${userName} completed "${trainingTitle}"! Ready to issue certificate.`,
         {
           training_id: trainingId,
-          user_id: userId,
           enrollment_id: enrollmentId,
-          user_name: userName,
-          training_title: trainingTitle
+          jobseeker_id: userId,
+          jobseeker_name: userName,
+          jobseeker_email: userRow.email,
+          training_title: trainingTitle,
+          completed_at: new Date().toISOString(),
+          action_required: 'issue_certificate' // ✅ Flag for UI action button
         }
-      ).catch(err => console.error('Failed to notify employer about completion:', err));
+      );
+      console.log('✅ Employer notified');
 
-      // Notify jobseeker:
-      if (certificateIssued && certificateUrl) {
-        // If auto-issued, inform jobseeker of the certificate (certificate_issued)
-        await this.createNotification(
-          userId,
-          'certificate_issued',
-          `Congratulations! You've earned a certificate for ${trainingTitle}`,
-          { training_id: trainingId, enrollment_id: enrollmentId, certificate_url: certificateUrl }
-        ).catch(err => console.error('Failed to notify jobseeker about certificate:', err));
-      } else {
-        // If manual issuance is required, notify the jobseeker that employer needs to issue the certificate
-        await this.createNotification(
-          userId,
-          'training_completed',
-          `You've completed "${trainingTitle}"! Awaiting certificate from employer.`,
-          { training_id: trainingId, enrollment_id: enrollmentId }
-        ).catch(err => console.error('Failed to notify jobseeker about completion awaiting certificate:', err));
-      }
+      // ✅ NOTIFY JOBSEEKER: Congratulations, awaiting certificate
+      console.log('📢 Notifying jobseeker about completion...');
+      await this.createNotification(
+        userId,
+        'training_completed',
+        `🎉 Congratulations! You completed "${trainingTitle}". Awaiting certificate issuance from employer.`,
+        {
+          training_id: trainingId,
+          enrollment_id: enrollmentId,
+          training_title: trainingTitle,
+          completed_at: new Date().toISOString(),
+          awaiting_certificate: true // ✅ Flag for UI to show "pending" state
+        }
+      );
+      console.log('✅ Jobseeker notified');
     }
 
     await client.query('COMMIT');
@@ -670,37 +614,19 @@ async updateVideoProgress(
       success: true,
       overall_progress: progressPercentage,
       training_completed: trainingCompleted,
-      certificate_issued: certificateIssued,
-      certificate_url: certificateUrl,
+      certificate_issued: false, // ✅ Always false - manual issuance only
+      certificate_url: null,
       enrollment,
       video_progress: progressResult.rows[0]
     };
   } catch (error: any) {
     await client.query('ROLLBACK');
-    console.error('❌ Error in updateVideoProgress service:', error);
-    console.error('Stack:', error.stack);
+    console.error('❌ Error in updateVideoProgress:', error);
     throw error;
   } finally {
     client.release();
   }
 }
-
-  // ============================================
-  // CERTIFICATE GENERATION
-// ============================================
-// CORRECTED: Replace your generateCertificate method with this
-// Location: Backend/src/services/training.service.ts (around line 1000)
-// ============================================
-
-// ============================================
-// SIMPLIFIED: Certificate using 'name' column
-// ============================================
-
-// =============================================
-// FIXED: Certificate Generation with Correct Company Name
-// Location: Backend/src/services/training.service.ts
-// Replace the generateCertificate method
-// =============================================
 
 async generateCertificate(
   enrollmentId: string,

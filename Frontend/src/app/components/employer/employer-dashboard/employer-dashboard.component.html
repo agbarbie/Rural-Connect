@@ -168,7 +168,109 @@
           </div>
         </div>
       </section>
+      <section class="dashboard-card enrollment-notifications">
+        <div class="card-header">
+          <h3><i class="fas fa-user-graduate"></i> Enrollment Notifications</h3>
+          <button class="btn-icon" (click)="toggleNotifications()" title="Toggle Notifications">
+            <i class="fas" [ngClass]="showNotifications ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
+          </button>
+        </div>
 
+        <div class="notification-dropdown" *ngIf="showNotifications">
+          <div class="notification-header">
+            <h4>Enrollment Updates</h4>
+            <button class="close-btn" (click)="toggleNotifications()">
+              <i class="fas fa-times"></i>
+            </button>
+          </div>
+
+          <div class="notification-list">
+            <div
+              class="notification-item"
+              *ngFor="let notification of enrollmentNotifications"
+              [class]="'notification-' + notification.notification_type"
+              [class.action-required]="notification.notification_type === 'completed' && !notification.certificate_issued"
+              (click)="viewStudentProfile(notification)">
+              
+              <div class="notification-icon" [style.color]="getNotificationColor(notification.notification_type)">
+                <i class="fas" [ngClass]="getNotificationIcon(notification.notification_type)"></i>
+              </div>
+
+              <div class="notification-content">
+                <p class="notification-message">
+                  <strong>{{ getJobseekerDisplayName(notification) }}</strong>
+                  <span *ngIf="notification.notification_type === 'new'"> just enrolled in </span>
+                  <span *ngIf="notification.notification_type === 'completed'"> completed </span>
+                  <span *ngIf="notification.notification_type === 'in_progress'"> is learning </span>
+                  <strong>"{{ notification.training_title }}"</strong>
+                </p>
+
+                <div class="completion-alert" *ngIf="notification.notification_type === 'completed'">
+                  <i class="fas fa-check-circle"></i>
+                  <span *ngIf="!notification.certificate_issued">Ready for certificate issuance</span>
+                  <span *ngIf="notification.certificate_issued">Certificate issued ✓</span>
+                </div>
+
+                <div class="notification-meta">
+                  <span class="notification-time">{{ notification.enrolled_at | date:'short' }}</span>
+                  <span class="notification-progress" *ngIf="notification.progress_percentage">
+                    Progress: {{ notification.progress_percentage }}%
+                  </span>
+                </div>
+              </div>
+
+              <div class="notification-actions" (click)="$event.stopPropagation()">
+                <button
+                  *ngIf="notification.notification_type === 'completed' && !notification.certificate_issued"
+                  class="btn-issue-cert btn-primary-action"
+                  (click)="issueCertificateFromNotification(notification)">
+                  <i class="fas fa-certificate"></i>
+                  <span>Issue Certificate</span>
+                </button>
+
+                <span *ngIf="notification.certificate_issued" class="certificate-badge success">
+                  <i class="fas fa-check-circle"></i> Certificate Issued
+                </span>
+
+                <button
+                  *ngIf="notification.certificate_issued"
+                  class="btn-download-cert btn-secondary"
+                  (click)="downloadEmployerCertificate(notification.enrollment_id)">
+                  <i class="fas fa-download"></i>
+                  <span>Download</span>
+                </button>
+
+                <button class="btn-view-profile btn-secondary" (click)="viewStudentProfile(notification)">
+                  <i class="fas fa-user"></i>
+                  <span>Profile</span>
+                </button>
+              </div>
+            </div>
+
+            <div class="no-notifications" *ngIf="enrollmentNotifications.length === 0">
+              <i class="fas fa-inbox"></i>
+              <p>No enrollment updates</p>
+            </div>
+          </div>
+
+          <div class="notification-footer" *ngIf="enrollmentNotifications.length > 0">
+            <div class="footer-actions">
+              <button class="btn-secondary" (click)="markAllEnrollmentNotificationsRead()">
+                <i class="fas fa-check"></i>
+                Mark all as read
+              </button>
+              <button class="btn-secondary" *ngIf="hasMoreEnrollmentNotifications" (click)="loadMoreEnrollmentNotifications()">
+                <i class="fas fa-chevron-down"></i>
+                Load more
+              </button>
+              <button class="btn-secondary btn-danger" (click)="confirmClearEnrollmentNotifications()">
+                <i class="fas fa-trash-alt"></i>
+                Clear
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
       <!-- Interview Schedule -->
       <section class="dashboard-card interview-schedule">
         <div class="card-header">

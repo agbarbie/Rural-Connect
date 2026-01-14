@@ -19,7 +19,91 @@ body {
   display: flex;
   min-height: 100vh;
 }
+.notification-item.action-required {
+  border-left: 4px solid #f59e0b;
+  background: #fffbeb;
+}
 
+.completion-alert {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem;
+  background: #dcfce7;
+  border-radius: 0.375rem;
+  margin-top: 0.5rem;
+  font-size: 0.875rem;
+  color: #16a34a;
+  font-weight: 500;
+}
+
+.notification-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  align-items: stretch;
+}
+
+.btn-issue-cert {
+  background: #10b981;
+  color: white;
+  border: none;
+  padding: 0.625rem 1rem;
+  border-radius: 0.5rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.btn-issue-cert:hover {
+  background: #059669;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 6px rgba(16, 185, 129, 0.3);
+}
+
+.btn-primary-action {
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.8; }
+}
+
+.certificate-badge.success {
+  background: #d1fae5;
+  color: #065f46;
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.375rem;
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.btn-secondary {
+  background: #f3f4f6;
+  color: #374151;
+  border: 1px solid #d1d5db;
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.375rem;
+  font-size: 0.875rem;
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-secondary:hover {
+  background: #e5e7eb;
+  border-color: #9ca3af;
+}
 /* Sidebar Styles (Your Exact Specification) */
 .sidebar {
   width: 280px;
