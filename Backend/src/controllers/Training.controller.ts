@@ -699,141 +699,231 @@ async issueCertificateManually(req: Request, res: Response): Promise<void> {
   /**
    * Get training by ID (uses service for full details including videos)
    */
-  async getTrainingById(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
-    try {
-      const { id } = req.params;
-      const userId = req.user?.id || null;
-      const userType = req.user?.user_type;
+  // =============================================
+// COMPLETE FIX: getTrainingById method
+// Location: Backend/src/controllers/training.controller.ts
+// Replace the entire method (around line 715-810)
+// =============================================
 
-      console.log('=== Getting Training By ID ===');
-      console.log('Training ID:', id);
-      console.log('User ID:', userId);
-      console.log('User Type:', userType);
+/**
+ * Get training by ID (uses service for full details including videos)
+ */
+async getTrainingById(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const { id } = req.params;
+    const userId = req.user?.id || null;
+    const userType = req.user?.user_type;
 
-      let training;
+    console.log('=== Getting Training By ID ===');
+    console.log('Training ID:', id);
+    console.log('User ID:', userId);
+    console.log('User Type:', userType);
+
+    let training;
+    
+    if (!userId) {
+      // ========================================
+      // PUBLIC/UNAUTHENTICATED - Only published trainings
+      // ========================================
+      const query = `
+        SELECT 
+          t.*,
+          COUNT(v.id) as video_count,
+          COALESCE(json_agg(
+            json_build_object(
+              'id', v.id,
+              'title', v.title,
+              'description', v.description,
+              'video_url', v.video_url,
+              'duration_minutes', v.duration_minutes,
+              'order_index', v.order_index,
+              'is_preview', v.is_preview
+            ) ORDER BY v.order_index
+          ) FILTER (WHERE v.id IS NOT NULL AND v.is_preview = true), '[]') AS videos,
+          COALESCE(json_agg(
+            json_build_object(
+              'id', o.id,
+              'outcome_text', o.outcome_text,
+              'order_index', o.order_index
+            ) ORDER BY o.order_index
+          ) FILTER (WHERE o.id IS NOT NULL), '[]') AS outcomes
+        FROM trainings t
+        LEFT JOIN training_videos v ON v.training_id = t.id
+        LEFT JOIN training_outcomes o ON o.training_id = t.id
+        WHERE t.id = $1 AND t.status = 'published'
+        GROUP BY t.id
+      `;
       
-      if (!userId) {
-        // Public/unauthenticated - ONLY show published trainings
-        const query = `
-          SELECT 
-            t.*,
-            COUNT(v.id) as video_count,
-            COALESCE(json_agg(
-              json_build_object(
-                'id', v.id,
-                'title', v.title,
-                'description', v.description,
-                'video_url', v.video_url,
-                'duration_minutes', v.duration_minutes,
-                'order_index', v.order_index,
-                'is_preview', v.is_preview
-              ) ORDER BY v.order_index
-            ) FILTER (WHERE v.id IS NOT NULL AND v.is_preview = true), '[]') AS videos,
-            COALESCE(json_agg(
-              json_build_object(
-                'id', o.id,
-                'outcome_text', o.outcome_text,
-                'order_index', o.order_index
-              ) ORDER BY o.order_index
-            ) FILTER (WHERE o.id IS NOT NULL), '[]') AS outcomes
-          FROM trainings t
-          LEFT JOIN training_videos v ON v.training_id = t.id
-          LEFT JOIN training_outcomes o ON o.training_id = t.id
-          WHERE t.id = $1 AND t.status = 'published'
-          GROUP BY t.id
-        `;
-        
-        const result = await pool.query(query, [id]);
-        training = result.rows[0] || null;
-        
-        if (training) {
-          training.enrolled = false;
-          training.can_enroll = true;
-        }
-        
-      } else if (userType === 'jobseeker') {
-        // FIXED: Jobseeker - Show published trainings with enrollment status
-        training = await this.trainingService.getTrainingWithDetailsForJobseeker(id, userId);
-        
-      } else if (userType === 'employer') {
-        // Employer - Check ownership and show ALL statuses (draft, published, suspended)
-        const employerProfileCheck = await pool.query(
-          'SELECT id FROM employers WHERE user_id = $1',
-          [userId]
-        );
-        
-        let whereClause = 't.id = $1';
-        let queryParams: any[] = [id];
-        
-        if (employerProfileCheck.rows.length > 0) {
-          const employerProfileId = employerProfileCheck.rows[0].id;
-          whereClause = 't.id = $1 AND (t.provider_id = $2 OR t.provider_id = $3)';
-          queryParams = [id, userId, employerProfileId];
-        } else {
-          whereClause = 't.id = $1 AND t.provider_id = $2';
-          queryParams = [id, userId];
-        }
-        
-        const query = `
-          SELECT 
-            t.*,
-            COUNT(v.id) as video_count,
-            COALESCE(json_agg(
-              json_build_object(
-                'id', v.id,
-                'title', v.title,
-                'description', v.description,
-                'video_url', v.video_url,
-                'duration_minutes', v.duration_minutes,
-                'order_index', v.order_index,
-                'is_preview', v.is_preview
-              ) ORDER BY v.order_index
-            ) FILTER (WHERE v.id IS NOT NULL), '[]') AS videos,
-            COALESCE(json_agg(
-              json_build_object(
-                'id', o.id,
-                'outcome_text', o.outcome_text,
-                'order_index', o.order_index
-              ) ORDER BY o.order_index
-            ) FILTER (WHERE o.id IS NOT NULL), '[]') AS outcomes
-          FROM trainings t
-          LEFT JOIN training_videos v ON v.training_id = t.id
-          LEFT JOIN training_outcomes o ON o.training_id = t.id
-          WHERE ${whereClause}
-          GROUP BY t.id
-        `;
-        
-        const result = await pool.query(query, queryParams);
-        training = result.rows[0] || null;
+      const result = await pool.query(query, [id]);
+      training = result.rows[0] || null;
+      
+      if (training) {
+        training.enrolled = false;
+        training.can_enroll = true;
       }
-
-      if (!training) {
-        console.log('Training not found or not accessible');
-        res.status(404).json({
-          success: false,
-          message: userType === 'employer' 
-            ? "Training not found or you don't have permission to view it"
-            : "Training not found or not published"
+      
+    } else if (userType === 'jobseeker') {
+      // ========================================
+      // JOBSEEKER - Show if published OR enrolled
+      // ========================================
+      
+      // First check if user is enrolled
+      const enrollmentCheck = await pool.query(
+        'SELECT id FROM training_enrollments WHERE training_id = $1 AND user_id = $2',
+        [id, userId]
+      );
+      
+      const isEnrolled = enrollmentCheck.rows.length > 0;
+      
+      console.log('🔍 Enrollment check:', { isEnrolled, userId, trainingId: id });
+      
+      // Build query - if enrolled, show regardless of status
+      const query = `
+        SELECT 
+          t.*,
+          COUNT(v.id) as video_count,
+          COALESCE(json_agg(
+            json_build_object(
+              'id', v.id,
+              'title', v.title,
+              'description', v.description,
+              'video_url', v.video_url,
+              'duration_minutes', v.duration_minutes,
+              'order_index', v.order_index,
+              'is_preview', v.is_preview
+            ) ORDER BY v.order_index
+          ) FILTER (WHERE v.id IS NOT NULL ${isEnrolled ? '' : 'AND v.is_preview = true'}), '[]') AS videos,
+          COALESCE(json_agg(
+            json_build_object(
+              'id', o.id,
+              'outcome_text', o.outcome_text,
+              'order_index', o.order_index
+            ) ORDER BY o.order_index
+          ) FILTER (WHERE o.id IS NOT NULL), '[]') AS outcomes,
+          COALESCE(
+            (SELECT json_build_object(
+              'id', e.id,
+              'status', e.status,
+              'progress_percentage', e.progress_percentage,
+              'enrolled_at', e.enrolled_at,
+              'completed_at', e.completed_at,
+              'certificate_issued', e.certificate_issued
+            )
+            FROM training_enrollments e
+            WHERE e.training_id = t.id AND e.user_id = $2),
+            NULL
+          ) as enrollment
+        FROM trainings t
+        LEFT JOIN training_videos v ON v.training_id = t.id
+        LEFT JOIN training_outcomes o ON o.training_id = t.id
+        WHERE t.id = $1 
+          ${isEnrolled ? '' : "AND t.status = 'published'"}
+        GROUP BY t.id
+      `;
+      
+      const result = await pool.query(query, [id, userId]);
+      training = result.rows[0] || null;
+      
+      if (training) {
+        training.enrolled = isEnrolled;
+        training.can_enroll = !isEnrolled && training.status === 'published';
+        training.enrollment_id = training.enrollment?.id || null;
+        
+        console.log('✅ Jobseeker training loaded:', {
+          title: training.title,
+          status: training.status,
+          enrolled: training.enrolled,
+          videos: training.videos?.length
         });
-        return;
       }
-
-      console.log('Training found:', training.title);
-      console.log('Videos count:', training.videos?.length || training.video_count || 0);
-      console.log('Status:', training.status);
-      console.log('Enrolled:', training.enrolled || false);
-
-      res.status(200).json({
-        success: true,
-        message: "Training retrieved successfully",
-        data: training
-      });
-
-    } catch (error) {
-      console.error('Error in getTrainingById:', error);
-      next(error);
+      
+    } else if (userType === 'employer') {
+      // ========================================
+      // EMPLOYER - Show own trainings regardless of status
+      // ========================================
+      const employerProfileCheck = await pool.query(
+        'SELECT id FROM employers WHERE user_id = $1',
+        [userId]
+      );
+      
+      let whereClause = 't.id = $1';
+      let queryParams: any[] = [id];
+      
+      if (employerProfileCheck.rows.length > 0) {
+        const employerProfileId = employerProfileCheck.rows[0].id;
+        whereClause = 't.id = $1 AND (t.provider_id = $2 OR t.provider_id = $3)';
+        queryParams = [id, userId, employerProfileId];
+      } else {
+        whereClause = 't.id = $1 AND t.provider_id = $2';
+        queryParams = [id, userId];
+      }
+      
+      const query = `
+        SELECT 
+          t.*,
+          COUNT(v.id) as video_count,
+          COALESCE(json_agg(
+            json_build_object(
+              'id', v.id,
+              'title', v.title,
+              'description', v.description,
+              'video_url', v.video_url,
+              'duration_minutes', v.duration_minutes,
+              'order_index', v.order_index,
+              'is_preview', v.is_preview
+            ) ORDER BY v.order_index
+          ) FILTER (WHERE v.id IS NOT NULL), '[]') AS videos,
+          COALESCE(json_agg(
+            json_build_object(
+              'id', o.id,
+              'outcome_text', o.outcome_text,
+              'order_index', o.order_index
+            ) ORDER BY o.order_index
+          ) FILTER (WHERE o.id IS NOT NULL), '[]') AS outcomes
+        FROM trainings t
+        LEFT JOIN training_videos v ON v.training_id = t.id
+        LEFT JOIN training_outcomes o ON o.training_id = t.id
+        WHERE ${whereClause}
+        GROUP BY t.id
+      `;
+      
+      const result = await pool.query(query, queryParams);
+      training = result.rows[0] || null;
     }
+
+    // ========================================
+    // RESPONSE
+    // ========================================
+    if (!training) {
+      console.log('❌ Training not found or not accessible');
+      res.status(404).json({
+        success: false,
+        message: userType === 'employer' 
+          ? "Training not found or you don't have permission to view it"
+          : "Training not found or not published"
+      });
+      return;
+    }
+
+    console.log('✅ Training found:', {
+      id: training.id,
+      title: training.title,
+      status: training.status,
+      enrolled: training.enrolled || false,
+      videos: training.videos?.length || 0
+    });
+
+    res.status(200).json({
+      success: true,
+      message: "Training retrieved successfully",
+      data: training
+    });
+
+  } catch (error) {
+    console.error('❌ Error in getTrainingById:', error);
+    next(error);
   }
+}
 
   /**
    * Get training videos count
