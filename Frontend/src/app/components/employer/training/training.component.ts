@@ -141,6 +141,7 @@ export class TrainingComponent implements OnInit, OnDestroy {
 
   // Bulk operations
   selectedTrainingIds: Set<string> = new Set();
+hasMoreEnrollmentNotifications: any;
 
   constructor(
     private trainingService: TrainingService,
@@ -317,19 +318,192 @@ export class TrainingComponent implements OnInit, OnDestroy {
    
     console.log('Calculated local stats:', this.stats);
   }
+  // Notification pagination / management helpersD
+  private notificationsPage: number = 1;
+  private notificationsLimit: number = 10;
+  loadingNotifications: boolean = false;
 
-  private getCategoriesBreakdown(): any[] {
-    const categoriesMap = new Map<string, number>();
-   
-    this.trainings.forEach(t => {
-      const count = categoriesMap.get(t.category) || 0;
-      categoriesMap.set(t.category, count + 1);
+  /**
+   * Mark all enrollment notifications as read (UI-first, then API if available)
+   */
+  markAllEnrollmentNotificationsRead(): void {
+    if (!confirm('Mark all enrollment notifications as read?')) return;
+
+    // Update UI immediately
+    this.enrollmentNotifications.forEach(n => n.is_read = true);
+    this.unreadNotificationCount = 0;
+
+    // If the service exposes a batch API, call it. Use dynamic access to avoid TS errors if method is absent.
+    const apiCall = (this.trainingService as any).markAllEnrollmentNotificationsRead?.(this.employerId);
+    if (apiCall && typeof apiCall.subscribe === 'function') {
+      apiCall.pipe(takeUntil(this.destroy$)).subscribe({
+        next: () => {
+          // refresh to ensure server/clients are in sync
+          this.loadNotifications();
+        },
+        error: (err: any) => {
+          console.error('Error marking all enrollment notifications read:', err);
+        }
+      });
+    }
+  }
+
+  /**
+   * Load the next page of enrollment notifications and append to the list.
+   * Uses simple page/limit strategy and sets hasMoreEnrollmentNotifications accordingly.
+   */
+  loadMoreEnrollmentNotifications(): void {
+    if (this.loadingNotifications) return;
+
+    this.loadingNotifications = true;
+    this.notificationsPage += 1;
+
+    // Try to call paginated notifications endpoint if service supports it
+    const apiCall = (this.trainingService as any).getEnrollmentNotifications?.(this.employerId, {
+      page: this.notificationsPage,
+      limit: this.notificationsLimit
     });
-   
-    return Array.from(categoriesMap.entries()).map(([category, count]) => ({
+
+    // Fallback to the non-paginated signature used elsewhere
+    const call = apiCall || (this.trainingService as any).getEnrollmentNotifications?.(this.employerId);
+
+    if (!call || typeof call.subscribe !== 'function') {
+      console.warn('No paginated getEnrollmentNotifications implementation available on trainingService.');
+      this.loadingNotifications = false;
+      return;
+    }
+
+    call.pipe(takeUntil(this.destroy$)).subscribe({
+      next: (response: any) => {
+        const newItems = response?.data || response || [];
+        if (!Array.isArray(newItems) || newItems.length === 0) {
+          this.hasMoreEnrollmentNotifications = false;
+        } else {
+          const mapped = newItems.map((n: any) => ({
+            ...n,
+            display_name: n.jobseeker_name || `${n.first_name || ''} ${n.last_name || ''}`.trim() ||
+                          (n.email ? n.email.split('@')[0].replace(/[_.-]/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase()) : 'Anonymous User')
+          }));
+          this.enrollmentNotifications = [...this.enrollmentNotifications, ...mapped];
+
+          // If the API returns pagination info, use it; otherwise infer from returned length
+          if (response?.pagination) {
+            this.hasMoreEnrollmentNotifications = response.pagination.current_page < response.pagination.total_pages;
+          } else {
+            this.hasMoreEnrollmentNotifications = newItems.length === this.notificationsLimit;
+          }
+        }
+        this.loadingNotifications = false;
+      },
+      error: (err: any) => {
+        console.error('Error loading more enrollment notifications:', err);
+        this.loadingNotifications = false;
+      }
+    });
+  }
+
+  /**
+   * Confirm and clear all enrollment notifications both client-side and via API if available.
+   */
+  confirmClearEnrollmentNotifications(): void {
+    if (!confirm('Are you sure you want to clear all enrollment notifications? This cannot be undone.')) {
+      return;
+    }
+
+    // Optimistically clear UI
+    this.enrollmentNotifications = [];
+    this.unreadNotificationCount = 0;
+    this.hasMoreEnrollmentNotifications = false;
+    this.notificationsPage = 1;
+
+    const apiCall = (this.trainingService as any).clearAllEnrollmentNotifications?.(this.employerId) ||
+                    (this.trainingService as any).deleteAllEnrollmentNotifications?.(this.employerId);
+
+    if (apiCall && typeof apiCall.subscribe === 'function') {
+      apiCall.pipe(takeUntil(this.destroy$)).subscribe({
+        next: () => {
+          console.log('All enrollment notifications cleared on server.');
+        },
+        error: (err: any) => {
+          console.error('Error clearing enrollment notifications on server:', err);
+          // Optionally reload to reconcile state
+          this.loadNotifications();
+          this.loadNotificationCount?.();
+        }
+      });
+    } else {
+      // If no batch API exists, attempt to remove individually (best-effort)
+      const ids = this.enrollmentNotifications.map(n => n.id).filter(Boolean);
+      if (ids.length) {
+        ids.forEach((id: any) => {
+          const singleCall = (this.trainingService as any).deleteEnrollmentNotification?.(id, this.employerId) ||
+                             (this.trainingService as any).markNotificationAsRead?.(id, this.employerId);
+          if (singleCall && typeof singleCall.subscribe === 'function') {
+            singleCall.pipe(takeUntil(this.destroy$)).subscribe({
+              next: () => { /* noop per item */ },
+              error: (err: any) => console.warn('Failed to clear notification:', id, err)
+            });
+          }
+        });
+      }
+    }
+  }
+  loadNotificationCount() {
+    throw new Error('Method not implemented.');
+  }
+  private getCategoriesBreakdown(): any[] {
+    const categoriesMap = new Map<string, {
+      count: number;
+      total_revenue: number;
+      rating_sum: number;
+      rating_count: number;
+      videos: number;
+      enrollments: number;
+    }>();
+
+    this.trainings.forEach(t => {
+      const category = t.category || 'Uncategorized';
+      const existing = categoriesMap.get(category) || {
+        count: 0,
+        total_revenue: 0,
+        rating_sum: 0,
+        rating_count: 0,
+        videos: 0,
+        enrollments: 0
+      };
+
+      existing.count += 1;
+
+      // Revenue (only count for paid trainings)
+      if (t.cost_type === 'Paid') {
+        const price = Number(t.price) || 0;
+        const students = Number(t.total_students) || 0;
+        existing.total_revenue += price * students;
+      }
+
+      // Ratings aggregation for average
+      if (typeof t.rating === 'number' && !isNaN(t.rating)) {
+        existing.rating_sum += t.rating;
+        existing.rating_count += 1;
+      }
+
+      // Videos: prefer actual videos array, fall back to video_count
+      existing.videos += (Array.isArray(t.videos) ? t.videos.length : (Number(t.video_count) || 0));
+
+      // Enrollments / students
+      existing.enrollments += Number(t.total_students) || 0;
+
+      categoriesMap.set(category, existing);
+    });
+
+    return Array.from(categoriesMap.entries()).map(([category, data]) => ({
       category,
-      count
-    }));
+      count: data.count,
+      total_revenue: Math.round(data.total_revenue * 100) / 100,
+      avg_rating: data.rating_count ? Math.round((data.rating_sum / data.rating_count) * 10) / 10 : 0,
+      videos: data.videos,
+      enrollments: data.enrollments
+    })).sort((a, b) => b.count - a.count);
   }
 
   loadNotifications(): void {

@@ -301,15 +301,28 @@
   <!-- ✅ Non-null assertion safe now -->
   <!-- In enrolled card - Add debug attr (remove in prod) -->
   <!-- ✅ Debug: Inspect element for ID -->
-<!-- In enrolled card-footer - Clean version -->
-<button
-  *ngIf="training.enrolled && training.certificate_issued && training.enrollment_id"
-  class="btn-certificate"
-  (click)="downloadCertificateFromList(training)"
-  [disabled]="loading">
-  <i class="fas fa-download"></i>
-  {{ loading ? 'Downloading...' : 'Download Certificate' }}
-</button>
+  <!-- In enrolled card-footer - Clean version -->
+<div class="card-cert-section">
+  <!-- Download when certificate record + enrollment id + url exist -->
+  <button
+    *ngIf="training.enrolled && training.certificate_issued && training.enrollment_id && training.certificate_url"
+    class="btn-certificate"
+    (click)="downloadCertificateFromList(training)"
+    [disabled]="loading">
+    <i class="fas fa-download"></i>
+    {{ loading ? 'Downloading...' : 'Download Certificate' }}
+  </button>
+
+  <!-- Certificate issued but download URL not yet available -->
+  <div *ngIf="training.enrolled && training.certificate_issued && training.enrollment_id && !training.certificate_url" class="certificate-pending">
+    <span>Certificate is being prepared. <button class="btn-small" (click)="refreshTrainingDetails()">Check status</button></span>
+  </div>
+
+  <!-- Enrollment id missing (fallback shown elsewhere) -->
+  <div *ngIf="training.enrolled && training.certificate_issued && !training.enrollment_id" class="cert-missing-id">
+    <span>⏳ Certificate ready but details loading... <button (click)="refreshTrainingDetails()" class="btn-small">Refresh</button></span>
+  </div>
+</div>
 
 <!-- Fallback message if ID missing but cert issued -->
 <div *ngIf="training.enrolled && training.certificate_issued && !training.enrollment_id" class="cert-missing-id">

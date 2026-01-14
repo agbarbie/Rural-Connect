@@ -114,7 +114,30 @@
               </button>
             </div>
           </div>
-          
+          <div class="notification-footer" *ngIf="enrollmentNotifications.length > 0">
+            <div class="footer-actions">
+              <button class="btn-secondary" (click)="markAllEnrollmentNotificationsRead(); $event.stopPropagation()">
+                <i class="fas fa-check"></i>
+                Mark all as read
+              </button>
+
+              <button 
+                class="btn-secondary" 
+                *ngIf="hasMoreEnrollmentNotifications" 
+                (click)="loadMoreEnrollmentNotifications(); $event.stopPropagation()">
+                <i class="fas fa-chevron-down"></i>
+                Load more
+              </button>
+
+              <button 
+                class="btn-secondary btn-danger" 
+                (click)="confirmClearEnrollmentNotifications(); $event.stopPropagation()"
+                title="Clear notifications">
+                <i class="fas fa-trash-alt"></i>
+                Clear
+              </button>
+            </div>
+          </div>
           <div class="no-notifications" *ngIf="enrollmentNotifications.length === 0">
             <i class="fas fa-inbox"></i>
             <p>No enrollment updates</p>

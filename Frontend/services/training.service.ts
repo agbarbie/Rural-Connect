@@ -31,6 +31,7 @@ export interface TrainingOutcome {
 
 // Main Training Interface (FIXED: Added video_count, video_urls, and videos for legacy backend compatibility)
 export interface Training {
+certificate_url: any;
   certificate_issued: any;
   enrollment_id: string;
   completed: any;
@@ -533,15 +534,44 @@ checkCertificateAvailability(enrollmentId: string): Observable<ApiResponse<{ ava
     return throwError(() => new Error(errorMessage));
   }
 
-  private buildParams(params: TrainingSearchParams): HttpParams {
+  private buildParams(params: TrainingSearchParams | Record<string, any>): HttpParams {
     let httpParams = new HttpParams();
-    
+    if (!params) return httpParams;
+
     Object.entries(params).forEach(([key, value]) => {
-      if (value !== undefined && value !== null && value !== '') {
-        httpParams = httpParams.set(key, value.toString());
+      if (value === undefined || value === null || value === '') return;
+
+      // Arrays -> append each value (e.g., ?category=a&category=b)
+      if (Array.isArray(value)) {
+        value.forEach(v => {
+          if (v === undefined || v === null) return;
+          httpParams = httpParams.append(key, v.toString());
+        });
+        return;
       }
+
+      // Booleans -> explicit 'true' / 'false'
+      if (typeof value === 'boolean') {
+        httpParams = httpParams.set(key, value ? 'true' : 'false');
+        return;
+      }
+
+      // Dates -> ISO string
+      if (value instanceof Date) {
+        httpParams = httpParams.set(key, value.toISOString());
+        return;
+      }
+
+      // Objects -> stringify (fallback)
+      if (typeof value === 'object') {
+        httpParams = httpParams.set(key, JSON.stringify(value));
+        return;
+      }
+
+      // Primitives -> toString
+      httpParams = httpParams.set(key, value.toString());
     });
-    
+
     return httpParams;
   }
 
@@ -1383,41 +1413,16 @@ checkCertificateAvailability(enrollmentId: string): Observable<ApiResponse<{ ava
   }
 
   downloadCertificate(enrollmentId: string): Observable<Blob> {
-    console.log('📥 Employer: Downloading certificate for enrollment:', enrollmentId);
-    
     if (!enrollmentId) {
+      console.error('❌ downloadCertificate: Enrollment ID is required');
       return throwError(() => new Error('Enrollment ID is required'));
     }
-    
-    return this.http.get(
+
+    return this.http.get<Blob>(
       `${this.TRAINING_ENDPOINT}/enrollments/${enrollmentId}/certificate`,
-      {
-        responseType: 'blob',
-        headers: this.getAuthHeaders(),
-        observe: 'response'
-      }
+      { responseType: 'blob' as 'json', headers: this.getAuthHeaders() }
     ).pipe(
-      map(response => {
-        console.log('✅ Employer certificate response:', {
-          status: response.status,
-          contentType: response.headers.get('Content-Type'),
-          size: response.body?.size || 0
-        });
-        return response.body || new Blob();
-      }),
-      catchError((error) => {
-        console.error('❌ Employer certificate download error:', {
-          status: error?.status,
-          message: error?.message,
-          url: error?.url,
-          errorBody: error?.error
-        });
-        let msg = 'Failed to download certificate';
-        if (error?.status === 404) msg = 'Certificate not found – re-issue if needed.';
-        else if (error?.status === 403) msg = 'Access denied – check training ownership.';
-        else if (error?.status === 401) msg = 'Authentication required. Please log in again.';
-        return throwError(() => new Error(msg));
-      })
+      catchError(this.handleError.bind(this))
     );
   }
 }

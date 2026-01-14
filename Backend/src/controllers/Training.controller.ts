@@ -4,13 +4,16 @@ import { AuthenticatedRequest } from '../middleware/auth.middleware';
 import pool from '../db/db.config';
 import { TrainingSearchParams } from '../types/training.type';
 import { ParsedQs } from 'qs';
-import path from 'path';
+import path, { join } from 'path';
 import { ParamsDictionary } from 'express-serve-static-core';
 
 /**
  * Controller for handling training operations
  */
 export class TrainingController {
+  getEmployerNotificationCount(req: Request<ParamsDictionary, any, any, ParsedQs, Record<string, any>>, res: Response<any, Record<string, any>>, next: NextFunction): void {
+    throw new Error('Method not implemented.');
+  }
   private trainingService: TrainingService;
 
   constructor(trainingService: TrainingService) {
@@ -1483,7 +1486,6 @@ async updateVideoProgress(req: AuthenticatedRequest, res: Response, next: NextFu
 
 async getNotifications(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
-      // Get userId from authenticated user (preferred) or fallback to query param
       const userId = req.user?.id || req.query.user_id as string || req.query.employer_id as string;
       
       if (!userId) {
@@ -1504,8 +1506,8 @@ async getNotifications(req: AuthenticatedRequest, res: Response, next: NextFunct
         else if (r === 'false') read = false;
       }
 
-      console.log('🔔 Route: GET /trainings/notifications', req.user?.user_type?.toUpperCase() || 'UNKNOWN');
-      console.log('🔔 Getting notifications for user:', userId, {
+      console.log('🔔 Getting notifications:', {
+        userId,
         userType: req.user?.user_type,
         page,
         limit,
@@ -1517,6 +1519,7 @@ async getNotifications(req: AuthenticatedRequest, res: Response, next: NextFunct
 
       console.log('✅ Notifications retrieved:', {
         count: result.notifications.length,
+        unread: result.notifications.filter((r: any) => !r.read).length,
         total: result.pagination?.total_count || 0
       });
 
@@ -1530,6 +1533,9 @@ async getNotifications(req: AuthenticatedRequest, res: Response, next: NextFunct
       next(error);
     }
   }
+
+  // Duplicate downloadCertificate implementation removed; consolidated implementation retained later in this file.
+
 
 
 async markNotificationRead(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
@@ -1567,7 +1573,7 @@ async markNotificationRead(req: AuthenticatedRequest, res: Response, next: NextF
   // ENROLLMENT NOTIFICATIONS (EMPLOYER)
   // ============================================
 
-  async getEnrollmentNotifications(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+async getEnrollmentNotifications(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
       const userId = req.user?.id;
 
@@ -1581,16 +1587,88 @@ async markNotificationRead(req: AuthenticatedRequest, res: Response, next: NextF
         return;
       }
 
-      const notifications = await this.trainingService.getEnrollmentNotifications(userId);
+      // Get employer profile ID
+      const employerProfileCheck = await pool.query(
+        'SELECT id FROM employers WHERE user_id = $1',
+        [userId]
+      );
 
-      res.status(200).json({
+      let providerCondition = 't.provider_id = $1';
+      let queryParams = [userId];
+
+      if (employerProfileCheck.rows.length > 0) {
+        const employerProfileId = employerProfileCheck.rows[0].id;
+        providerCondition = '(t.provider_id = $1 OR t.provider_id = $2)';
+        queryParams = [userId, employerProfileId];
+      }
+
+      // ✅ ENHANCED: Robust query with multiple name fallbacks
+      const query = `
+        SELECT
+          e.id as enrollment_id,
+          e.training_id,
+          e.user_id,
+          e.status,
+          e.progress_percentage,
+          e.enrolled_at,
+          e.completed_at,
+          e.certificate_issued,
+          t.title as training_title,
+          -- ✅ CRITICAL: Enhanced name extraction with multiple fallbacks
+          CASE
+            -- Priority 1: Full name from user table
+            WHEN COALESCE(TRIM(CONCAT(u.first_name, ' ', u.last_name)), '') != ''
+            THEN TRIM(CONCAT(COALESCE(u.first_name, ''), ' ', COALESCE(u.last_name, '')))
+            -- Priority 2: Parse from email (e.g., john.doe@example.com -> John Doe)
+            WHEN u.email IS NOT NULL
+            THEN INITCAP(REGEXP_REPLACE(
+              SPLIT_PART(u.email, '@', 1),
+              '[_.-]',
+              ' ',
+              'g'
+            ))
+            -- Fallback
+            ELSE 'Anonymous User'
+          END as jobseeker_name,
+          u.first_name,
+          u.last_name,
+          u.email,
+          -- Notification type classification
+          CASE
+            WHEN e.completed_at IS NOT NULL THEN 'completed'
+            WHEN e.enrolled_at > CURRENT_TIMESTAMP - INTERVAL '24 hours' THEN 'new'
+            ELSE 'in_progress'
+          END as notification_type
+        FROM training_enrollments e
+        JOIN trainings t ON e.training_id = t.id
+        JOIN users u ON e.user_id = u.id
+        WHERE ${providerCondition}
+        ORDER BY
+          CASE
+            WHEN e.completed_at IS NOT NULL THEN e.completed_at
+            ELSE e.enrolled_at
+          END DESC
+      `;
+
+      const result = await pool.query(query, queryParams);
+
+      console.log(`✅ Loaded ${result.rows.length} enrollment notifications with names:`, 
+        result.rows.slice(0, 3).map(r => ({ 
+          name: r.jobseeker_name, 
+          email: r.email, 
+          training: r.training_title 
+        })));
+
+      res.json({
         success: true,
-        data: notifications
+        data: result.rows
       });
     } catch (error) {
+      console.error('❌ Error in getEnrollmentNotifications:', error);
       next(error);
     }
   }
+
 
   // ============================================
   // CERTIFICATE MANAGEMENT
@@ -1598,141 +1676,136 @@ async markNotificationRead(req: AuthenticatedRequest, res: Response, next: NextF
 
 // ✅ FIXED: Robust certificate download with proper path resolution
 async downloadCertificate(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
-  try {
-    const { enrollmentId } = req.params;
-    const userId = req.user?.id;
-    const userType = req.user?.user_type;
+    try {
+      const { enrollmentId } = req.params;
+      const userId = req.user?.id;
+      const userType = req.user?.user_type;
 
-    console.log('📥 Certificate download request:', { enrollmentId, userId, userType });
+      console.log('📥 Certificate download request:', { enrollmentId, userId, userType });
 
-    if (!userId) {
-      res.status(401).json({ success: false, message: 'Unauthorized' });
-      return;
-    }
-
-    // ✅ ENHANCED: Query based on user_type (jobseeker vs employer)
-    let query: string;
-    let queryParams: any[];
-
-    if (userType === 'jobseeker') {
-      // Jobseeker query: Own enrollment only
-      query = `
-        SELECT
-          te.certificate_url,
-          te.certificate_issued,
-          t.title
-        FROM training_enrollments te
-        JOIN trainings t ON te.training_id = t.id
-        WHERE te.id = $1
-          AND te.user_id = $2
-          AND te.certificate_issued = true
-      `;
-      queryParams = [enrollmentId, userId];
-    } else if (userType === 'employer') {
-      // ✅ NEW: Employer query with ownership check
-      query = `
-        SELECT
-          te.certificate_url,
-          te.certificate_issued,
-          t.title,
-          t.provider_id
-        FROM training_enrollments te
-        JOIN trainings t ON te.training_id = t.id
-        WHERE te.id = $1
-          AND te.certificate_issued = true
-          AND (t.provider_id = $2 OR EXISTS (
-            SELECT 1 FROM employers e WHERE e.user_id = $2 AND e.id = t.provider_id
-          ))
-      `;
-      queryParams = [enrollmentId, userId];
-    } else {
-      res.status(403).json({ success: false, message: 'Forbidden: Invalid user type' });
-      return;
-    }
-
-    const enrollment = await pool.query(query, queryParams);
-
-    if (enrollment.rows.length === 0) {
-      console.log('❌ Certificate not found or unauthorized for user_type:', userType);
-      const msg = userType === 'jobseeker'
-        ? 'Certificate not yet issued. Please complete all training videos first.'
-        : 'Certificate not found or you do not own this training.';
-      res.status(404).json({ success: false, message: msg });
-      return;
-    }
-
-    const { certificate_url: certificateUrl, title: trainingTitle } = enrollment.rows[0];
-
-    console.log('📜 Certificate URL from DB:', certificateUrl, 'for user_type:', userType);
-
-    // ✅ CRITICAL FIX: Robust path resolution
-    let certificatePath: string;
-    const baseUploadPath = path.join(__dirname, '../../uploads');
-
-    if (typeof certificateUrl !== 'string' || certificateUrl.trim() === '') {
-      console.error('❌ Invalid certificate URL value:', certificateUrl);
-      res.status(404).json({ success: false, message: 'Invalid certificate URL format' });
-      return;
-    }
-
-    // Handle different URL formats from database
-    if (certificateUrl.startsWith('/certificates/')) {
-      // Format: /certificates/filename.pdf
-      certificatePath = path.join(baseUploadPath, 'certificates', certificateUrl.replace('/certificates/', ''));
-    } else if (certificateUrl.startsWith('certificates/')) {
-      // Format: certificates/filename.pdf
-      certificatePath = path.join(baseUploadPath, certificateUrl);
-    } else if (certificateUrl.startsWith('/uploads/certificates/')) {
-      // Format: /uploads/certificates/filename.pdf
-      certificatePath = path.join(baseUploadPath, 'certificates', certificateUrl.replace('/uploads/certificates/', ''));
-    } else if (path.extname(certificateUrl) === '.pdf') {
-      // Format: filename.pdf (just the filename)
-      certificatePath = path.join(baseUploadPath, 'certificates', certificateUrl);
-    } else {
-      console.error('❌ Unrecognized certificate URL format:', certificateUrl);
-      res.status(404).json({ success: false, message: 'Invalid certificate URL format' });
-      return;
-    }
-
-    console.log('📂 Resolved certificate path:', certificatePath);
-
-    // ✅ Check if file exists
-    const fs = require('fs');
-    if (!fs.existsSync(certificatePath)) {
-      console.error('❌ Certificate file not found at:', certificatePath);
-      res.status(404).json({
-        success: false,
-        message: 'Certificate file not found on server. Please re-issue or contact support.',
-        debug: process.env.NODE_ENV === 'development' ? { path: certificatePath, url: certificateUrl } : undefined
-      });
-      return;
-    }
-
-    // ✅ Set headers for PDF download
-    const safeTitle = (trainingTitle || 'training').toString().replace(/[^\w\s-]/g, '').trim();
-    const filename = `certificate-${safeTitle.replace(/\s+/g, '-')}-${enrollmentId}.pdf`;
-    res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-
-    console.log(`✅ Sending certificate to ${userType}:`, filename);
-
-    // ✅ Stream the file
-    res.download(certificatePath, filename, (err) => {
-      if (err) {
-        console.error('❌ Error sending file:', err);
-        if (!res.headersSent) {
-          res.status(500).json({ success: false, message: 'Failed to download certificate' });
-        }
-      } else {
-        console.log(`✅ Certificate download successful for ${userType}: ${filename}`);
+      if (!userId) {
+        res.status(401).json({ success: false, message: 'Unauthorized' });
+        return;
       }
-    });
 
-  } catch (error: any) {
-    console.error('❌ Error in downloadCertificate:', error);
-    next(error);
+      // ✅ Query based on user_type
+      let query: string;
+      let queryParams: any[];
+
+      if (userType === 'jobseeker') {
+        query = `
+          SELECT
+            te.certificate_url,
+            te.certificate_issued,
+            t.title
+          FROM training_enrollments te
+          JOIN trainings t ON te.training_id = t.id
+          WHERE te.id = $1
+            AND te.user_id = $2
+            AND te.certificate_issued = true
+        `;
+        queryParams = [enrollmentId, userId];
+      } else if (userType === 'employer') {
+        query = `
+          SELECT
+            te.certificate_url,
+            te.certificate_issued,
+            t.title,
+            t.provider_id
+          FROM training_enrollments te
+          JOIN trainings t ON te.training_id = t.id
+          WHERE te.id = $1
+            AND te.certificate_issued = true
+            AND (t.provider_id = $2 OR EXISTS (
+              SELECT 1 FROM employers e WHERE e.user_id = $2 AND e.id = t.provider_id
+            ))
+        `;
+        queryParams = [enrollmentId, userId];
+      } else {
+        res.status(403).json({ success: false, message: 'Forbidden: Invalid user type' });
+        return;
+      }
+
+      const enrollment = await pool.query(query, queryParams);
+
+      if (enrollment.rows.length === 0) {
+        console.log('❌ Certificate not found or unauthorized for user_type:', userType);
+        const msg = userType === 'jobseeker'
+          ? 'Certificate not yet issued. Please complete all training videos first.'
+          : 'Certificate not found or you do not own this training.';
+        res.status(404).json({ success: false, message: msg });
+        return;
+      }
+
+      const { certificate_url: certificateUrl, title: trainingTitle } = enrollment.rows[0];
+
+      console.log('📜 Certificate URL from DB:', certificateUrl, 'for user_type:', userType);
+
+      // ✅ Robust path resolution
+      let certificatePath: string;
+      const baseUploadPath = join(__dirname, '../../uploads');
+      const path = require('path');
+
+      if (typeof certificateUrl !== 'string' || certificateUrl.trim() === '') {
+        console.error('❌ Invalid certificate URL value:', certificateUrl);
+        res.status(404).json({ success: false, message: 'Invalid certificate URL format' });
+        return;
+      }
+
+      // Handle different URL formats
+      if (certificateUrl.startsWith('/certificates/')) {
+        certificatePath = join(baseUploadPath, 'certificates', certificateUrl.replace('/certificates/', ''));
+      } else if (certificateUrl.startsWith('certificates/')) {
+        certificatePath = join(baseUploadPath, certificateUrl);
+      } else if (certificateUrl.startsWith('/uploads/certificates/')) {
+        certificatePath = join(baseUploadPath, 'certificates', certificateUrl.replace('/uploads/certificates/', ''));
+      } else if (path.extname(certificateUrl) === '.pdf') {
+        certificatePath = join(baseUploadPath, 'certificates', certificateUrl);
+      } else {
+        console.error('❌ Unrecognized certificate URL format:', certificateUrl);
+        res.status(404).json({ success: false, message: 'Invalid certificate URL format' });
+        return;
+      }
+
+      console.log('📂 Resolved certificate path:', certificatePath);
+
+      // ✅ Check if file exists
+      const fs = require('fs');
+      if (!fs.existsSync(certificatePath)) {
+        console.error('❌ Certificate file not found at:', certificatePath);
+        res.status(404).json({
+          success: false,
+          message: 'Certificate file not found on server. Please re-issue or contact support.',
+          debug: process.env.NODE_ENV === 'development' ? { path: certificatePath, url: certificateUrl } : undefined
+        });
+        return;
+      }
+
+      // ✅ Set headers for PDF download
+      const safeTitle = (trainingTitle || 'training').toString().replace(/[^\w\s-]/g, '').trim();
+      const filename = `certificate-${safeTitle.replace(/\s+/g, '-')}-${enrollmentId}.pdf`;
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+
+      console.log(`✅ Sending certificate to ${userType}:`, filename);
+
+      // ✅ Stream the file
+      res.download(certificatePath, filename, (err) => {
+        if (err) {
+          console.error('❌ Error sending file:', err);
+          if (!res.headersSent) {
+            res.status(500).json({ success: false, message: 'Failed to download certificate' });
+          }
+        } else {
+          console.log(`✅ Certificate download successful for ${userType}: ${filename}`);
+        }
+      });
+
+    } catch (error: any) {
+      console.error('❌ Error in downloadCertificate:', error);
+      next(error);
+    }
   }
-}
 
   async issueCertificate(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {

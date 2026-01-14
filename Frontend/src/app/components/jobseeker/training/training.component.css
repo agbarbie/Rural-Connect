@@ -12,7 +12,194 @@ body {
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   min-height: 100vh;
 }
+/* =============================================
+  EMPLOYER TRAINING COMPONENT STYLES (CSS)
+  File: training.component.css
+  ============================================= */
 
+.employer-training-container {
+  padding: 1.5rem;
+}
+
+/* Notification Item Styles */
+.notification-item {
+  background: #f8f9fa;
+  transition: all 0.3s;
+  border: 1px solid #e9ecef;
+}
+
+.notification-item.unread {
+  background: #e3f2fd;
+  border-left: 4px solid #2196F3;
+  box-shadow: 0 2px 4px rgba(33, 150, 243, 0.1);
+}
+
+.notification-item.read {
+  opacity: 0.7;
+}
+
+.notification-item:hover {
+  background: #e9ecef;
+  transform: translateX(-2px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+/* Badge Positioning */
+::ng-deep .p-button-badge {
+  min-width: 1.25rem;
+  height: 1.25rem;
+  line-height: 1.25rem;
+  font-size: 0.75rem;
+}
+
+::ng-deep .p-badge {
+  font-weight: 600;
+}
+
+/* Sidebar Header */
+::ng-deep .p-sidebar-header {
+  padding: 1.25rem;
+  border-bottom: 1px solid #e9ecef;
+}
+
+/* Table Customization */
+::ng-deep .p-datatable .p-datatable-tbody > tr > td {
+  vertical-align: middle;
+}
+
+::ng-deep .p-datatable-sm .p-datatable-tbody > tr > td {
+  padding: 0.75rem 1rem;
+}
+
+/* Statistics Cards */
+.p-card {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.p-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+/* Button Customization */
+.p-button-sm {
+  padding: 0.4rem 0.8rem;
+  font-size: 0.875rem;
+}
+
+/* Loading State */
+.p-datatable-loading-overlay {
+  background-color: rgba(255, 255, 255, 0.9);
+}
+
+/* Empty State */
+.pi-inbox {
+  opacity: 0.5;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .employer-training-container {
+   padding: 1rem;
+  }
+
+  ::ng-deep .p-sidebar {
+   width: 100% !important;
+  }
+
+  .flex.gap-2 {
+   flex-direction: column;
+   width: 100%;
+  }
+
+  .flex.gap-2 button {
+   width: 100%;
+  }
+}
+
+/* Animation for Notification Badge */
+@keyframes pulse {
+  0% {
+   transform: scale(1);
+  }
+  50% {
+   transform: scale(1.1);
+  }
+  100% {
+   transform: scale(1);
+  }
+}
+
+.p-badge-danger {
+  animation: pulse 2s infinite;
+}
+
+/* Notification Type Colors */
+.text-blue-500 {
+  color: #2196F3 !important;
+}
+
+.text-green-500 {
+  color: #4CAF50 !important;
+}
+
+.text-purple-500 {
+  color: #9C27B0 !important;
+}
+
+.text-yellow-500 {
+  color: #FFC107 !important;
+}
+
+.text-gray-500 {
+  color: #9E9E9E !important;
+}
+
+.text-gray-600 {
+  color: #757575 !important;
+}
+
+/* Certificate Button */
+.p-button-success {
+  background: #4CAF50;
+  border-color: #4CAF50;
+}
+
+.p-button-success:hover {
+  background: #45a049;
+  border-color: #45a049;
+}
+
+/* Details Box */
+.bg-gray-50 {
+  background-color: #f8f9fa;
+}
+
+/* Utility Classes */
+.w-full {
+  width: 100%;
+}
+
+.gap-2 {
+  gap: 0.5rem;
+}
+
+.text-sm {
+  font-size: 0.875rem;
+}
+
+.text-xs {
+  font-size: 0.75rem;
+}
+
+.font-semibold {
+  font-weight: 600;
+}
+
+.font-bold {
+  font-weight: 700;
+}
 .training-container {
   padding: 2rem 1rem;
   max-width: 1600px;
