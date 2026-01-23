@@ -1,5 +1,6 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { Router } from '@angular/router';
 
 interface Candidate {
   name: string;
@@ -198,20 +199,23 @@ export class LandingComponent implements OnInit {
       logo: 'CC'
     }
   ];
-  router: any;
+
+  constructor(private router: Router) { }
 
   ngOnInit(): void {
     setInterval(() => {
       this.currentTestimonial = (this.currentTestimonial + 1) % this.stories.length;
     }, 5000);
   }
- navigateToLogin(): void {
-  this.router.navigate(['/auth'], { queryParams: { mode: 'login' } });
-}
 
-navigateToSignup(): void {
-  this.router.navigate(['/auth'], { queryParams: { mode: 'signup' } });
-}
+  navigateToLogin(): void {
+    this.router.navigate(['/auth'], { queryParams: { mode: 'login' } });
+  }
+
+  navigateToSignup(): void {
+    this.router.navigate(['/auth'], { queryParams: { mode: 'signup' } });
+  }
+
   setActiveTab(tab: string): void {
     this.activeTab = tab;
   }
@@ -285,7 +289,6 @@ navigateToSignup(): void {
 
   subscribeToPremium(): void {
     console.log('Navigating to premium subscription...');
-    // In a real app, this would redirect to a subscription page
-    window.location.href = '../premium/subscribe';
+    this.router.navigate(['/premium/subscribe']);
   }
 }
