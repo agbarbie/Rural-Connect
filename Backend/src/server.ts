@@ -149,16 +149,22 @@ pool
 // CORS configuration
 const corsOptions = {
   origin: [
-    "http://localhost:4200", // Angular dev server
-    "http://localhost:3000", // React dev server
-    "http://localhost:5000", // This server
-    "http://localhost:8080", // Alternative frontend port
+    "http://localhost:4200",
+    "http://localhost:3000",
+    "http://localhost:5000",
+    "http://localhost:8080",
+    "https://rural-connect-frontend-511q.onrender.com",
   ],
   credentials: true,
   allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"],
   methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
-  optionsSuccessStatus: 200, // For legacy browser support
+  optionsSuccessStatus: 200,
 };
+
+// Add FRONTEND_URL from environment if it exists
+if (process.env.FRONTEND_URL && !corsOptions.origin.includes(process.env.FRONTEND_URL)) {
+  corsOptions.origin.push(process.env.FRONTEND_URL);
+}
 
 // Middleware
 app.use(cors(corsOptions));
