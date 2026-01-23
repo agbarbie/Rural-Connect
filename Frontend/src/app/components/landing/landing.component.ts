@@ -198,6 +198,7 @@ export class LandingComponent implements OnInit {
       logo: 'CC'
     }
   ];
+  router: any;
 
   ngOnInit(): void {
     setInterval(() => {
@@ -205,11 +206,12 @@ export class LandingComponent implements OnInit {
     }, 5000);
   }
  navigateToLogin(): void {
-    window.location.href = '../auth?mode=login';
-  }
-  navigateToSignup(): void {
-    window.location.href = '../auth?mode=signup';
-  }
+  this.router.navigate(['/auth'], { queryParams: { mode: 'login' } });
+}
+
+navigateToSignup(): void {
+  this.router.navigate(['/auth'], { queryParams: { mode: 'signup' } });
+}
   setActiveTab(tab: string): void {
     this.activeTab = tab;
   }
