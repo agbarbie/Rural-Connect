@@ -1,4 +1,5 @@
+// src/environments/environment.prod.ts
 export const environment = {
-  production: false,
-  apiUrl: 'http://localhost:5000/api'
+  production: true,
+  apiUrl: 'https://rural-connect-backend2.onrender.com/api'
 };
