@@ -24,7 +24,19 @@ if (!indexPath) {
 }
 
 const outputDir = path.dirname(indexPath);
-const fallbackPath = path.join(outputDir, '200.html');
 
+// Create 200.html
+const fallbackPath = path.join(outputDir, '200.html');
 fs.copyFileSync(indexPath, fallbackPath);
 console.log('✅ Created 200.html at:', fallbackPath);
+
+// Copy _redirects file
+const redirectsSource = path.join(__dirname, 'public', '_redirects');
+const redirectsDest = path.join(outputDir, '_redirects');
+
+if (fs.existsSync(redirectsSource)) {
+  fs.copyFileSync(redirectsSource, redirectsDest);
+  console.log('✅ Copied _redirects to:', redirectsDest);
+} else {
+  console.warn('⚠️  _redirects file not found in public folder');
+}
