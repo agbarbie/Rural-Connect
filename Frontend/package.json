@@ -2,12 +2,12 @@
   "name": "ruralconnect",
   "version": "0.0.0",
   "scripts": {
-  "ng": "ng",
-  "start": "ng serve",
-  "build": "ng build && node -e \"require('fs').copyFileSync('dist/ruralconnect/index.html', 'dist/ruralconnect/200.html')\"",
-  "watch": "ng build --watch --configuration development",
-  "test": "ng test"
-},
+    "ng": "ng",
+    "start": "ng serve",
+    "build": "ng build && node copy-200.js",
+    "watch": "ng build --watch --configuration development",
+    "test": "ng test"
+  },
   "private": true,
   "dependencies": {
     "@angular/common": "^19.2.0",
