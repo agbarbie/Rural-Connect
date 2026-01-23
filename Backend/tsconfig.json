@@ -20,6 +20,7 @@
     "noImplicitReturns": true,
     "noFallthroughCasesInSwitch": true,
     "moduleResolution": "node",
+    "types": ["node"],  // ← ADD THIS LINE
     "baseUrl": ".",
     "paths": {
       "@/*": ["src/*"]
@@ -28,9 +29,9 @@
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true
   },
-"include": [
-  "src/**/*"
-],
+  "include": [
+    "src/**/*"
+  ],
   "exclude": [
     "node_modules",
     "dist",
