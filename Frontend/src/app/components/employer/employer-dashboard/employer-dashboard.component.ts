@@ -79,6 +79,38 @@ throw new Error('Method not implemented.');
 confirmClearEnrollmentNotifications() {
 throw new Error('Method not implemented.');
 }
+// Add this property at the top with other properties
+sidebarOpen = false;
+
+// Add these methods to your component class
+
+toggleSidebar(): void {
+  this.sidebarOpen = !this.sidebarOpen;
+  const sidebar = document.querySelector('.sidebar');
+  const overlay = document.querySelector('.sidebar-overlay');
+  const hamburger = document.querySelector('.hamburger');
+  
+  if (this.sidebarOpen) {
+    sidebar?.classList.add('open');
+    overlay?.classList.add('open');
+    hamburger?.classList.add('active');
+  } else {
+    sidebar?.classList.remove('open');
+    overlay?.classList.remove('open');
+    hamburger?.classList.remove('active');
+  }
+}
+
+closeSidebar(): void {
+  this.sidebarOpen = false;
+  const sidebar = document.querySelector('.sidebar');
+  const overlay = document.querySelector('.sidebar-overlay');
+  const hamburger = document.querySelector('.hamburger');
+  
+  sidebar?.classList.remove('open');
+  overlay?.classList.remove('open');
+  hamburger?.classList.remove('active');
+}
   employerName: string = 'Tech Innovators Ltd'; // Fallback
   profileCompletion = 85;
   

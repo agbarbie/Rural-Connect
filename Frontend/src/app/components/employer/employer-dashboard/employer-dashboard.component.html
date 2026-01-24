@@ -3,7 +3,37 @@
 <app-sidebar [userType]="'employer'"></app-sidebar>
   <!-- Main Content -->
   <main class="main-content">
+    <!-- Add overlay -->
+    <div class="sidebar-overlay" (click)="closeSidebar()"></div>
+
     <!-- Top Header -->
+    <header class="top-header">
+      <!-- Add hamburger button -->
+      <button class="hamburger" (click)="toggleSidebar()" aria-label="Toggle Menu">
+        <i class="fas fa-bars"></i>
+      </button>
+
+      <div class="header-left">
+        <h1>Employer Dashboard</h1>
+        <p>Manage your recruitment and training programs</p>
+      </div>
+      <div class="header-right">
+        <div class="search-container">
+          <i class="fas fa-search"></i>
+          <input type="text" placeholder="Search candidates, skills, training...">
+        </div>
+        <div class="header-actions">
+          <button class="action-btn notification-btn">
+            <i class="fas fa-bell"></i>
+            <span class="badge">{{urgentActions}}</span>
+          </button>
+          <div class="user-dropdown">
+            <img src="https://via.placeholder.com/36" alt="Profile">
+            <i class="fas fa-chevron-down"></i>
+          </div>
+        </div>
+      </div>
+    </header>
     <header class="top-header">
       <div class="header-left">
         <h1>Employer Dashboard</h1>
