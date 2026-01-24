@@ -200,13 +200,25 @@ export class RatingController {
       });
 
     } catch (error) {
-      console.error('❌ Error creating rating:', error);
-      return res.status(500).json({
-        success: false,
-        message: 'Failed to create rating',
-        error: error instanceof Error ? error.message : 'Unknown error'
-      });
-    }
+  console.error('❌ Error creating rating:', error);
+  console.error('❌ Error details:', {
+    message: error instanceof Error ? error.message : 'Unknown error',
+    stack: error instanceof Error ? error.stack : undefined,
+    code: (error as any).code,
+    detail: (error as any).detail,
+    constraint: (error as any).constraint
+  });
+  
+  return res.status(500).json({
+    success: false,
+    message: 'Failed to create rating',
+    error: error instanceof Error ? error.message : 'Unknown error',
+    details: process.env.NODE_ENV === 'development' ? {
+      code: (error as any).code,
+      detail: (error as any).detail
+    } : undefined
+  });
+}
   }
 
   /**
