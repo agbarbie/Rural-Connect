@@ -452,6 +452,7 @@ getProfileViewCount(): Observable<any> {
     return Math.round((completedSections / totalSections) * 100);
   }
 
+  
   /**
    * Check if personal info is complete
    */
@@ -481,6 +482,20 @@ getProfileViewCount(): Observable<any> {
       headers: this.getHeaders()
     });
   }
+
+  /**
+ * Get profile completion status (simplified)
+ */
+getProfileCompletion(): Observable<any> {
+  return this.http.get<any>(`${this.profileUrl}/completion`, {
+    headers: this.getHeaders()
+  }).pipe(
+    map(response => {
+      console.log('✅ Profile completion response:', response);
+      return response;
+    })
+  );
+}
 
   /**
    * Calculate completion percentage (client-side helper)

@@ -111,15 +111,15 @@ export class JobExplorerComponent implements OnInit, OnDestroy {
     this.destroy$.complete();
   }
 
-  /**
-   * ✅ FIXED: Check profile completion based on FORM FIELDS ONLY
-   * Profile must be 100% complete to apply for jobs
-   * No longer depends on CV upload
-   */
-  checkProfileCompletion(): void {
+ /**
+ * ✅ FIXED: Check profile completion using BACKEND API
+ * This ensures consistency with the profile page
+ */
+checkProfileCompletion(): void {
   this.isCheckingProfile = true;
   
-  this.profileService.getMyProfile()
+  // ✅ Call backend API for profile completion
+  this.profileService.getProfileCompletion()
     .pipe(
       takeUntil(this.destroy$),
       finalize(() => {
@@ -130,7 +130,7 @@ export class JobExplorerComponent implements OnInit, OnDestroy {
         });
       }),
       catchError((error) => {
-        console.error('❌ Error checking profile:', error);
+        console.error('❌ Error checking profile completion:', error);
         // If error, assume profile is incomplete for safety
         this.profileCompletion = 0;
         this.isProfileComplete = false;
@@ -140,14 +140,16 @@ export class JobExplorerComponent implements OnInit, OnDestroy {
     .subscribe({
       next: (response) => {
         if (response && response.success && response.data) {
-          // Calculate profile completion from form fields
-          this.profileCompletion = this.calculateProfileCompletion(response.data);
-          // ✅ FIXED: Accept 80% or higher
+          // ✅ Use completion from backend API
+          this.profileCompletion = response.data.completion || 0;
+          
+          // ✅ Accept 80% or higher
           this.isProfileComplete = this.profileCompletion >= 80;
           
-          console.log('📊 Profile completion (form-based):', {
+          console.log('📊 Profile completion from API:', {
             completion: this.profileCompletion,
-            isComplete: this.isProfileComplete
+            isComplete: this.isProfileComplete,
+            missingFields: response.data.missingFields
           });
         } else {
           // No profile found
