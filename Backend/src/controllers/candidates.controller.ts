@@ -1,73 +1,76 @@
 // src/controllers/candidates.controller.ts - FIXED: Correct column references
 
-import { Request, Response } from 'express';
-import pool from '../db/db.config';
-import { AuthenticatedRequest } from '../middleware/auth.middleware';
+import { Request, Response } from "express";
+import pool from "../db/db.config";
+import { AuthenticatedRequest } from "../middleware/auth.middleware";
 
 export class CandidatesController {
   /**
    * Get all candidates (applicants) with FULL PROFILE DATA
    * GET /api/employer/candidates
    */
-  async getCandidates(req: AuthenticatedRequest, res: Response): Promise<Response> {
+  async getCandidates(
+    req: AuthenticatedRequest,
+    res: Response,
+  ): Promise<Response> {
     try {
       const employerUserId = req.user?.id;
-      console.log('🔍 GET CANDIDATES - Employer User ID:', employerUserId);
-      
+      console.log("🔍 GET CANDIDATES - Employer User ID:", employerUserId);
+
       const {
         job_id,
         match_score_min,
         location,
         experience,
         training,
-        sort_by = 'newest',
+        sort_by = "newest",
         page = 1,
-        limit = 10
+        limit = 10,
       } = req.query;
-      
+
       const offset = (Number(page) - 1) * Number(limit);
-      
+
       // Get employer_id from user_id
       const employerQuery = `SELECT id as employer_id FROM employers WHERE user_id = $1`;
       const employerResult = await pool.query(employerQuery, [employerUserId]);
-      
+
       if (employerResult.rows.length === 0) {
         return res.status(404).json({
           success: false,
-          message: 'Employer profile not found'
+          message: "Employer profile not found",
         });
       }
-      
+
       const employerId = employerResult.rows[0].employer_id;
-      console.log('✅ Found employer_id:', employerId);
-      
+      console.log("✅ Found employer_id:", employerId);
+
       // Build WHERE conditions
       let whereConditions = [
-        'j.employer_id = $1',
-        "ja.status NOT IN ('withdrawn', 'cancelled')"
+        "j.employer_id = $1",
+        "ja.status NOT IN ('withdrawn', 'cancelled')",
       ];
       const queryParams: any[] = [employerId];
       let paramIndex = 2;
-      
+
       if (job_id) {
         whereConditions.push(`ja.job_id = $${paramIndex}`);
         queryParams.push(job_id);
         paramIndex++;
       }
-      
+
       if (location) {
         whereConditions.push(`jp.location ILIKE $${paramIndex}`);
         queryParams.push(`%${location}%`);
         paramIndex++;
       }
-      
-      const whereClause = whereConditions.join(' AND ');
-      
+
+      const whereClause = whereConditions.join(" AND ");
+
       // Add LIMIT and OFFSET
       const limitIndex = paramIndex;
       const offsetIndex = paramIndex + 1;
       queryParams.push(Number(limit), offset);
-      
+
       // 🔥 FIXED QUERY: Use correct column references (jp.phone instead of u.phone)
       const query = `
         SELECT
@@ -129,11 +132,11 @@ export class CandidatesController {
         ORDER BY ${this.getSortField(String(sort_by))}
         LIMIT $${limitIndex} OFFSET $${offsetIndex}
       `;
-      
-      console.log('🔍 Executing query with full profile data...');
+
+      console.log("🔍 Executing query with full profile data...");
       const result = await pool.query(query, queryParams);
-      console.log('✅ Query returned', result.rows.length, 'candidates');
-      
+      console.log("✅ Query returned", result.rows.length, "candidates");
+
       // Get total count
       const countQuery = `
         SELECT COUNT(DISTINCT ja.id) as total
@@ -141,43 +144,47 @@ export class CandidatesController {
         INNER JOIN jobs j ON ja.job_id = j.id
         WHERE j.employer_id = $1
           AND ja.status NOT IN ('withdrawn', 'cancelled')
-          ${job_id ? 'AND ja.job_id = $2' : ''}
+          ${job_id ? "AND ja.job_id = $2" : ""}
       `;
-      
+
       const countParams = job_id ? [employerId, job_id] : [employerId];
       const countResult = await pool.query(countQuery, countParams);
       const totalCount = parseInt(countResult.rows[0].total);
-      
+
       // Process candidates with FULL profile data
-      const candidates = result.rows.map(row => {
+      const candidates = result.rows.map((row) => {
         // Parse skills from jobseeker_profiles
         let skills: string[] = [];
         try {
           if (row.skills) {
-            const parsed = typeof row.skills === 'string' ? JSON.parse(row.skills) : row.skills;
+            const parsed =
+              typeof row.skills === "string"
+                ? JSON.parse(row.skills)
+                : row.skills;
             skills = Array.isArray(parsed) ? parsed : [];
           }
         } catch {
           skills = [];
         }
-        
+
         // Calculate match score
         const jobSkills = row.skills_required || [];
         const matchScore = this.calculateMatchScore(skills, jobSkills);
-        
+
         // Calculate experience string
         const experienceYears = row.years_of_experience || 0;
-        const experience = experienceYears > 0 
-          ? `${experienceYears} years of experience`
-          : 'Entry level';
-        
+        const experience =
+          experienceYears > 0
+            ? `${experienceYears} years of experience`
+            : "Entry level";
+
         // Get profile image with proper URL
-        const profilePicture = row.profile_picture 
-          ? (row.profile_picture.startsWith('http') 
-              ? row.profile_picture 
-              : `/uploads/profiles/${row.profile_picture.split('/').pop()}`)
-          : `https://ui-avatars.com/api/?name=${encodeURIComponent(row.name || row.first_name + ' ' + row.last_name)}&background=4285f4&color=fff&size=128`;
-        
+        const profilePicture = row.profile_picture
+          ? row.profile_picture.startsWith("http")
+            ? row.profile_picture
+            : `${row.profile_picture}` // ✅ FIXED: Use full path as-is
+          : `https://ui-avatars.com/api/?name=${encodeURIComponent(row.name || row.first_name + " " + row.last_name)}&background=4285f4&color=fff&size=128`;
+
         return {
           // Basic info
           id: row.user_id,
@@ -185,90 +192,105 @@ export class CandidatesController {
           name: row.name || `${row.first_name} ${row.last_name}`,
           email: row.email,
           phone: row.phone,
-          
+
           // Profile data
-          title: row.current_position || 'Job Seeker',
+          title: row.current_position || "Job Seeker",
           profile_picture: profilePicture,
-          bio: row.bio || '',
-          location: row.location || 'Not specified',
-          
+          bio: row.bio || "",
+          location: row.location || "Not specified",
+
           // Skills and match
           match_score: matchScore,
           skills: skills,
-          
+
           // Experience
           experience: experience,
           years_of_experience: experienceYears,
           current_position: row.current_position,
-          recent_work: row.current_position ? `Currently working as ${row.current_position}` : 'No recent work history',
-          
+          recent_work: row.current_position
+            ? `Currently working as ${row.current_position}`
+            : "No recent work history",
+
           // Availability
           availability: row.availability_date
             ? `Available from ${new Date(row.availability_date).toLocaleDateString()}`
-            : 'Available immediately',
-          availability_status: row.availability_status || 'open_to_opportunities',
-          
+            : "Available immediately",
+          availability_status:
+            row.availability_status || "open_to_opportunities",
+
           // Application details
           application_status: row.application_status,
           applied_at: row.applied_at,
           cover_letter: row.cover_letter,
           expected_salary: row.expected_salary,
-          
+
           // Social links
           linkedin_url: row.linkedin_url,
           github_url: row.github_url,
           portfolio_url: row.portfolio_url,
           website_url: row.portfolio_url,
-          
+
           // Job details
           job_id: row.job_id,
           job_title: row.job_title,
-          
+
           // Career preferences
           preferred_job_types: this.parseJsonField(row.preferred_job_types),
           preferred_locations: this.parseJsonField(row.preferred_locations),
           salary_expectation_min: row.salary_expectation_min,
           salary_expectation_max: row.salary_expectation_max,
-          
+
           // Status flags
           is_shortlisted: false,
           is_selected: false,
-          
+
           // Activity
           last_active: this.formatLastActive(row.applied_at),
-          activity_status: 'Active',
-          
+          activity_status: "Active",
+
           // Certifications (placeholder - can be extended)
           certifications: [],
-          
+
           // Education (placeholder - can be extended)
-          education: []
+          education: [],
         };
       });
-      
+
       // Check shortlist status
       if (candidates.length > 0) {
-        const candidateIds = candidates.map(c => c.id);
+        const candidateIds = candidates.map((c) => c.id);
         const shortlistQuery = `
           SELECT user_id
           FROM shortlisted_candidates
           WHERE employer_id = $1 AND user_id = ANY($2)
         `;
-        
+
         try {
-          const shortlistResult = await pool.query(shortlistQuery, [employerId, candidateIds]);
-          const shortlistedIds = new Set(shortlistResult.rows.map(r => r.user_id));
-          
-          candidates.forEach(candidate => {
+          const shortlistResult = await pool.query(shortlistQuery, [
+            employerId,
+            candidateIds,
+          ]);
+          const shortlistedIds = new Set(
+            shortlistResult.rows.map((r) => r.user_id),
+          );
+
+          candidates.forEach((candidate) => {
             candidate.is_shortlisted = shortlistedIds.has(candidate.id);
           });
         } catch (shortlistError) {
-          console.log('⚠️ Shortlist check failed (non-critical):', shortlistError);
+          console.log(
+            "⚠️ Shortlist check failed (non-critical):",
+            shortlistError,
+          );
         }
       }
-      
-      console.log('✅ Returning', candidates.length, 'candidates with full profile data');
-      
+
+      console.log(
+        "✅ Returning",
+        candidates.length,
+        "candidates with full profile data",
+      );
+
       return res.json({
         success: true,
         data: {
@@ -277,17 +299,16 @@ export class CandidatesController {
             page: Number(page),
             limit: Number(limit),
             total: totalCount,
-            total_pages: Math.ceil(totalCount / Number(limit))
-          }
-        }
+            total_pages: Math.ceil(totalCount / Number(limit)),
+          },
+        },
       });
-      
     } catch (error) {
-      console.error('❌ Error fetching candidates:', error);
+      console.error("❌ Error fetching candidates:", error);
       return res.status(500).json({
         success: false,
-        message: 'Failed to fetch candidates',
-        error: error instanceof Error ? error.message : 'Unknown error'
+        message: "Failed to fetch candidates",
+        error: error instanceof Error ? error.message : "Unknown error",
       });
     }
   }
@@ -296,61 +317,71 @@ export class CandidatesController {
    * Get candidate full profile (for modal view)
    * GET /api/employer/candidates/:userId
    */
-  async getCandidateProfile(req: AuthenticatedRequest, res: Response): Promise<Response> {
+  async getCandidateProfile(
+    req: AuthenticatedRequest,
+    res: Response,
+  ): Promise<Response> {
     try {
       const userId = req.user?.id;
       const { userId: candidateUserId } = req.params;
       const { jobId } = req.query;
-      
+
       if (!userId) {
         return res.status(401).json({
           success: false,
-          message: 'User ID not found'
+          message: "User ID not found",
         });
       }
       try {
-      const trackViewQuery = `
+        const trackViewQuery = `
         INSERT INTO profile_views (viewer_id, viewed_profile_id, viewed_at)
         VALUES ($1, $2, NOW())
         ON CONFLICT (viewer_id, viewed_profile_id) 
         DO UPDATE SET viewed_at = NOW()
       `;
-      await pool.query(trackViewQuery, [userId, candidateUserId]);
-      console.log(`✅ Tracked profile view: ${userId} viewed ${candidateUserId}`);
-    } catch (viewError) {
-      // Don't fail the request if view tracking fails
-      console.error('Failed to track profile view (non-critical):', viewError);
-    }
-      
+        await pool.query(trackViewQuery, [userId, candidateUserId]);
+        console.log(
+          `✅ Tracked profile view: ${userId} viewed ${candidateUserId}`,
+        );
+      } catch (viewError) {
+        // Don't fail the request if view tracking fails
+        console.error(
+          "Failed to track profile view (non-critical):",
+          viewError,
+        );
+      }
+
       const employerQuery = `SELECT id as employer_id FROM employers WHERE user_id = $1`;
       const employerResult = await pool.query(employerQuery, [userId]);
-      
+
       if (employerResult.rows.length === 0) {
         return res.status(404).json({
           success: false,
-          message: 'Employer profile not found'
+          message: "Employer profile not found",
         });
       }
-      
+
       const employerId = employerResult.rows[0].employer_id;
-      
+
       // Verify employer has access to this candidate
       const accessCheck = await pool.query(
         `SELECT 1 FROM job_applications ja
          INNER JOIN jobs j ON ja.job_id = j.id
          WHERE ja.user_id = $1 AND j.employer_id = $2
-         ${jobId ? 'AND ja.job_id = $3' : ''}
+         ${jobId ? "AND ja.job_id = $3" : ""}
          LIMIT 1`,
-        jobId ? [candidateUserId, employerId, jobId] : [candidateUserId, employerId]
+        jobId
+          ? [candidateUserId, employerId, jobId]
+          : [candidateUserId, employerId],
       );
-      
+
       if (accessCheck.rows.length === 0) {
         return res.status(403).json({
           success: false,
-          message: 'Access denied to this candidate profile'
+          message: "Access denied to this candidate profile",
         });
       }
-      
+
       // Get FULL profile with application details (using jp.phone)
       const query = `
         SELECT 
@@ -388,99 +419,104 @@ export class CandidatesController {
         FROM users u
         LEFT JOIN jobseeker_profiles jp ON u.id = jp.user_id
         LEFT JOIN job_applications ja ON u.id = ja.user_id 
-          ${jobId ? 'AND ja.job_id = $2' : ''}
+          ${jobId ? "AND ja.job_id = $2" : ""}
         WHERE u.id = $1 AND u.user_type = 'jobseeker'
         LIMIT 1
       `;
-      
+
       const queryParams = jobId ? [candidateUserId, jobId] : [candidateUserId];
       const result = await pool.query(query, queryParams);
-      
+
       if (result.rows.length === 0) {
         return res.status(404).json({
           success: false,
-          message: 'Candidate not found'
+          message: "Candidate not found",
         });
       }
-      
+
       const row = result.rows[0];
-      
+
       // Parse skills
       let skills: string[] = [];
       try {
         if (row.skills) {
-          const parsed = typeof row.skills === 'string' ? JSON.parse(row.skills) : row.skills;
+          const parsed =
+            typeof row.skills === "string"
+              ? JSON.parse(row.skills)
+              : row.skills;
           skills = Array.isArray(parsed) ? parsed : [];
         }
       } catch {
         skills = [];
       }
-      
+
       // Construct profile image URL
-      let profileImage = 'https://ui-avatars.com/api/?name=' + 
+      let profileImage =
+        "https://ui-avatars.com/api/?name=" +
         encodeURIComponent(row.name || `${row.first_name} ${row.last_name}`) +
-        '&background=4285f4&color=fff&size=256';
-      
+        "&background=4285f4&color=fff&size=256";
+
       if (row.profile_picture) {
-        if (row.profile_picture.startsWith('http')) {
+        if (row.profile_picture.startsWith("http")) {
           profileImage = row.profile_picture;
         } else {
-          profileImage = `/uploads/profiles/${row.profile_picture.split('/').pop()}`;
+          profileImage = `/uploads/profiles/${row.profile_picture.split("/").pop()}`;
         }
       }
-      
+
       const candidateProfile = {
         user_id: row.user_id,
         name: row.name || `${row.first_name} ${row.last_name}`,
         email: row.email,
-        phone: row.phone || '',
-        location: row.location || '',
+        phone: row.phone || "",
+        location: row.location || "",
         profile_image: profileImage,
-        
-        bio: row.bio || '',
-        title: row.current_position || 'Job Seeker',
-        
+
+        bio: row.bio || "",
+        title: row.current_position || "Job Seeker",
+
         years_of_experience: row.years_of_experience || 0,
-        current_position: row.current_position || '',
-        availability_status: row.availability_status || 'open_to_opportunities',
-        
+        current_position: row.current_position || "",
+        availability_status: row.availability_status || "open_to_opportunities",
+
         skills: skills,
-        
+
         social_links: {
-          linkedin: row.linkedin_url || '',
-          github: row.github_url || '',
-          portfolio: row.portfolio_url || '',
-          website: row.portfolio_url || ''
+          linkedin: row.linkedin_url || "",
+          github: row.github_url || "",
+          portfolio: row.portfolio_url || "",
+          website: row.portfolio_url || "",
         },
-        
-        application: row.application_id ? {
-          id: row.application_id,
-          status: row.application_status,
-          cover_letter: row.cover_letter || '',
-          expected_salary: row.expected_salary || 0,
-          availability_date: row.availability_date || '',
-          applied_at: row.applied_at
-        } : null,
-        
+
+        application: row.application_id
+          ? {
+              id: row.application_id,
+              status: row.application_status,
+              cover_letter: row.cover_letter || "",
+              expected_salary: row.expected_salary || 0,
+              availability_date: row.availability_date || "",
+              applied_at: row.applied_at,
+            }
+          : null,
+
         preferences: {
           job_types: this.parseJsonField(row.preferred_job_types),
           locations: this.parseJsonField(row.preferred_locations),
           salary_min: row.salary_expectation_min || 0,
-          salary_max: row.salary_expectation_max || 0
-        }
+          salary_max: row.salary_expectation_max || 0,
+        },
       };
-      
+
       return res.json({
         success: true,
-        data: candidateProfile
+        data: candidateProfile,
       });
-      
     } catch (error) {
-      console.error('❌ Error fetching candidate profile:', error);
+      console.error("❌ Error fetching candidate profile:", error);
       return res.status(500).json({
         success: false,
-        message: 'Failed to fetch candidate profile',
-        error: error instanceof Error ? error.message : 'Unknown error'
+        message: "Failed to fetch candidate profile",
+        error: error instanceof Error ? error.message : "Unknown error",
       });
     }
   }
@@ -489,7 +525,7 @@ export class CandidatesController {
   private parseJsonField(field: any): string[] {
     if (!field) return [];
     try {
-      if (typeof field === 'string') {
+      if (typeof field === "string") {
         return JSON.parse(field);
       }
       if (Array.isArray(field)) {
@@ -501,35 +537,40 @@ export class CandidatesController {
     }
   }
 
-  private calculateMatchScore(candidateSkills: string[], jobSkills: string[]): number {
+  private calculateMatchScore(
+    candidateSkills: string[],
+    jobSkills: string[],
+  ): number {
     if (!jobSkills || jobSkills.length === 0) return 85;
     if (!candidateSkills || candidateSkills.length === 0) return 60;
-    
-    const normalizedJobSkills = jobSkills.map(s => s.toLowerCase().trim());
-    const normalizedCandidateSkills = candidateSkills.map(s => s.toLowerCase().trim());
-    
-    const matches = normalizedCandidateSkills.filter(skill =>
-      normalizedJobSkills.some(jobSkill => 
-        jobSkill.includes(skill) || skill.includes(jobSkill)
-      )
+
+    const normalizedJobSkills = jobSkills.map((s) => s.toLowerCase().trim());
+    const normalizedCandidateSkills = candidateSkills.map((s) =>
+      s.toLowerCase().trim(),
+    );
+
+    const matches = normalizedCandidateSkills.filter((skill) =>
+      normalizedJobSkills.some(
+        (jobSkill) => jobSkill.includes(skill) || skill.includes(jobSkill),
+      ),
     ).length;
-    
+
     const matchPercentage = (matches / normalizedJobSkills.length) * 100;
     const bonusSkills = Math.max(0, candidateSkills.length - jobSkills.length);
     const bonus = Math.min(bonusSkills * 2, 10);
-    
+
     return Math.min(Math.round(matchPercentage + bonus), 100);
   }
 
   private formatLastActive(lastLogin: Date | null): string {
-    if (!lastLogin) return 'Recently active';
-    
+    if (!lastLogin) return "Recently active";
+
     const now = new Date();
     const diff = now.getTime() - new Date(lastLogin).getTime();
     const minutes = Math.floor(diff / 60000);
     const hours = Math.floor(minutes / 60);
     const days = Math.floor(hours / 24);
-    
+
     if (minutes < 60) return `${minutes} minutes ago`;
     if (hours < 24) return `${hours} hours ago`;
     return `${days} days ago`;
@@ -537,41 +578,45 @@ export class CandidatesController {
 
   private getSortField(sortBy: string): string {
     const validSortFields: Record<string, string> = {
-      'match_score': 'ja.applied_at DESC',
-      'newest': 'ja.applied_at DESC',
-      'recent_activity': 'ja.applied_at DESC',
-      'bestMatch': 'ja.applied_at DESC',
-      'mostExperienced': 'jp.years_of_experience DESC NULLS LAST, ja.applied_at DESC',
-      'recentlyActive': 'ja.applied_at DESC'
+      match_score: "ja.applied_at DESC",
+      newest: "ja.applied_at DESC",
+      recent_activity: "ja.applied_at DESC",
+      bestMatch: "ja.applied_at DESC",
+      mostExperienced:
+        "jp.years_of_experience DESC NULLS LAST, ja.applied_at DESC",
+      recentlyActive: "ja.applied_at DESC",
     };
-    
-    return validSortFields[sortBy] || validSortFields['newest'];
+
+    return validSortFields[sortBy] || validSortFields["newest"];
   }
 
   // Existing methods remain the same
-  async getJobPosts(req: AuthenticatedRequest, res: Response): Promise<Response> {
+  async getJobPosts(
+    req: AuthenticatedRequest,
+    res: Response,
+  ): Promise<Response> {
     try {
       const userId = req.user?.id;
-      
+
       if (!userId) {
         return res.status(401).json({
           success: false,
-          message: 'User ID not found'
+          message: "User ID not found",
         });
       }
-      
+
       const employerQuery = `SELECT e.id as employer_id FROM employers e WHERE e.user_id = $1`;
       const employerResult = await pool.query(employerQuery, [userId]);
-      
+
       if (employerResult.rows.length === 0) {
         return res.status(404).json({
           success: false,
-          message: 'Employer profile not found'
+          message: "Employer profile not found",
         });
       }
-      
+
       const employerId = employerResult.rows[0].employer_id;
-      
+
       const query = `
         SELECT
           j.id,
@@ -589,10 +634,10 @@ export class CandidatesController {
         GROUP BY j.id, j.title, j.status, j.created_at, j.employer_id
         ORDER BY j.created_at DESC
       `;
-      
+
       const result = await pool.query(query, [employerId]);
-      
-      const jobPosts = result.rows.map(row => ({
+
+      const jobPosts = result.rows.map((row) => ({
         id: row.id,
         title: row.title,
         status: row.status,
@@ -601,150 +646,156 @@ export class CandidatesController {
         reviewed_count: parseInt(row.reviewed_count) || 0,
         shortlisted_count: parseInt(row.shortlisted_count) || 0,
         created_at: row.created_at,
-        applications_count: parseInt(row.application_count) || 0
+        applications_count: parseInt(row.application_count) || 0,
       }));
-      
+
       return res.json({
         success: true,
-        data: jobPosts
+        data: jobPosts,
       });
-      
     } catch (error) {
-      console.error('❌ Error fetching job posts:', error);
+      console.error("❌ Error fetching job posts:", error);
       return res.status(500).json({
         success: false,
-        message: 'Failed to fetch job posts',
-        error: error instanceof Error ? error.message : 'Unknown error'
+        message: "Failed to fetch job posts",
+        error: error instanceof Error ? error.message : "Unknown error",
       });
     }
   }
 
-  async toggleShortlist(req: AuthenticatedRequest, res: Response): Promise<Response> {
+  async toggleShortlist(
+    req: AuthenticatedRequest,
+    res: Response,
+  ): Promise<Response> {
     try {
       const userId = req.user?.id;
       const { userId: candidateUserId } = req.params;
       const { jobId } = req.body;
-      
+
       if (!userId) {
         return res.status(401).json({
           success: false,
-          message: 'User ID not found'
+          message: "User ID not found",
         });
       }
-      
+
       const employerQuery = `SELECT id as employer_id FROM employers WHERE user_id = $1`;
       const employerResult = await pool.query(employerQuery, [userId]);
-      
+
       if (employerResult.rows.length === 0) {
         return res.status(404).json({
           success: false,
-          message: 'Employer profile not found'
+          message: "Employer profile not found",
         });
       }
-      
+
       const employerId = employerResult.rows[0].employer_id;
-      
+
       const checkQuery = `
         SELECT id FROM shortlisted_candidates
         WHERE employer_id = $1 AND user_id = $2 AND job_id = $3
       `;
-      
-      const checkResult = await pool.query(checkQuery, [employerId, candidateUserId, jobId]);
-      
+
+      const checkResult = await pool.query(checkQuery, [
+        employerId,
+        candidateUserId,
+        jobId,
+      ]);
+
       if (checkResult.rows.length > 0) {
-        await pool.query(
-          'DELETE FROM shortlisted_candidates WHERE id = $1',
-          [checkResult.rows[0].id]
-        );
-        
+        await pool.query("DELETE FROM shortlisted_candidates WHERE id = $1", [
+          checkResult.rows[0].id,
+        ]);
+
         return res.json({
           success: true,
-          message: 'Candidate removed from shortlist',
-          data: { is_shortlisted: false }
+          message: "Candidate removed from shortlist",
+          data: { is_shortlisted: false },
         });
       } else {
         await pool.query(
           `INSERT INTO shortlisted_candidates (employer_id, user_id, job_id)
            VALUES ($1, $2, $3)`,
-          [employerId, candidateUserId, jobId]
+          [employerId, candidateUserId, jobId],
         );
-        
+
         await pool.query(
           `UPDATE job_applications
            SET status = 'shortlisted', updated_at = NOW()
            WHERE user_id = $1 AND job_id = $2`,
-          [candidateUserId, jobId]
+          [candidateUserId, jobId],
         );
-        
+
         return res.json({
           success: true,
-          message: 'Candidate added to shortlist',
-          data: { is_shortlisted: true }
+          message: "Candidate added to shortlist",
+          data: { is_shortlisted: true },
         });
       }
-      
     } catch (error) {
-      console.error('Error toggling shortlist:', error);
+      console.error("Error toggling shortlist:", error);
       return res.status(500).json({
         success: false,
-        message: 'Failed to update shortlist',
-        error: error instanceof Error ? error.message : 'Unknown error'
+        message: "Failed to update shortlist",
+        error: error instanceof Error ? error.message : "Unknown error",
       });
     }
   }
 
-  async inviteCandidate(req: AuthenticatedRequest, res: Response): Promise<Response> {
+  async inviteCandidate(
+    req: AuthenticatedRequest,
+    res: Response,
+  ): Promise<Response> {
     try {
       const userId = req.user?.id;
       const { userId: candidateUserId } = req.params;
       const { jobId, message } = req.body;
-      
+
       if (!userId) {
         return res.status(401).json({
           success: false,
-          message: 'User ID not found'
+          message: "User ID not found",
         });
       }
-      
+
       const employerQuery = `SELECT id as employer_id FROM employers WHERE user_id = $1`;
       const employerResult = await pool.query(employerQuery, [userId]);
-      
+
       if (employerResult.rows.length === 0) {
         return res.status(404).json({
           success: false,
-          message: 'Employer profile not found'
+          message: "Employer profile not found",
         });
       }
-      
+
       const employerId = employerResult.rows[0].employer_id;
-      
+
       await pool.query(
         `INSERT INTO job_invitations (employer_id, user_id, job_id, message, status)
          VALUES ($1, $2, $3, $4, 'sent')`,
-        [employerId, candidateUserId, jobId, message]
+        [employerId, candidateUserId, jobId, message],
       );
-      
+
       await pool.query(
         `INSERT INTO notifications (user_id, type, title, message, metadata)
          VALUES ($1, 'job_invitation', 'Job Invitation', $2, $3)`,
         [
           candidateUserId,
-          'You have been invited to apply for a position',
-          JSON.stringify({ job_id: jobId, employer_id: employerId })
-        ]
+          "You have been invited to apply for a position",
+          JSON.stringify({ job_id: jobId, employer_id: employerId }),
+        ],
       );
-      
+
       return res.json({
         success: true,
-        message: 'Invitation sent successfully'
+        message: "Invitation sent successfully",
       });
-      
     } catch (error) {
-      console.error('Error sending invitation:', error);
+      console.error("Error sending invitation:", error);
       return res.status(500).json({
         success: false,
-        message: 'Failed to send invitation',
-        error: error instanceof Error ? error.message : 'Unknown error'
+        message: "Failed to send invitation",
+        error: error instanceof Error ? error.message : "Unknown error",
       });
     }
   }
