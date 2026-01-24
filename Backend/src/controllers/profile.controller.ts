@@ -343,174 +343,169 @@ class ProfileController {
    * Get profile completion status
    */
   async getProfileCompletion(req: Request, res: Response): Promise<void> {
-    try {
-      const userId = (req as any).user?.id;
-      if (!userId) {
-        res.status(401).json({ success: false, message: "Unauthorized" });
-        return;
-      }
-
-      const userQuery = `
-        SELECT u.id, u.name, u.email, u.profile_picture,
-               p.id as profile_id, p.bio, p.skills, p.phone, p.location,
-               p.portfolio_url, p.linkedin_url, p.github_url,
-               p.years_of_experience, p.current_position, p.availability_status,
-               p.preferred_job_types, p.preferred_locations,
-               p.salary_expectation_min, p.salary_expectation_max
-        FROM users u
-        LEFT JOIN jobseeker_profiles p ON u.id = p.user_id
-        WHERE u.id = $1
-      `;
-      const { rows: userRows } = await pool.query(userQuery, [userId]);
-
-      if (!userRows.length) {
-        res.status(404).json({ success: false, message: "User not found" });
-        return;
-      }
-
-      const user = userRows[0];
-
-      // Parse skills
-      let skillsCount = 0;
-      try {
-        if (user.skills) {
-          let parsed;
-          if (typeof user.skills === "string") {
-            parsed = JSON.parse(user.skills);
-          } else {
-            parsed = user.skills;
-          }
-          skillsCount = Array.isArray(parsed) ? parsed.length : 0;
-        }
-      } catch {
-        skillsCount = 0;
-      }
-
-      // Parse social links
-      let socialLinksCount = 0;
-      if (user.linkedin_url) socialLinksCount++;
-      if (user.github_url) socialLinksCount++;
-      if (user.portfolio_url) socialLinksCount++;
-
-      const missingFields: string[] = [];
-      const recommendations: string[] = [];
-      const sections: any[] = [];
-
-      // 1. Basic Information (30%)
-      const basicFields = [
-        { field: "Full Name", completed: !!user.name, required: true },
-        { field: "Email", completed: !!user.email, required: true },
-        { field: "Phone Number", completed: !!user.phone, required: true },
-        {
-          field: "Profile Picture",
-          completed: !!user.profile_picture,
-          required: false,
-        },
-        { field: "Location", completed: !!user.location, required: true },
-      ];
-      const missingBasic = basicFields.filter(
-        (f) => f.required && !f.completed,
-      );
-      missingBasic.forEach((f) => missingFields.push(f.field));
-
-      sections.push({
-        name: "Basic Information",
-        completed: missingBasic.length === 0,
-        weight: 30,
-        fields: basicFields,
-      });
-
-      // 2. Professional Summary (20%)
-      const hasSummary = !!user.bio && user.bio.length >= 50;
-      if (!hasSummary) {
-        missingFields.push("Professional Summary");
-        recommendations.push(
-          "Add a compelling professional summary (at least 50 characters).",
-        );
-      }
-      sections.push({
-        name: "Professional Summary",
-        completed: hasSummary,
-        weight: 20,
-      });
-
-      // 3. Skills (25%)
-      const hasSkills = skillsCount >= 3;
-      if (!hasSkills) {
-        missingFields.push("Skills");
-        recommendations.push(
-          `Add ${hasSkills ? "more" : "at least 3"} relevant skills.`,
-        );
-      }
-      sections.push({
-        name: "Skills",
-        completed: hasSkills,
-        weight: 25,
-      });
-
-      // 4. Social Links (15%)
-      const hasSocialLinks = socialLinksCount >= 1;
-      if (!hasSocialLinks) {
-        missingFields.push("Social Links");
-        recommendations.push(
-          "Add at least one professional link (LinkedIn, GitHub, or Portfolio).",
-        );
-      }
-      sections.push({
-        name: "Social Links",
-        completed: hasSocialLinks,
-        weight: 15,
-      });
-
-      // 5. Career Preferences (10%)
-      const hasCareerPrefs = !!(
-        user.years_of_experience ||
-        user.current_position ||
-        user.availability_status
-      );
-      if (!hasCareerPrefs) {
-        missingFields.push("Career Preferences");
-        recommendations.push(
-          "Add your career preferences and work experience details.",
-        );
-      }
-      sections.push({
-        name: "Career Preferences",
-        completed: hasCareerPrefs,
-        weight: 10,
-      });
-
-      // Calculate completion
-      const totalCompletion = sections.reduce(
-        (sum, s) => sum + (s.completed ? s.weight : 0),
-        0,
-      );
-
-      const result = {
-        completion: Math.round(totalCompletion),
-        missingFields,
-        completedSections: sections,
-        recommendations,
-      };
-
-      if (totalCompletion === 100) {
-        result.recommendations.unshift("🎉 Perfect! Your profile is complete.");
-      } else if (totalCompletion >= 80) {
-        result.recommendations.unshift(
-          "💪 Almost there! Just a few more details.",
-        );
-      } else if (totalCompletion >= 50) {
-        result.recommendations.unshift("📈 Good progress! Add more details.");
-      } else {
-        result.recommendations.unshift("⚠️ Your profile needs attention.");
-      }
-
-      res.status(200).json({ success: true, data: result });
-    } catch (error) {
-      console.error("Error in getProfileCompletion:", error);
-      res.status(500).json({ success: false, message: "Server error" });
+  try {
+    const userId = (req as any).user?.id;
+    if (!userId) {
+      res.status(401).json({ success: false, message: 'Unauthorized' });
+      return;
     }
+
+    // ✅ FIXED: Query correct table (jobseekers, not jobseeker_profiles)
+    const userQuery = `
+      SELECT 
+        u.id, 
+        u.name, 
+        u.email, 
+        u.profile_picture,
+        js.bio,
+        js.skills,
+        js.contact_number as phone,
+        js.location,
+        js.portfolio_url,
+        js.experience_level as years_of_experience,
+        js.availability,
+        js.preferred_salary_min as salary_expectation_min,
+        js.preferred_salary_max as salary_expectation_max
+      FROM users u
+      LEFT JOIN jobseekers js ON u.id = js.user_id
+      WHERE u.id = $1
+    `;
+    const { rows: userRows } = await pool.query(userQuery, [userId]);
+
+    if (!userRows.length) {
+      res.status(404).json({ success: false, message: 'User not found' });
+      return;
+    }
+
+    const user = userRows[0];
+
+    // ✅ Parse skills (PostgreSQL array)
+    let skillsCount = 0;
+    try {
+      if (user.skills) {
+        skillsCount = Array.isArray(user.skills) ? user.skills.length : 0;
+      }
+    } catch {
+      skillsCount = 0;
+    }
+
+    // ✅ Parse social links
+    let socialLinksCount = 0;
+    if (user.portfolio_url && user.portfolio_url.trim().length > 0) {
+      socialLinksCount = 1; // We only have one portfolio_url field
+    }
+
+    const missingFields: string[] = [];
+    const recommendations: string[] = [];
+    const sections: any[] = [];
+
+    // 1. Basic Information (30%)
+    const basicFields = [
+      { field: 'Full Name', completed: !!user.name, required: true },
+      { field: 'Email', completed: !!user.email, required: true },
+      { field: 'Phone Number', completed: !!(user.phone && user.phone.trim().length > 0), required: true },
+      { field: 'Profile Picture', completed: !!user.profile_picture, required: false },
+      { field: 'Location', completed: !!(user.location && user.location.trim().length > 0), required: true },
+    ];
+    const missingBasic = basicFields.filter(f => f.required && !f.completed);
+    missingBasic.forEach(f => missingFields.push(f.field));
+    
+    sections.push({
+      name: 'Basic Information',
+      completed: missingBasic.length === 0,
+      weight: 30,
+      fields: basicFields,
+    });
+
+    // 2. Professional Summary (20%)
+    const hasSummary = !!(user.bio && user.bio.trim().length >= 50);
+    if (!hasSummary) {
+      missingFields.push('Professional Summary (50+ characters)');
+      recommendations.push('Add a compelling professional summary (at least 50 characters).');
+    }
+    sections.push({
+      name: 'Professional Summary',
+      completed: hasSummary,
+      weight: 20,
+    });
+
+    // 3. Skills (25%)
+    const hasSkills = skillsCount >= 3;
+    if (!hasSkills) {
+      missingFields.push('Skills (at least 3)');
+      recommendations.push(`Add ${hasSkills ? 'more' : 'at least 3'} relevant skills.`);
+    }
+    sections.push({ 
+      name: 'Skills', 
+      completed: hasSkills, 
+      weight: 25 
+    });
+
+    // 4. Social Links (15%)
+    const hasSocialLinks = socialLinksCount >= 1;
+    if (!hasSocialLinks) {
+      missingFields.push('Social Links');
+      recommendations.push('Add at least one professional link (LinkedIn, GitHub, or Portfolio).');
+    }
+    sections.push({ 
+      name: 'Social Links', 
+      completed: hasSocialLinks, 
+      weight: 15 
+    });
+
+    // 5. Career Preferences (10%)
+    const hasCareerPrefs = !!(
+      user.years_of_experience || 
+      user.availability
+    );
+    if (!hasCareerPrefs) {
+      missingFields.push('Career Preferences');
+      recommendations.push('Add your career preferences and work experience details.');
+    }
+    sections.push({ 
+      name: 'Career Preferences', 
+      completed: hasCareerPrefs, 
+      weight: 10 
+    });
+
+    // Calculate completion
+    const totalCompletion = sections.reduce(
+      (sum, s) => sum + (s.completed ? s.weight : 0),
+      0
+    );
+
+    const result = {
+      completion: Math.round(totalCompletion),
+      missingFields,
+      completedSections: sections,
+      recommendations,
+    };
+
+    if (totalCompletion === 100) {
+      result.recommendations.unshift('🎉 Perfect! Your profile is 100% complete.');
+    } else if (totalCompletion >= 80) {
+      result.recommendations.unshift('💪 Almost there! Just a few more details.');
+    } else if (totalCompletion >= 50) {
+      result.recommendations.unshift('📈 Good progress! Add more details.');
+    } else {
+      result.recommendations.unshift('⚠️ Your profile needs attention.');
+    }
+
+    console.log('✅ Profile completion calculated:', {
+      userId,
+      completion: totalCompletion,
+      skillsCount,
+      hasPhone: !!user.phone,
+      hasLocation: !!user.location,
+      hasBio: !!(user.bio && user.bio.length >= 50)
+    });
+
+    res.status(200).json({ success: true, data: result });
+  } catch (error) {
+    console.error('Error in getProfileCompletion:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
   }
+}
 
   // Legacy/utility methods
   async getProfileByCVId(req: Request, res: Response): Promise<void> {
