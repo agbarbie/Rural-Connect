@@ -117,45 +117,46 @@ export class JobExplorerComponent implements OnInit, OnDestroy {
    * No longer depends on CV upload
    */
   checkProfileCompletion(): void {
-    this.isCheckingProfile = true;
-    
-    this.profileService.getMyProfile()
-      .pipe(
-        takeUntil(this.destroy$),
-        finalize(() => {
-          this.isCheckingProfile = false;
-          console.log('✅ Profile check completed:', {
+  this.isCheckingProfile = true;
+  
+  this.profileService.getMyProfile()
+    .pipe(
+      takeUntil(this.destroy$),
+      finalize(() => {
+        this.isCheckingProfile = false;
+        console.log('✅ Profile check completed:', {
+          completion: this.profileCompletion,
+          isComplete: this.isProfileComplete
+        });
+      }),
+      catchError((error) => {
+        console.error('❌ Error checking profile:', error);
+        // If error, assume profile is incomplete for safety
+        this.profileCompletion = 0;
+        this.isProfileComplete = false;
+        return of(null);
+      })
+    )
+    .subscribe({
+      next: (response) => {
+        if (response && response.success && response.data) {
+          // Calculate profile completion from form fields
+          this.profileCompletion = this.calculateProfileCompletion(response.data);
+          // ✅ FIXED: Accept 80% or higher
+          this.isProfileComplete = this.profileCompletion >= 80;
+          
+          console.log('📊 Profile completion (form-based):', {
             completion: this.profileCompletion,
             isComplete: this.isProfileComplete
           });
-        }),
-        catchError((error) => {
-          console.error('❌ Error checking profile:', error);
-          // If error, assume profile is incomplete for safety
+        } else {
+          // No profile found
           this.profileCompletion = 0;
           this.isProfileComplete = false;
-          return of(null);
-        })
-      )
-      .subscribe({
-        next: (response) => {
-          if (response && response.success && response.data) {
-            // Calculate profile completion from form fields
-            this.profileCompletion = this.calculateProfileCompletion(response.data);
-            this.isProfileComplete = this.profileCompletion === 100;
-            
-            console.log('📊 Profile completion (form-based):', {
-              completion: this.profileCompletion,
-              isComplete: this.isProfileComplete
-            });
-          } else {
-            // No profile found
-            this.profileCompletion = 0;
-            this.isProfileComplete = false;
-          }
         }
-      });
-  }
+      }
+    });
+}
 
   /**
    * ✅ NEW: Calculate profile completion based on FORM FIELDS ONLY
