@@ -7,6 +7,9 @@
   <main class="main-content">
     <!-- Header -->
     <header class="header">
+      <button class="hamburger" (click)="toggleSidebar()">
+        <i class="fas fa-bars"></i>
+      </button>
       <div class="search-bar">
         <i class="fas fa-search search-icon"></i>
         <input type="text" class="search-input" placeholder="Search jobs, companies, or skills..." (input)="onSearch($event)">
@@ -23,6 +26,9 @@
         <img src="https://images.unsplash.com/photo-1494790108755-2616b612b786?w=40&h=40&fit=crop&crop=face" alt="User" class="user-avatar" (click)="openProfile()">
       </div>
     </header>
+
+    <div class="sidebar-overlay" (click)="closeSidebar()"></div>
+    <app-sidebar [userType]="'jobseeker'"></app-sidebar>
 
     <!-- Dashboard Content -->
     <div class="dashboard-content">
