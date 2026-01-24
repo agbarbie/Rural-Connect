@@ -708,6 +708,10 @@ async issueCertificateManually(req: Request, res: Response): Promise<void> {
 /**
  * Get training by ID (uses service for full details including videos)
  */
+/**
+ * COMPLETE FIX: Get training by ID
+ * ALL 26 columns from trainings table included in GROUP BY
+ */
 async getTrainingById(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
   try {
     const { id } = req.params;
@@ -727,8 +731,33 @@ async getTrainingById(req: AuthenticatedRequest, res: Response, next: NextFuncti
       // ========================================
       const query = `
         SELECT 
-          t.*,
-          COUNT(v.id) as video_count,
+          t.id,
+          t.title,
+          t.description,
+          t.category,
+          t.level,
+          t.duration_hours,
+          t.cost_type,
+          t.price,
+          t.mode,
+          t.provider_id,
+          t.provider_name,
+          t.has_certificate,
+          t.rating,
+          t.total_students,
+          t.thumbnail_url,
+          t.location,
+          t.start_date,
+          t.end_date,
+          t.max_participants,
+          t.current_participants,
+          t.status,
+          t.created_at,
+          t.updated_at,
+          t.duration,
+          t.video_count,
+          t.enrolled_count,
+          COUNT(v.id) as video_count_actual,
           COALESCE(json_agg(
             json_build_object(
               'id', v.id,
@@ -751,7 +780,14 @@ async getTrainingById(req: AuthenticatedRequest, res: Response, next: NextFuncti
         LEFT JOIN training_videos v ON v.training_id = t.id
         LEFT JOIN training_outcomes o ON o.training_id = t.id
         WHERE t.id = $1 AND t.status = 'published'
-        GROUP BY t.id
+        GROUP BY 
+          t.id, t.title, t.description, t.category, t.level, 
+          t.duration_hours, t.cost_type, t.price, t.mode, 
+          t.provider_id, t.provider_name, t.has_certificate, 
+          t.rating, t.total_students, t.thumbnail_url, t.location, 
+          t.start_date, t.end_date, t.max_participants, 
+          t.current_participants, t.status, t.created_at, t.updated_at,
+          t.duration, t.video_count, t.enrolled_count
       `;
       
       const result = await pool.query(query, [id]);
@@ -767,7 +803,6 @@ async getTrainingById(req: AuthenticatedRequest, res: Response, next: NextFuncti
       // JOBSEEKER - Show if published OR enrolled
       // ========================================
       
-      // First check if user is enrolled
       const enrollmentCheck = await pool.query(
         'SELECT id FROM training_enrollments WHERE training_id = $1 AND user_id = $2',
         [id, userId]
@@ -777,11 +812,35 @@ async getTrainingById(req: AuthenticatedRequest, res: Response, next: NextFuncti
       
       console.log('🔍 Enrollment check:', { isEnrolled, userId, trainingId: id });
       
-      // Build query - if enrolled, show regardless of status
       const query = `
         SELECT 
-          t.*,
-          COUNT(v.id) as video_count,
+          t.id,
+          t.title,
+          t.description,
+          t.category,
+          t.level,
+          t.duration_hours,
+          t.cost_type,
+          t.price,
+          t.mode,
+          t.provider_id,
+          t.provider_name,
+          t.has_certificate,
+          t.rating,
+          t.total_students,
+          t.thumbnail_url,
+          t.location,
+          t.start_date,
+          t.end_date,
+          t.max_participants,
+          t.current_participants,
+          t.status,
+          t.created_at,
+          t.updated_at,
+          t.duration,
+          t.video_count,
+          t.enrolled_count,
+          COUNT(v.id) as video_count_actual,
           COALESCE(json_agg(
             json_build_object(
               'id', v.id,
@@ -818,7 +877,14 @@ async getTrainingById(req: AuthenticatedRequest, res: Response, next: NextFuncti
         LEFT JOIN training_outcomes o ON o.training_id = t.id
         WHERE t.id = $1 
           ${isEnrolled ? '' : "AND t.status = 'published'"}
-        GROUP BY t.id
+        GROUP BY 
+          t.id, t.title, t.description, t.category, t.level, 
+          t.duration_hours, t.cost_type, t.price, t.mode, 
+          t.provider_id, t.provider_name, t.has_certificate, 
+          t.rating, t.total_students, t.thumbnail_url, t.location, 
+          t.start_date, t.end_date, t.max_participants, 
+          t.current_participants, t.status, t.created_at, t.updated_at,
+          t.duration, t.video_count, t.enrolled_count
       `;
       
       const result = await pool.query(query, [id, userId]);
@@ -860,8 +926,33 @@ async getTrainingById(req: AuthenticatedRequest, res: Response, next: NextFuncti
       
       const query = `
         SELECT 
-          t.*,
-          COUNT(v.id) as video_count,
+          t.id,
+          t.title,
+          t.description,
+          t.category,
+          t.level,
+          t.duration_hours,
+          t.cost_type,
+          t.price,
+          t.mode,
+          t.provider_id,
+          t.provider_name,
+          t.has_certificate,
+          t.rating,
+          t.total_students,
+          t.thumbnail_url,
+          t.location,
+          t.start_date,
+          t.end_date,
+          t.max_participants,
+          t.current_participants,
+          t.status,
+          t.created_at,
+          t.updated_at,
+          t.duration,
+          t.video_count,
+          t.enrolled_count,
+          COUNT(v.id) as video_count_actual,
           COALESCE(json_agg(
             json_build_object(
               'id', v.id,
@@ -884,7 +975,14 @@ async getTrainingById(req: AuthenticatedRequest, res: Response, next: NextFuncti
         LEFT JOIN training_videos v ON v.training_id = t.id
         LEFT JOIN training_outcomes o ON o.training_id = t.id
         WHERE ${whereClause}
-        GROUP BY t.id
+        GROUP BY 
+          t.id, t.title, t.description, t.category, t.level, 
+          t.duration_hours, t.cost_type, t.price, t.mode, 
+          t.provider_id, t.provider_name, t.has_certificate, 
+          t.rating, t.total_students, t.thumbnail_url, t.location, 
+          t.start_date, t.end_date, t.max_participants, 
+          t.current_participants, t.status, t.created_at, t.updated_at,
+          t.duration, t.video_count, t.enrolled_count
       `;
       
       const result = await pool.query(query, queryParams);
