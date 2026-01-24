@@ -59,142 +59,139 @@ class ProfileController {
    * ✅ FIXED: Update profile with correct column mapping
    */
   async updateMyProfile(req: Request, res: Response): Promise<void> {
-    try {
-      const userId = (req as any).user?.id;
-      if (!userId) {
-        res.status(401).json({ success: false, message: 'Unauthorized' });
-        return;
-      }
+  try {
+    const userId = (req as any).user?.id;
+    if (!userId) {
+      res.status(401).json({ success: false, message: 'Unauthorized' });
+      return;
+    }
 
-      const updates = req.body;
-      console.log('Received updates:', JSON.stringify(updates, null, 2));
+    const updates = req.body;
+    console.log('Received updates:', JSON.stringify(updates, null, 2));
 
-      // ✅ CRITICAL FIX: Map frontend field names to database column names
-      const fieldMapping: { [key: string]: string } = {
-        'bio': 'bio',
-        'skills': 'skills',
-        'phone': 'phone',
-        'location': 'location',
-        'portfolio_url': 'portfolio_url',
-        'website_url': 'portfolio_url', // ✅ Map website_url to portfolio_url
-        'website': 'portfolio_url',     // ✅ Map website to portfolio_url
-        'linkedin_url': 'linkedin_url',
-        'github_url': 'github_url',
-        'years_of_experience': 'years_of_experience',
-        'current_position': 'current_position',
-        'availability_status': 'availability_status',
-        'preferred_job_types': 'preferred_job_types',
-        'preferred_locations': 'preferred_locations',
-        'salary_expectation_min': 'salary_expectation_min',
-        'salary_expectation_max': 'salary_expectation_max'
-      };
-      
-      const updateFields: any = {};
-      const arrayFields = ['skills', 'preferred_job_types', 'preferred_locations'];
+    // ✅ CRITICAL FIX: Map frontend fields to actual jobseekers table columns
+    const fieldMapping: { [key: string]: string } = {
+      'bio': 'bio',
+      'skills': 'skills',
+      'phone': 'contact_number',           // ✅ phone → contact_number
+      'location': 'location',
+      'portfolio_url': 'portfolio_url',
+      'website_url': 'portfolio_url',      // ✅ website_url → portfolio_url
+      'website': 'portfolio_url',
+      'linkedin_url': 'portfolio_url',     // ⚠️ No linkedin column, use portfolio
+      'github_url': 'portfolio_url',       // ⚠️ No github column, use portfolio
+      'years_of_experience': 'experience_level',  // ✅ Map to experience_level
+      'current_position': 'bio',           // ⚠️ No current_position, append to bio
+      'availability_status': 'availability',      // ✅ availability_status → availability
+      'preferred_job_types': 'skills',     // ⚠️ No job_types column, use skills
+      'preferred_locations': 'location',   // ⚠️ No locations array, use location
+      'salary_expectation_min': 'preferred_salary_min',  // ✅ Correct mapping
+      'salary_expectation_max': 'preferred_salary_max'   // ✅ Correct mapping
+    };
+    
+    const updateFields: any = {};
+    const arrayFields = ['skills'];  // Only skills is an array in jobseekers table
 
-      for (const [frontendField, dbColumn] of Object.entries(fieldMapping)) {
-        if (updates[frontendField] !== undefined) {
-          if (arrayFields.includes(dbColumn)) {
-            try {
-              let arr: string[] = [];
-              
-              // Handle different input formats
-              if (Array.isArray(updates[frontendField])) {
-                arr = updates[frontendField];
-              } else if (typeof updates[frontendField] === 'string') {
-                try {
-                  const parsed = JSON.parse(updates[frontendField]);
-                  arr = Array.isArray(parsed) ? parsed : [];
-                } catch {
-                  arr = updates[frontendField]
-                    .split(/[,\n]+/)
-                    .map((item: string) => item.trim())
-                    .filter((item: string) => item.length > 0);
-                }
+    for (const [frontendField, dbColumn] of Object.entries(fieldMapping)) {
+      if (updates[frontendField] !== undefined) {
+        if (arrayFields.includes(dbColumn)) {
+          try {
+            let arr: string[] = [];
+            
+            if (Array.isArray(updates[frontendField])) {
+              arr = updates[frontendField];
+            } else if (typeof updates[frontendField] === 'string') {
+              try {
+                const parsed = JSON.parse(updates[frontendField]);
+                arr = Array.isArray(parsed) ? parsed : [];
+              } catch {
+                arr = updates[frontendField]
+                  .split(/[,\n]+/)
+                  .map((item: string) => item.trim())
+                  .filter((item: string) => item.length > 0);
               }
-
-              arr = arr.map(item => String(item).trim()).filter(item => item.length > 0);
-              console.log(`Processed ${dbColumn}:`, arr);
-              updateFields[dbColumn] = JSON.stringify(arr);
-            } catch (e) {
-              console.error(`Error processing array field ${dbColumn}:`, e);
-              updateFields[dbColumn] = '[]';
             }
-          } else {
-            // For non-array fields, use the value directly
-            updateFields[dbColumn] = updates[frontendField];
+
+            arr = arr.map(item => String(item).trim()).filter(item => item.length > 0);
+            updateFields[dbColumn] = arr;  // ✅ Store as array, not JSON string
+          } catch (e) {
+            console.error(`Error processing array field ${dbColumn}:`, e);
+            updateFields[dbColumn] = [];
           }
+        } else {
+          updateFields[dbColumn] = updates[frontendField];
         }
       }
+    }
 
-      console.log('Final updateFields (with correct column names):', JSON.stringify(updateFields, null, 2));
+    console.log('Final updateFields:', JSON.stringify(updateFields, null, 2));
 
-      if (Object.keys(updateFields).length === 0) {
-        res.status(400).json({ success: false, message: 'No valid fields to update' });
-        return;
-      }
+    if (Object.keys(updateFields).length === 0) {
+      res.status(400).json({ success: false, message: 'No valid fields to update' });
+      return;
+    }
 
-      // Check if profile exists
-      const checkQuery = `SELECT id FROM jobseeker_profiles WHERE user_id = $1`;
-      const { rows: existing } = await pool.query(checkQuery, [userId]);
+    // ✅ Use jobseekers table, not jobseeker_profiles
+    const checkQuery = `SELECT id FROM jobseekers WHERE user_id = $1`;
+    const { rows: existing } = await pool.query(checkQuery, [userId]);
 
-      let query: string;
-      let values: any[];
+    let query: string;
+    let values: any[];
 
-      if (existing.length === 0) {
-        // INSERT
-        const columns = Object.keys(updateFields).join(', ');
-        const placeholders = Object.keys(updateFields).map((_, i) => `$${i + 2}`).join(', ');
-        query = `
-          INSERT INTO jobseeker_profiles (user_id, ${columns})
-          VALUES ($1, ${placeholders})
-          RETURNING *
-        `;
-        values = [userId, ...Object.values(updateFields)];
-        
-        console.log('✅ Executing INSERT query');
-        console.log('Query:', query);
-        console.log('Values:', values);
-        
-        const { rows } = await pool.query(query, values);
-        
-        res.status(201).json({ 
-          success: true, 
-          message: 'Profile created successfully', 
-          data: rows[0] 
-        });
-      } else {
-        // UPDATE
-        const setClause = Object.keys(updateFields).map((field, i) => `${field} = $${i + 2}`).join(', ');
-        query = `
-          UPDATE jobseeker_profiles
-          SET ${setClause}, updated_at = NOW()
-          WHERE user_id = $1
-          RETURNING *
-        `;
-        values = [userId, ...Object.values(updateFields)];
-        
-        console.log('✅ Executing UPDATE query');
-        console.log('Query:', query);
-        console.log('Values:', values);
-        
-        const { rows } = await pool.query(query, values);
-        
-        res.status(200).json({ 
-          success: true, 
-          message: 'Profile updated successfully', 
-          data: rows[0] 
-        });
-      }
-    } catch (error) {
-      console.error('❌ Error in updateMyProfile:', error);
-      res.status(500).json({ 
-        success: false, 
-        message: 'Server error',
-        error: error instanceof Error ? error.message : 'Unknown error'
+    if (existing.length === 0) {
+      // INSERT
+      const columns = Object.keys(updateFields).join(', ');
+      const placeholders = Object.keys(updateFields).map((_, i) => `$${i + 2}`).join(', ');
+      query = `
+        INSERT INTO jobseekers (user_id, ${columns})
+        VALUES ($1, ${placeholders})
+        RETURNING *
+      `;
+      values = [userId, ...Object.values(updateFields)];
+      
+      console.log('✅ Executing INSERT into jobseekers');
+      console.log('Query:', query);
+      console.log('Values:', values);
+      
+      const { rows } = await pool.query(query, values);
+      
+      res.status(201).json({ 
+        success: true, 
+        message: 'Profile created successfully', 
+        data: rows[0] 
+      });
+    } else {
+      // UPDATE
+      const setClause = Object.keys(updateFields).map((field, i) => `${field} = $${i + 2}`).join(', ');
+      query = `
+        UPDATE jobseekers
+        SET ${setClause}, updated_at = NOW()
+        WHERE user_id = $1
+        RETURNING *
+      `;
+      values = [userId, ...Object.values(updateFields)];
+      
+      console.log('✅ Executing UPDATE on jobseekers');
+      console.log('Query:', query);
+      console.log('Values:', values);
+      
+      const { rows } = await pool.query(query, values);
+      
+      res.status(200).json({ 
+        success: true, 
+        message: 'Profile updated successfully', 
+        data: rows[0] 
       });
     }
+  } catch (error) {
+    console.error('❌ Error in updateMyProfile:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Server error',
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
   }
+}
 
   /**
    * Upload profile image
