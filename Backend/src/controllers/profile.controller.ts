@@ -11,76 +11,76 @@ class ProfileController {
    * Get current user's profile
    */
   async getMyProfile(req: Request, res: Response): Promise<void> {
-  try {
-    const userId = (req as any).user?.id;
-    if (!userId) {
-      res.status(401).json({ success: false, message: 'Unauthorized' });
-      return;
-    }
-
-    // ✅ FIXED: Read from jobseeker_profiles (correct table)
-    const query = `
-      SELECT 
-        u.id, 
-        u.name, 
-        u.email, 
-        u.profile_picture,
-        jp.bio,
-        jp.skills,
-        jp.location,
-        jp.phone,
-        jp.linkedin_url,
-        jp.github_url,
-        jp.portfolio_url,
-        jp.resume_url,
-        jp.years_of_experience,
-        jp.current_position,
-        jp.availability_status,
-        jp.preferred_job_types,
-        jp.preferred_locations,
-        jp.salary_expectation_min,
-        jp.salary_expectation_max,
-        jp.created_at,
-        jp.updated_at
-      FROM users u
-      LEFT JOIN jobseeker_profiles jp ON u.id = jp.user_id
-      WHERE u.id = $1
-    `;
-    
-    const { rows } = await pool.query(query, [userId]);
-
-    if (!rows.length) {
-      res.status(404).json({ success: false, message: 'Profile not found' });
-      return;
-    }
-
-    const profileData = rows[0];
-    
-    // Parse skills from JSONB
-    let skills = [];
     try {
-      skills = profileData.skills || [];
-    } catch {
-      skills = [];
-    }
-    
-    res.status(200).json({ 
-      success: true, 
-      data: {
-        ...profileData,
-        skills: skills,
-        profile_image: profileData.profile_picture,
-        profileImage: profileData.profile_picture,
+      const userId = (req as any).user?.id;
+      if (!userId) {
+        res.status(401).json({ success: false, message: 'Unauthorized' });
+        return;
       }
-    });
-  } catch (error) {
-    console.error('Error in getMyProfile:', error);
-    res.status(500).json({ success: false, message: 'Server error' });
+
+      // ✅ Read from jobseeker_profiles table
+      const query = `
+        SELECT 
+          u.id, 
+          u.name, 
+          u.email, 
+          u.profile_picture,
+          jp.bio,
+          jp.skills,
+          jp.location,
+          jp.phone,
+          jp.linkedin_url,
+          jp.github_url,
+          jp.portfolio_url,
+          jp.resume_url,
+          jp.years_of_experience,
+          jp.current_position,
+          jp.availability_status,
+          jp.preferred_job_types,
+          jp.preferred_locations,
+          jp.salary_expectation_min,
+          jp.salary_expectation_max,
+          jp.created_at,
+          jp.updated_at
+        FROM users u
+        LEFT JOIN jobseeker_profiles jp ON u.id = jp.user_id
+        WHERE u.id = $1
+      `;
+      
+      const { rows } = await pool.query(query, [userId]);
+
+      if (!rows.length) {
+        res.status(404).json({ success: false, message: 'Profile not found' });
+        return;
+      }
+
+      const profileData = rows[0];
+      
+      // Parse skills from JSONB
+      let skills = [];
+      try {
+        skills = profileData.skills || [];
+      } catch {
+        skills = [];
+      }
+      
+      res.status(200).json({ 
+        success: true, 
+        data: {
+          ...profileData,
+          skills: skills,
+          profile_image: profileData.profile_picture,
+          profileImage: profileData.profile_picture,
+        }
+      });
+    } catch (error) {
+      console.error('Error in getMyProfile:', error);
+      res.status(500).json({ success: false, message: 'Server error' });
+    }
   }
-}
 
   /**
-   * ✅ FIXED: Update profile with correct column mapping
+   * ✅ FIXED: Update profile - now updates jobseeker_profiles table with correct columns
    */
   async updateMyProfile(req: Request, res: Response): Promise<void> {
     try {
@@ -91,34 +91,35 @@ class ProfileController {
       }
 
       const updates = req.body;
-      console.log("Received updates:", JSON.stringify(updates, null, 2));
+      console.log("📝 Received profile updates:", JSON.stringify(updates, null, 2));
 
-      // ✅ CRITICAL FIX: Map frontend fields to actual jobseekers table columns
+      // ✅ CRITICAL FIX: Use the ACTUAL jobseeker_profiles column names
       const fieldMapping: { [key: string]: string } = {
         bio: "bio",
         skills: "skills",
-        phone: "contact_number", // ✅ phone → contact_number
+        phone: "phone",
         location: "location",
+        linkedin_url: "linkedin_url",
+        github_url: "github_url",
         portfolio_url: "portfolio_url",
-        website_url: "portfolio_url", // ✅ website_url → portfolio_url
-        website: "portfolio_url",
-        linkedin_url: "portfolio_url", // ⚠️ No linkedin column, use portfolio
-        github_url: "portfolio_url", // ⚠️ No github column, use portfolio
-        years_of_experience: "experience_level", // ✅ Map to experience_level
-        current_position: "bio", // ⚠️ No current_position, append to bio
-        availability_status: "availability", // ✅ availability_status → availability
-        preferred_job_types: "skills", // ⚠️ No job_types column, use skills
-        preferred_locations: "location", // ⚠️ No locations array, use location
-        salary_expectation_min: "preferred_salary_min", // ✅ Correct mapping
-        salary_expectation_max: "preferred_salary_max", // ✅ Correct mapping
+        website_url: "portfolio_url", // Map website to portfolio_url
+        resume_url: "resume_url",
+        years_of_experience: "years_of_experience",
+        current_position: "current_position",
+        availability_status: "availability_status",
+        preferred_job_types: "preferred_job_types",
+        preferred_locations: "preferred_locations",
+        salary_expectation_min: "salary_expectation_min",
+        salary_expectation_max: "salary_expectation_max",
       };
 
       const updateFields: any = {};
-      const arrayFields = ["skills"]; // Only skills is an array in jobseekers table
+      const jsonbFields = ["skills", "preferred_job_types", "preferred_locations"];
 
       for (const [frontendField, dbColumn] of Object.entries(fieldMapping)) {
         if (updates[frontendField] !== undefined) {
-          if (arrayFields.includes(dbColumn)) {
+          if (jsonbFields.includes(dbColumn)) {
+            // Handle JSONB array fields
             try {
               let arr: string[] = [];
 
@@ -129,6 +130,7 @@ class ProfileController {
                   const parsed = JSON.parse(updates[frontendField]);
                   arr = Array.isArray(parsed) ? parsed : [];
                 } catch {
+                  // If not JSON, split by newlines or commas
                   arr = updates[frontendField]
                     .split(/[,\n]+/)
                     .map((item: string) => item.trim())
@@ -139,47 +141,48 @@ class ProfileController {
               arr = arr
                 .map((item) => String(item).trim())
                 .filter((item) => item.length > 0);
-              updateFields[dbColumn] = arr; // ✅ Store as array, not JSON string
+
+              // Store as JSONB (PostgreSQL will handle the conversion)
+              updateFields[dbColumn] = JSON.stringify(arr);
             } catch (e) {
-              console.error(`Error processing array field ${dbColumn}:`, e);
-              updateFields[dbColumn] = [];
+              console.error(`Error processing JSONB field ${dbColumn}:`, e);
+              updateFields[dbColumn] = JSON.stringify([]);
             }
           } else {
+            // Handle regular fields
             updateFields[dbColumn] = updates[frontendField];
           }
         }
       }
 
-      console.log("Final updateFields:", JSON.stringify(updateFields, null, 2));
+      console.log("✅ Mapped fields for database:", JSON.stringify(updateFields, null, 2));
 
       if (Object.keys(updateFields).length === 0) {
-        res
-          .status(400)
-          .json({ success: false, message: "No valid fields to update" });
+        res.status(400).json({ success: false, message: "No valid fields to update" });
         return;
       }
 
-      // ✅ Use jobseekers table, not jobseeker_profiles
-      const checkQuery = `SELECT id FROM jobseekers WHERE user_id = $1`;
+      // ✅ CRITICAL FIX: Update jobseeker_profiles table, not jobseekers
+      const checkQuery = `SELECT id FROM jobseeker_profiles WHERE user_id = $1`;
       const { rows: existing } = await pool.query(checkQuery, [userId]);
 
       let query: string;
       let values: any[];
 
       if (existing.length === 0) {
-        // INSERT
-        const columns = Object.keys(updateFields).join(", ");
+        // INSERT new profile
+        const columns = ["user_id", ...Object.keys(updateFields)].join(", ");
         const placeholders = Object.keys(updateFields)
           .map((_, i) => `$${i + 2}`)
           .join(", ");
         query = `
-        INSERT INTO jobseekers (user_id, ${columns})
-        VALUES ($1, ${placeholders})
-        RETURNING *
-      `;
+          INSERT INTO jobseeker_profiles (user_id, ${Object.keys(updateFields).join(", ")})
+          VALUES ($1, ${placeholders})
+          RETURNING *
+        `;
         values = [userId, ...Object.values(updateFields)];
 
-        console.log("✅ Executing INSERT into jobseekers");
+        console.log("✅ Executing INSERT into jobseeker_profiles");
         console.log("Query:", query);
         console.log("Values:", values);
 
@@ -191,19 +194,19 @@ class ProfileController {
           data: rows[0],
         });
       } else {
-        // UPDATE
+        // UPDATE existing profile
         const setClause = Object.keys(updateFields)
           .map((field, i) => `${field} = $${i + 2}`)
           .join(", ");
         query = `
-        UPDATE jobseekers
-        SET ${setClause}, updated_at = NOW()
-        WHERE user_id = $1
-        RETURNING *
-      `;
+          UPDATE jobseeker_profiles
+          SET ${setClause}, updated_at = NOW()
+          WHERE user_id = $1
+          RETURNING *
+        `;
         values = [userId, ...Object.values(updateFields)];
 
-        console.log("✅ Executing UPDATE on jobseekers");
+        console.log("✅ Executing UPDATE on jobseeker_profiles");
         console.log("Query:", query);
         console.log("Values:", values);
 
@@ -342,169 +345,176 @@ class ProfileController {
    * Get profile completion status
    */
   async getProfileCompletion(req: Request, res: Response): Promise<void> {
-  try {
-    const userId = (req as any).user?.id;
-    if (!userId) {
-      res.status(401).json({ success: false, message: 'Unauthorized' });
-      return;
-    }
-
-    // ✅ FIXED: Query correct table (jobseekers, not jobseeker_profiles)
-    const userQuery = `
-      SELECT 
-        u.id, 
-        u.name, 
-        u.email, 
-        u.profile_picture,
-        js.bio,
-        js.skills,
-        js.contact_number as phone,
-        js.location,
-        js.portfolio_url,
-        js.experience_level as years_of_experience,
-        js.availability,
-        js.preferred_salary_min as salary_expectation_min,
-        js.preferred_salary_max as salary_expectation_max
-      FROM users u
-      LEFT JOIN jobseekers js ON u.id = js.user_id
-      WHERE u.id = $1
-    `;
-    const { rows: userRows } = await pool.query(userQuery, [userId]);
-
-    if (!userRows.length) {
-      res.status(404).json({ success: false, message: 'User not found' });
-      return;
-    }
-
-    const user = userRows[0];
-
-    // ✅ Parse skills (PostgreSQL array)
-    let skillsCount = 0;
     try {
-      if (user.skills) {
-        skillsCount = Array.isArray(user.skills) ? user.skills.length : 0;
+      const userId = (req as any).user?.id;
+      if (!userId) {
+        res.status(401).json({ success: false, message: 'Unauthorized' });
+        return;
       }
-    } catch {
-      skillsCount = 0;
+
+      // ✅ Query jobseeker_profiles table
+      const userQuery = `
+        SELECT 
+          u.id, 
+          u.name, 
+          u.email, 
+          u.profile_picture,
+          jp.bio,
+          jp.skills,
+          jp.phone,
+          jp.location,
+          jp.linkedin_url,
+          jp.github_url,
+          jp.portfolio_url,
+          jp.years_of_experience,
+          jp.current_position,
+          jp.availability_status,
+          jp.preferred_job_types,
+          jp.preferred_locations,
+          jp.salary_expectation_min,
+          jp.salary_expectation_max
+        FROM users u
+        LEFT JOIN jobseeker_profiles jp ON u.id = jp.user_id
+        WHERE u.id = $1
+      `;
+      const { rows: userRows } = await pool.query(userQuery, [userId]);
+
+      if (!userRows.length) {
+        res.status(404).json({ success: false, message: 'User not found' });
+        return;
+      }
+
+      const user = userRows[0];
+
+      // ✅ Parse skills (JSONB array)
+      let skillsCount = 0;
+      try {
+        if (user.skills) {
+          skillsCount = Array.isArray(user.skills) ? user.skills.length : 0;
+        }
+      } catch {
+        skillsCount = 0;
+      }
+
+      // ✅ Count social links
+      let socialLinksCount = 0;
+      if (user.linkedin_url && user.linkedin_url.trim().length > 0) socialLinksCount++;
+      if (user.github_url && user.github_url.trim().length > 0) socialLinksCount++;
+      if (user.portfolio_url && user.portfolio_url.trim().length > 0) socialLinksCount++;
+
+      const missingFields: string[] = [];
+      const recommendations: string[] = [];
+      const sections: any[] = [];
+
+      // 1. Basic Information (30%)
+      const basicFields = [
+        { field: 'Full Name', completed: !!user.name, required: true },
+        { field: 'Email', completed: !!user.email, required: true },
+        { field: 'Phone Number', completed: !!(user.phone && user.phone.trim().length > 0), required: true },
+        { field: 'Profile Picture', completed: !!user.profile_picture, required: false },
+        { field: 'Location', completed: !!(user.location && user.location.trim().length > 0), required: true },
+      ];
+      const missingBasic = basicFields.filter(f => f.required && !f.completed);
+      missingBasic.forEach(f => missingFields.push(f.field));
+      
+      sections.push({
+        name: 'Basic Information',
+        completed: missingBasic.length === 0,
+        weight: 30,
+        fields: basicFields,
+      });
+
+      // 2. Professional Summary (20%)
+      const hasSummary = !!(user.bio && user.bio.trim().length >= 50);
+      if (!hasSummary) {
+        missingFields.push('Professional Summary (50+ characters)');
+        recommendations.push('Add a compelling professional summary (at least 50 characters).');
+      }
+      sections.push({
+        name: 'Professional Summary',
+        completed: hasSummary,
+        weight: 20,
+      });
+
+      // 3. Skills (25%)
+      const hasSkills = skillsCount >= 3;
+      if (!hasSkills) {
+        missingFields.push('Skills (at least 3)');
+        recommendations.push(`Add ${hasSkills ? 'more' : 'at least 3'} relevant skills.`);
+      }
+      sections.push({ 
+        name: 'Skills', 
+        completed: hasSkills, 
+        weight: 25 
+      });
+
+      // 4. Social Links (15%)
+      const hasSocialLinks = socialLinksCount >= 1;
+      if (!hasSocialLinks) {
+        missingFields.push('Social Links');
+        recommendations.push('Add at least one professional link (LinkedIn, GitHub, or Portfolio).');
+      }
+      sections.push({ 
+        name: 'Social Links', 
+        completed: hasSocialLinks, 
+        weight: 15 
+      });
+
+      // 5. Career Preferences (10%)
+      const hasCareerPrefs = !!(
+        user.years_of_experience || 
+        user.current_position ||
+        user.availability_status
+      );
+      if (!hasCareerPrefs) {
+        missingFields.push('Career Preferences');
+        recommendations.push('Add your career preferences and work experience details.');
+      }
+      sections.push({ 
+        name: 'Career Preferences', 
+        completed: hasCareerPrefs, 
+        weight: 10 
+      });
+
+      // Calculate completion
+      const totalCompletion = sections.reduce(
+        (sum, s) => sum + (s.completed ? s.weight : 0),
+        0
+      );
+
+      const result = {
+        completion: Math.round(totalCompletion),
+        missingFields,
+        completedSections: sections,
+        recommendations,
+      };
+
+      if (totalCompletion === 100) {
+        result.recommendations.unshift('🎉 Perfect! Your profile is 100% complete.');
+      } else if (totalCompletion >= 80) {
+        result.recommendations.unshift('💪 Almost there! Just a few more details.');
+      } else if (totalCompletion >= 50) {
+        result.recommendations.unshift('📈 Good progress! Add more details.');
+      } else {
+        result.recommendations.unshift('⚠️ Your profile needs attention.');
+      }
+
+      console.log('✅ Profile completion calculated:', {
+        userId,
+        completion: totalCompletion,
+        skillsCount,
+        socialLinksCount,
+        hasPhone: !!user.phone,
+        hasLocation: !!user.location,
+        hasBio: !!(user.bio && user.bio.length >= 50)
+      });
+
+      res.status(200).json({ success: true, data: result });
+    } catch (error) {
+      console.error('Error in getProfileCompletion:', error);
+      res.status(500).json({ success: false, message: 'Server error' });
     }
-
-    // ✅ Parse social links
-    let socialLinksCount = 0;
-    if (user.portfolio_url && user.portfolio_url.trim().length > 0) {
-      socialLinksCount = 1; // We only have one portfolio_url field
-    }
-
-    const missingFields: string[] = [];
-    const recommendations: string[] = [];
-    const sections: any[] = [];
-
-    // 1. Basic Information (30%)
-    const basicFields = [
-      { field: 'Full Name', completed: !!user.name, required: true },
-      { field: 'Email', completed: !!user.email, required: true },
-      { field: 'Phone Number', completed: !!(user.phone && user.phone.trim().length > 0), required: true },
-      { field: 'Profile Picture', completed: !!user.profile_picture, required: false },
-      { field: 'Location', completed: !!(user.location && user.location.trim().length > 0), required: true },
-    ];
-    const missingBasic = basicFields.filter(f => f.required && !f.completed);
-    missingBasic.forEach(f => missingFields.push(f.field));
-    
-    sections.push({
-      name: 'Basic Information',
-      completed: missingBasic.length === 0,
-      weight: 30,
-      fields: basicFields,
-    });
-
-    // 2. Professional Summary (20%)
-    const hasSummary = !!(user.bio && user.bio.trim().length >= 50);
-    if (!hasSummary) {
-      missingFields.push('Professional Summary (50+ characters)');
-      recommendations.push('Add a compelling professional summary (at least 50 characters).');
-    }
-    sections.push({
-      name: 'Professional Summary',
-      completed: hasSummary,
-      weight: 20,
-    });
-
-    // 3. Skills (25%)
-    const hasSkills = skillsCount >= 3;
-    if (!hasSkills) {
-      missingFields.push('Skills (at least 3)');
-      recommendations.push(`Add ${hasSkills ? 'more' : 'at least 3'} relevant skills.`);
-    }
-    sections.push({ 
-      name: 'Skills', 
-      completed: hasSkills, 
-      weight: 25 
-    });
-
-    // 4. Social Links (15%)
-    const hasSocialLinks = socialLinksCount >= 1;
-    if (!hasSocialLinks) {
-      missingFields.push('Social Links');
-      recommendations.push('Add at least one professional link (LinkedIn, GitHub, or Portfolio).');
-    }
-    sections.push({ 
-      name: 'Social Links', 
-      completed: hasSocialLinks, 
-      weight: 15 
-    });
-
-    // 5. Career Preferences (10%)
-    const hasCareerPrefs = !!(
-      user.years_of_experience || 
-      user.availability
-    );
-    if (!hasCareerPrefs) {
-      missingFields.push('Career Preferences');
-      recommendations.push('Add your career preferences and work experience details.');
-    }
-    sections.push({ 
-      name: 'Career Preferences', 
-      completed: hasCareerPrefs, 
-      weight: 10 
-    });
-
-    // Calculate completion
-    const totalCompletion = sections.reduce(
-      (sum, s) => sum + (s.completed ? s.weight : 0),
-      0
-    );
-
-    const result = {
-      completion: Math.round(totalCompletion),
-      missingFields,
-      completedSections: sections,
-      recommendations,
-    };
-
-    if (totalCompletion === 100) {
-      result.recommendations.unshift('🎉 Perfect! Your profile is 100% complete.');
-    } else if (totalCompletion >= 80) {
-      result.recommendations.unshift('💪 Almost there! Just a few more details.');
-    } else if (totalCompletion >= 50) {
-      result.recommendations.unshift('📈 Good progress! Add more details.');
-    } else {
-      result.recommendations.unshift('⚠️ Your profile needs attention.');
-    }
-
-    console.log('✅ Profile completion calculated:', {
-      userId,
-      completion: totalCompletion,
-      skillsCount,
-      hasPhone: !!user.phone,
-      hasLocation: !!user.location,
-      hasBio: !!(user.bio && user.bio.length >= 50)
-    });
-
-    res.status(200).json({ success: true, data: result });
-  } catch (error) {
-    console.error('Error in getProfileCompletion:', error);
-    res.status(500).json({ success: false, message: 'Server error' });
   }
-}
 
   // Legacy/utility methods
   async getProfileByCVId(req: Request, res: Response): Promise<void> {
