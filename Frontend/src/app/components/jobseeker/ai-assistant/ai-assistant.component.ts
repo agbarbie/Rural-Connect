@@ -67,6 +67,8 @@ interface ChatMessage {
   styleUrls: ['./ai-assistant.component.css']
 })
 export class AiAssistantComponent implements OnInit, AfterViewInit {
+
+  
   @ViewChild('skillsChart', { static: false }) skillsChart!: ElementRef<HTMLCanvasElement>;
   userMessage: string = '';
   selectedSkill: string = '';

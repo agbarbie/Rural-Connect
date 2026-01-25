@@ -17,6 +17,25 @@ import { SidebarComponent } from '../../shared/sidebar/sidebar.component';
   styleUrls: ['./cv-builder.component.css']
 })
 export class CvBuilderComponent implements OnInit, OnDestroy {
+  toggleSidebar() {
+  const sidebar = document.querySelector('.sidebar');
+  const overlay = document.querySelector('.sidebar-overlay');
+  const hamburger = document.querySelector('.hamburger');
+
+  sidebar?.classList.toggle('open');
+  overlay?.classList.toggle('open');
+  hamburger?.classList.toggle('active');
+}
+
+closeSidebar() {
+  const sidebar = document.querySelector('.sidebar');
+  const overlay = document.querySelector('.sidebar-overlay');
+  const hamburger = document.querySelector('.hamburger');
+
+  sidebar?.classList.remove('open');
+  overlay?.classList.remove('open');
+  hamburger?.classList.remove('active');
+}
   
   currentStep = 1;
   totalSteps = 6;

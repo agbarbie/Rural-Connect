@@ -11,74 +11,73 @@ class ProfileController {
    * Get current user's profile
    */
   async getMyProfile(req: Request, res: Response): Promise<void> {
-    try {
-      const userId = (req as any).user?.id;
-      if (!userId) {
-        res.status(401).json({ success: false, message: "Unauthorized" });
-        return;
-      }
+  try {
+    const userId = (req as any).user?.id;
+    if (!userId) {
+      res.status(401).json({ success: false, message: 'Unauthorized' });
+      return;
+    }
 
-      // ✅ FIXED: Join users and jobseekers tables to get complete profile
-      const query = `
+    // ✅ FIXED: Read from jobseeker_profiles (correct table)
+    const query = `
       SELECT 
         u.id, 
         u.name, 
         u.email, 
         u.profile_picture,
-        js.location,
-        js.contact_number as phone,
-        js.skills,
-        js.experience_level as years_of_experience,
-        js.preferred_salary_min as salary_expectation_min,
-        js.preferred_salary_max as salary_expectation_max,
-        js.availability,
-        js.bio,
-        js.resume_url,
-        js.portfolio_url,
-        js.created_at,
-        js.updated_at
+        jp.bio,
+        jp.skills,
+        jp.location,
+        jp.phone,
+        jp.linkedin_url,
+        jp.github_url,
+        jp.portfolio_url,
+        jp.resume_url,
+        jp.years_of_experience,
+        jp.current_position,
+        jp.availability_status,
+        jp.preferred_job_types,
+        jp.preferred_locations,
+        jp.salary_expectation_min,
+        jp.salary_expectation_max,
+        jp.created_at,
+        jp.updated_at
       FROM users u
-      LEFT JOIN jobseekers js ON u.id = js.user_id
+      LEFT JOIN jobseeker_profiles jp ON u.id = jp.user_id
       WHERE u.id = $1
     `;
+    
+    const { rows } = await pool.query(query, [userId]);
 
-      const { rows } = await pool.query(query, [userId]);
-
-      if (!rows.length) {
-        res.status(404).json({ success: false, message: "Profile not found" });
-        return;
-      }
-
-      const profileData = rows[0];
-
-      // ✅ Map database columns to frontend-expected format
-      res.status(200).json({
-        success: true,
-        data: {
-          ...profileData,
-          // Profile image mapping (all variations)
-          profile_image: profileData.profile_picture,
-          profileImage: profileData.profile_picture,
-
-          // Map database columns to frontend field names
-          availability_status: profileData.availability,
-          linkedin_url: profileData.portfolio_url, // Temporary until we add separate columns
-          github_url: profileData.portfolio_url,
-          website_url: profileData.portfolio_url,
-
-          // Ensure skills is always an array
-          skills: Array.isArray(profileData.skills)
-            ? profileData.skills
-            : profileData.skills
-              ? [profileData.skills]
-              : [],
-        },
-      });
-    } catch (error) {
-      console.error("Error in getMyProfile:", error);
-      res.status(500).json({ success: false, message: "Server error" });
+    if (!rows.length) {
+      res.status(404).json({ success: false, message: 'Profile not found' });
+      return;
     }
+
+    const profileData = rows[0];
+    
+    // Parse skills from JSONB
+    let skills = [];
+    try {
+      skills = profileData.skills || [];
+    } catch {
+      skills = [];
+    }
+    
+    res.status(200).json({ 
+      success: true, 
+      data: {
+        ...profileData,
+        skills: skills,
+        profile_image: profileData.profile_picture,
+        profileImage: profileData.profile_picture,
+      }
+    });
+  } catch (error) {
+    console.error('Error in getMyProfile:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
   }
+}
 
   /**
    * ✅ FIXED: Update profile with correct column mapping

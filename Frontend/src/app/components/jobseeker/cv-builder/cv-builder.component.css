@@ -1345,6 +1345,174 @@ body {
   font-weight: 500;
 }
 
+@media (max-width: 1024px) {
+  .main-content {
+    margin-left: 0;
+  }
+}
+
+@media (max-width: 768px) {
+  .hamburger {
+    display: block;
+  }
+
+  .header {
+    padding: 16px;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 16px;
+  }
+
+  .header-left, .header-right {
+    text-align: center;
+  }
+
+  .header-right {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .cv-selector select {
+    width: 100%;
+    margin-bottom: 12px;
+  }
+
+  .cv-status {
+    justify-content: center;
+  }
+
+  .header-actions {
+    justify-content: center;
+  }
+
+  .welcome-section {
+    padding: 24px 16px;
+  }
+
+  .welcome-options {
+    grid-template-columns: 1fr;
+  }
+
+  .drag-drop-area {
+    padding: 32px 16px;
+  }
+
+  .my-cvs-section {
+    padding: 20px;
+  }
+
+  .cvs-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .progress-container {
+    margin: 16px;
+    padding: 16px;
+  }
+
+  .form-section {
+    margin: 16px;
+    padding: 20px;
+  }
+
+  .form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .form-navigation {
+    margin: 16px;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .step-indicator {
+    order: -1;
+  }
+}
+
+@media (max-width: 480px) {
+  .page-title {
+    font-size: 24px;
+  }
+
+  .welcome-content h2 {
+    font-size: 28px;
+  }
+
+  .drag-drop-area {
+    padding: 24px 12px;
+  }
+
+  .upload-text {
+    font-size: 18px;
+  }
+
+  .profile-image-preview {
+    width: 120px;
+    height: 120px;
+  }
+
+  .profile-image-actions {
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .btn-upload, .btn-remove {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .progress-bar {
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+
+  .progress-step .step-label {
+    font-size: 12px;
+  }
+
+  .entry-card {
+    padding: 16px;
+  }
+
+  .skills-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .cv-preview-container {
+    margin: 16px;
+    padding: 16px;
+  }
+
+  .cv-document {
+    padding: 16px;
+  }
+
+  .cv-name {
+    font-size: 24px;
+  }
+
+  .cv-contact {
+    flex-direction: column;
+    gap: 8px;
+  }
+}
+
+@media (max-width: 360px) {
+  .welcome-content h2 {
+    font-size: 24px;
+  }
+
+  .page-title {
+    font-size: 20px;
+  }
+
+  .btn {
+    padding: 10px 14px;
+    font-size: 14px;
+  }
+}
+
 @keyframes spin {
   0% { transform: rotate(0deg); }
   100% { transform: rotate(360deg); }

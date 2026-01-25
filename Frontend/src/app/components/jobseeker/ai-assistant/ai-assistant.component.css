@@ -1323,7 +1323,191 @@ body {
 .modal-actions .btn-primary {
   background: linear-gradient(135deg, #f59e0b, #d97706);
 }
+/* Mobile-first adjustments */
+@media (max-width: 1024px) {
+  .main-content {
+    margin-left: 0;
+    margin-right: 0;
+  }
 
+  .right-sidebar {
+    display: none;
+  }
+
+  .conversation-area {
+    padding: 24px;
+  }
+
+  .header-section {
+    padding: 24px;
+  }
+
+  .greeting-container {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 24px;
+  }
+
+  .profile-snapshot {
+    align-self: flex-start;
+  }
+}
+
+@media (max-width: 768px) {
+  .ai-assistant-container {
+    flex-direction: column;
+  }
+
+  /* Show hamburger in header if you add one (recommended) */
+  .hamburger {
+    display: block;
+  }
+
+  .main-content {
+    margin-left: 0;
+  }
+
+  .header-section {
+    padding: 20px;
+  }
+
+  .greeting-text h1 {
+    font-size: 26px;
+  }
+
+  .greeting-text p {
+    font-size: 15px;
+  }
+
+  .conversation-area {
+    padding: 16px;
+  }
+
+  .message {
+    gap: 12px;
+    margin-bottom: 24px;
+  }
+
+  .user-message .message-content {
+    max-width: 85%;
+  }
+
+  .job-cards-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .quick-actions {
+    padding: 16px;
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .action-chip {
+    justify-content: center;
+    padding: 12px;
+    font-size: 14px;
+  }
+
+  .input-area {
+    padding: 16px;
+  }
+
+  .input-container {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .input-container input {
+    border-radius: 12px;
+    margin-bottom: 12px;
+  }
+
+  .send-button {
+    align-self: flex-end;
+  }
+
+  .input-suggestions {
+    justify-content: center;
+  }
+
+  .suggestion-chip {
+    font-size: 11px;
+    padding: 6px 10px;
+  }
+}
+
+@media (max-width: 480px) {
+  .header-section {
+    padding: 16px;
+  }
+
+  .greeting-text h1 {
+    font-size: 22px;
+    letter-spacing: -0.5px;
+  }
+
+  .greeting-text p {
+    font-size: 14px;
+  }
+
+  .profile-avatar img {
+    width: 60px;
+    height: 60px;
+  }
+
+  .skill-badge {
+    font-size: 12px;
+    padding: 6px 12px;
+  }
+
+  .conversation-area {
+    padding: 12px;
+  }
+
+  .message-content {
+    padding: 16px;
+  }
+
+  .user-message .message-content {
+    padding: 14px 18px;
+  }
+
+  .message-text {
+    font-size: 15px;
+  }
+
+  .job-card {
+    padding: 16px;
+  }
+
+  .job-actions {
+    flex-direction: column;
+  }
+
+  .btn {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+@media (max-width: 360px) {
+  .greeting-text h1 {
+    font-size: 20px;
+  }
+
+  .profile-avatar img {
+    width: 50px;
+    height: 50px;
+  }
+
+  .conversation-area {
+    padding: 8px;
+  }
+
+  .message-text {
+    font-size: 14px;
+  }
+}
 /* Responsive Design */
 @media (max-width: 1200px) {
   .right-sidebar {
@@ -1367,4 +1551,541 @@ body {
   .modal-actions {
     flex-direction: column;
   }
+  /* ============================================
+   MOBILE RESPONSIVE STYLES FOR AI ASSISTANT
+   Add these to your ai-assistant.component.css
+   ============================================ */
+
+/* Hamburger Menu - Hidden by default on desktop */
+.hamburger {
+  display: none;
+  background: none;
+  border: none;
+  font-size: 24px;
+  color: #1e293b;
+  cursor: pointer;
+  padding: 8px;
+  border-radius: 8px;
+  transition: all 0.3s ease;
+  position: fixed;
+  top: 20px;
+  left: 20px;
+  z-index: 1001;
+  background: white;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+}
+
+.hamburger:hover {
+  background: #f1f5f9;
+}
+
+.hamburger.active {
+  color: #667eea;
+}
+
+/* Sidebar Overlay for Mobile */
+.sidebar-overlay {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 998;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.sidebar-overlay.open {
+  display: block;
+  opacity: 1;
+}
+
+/* Mobile Sidebar Adjustments */
+@media (max-width: 1024px) {
+  .hamburger {
+    display: block;
+  }
+
+  .header-section {
+    padding-left: 70px; /* Make room for hamburger */
+  }
+
+  /* Hide sidebar by default on tablet/mobile */
+  ::ng-deep .sidebar {
+    position: fixed !important;
+    left: -280px !important;
+    top: 0 !important;
+    height: 100vh !important;
+    z-index: 999 !important;
+    transition: left 0.3s ease !important;
+  }
+
+  /* Show sidebar when open */
+  ::ng-deep .sidebar.open {
+    left: 0 !important;
+    box-shadow: 4px 0 20px rgba(0, 0, 0, 0.2) !important;
+  }
+
+  .main-content {
+    margin-left: 0 !important;
+  }
+
+  .right-sidebar {
+    display: none;
+  }
+}
+
+@media (max-width: 768px) {
+  .hamburger {
+    top: 15px;
+    left: 15px;
+  }
+
+  .header-section {
+    padding: 20px;
+    padding-left: 65px;
+  }
+
+  .greeting-container {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 20px;
+  }
+
+  .greeting-text h1 {
+    font-size: 24px;
+    letter-spacing: -0.5px;
+  }
+
+  .greeting-text p {
+    font-size: 14px;
+  }
+
+  .profile-snapshot {
+    align-self: flex-start;
+  }
+
+  .profile-avatar img {
+    width: 60px;
+    height: 60px;
+  }
+
+  .skill-badge {
+    font-size: 11px;
+    padding: 6px 12px;
+  }
+
+  .conversation-area {
+    padding: 16px;
+  }
+
+  .message {
+    gap: 12px;
+    margin-bottom: 20px;
+  }
+
+  .ai-message .message-avatar {
+    width: 40px;
+    height: 40px;
+    font-size: 18px;
+  }
+
+  .user-message .message-avatar img {
+    width: 40px;
+    height: 40px;
+  }
+
+  .message-content {
+    padding: 20px;
+  }
+
+  .user-message .message-content {
+    max-width: 80%;
+    padding: 14px 18px;
+  }
+
+  .message-text {
+    font-size: 15px;
+  }
+
+  .job-cards-grid {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+
+  .job-card {
+    padding: 16px;
+  }
+
+  .company-logo {
+    width: 45px;
+    height: 45px;
+    font-size: 18px;
+  }
+
+  .job-info h3 {
+    font-size: 16px;
+  }
+
+  .job-actions {
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .btn {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .training-card {
+    padding: 16px;
+  }
+
+  .training-icon {
+    width: 42px;
+    height: 42px;
+    font-size: 18px;
+  }
+
+  .training-info h3 {
+    font-size: 16px;
+  }
+
+  .training-actions {
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .quick-actions {
+    padding: 16px;
+    gap: 10px;
+  }
+
+  .action-chip {
+    flex: 1 1 calc(50% - 5px);
+    justify-content: center;
+    padding: 10px 12px;
+    font-size: 13px;
+  }
+
+  .input-area {
+    padding: 16px;
+  }
+
+  .input-container {
+    margin-bottom: 10px;
+  }
+
+  .input-container input {
+    padding: 12px 18px;
+    font-size: 14px;
+  }
+
+  .send-button {
+    width: 44px;
+    height: 44px;
+  }
+
+  .input-suggestions {
+    gap: 6px;
+  }
+
+  .suggestion-chip {
+    font-size: 11px;
+    padding: 6px 10px;
+  }
+
+  .modal-content {
+    width: 95%;
+    max-width: none;
+    margin: 10px;
+  }
+
+  .modal-header {
+    padding: 20px;
+  }
+
+  .modal-header h3 {
+    font-size: 20px;
+  }
+
+  .modal-body {
+    padding: 20px;
+  }
+
+  .modal-actions {
+    flex-direction: column;
+    gap: 10px;
+    padding: 0 20px 20px;
+  }
+
+  .modal-actions .btn {
+    width: 100%;
+  }
+}
+
+@media (max-width: 480px) {
+  .hamburger {
+    top: 12px;
+    left: 12px;
+    font-size: 22px;
+  }
+
+  .header-section {
+    padding: 16px;
+    padding-left: 60px;
+  }
+
+  .greeting-text h1 {
+    font-size: 20px;
+  }
+
+  .greeting-text p {
+    font-size: 13px;
+    line-height: 1.5;
+  }
+
+  .profile-avatar img {
+    width: 55px;
+    height: 55px;
+  }
+
+  .top-skills {
+    gap: 8px;
+  }
+
+  .skill-badge {
+    font-size: 10px;
+    padding: 5px 10px;
+  }
+
+  .conversation-area {
+    padding: 12px;
+  }
+
+  .message {
+    margin-bottom: 16px;
+  }
+
+  .ai-message .message-avatar {
+    width: 36px;
+    height: 36px;
+    font-size: 16px;
+  }
+
+  .user-message .message-avatar img {
+    width: 36px;
+    height: 36px;
+    border: 2px solid white;
+  }
+
+  .message-content {
+    padding: 16px;
+    border-radius: 16px;
+  }
+
+  .user-message .message-content {
+    max-width: 85%;
+    padding: 12px 16px;
+    border-radius: 20px 20px 4px 20px;
+  }
+
+  .message-text {
+    font-size: 14px;
+    line-height: 1.6;
+  }
+
+  .card-section-title {
+    font-size: 17px;
+    margin-bottom: 16px;
+  }
+
+  .job-explorer-container {
+    padding: 16px;
+    border-radius: 12px;
+  }
+
+  .job-search-header h2 {
+    font-size: 18px;
+  }
+
+  .job-search-header p {
+    font-size: 13px;
+  }
+
+  .job-card {
+    padding: 14px;
+    border-radius: 10px;
+  }
+
+  .job-header {
+    gap: 12px;
+  }
+
+  .company-logo {
+    width: 40px;
+    height: 40px;
+    font-size: 16px;
+  }
+
+  .job-info h3 {
+    font-size: 15px;
+  }
+
+  .job-info p {
+    font-size: 13px;
+  }
+
+  .location,
+  .salary {
+    font-size: 12px;
+  }
+
+  .match-score {
+    font-size: 10px;
+    padding: 3px 6px;
+  }
+
+  .job-description p {
+    font-size: 13px;
+  }
+
+  .skill-tag {
+    padding: 5px 10px;
+    font-size: 11px;
+  }
+
+  .btn {
+    padding: 10px 16px;
+    font-size: 13px;
+  }
+
+  .training-card {
+    padding: 14px;
+  }
+
+  .training-header {
+    gap: 12px;
+  }
+
+  .training-icon {
+    width: 38px;
+    height: 38px;
+    font-size: 16px;
+  }
+
+  .training-info h3 {
+    font-size: 15px;
+  }
+
+  .training-info p {
+    font-size: 13px;
+  }
+
+  .training-meta span {
+    font-size: 11px;
+    padding: 3px 6px;
+  }
+
+  .training-description {
+    font-size: 13px;
+  }
+
+  .quick-actions {
+    padding: 12px;
+    gap: 8px;
+  }
+
+  .action-chip {
+    flex: 1 1 100%;
+    padding: 10px;
+    font-size: 12px;
+    border-radius: 16px;
+  }
+
+  .input-area {
+    padding: 12px;
+  }
+
+  .input-container {
+    gap: 10px;
+  }
+
+  .input-container input {
+    padding: 11px 16px;
+    font-size: 13px;
+    border-radius: 20px;
+  }
+
+  .send-button {
+    width: 42px;
+    height: 42px;
+  }
+
+  .suggestion-chip {
+    font-size: 10px;
+    padding: 5px 8px;
+  }
+
+  .typing-indicator {
+    font-size: 13px;
+  }
+
+  .dot {
+    width: 8px;
+    height: 8px;
+  }
+}
+
+@media (max-width: 360px) {
+  .hamburger {
+    top: 10px;
+    left: 10px;
+    font-size: 20px;
+    padding: 6px;
+  }
+
+  .header-section {
+    padding: 12px;
+    padding-left: 55px;
+  }
+
+  .greeting-text h1 {
+    font-size: 18px;
+  }
+
+  .greeting-text p {
+    font-size: 12px;
+  }
+
+  .profile-avatar img {
+    width: 50px;
+    height: 50px;
+  }
+
+  .skill-badge {
+    font-size: 9px;
+    padding: 4px 8px;
+  }
+
+  .conversation-area {
+    padding: 10px;
+  }
+
+  .message-text {
+    font-size: 13px;
+  }
+
+  .job-card,
+  .training-card {
+    padding: 12px;
+  }
+
+  .action-chip {
+    padding: 8px;
+    font-size: 11px;
+  }
+}
 }
