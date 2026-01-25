@@ -41,6 +41,7 @@ interface ProfileDisplay {
   salaryMax: number | null;
   selectedSkills: string[];
   socialLinksInput: { linkedin: string; github: string; website: string };
+  profile_picture?: string;
 }
 
 interface SkillDisplay {
@@ -67,31 +68,6 @@ interface EducationDisplay {
   graduationDate: string;
   coursework?: string[];
   gpa?: string;
-}
-interface ProfileDisplay {
-  fullName: string;
-  title: string;
-  location: string;
-  email: string;
-  phone: string;
-  profileCompletion: number;
-  profileImage: string;
-  about: string;
-  linkedIn?: string;
-  website?: string;
-  github?: string;
-  yearsOfExperience: number;
-  currentPosition: string;
-  availabilityStatus: string;
-  preferredJobTypes: string;
-  preferredLocations: string;
-  salaryMin: number | null;
-  salaryMax: number | null;
-  selectedSkills: string[];
-  socialLinksInput: { linkedin: string; github: string; website: string };
-  
-  // ADD THIS LINE
-  profile_picture?: string; // Optional, from backend response
 }
 
 interface ProjectDisplay {
@@ -266,6 +242,7 @@ export class ProfileComponent implements OnInit {
 
   profileViews: ProfileViewer[] = [];
   showViewersModal: boolean = false;
+  isLoadingViewers: boolean = false;
 
   @ViewChild('fileInput') fileInput!: ElementRef<HTMLInputElement>;
   @ViewChild('cvFileInput') cvFileInput!: ElementRef<HTMLInputElement>;
@@ -397,30 +374,18 @@ export class ProfileComponent implements OnInit {
       }));
   }
 
-  // profile.component.ts - FIXED calculateProfileCompletion method
-  // Replace your existing calculateProfileCompletion() method with this
-
   calculateProfileCompletion(): void {
     const fields: { [key: string]: number } = {
-      // Basic Information (40%)
       name: this.profile?.fullName ? 10 : 0,
       email: this.profile?.email ? 10 : 0,
       phone: this.profile?.phone ? 10 : 0,
       location: this.profile?.location ? 10 : 0,
-
-      // Profile Image (15%)
       profile_image: this.hasProfileImage() ? 15 : 0,
-
-      // Professional Summary (15%)
       bio: this.profile?.about && this.profile.about.length >= 50 ? 15 : 0,
-
-      // Skills (20%)
       skills:
         this.profile?.selectedSkills && this.profile.selectedSkills.length >= 3
           ? 20
           : 0,
-
-      // Career Preferences (10%)
       career_info:
         this.profile?.yearsOfExperience > 0 ||
         this.profile?.currentPosition ||
@@ -435,7 +400,6 @@ export class ProfileComponent implements OnInit {
     );
     this.profile.profileCompletion = totalScore;
 
-    // Update missing fields list (ONLY profile fields, not CV fields)
     this.missingFields = [];
     if (!this.profile?.fullName) this.missingFields.push('Full Name');
     if (!this.profile?.email) this.missingFields.push('Email');
@@ -456,14 +420,13 @@ export class ProfileComponent implements OnInit {
       );
     }
 
-    // Generate recommendations based on profile fields only
     this.completionRecommendations = [];
     if (this.profile.profileCompletion < 100) {
       if (this.missingFields.length > 0) {
         this.completionRecommendations.push(
           `Complete ${this.missingFields.length} remaining field(s):`,
         );
-        this.completionRecommendations.push(...this.missingFields.slice(0, 3)); // Show top 3
+        this.completionRecommendations.push(...this.missingFields.slice(0, 3));
         if (this.missingFields.length > 3) {
           this.completionRecommendations.push(
             `...and ${this.missingFields.length - 3} more`,
@@ -471,7 +434,6 @@ export class ProfileComponent implements OnInit {
         }
       }
 
-      // Specific recommendations
       if (!this.profile.about || this.profile.about.length < 50) {
         this.completionRecommendations.push(
           '💡 Tip: Add a professional summary to stand out',
@@ -774,21 +736,56 @@ export class ProfileComponent implements OnInit {
     return 0;
   }
 
+  // 🔧 FIX: Enhanced loadProfileViewers with better error handling and debugging
   private loadProfileViewers(): void {
+    this.isLoadingViewers = true;
+    console.log('🔍 Loading profile viewers...');
+    
     this.profileService.getProfileViewers({ limit: 50 }).subscribe({
       next: (response) => {
+        console.log('✅ Profile viewers response:', response);
+        
         if (response.success && response.data) {
           this.profileViews = response.data.viewers || [];
+          console.log(`📊 Loaded ${this.profileViews.length} profile viewers`);
+          
+          // Debug: Log first viewer if exists
+          if (this.profileViews.length > 0) {
+            console.log('👀 First viewer:', this.profileViews[0]);
+          }
+        } else {
+          console.warn('⚠️ No viewers data in response');
+          this.profileViews = [];
         }
+        
+        this.isLoadingViewers = false;
       },
       error: (error) => {
-        console.error('Error loading profile viewers:', error);
+        console.error('❌ Error loading profile viewers:', error);
         this.profileViews = [];
+        this.isLoadingViewers = false;
+        
+        // Check if it's an auth error
+        if (error.status === 401) {
+          console.error('🔒 Authentication error - user may need to log in again');
+        }
       },
     });
   }
 
+  // 🔧 FIX: Added method to check if profile views should be visible
+  hasProfileViews(): boolean {
+    return this.profileViews && this.profileViews.length > 0;
+  }
+
+  // 🔧 FIX: Added method to get profile views count
+  getProfileViewsCount(): number {
+    return this.profileViews ? this.profileViews.length : 0;
+  }
+
   showProfileViewers(): void {
+    console.log('👁️ Opening profile viewers modal...');
+    console.log('Current viewers:', this.profileViews);
     this.showViewersModal = true;
   }
 
@@ -814,7 +811,6 @@ export class ProfileComponent implements OnInit {
             this.myRatings = response.data.ratings || [];
             console.log('✅ Loaded ratings count:', this.myRatings.length);
 
-            // Debug: Check what fields are available
             if (this.myRatings.length > 0) {
               console.log(
                 '📊 Full rating object:',
@@ -896,33 +892,31 @@ export class ProfileComponent implements OnInit {
     this.toggleEditMode();
   }
 
- getFullImageUrl(imagePath: string | null | undefined): string {
-  if (!imagePath || imagePath.trim() === '') {
-    // Reliable placeholder (always works)
+  getFullImageUrl(imagePath: string | null | undefined): string {
+    if (!imagePath || imagePath.trim() === '') {
+      return 'https://ui-avatars.com/api/?name=' + encodeURIComponent(this.profile.fullName || 'User') + '&background=6b7280&color=fff&size=150&bold=true';
+    }
+
+    const path = imagePath.trim();
+
+    if (path.startsWith('http://') || path.startsWith('https://')) {
+      return path;
+    }
+
+    if (path.startsWith('/uploads/') || path.startsWith('uploads/')) {
+      const baseUrl = environment.apiUrl.replace('/api', '');
+      return `${baseUrl}${path.startsWith('/') ? '' : '/'}${path}`;
+    }
+
     return 'https://ui-avatars.com/api/?name=' + encodeURIComponent(this.profile.fullName || 'User') + '&background=6b7280&color=fff&size=150&bold=true';
   }
 
-  const path = imagePath.trim();
-
-  if (path.startsWith('http://') || path.startsWith('https://')) {
-    return path;
+  handleImageError(event: any): void {
+    const fallback = 'https://ui-avatars.com/api/?name=' + encodeURIComponent(this.profile.fullName || 'User') + '&background=6b7280&color=fff&size=150&bold=true';
+    if (event.target.src !== fallback) {
+      event.target.src = fallback;
+    }
   }
-
-  if (path.startsWith('/uploads/') || path.startsWith('uploads/')) {
-    const baseUrl = environment.apiUrl.replace('/api', '');
-    return `${baseUrl}${path.startsWith('/') ? '' : '/'}${path}`;
-  }
-
-  // Final fallback to initials avatar
-  return 'https://ui-avatars.com/api/?name=' + encodeURIComponent(this.profile.fullName || 'User') + '&background=6b7280&color=fff&size=150&bold=true';
-}
-
-handleImageError(event: any): void {
-  const fallback = 'https://ui-avatars.com/api/?name=' + encodeURIComponent(this.profile.fullName || 'User') + '&background=6b7280&color=fff&size=150&bold=true';
-  if (event.target.src !== fallback) {
-    event.target.src = fallback;
-  }
-}
 
   getCompletedFieldsCount(section: CompletedSection): number {
     return section.completed ? 1 : 0;
