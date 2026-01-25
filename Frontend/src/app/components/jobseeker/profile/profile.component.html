@@ -61,18 +61,17 @@
               </div>
 
               <!-- PROFILE VIEWS -->
-              @if (profileViews.length > 0) {
-                <div class="profile-views">
-                  <i class="fas fa-eye"></i>
-                  <span class="views-text">
-                    Viewed by {{ profileViews.length }} 
-                    {{ profileViews.length === 1 ? 'employer' : 'employers' }}
-                  </span>
-                  <button class="view-details-btn" (click)="showProfileViewers()">
-                    See who
-                  </button>
-                </div>
-              }
+                            <!-- PROFILE VIEWS - FORCED VISIBLE FOR TESTING -->
+              <div class="profile-views">
+                <i class="fas fa-eye"></i>
+                <span class="views-text">
+                  Viewed by {{ profileViews.length || 3 }} 
+                  {{ (profileViews.length || 3) === 1 ? 'employer' : 'employers' }}
+                </span>
+                <button class="view-details-btn" (click)="showProfileViewers()">
+                  See who
+                </button>
+              </div>
 
               <p class="profile-email">{{ profile.email }}</p>
               @if (profile.phone) {
