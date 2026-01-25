@@ -11,6 +11,36 @@
     } @else {
     <div class="profile-container">
       <!-- Compact Profile Header -->
+      <div class="compact-profile">
+        <div class="profile-image-wrapper">
+          <img
+            [src]="getFullImageUrl(profile.profileImage || profile.profile_picture)"
+            [alt]="profile.fullName + ' profile picture'"
+            class="profile-image"
+            (error)="handleImageError($event)"
+          />
+          <!-- Initials fallback shown when there's no profile image -->
+          <div class="initials-fallback" *ngIf="!hasProfileImage()">
+            {{ getInitials(profile.fullName) }}
+          </div>
+        </div>
+
+        <div class="compact-info">
+          <h2 class="compact-name">{{ profile.fullName }}</h2>
+          <p class="compact-title" *ngIf="profile.currentPosition">{{ profile.currentPosition }}</p>
+
+          <div class="compact-meta">
+            <span class="meta-item" *ngIf="profile.location">
+              <i class="fas fa-map-marker-alt"></i>
+              {{ profile.location }}
+            </span>
+            <span class="meta-item">
+              <i class="fas fa-envelope"></i>
+              {{ profile.email }}
+            </span>
+          </div>
+        </div>
+      </div>
       <div class="profile-header">
         <div class="header-left">
           <div class="profile-image-wrapper">

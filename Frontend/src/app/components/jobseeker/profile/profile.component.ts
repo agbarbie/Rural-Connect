@@ -68,6 +68,31 @@ interface EducationDisplay {
   coursework?: string[];
   gpa?: string;
 }
+interface ProfileDisplay {
+  fullName: string;
+  title: string;
+  location: string;
+  email: string;
+  phone: string;
+  profileCompletion: number;
+  profileImage: string;
+  about: string;
+  linkedIn?: string;
+  website?: string;
+  github?: string;
+  yearsOfExperience: number;
+  currentPosition: string;
+  availabilityStatus: string;
+  preferredJobTypes: string;
+  preferredLocations: string;
+  salaryMin: number | null;
+  salaryMax: number | null;
+  selectedSkills: string[];
+  socialLinksInput: { linkedin: string; github: string; website: string };
+  
+  // ADD THIS LINE
+  profile_picture?: string; // Optional, from backend response
+}
 
 interface ProjectDisplay {
   title: string;
@@ -136,20 +161,65 @@ export class ProfileComponent implements OnInit {
   isPublic: boolean = false;
 
   availableTechnicalSkills: string[] = [
-    'JavaScript', 'Python', 'Java', 'C++', 'React', 'Angular', 'Vue.js',
-    'Node.js', 'SQL', 'MongoDB', 'AWS', 'Docker', 'Git', 'HTML', 'CSS',
-    'TypeScript', 'PHP', 'Ruby', 'Go', 'Rust', 'Swift', 'Kotlin', 'C#',
-    '.NET', 'PostgreSQL', 'MySQL', 'Redis', 'Firebase', 'GraphQL', 'REST API',
-    'Kubernetes', 'Jenkins', 'CI/CD', 'Agile', 'Scrum', 'DevOps',
+    'JavaScript',
+    'Python',
+    'Java',
+    'C++',
+    'React',
+    'Angular',
+    'Vue.js',
+    'Node.js',
+    'SQL',
+    'MongoDB',
+    'AWS',
+    'Docker',
+    'Git',
+    'HTML',
+    'CSS',
+    'TypeScript',
+    'PHP',
+    'Ruby',
+    'Go',
+    'Rust',
+    'Swift',
+    'Kotlin',
+    'C#',
+    '.NET',
+    'PostgreSQL',
+    'MySQL',
+    'Redis',
+    'Firebase',
+    'GraphQL',
+    'REST API',
+    'Kubernetes',
+    'Jenkins',
+    'CI/CD',
+    'Agile',
+    'Scrum',
+    'DevOps',
   ];
 
   availableSoftSkills: string[] = [
-    'Communication', 'Leadership', 'Teamwork', 'Problem Solving',
-    'Time Management', 'Adaptability', 'Critical Thinking', 'Creativity',
-    'Emotional Intelligence', 'Public Speaking', 'Negotiation',
-    'Conflict Resolution', 'Project Management', 'Customer Service',
-    'Analytical Thinking', 'Attention to Detail', 'Organization',
-    'Resilience', 'Empathy', 'Networking',
+    'Communication',
+    'Leadership',
+    'Teamwork',
+    'Problem Solving',
+    'Time Management',
+    'Adaptability',
+    'Critical Thinking',
+    'Creativity',
+    'Emotional Intelligence',
+    'Public Speaking',
+    'Negotiation',
+    'Conflict Resolution',
+    'Project Management',
+    'Customer Service',
+    'Analytical Thinking',
+    'Attention to Detail',
+    'Organization',
+    'Resilience',
+    'Empathy',
+    'Networking',
   ];
 
   newSkill: string = '';
@@ -213,7 +283,7 @@ export class ProfileComponent implements OnInit {
     private profileService: ProfileService,
     private authService: AuthService,
     private ratingService: RatingService,
-    private router: Router
+    private router: Router,
   ) {}
 
   ngOnInit(): void {
@@ -234,11 +304,13 @@ export class ProfileComponent implements OnInit {
           this.profile.location = data.location || '';
           this.profile.about = data.bio || '';
 
-          if (data.profile_image || data.profileImage) {
-            const imageUrl = data.profile_image || data.profileImage;
-            this.profile.profileImage = this.getFullImageUrl(imageUrl);
+          if (data.profile_image || data.profileImage || data.profile_picture) {
+            const rawImage =
+              data.profile_image || data.profileImage || data.profile_picture;
+            this.profile.profileImage = this.getFullImageUrl(rawImage);
           } else {
-            this.profile.profileImage = 'assets/images/profile-placeholder.jpg';
+            this.profile.profileImage =
+              'https://via.placeholder.com/150/cccccc/666666?text=Profile';
           }
 
           this.profile.linkedIn = data.linkedin_url || '';
@@ -246,10 +318,17 @@ export class ProfileComponent implements OnInit {
           this.profile.github = data.github_url || '';
           this.profile.yearsOfExperience = data.years_of_experience || 0;
           this.profile.currentPosition = data.current_position || '';
-          this.profile.availabilityStatus = data.availability_status || 'open_to_opportunities';
+          this.profile.availabilityStatus =
+            data.availability_status || 'open_to_opportunities';
 
-          this.profile.preferredJobTypes = this.parseJsonField(data.preferred_job_types, '\n');
-          this.profile.preferredLocations = this.parseJsonField(data.preferred_locations, '\n');
+          this.profile.preferredJobTypes = this.parseJsonField(
+            data.preferred_job_types,
+            '\n',
+          );
+          this.profile.preferredLocations = this.parseJsonField(
+            data.preferred_locations,
+            '\n',
+          );
           this.profile.salaryMin = data.salary_expectation_min || null;
           this.profile.salaryMax = data.salary_expectation_max || null;
 
@@ -291,99 +370,151 @@ export class ProfileComponent implements OnInit {
   private populateSkills(skills: string[]): void {
     this.technicalSkills = skills
       .filter((s) => this.availableTechnicalSkills.includes(s.trim()))
-      .map((s) => ({ name: s.trim(), type: 'technical' as const, category: 'Technical' }));
+      .map((s) => ({
+        name: s.trim(),
+        type: 'technical' as const,
+        category: 'Technical',
+      }));
 
     this.softSkills = skills
       .filter((s) => this.availableSoftSkills.includes(s.trim()))
-      .map((s) => ({ name: s.trim(), type: 'soft' as const, category: 'Soft' }));
+      .map((s) => ({
+        name: s.trim(),
+        type: 'soft' as const,
+        category: 'Soft',
+      }));
 
     this.otherSkills = skills
-      .filter((s) => !this.availableTechnicalSkills.includes(s.trim()) && !this.availableSoftSkills.includes(s.trim()))
-      .map((s) => ({ name: s.trim(), type: 'other' as const, category: 'Other' }));
+      .filter(
+        (s) =>
+          !this.availableTechnicalSkills.includes(s.trim()) &&
+          !this.availableSoftSkills.includes(s.trim()),
+      )
+      .map((s) => ({
+        name: s.trim(),
+        type: 'other' as const,
+        category: 'Other',
+      }));
   }
 
- // profile.component.ts - FIXED calculateProfileCompletion method
-// Replace your existing calculateProfileCompletion() method with this
+  // profile.component.ts - FIXED calculateProfileCompletion method
+  // Replace your existing calculateProfileCompletion() method with this
 
-calculateProfileCompletion(): void {
-  const fields: { [key: string]: number } = {
-    // Basic Information (40%)
-    name: this.profile?.fullName ? 10 : 0,
-    email: this.profile?.email ? 10 : 0,
-    phone: this.profile?.phone ? 10 : 0,
-    location: this.profile?.location ? 10 : 0,
-    
-    // Profile Image (15%)
-    profile_image: this.hasProfileImage() ? 15 : 0,
-    
-    // Professional Summary (15%)
-    bio: this.profile?.about && this.profile.about.length >= 50 ? 15 : 0,
-    
-    // Skills (20%)
-    skills: this.profile?.selectedSkills && this.profile.selectedSkills.length >= 3 ? 20 : 0,
-    
-    // Career Preferences (10%)
-    career_info: (
-      this.profile?.yearsOfExperience > 0 || 
-      this.profile?.currentPosition || 
-      this.profile?.availabilityStatus
-    ) ? 10 : 0,
-  };
+  calculateProfileCompletion(): void {
+    const fields: { [key: string]: number } = {
+      // Basic Information (40%)
+      name: this.profile?.fullName ? 10 : 0,
+      email: this.profile?.email ? 10 : 0,
+      phone: this.profile?.phone ? 10 : 0,
+      location: this.profile?.location ? 10 : 0,
 
-  const totalScore = Object.values(fields).reduce((sum, score) => sum + (typeof score === 'number' ? score : 0), 0);
-  this.profile.profileCompletion = totalScore;
+      // Profile Image (15%)
+      profile_image: this.hasProfileImage() ? 15 : 0,
 
-  // Update missing fields list (ONLY profile fields, not CV fields)
-  this.missingFields = [];
-  if (!this.profile?.fullName) this.missingFields.push('Full Name');
-  if (!this.profile?.email) this.missingFields.push('Email');
-  if (!this.profile?.phone) this.missingFields.push('Phone Number');
-  if (!this.profile?.location) this.missingFields.push('Location');
-  if (!this.hasProfileImage()) this.missingFields.push('Profile Image');
-  if (!this.profile?.about || this.profile.about.length < 50) this.missingFields.push('Professional Summary (50+ characters)');
-  if (!this.profile?.selectedSkills || this.profile.selectedSkills.length < 3) this.missingFields.push('Skills (at least 3)');
-  if (!this.profile?.yearsOfExperience && !this.profile?.currentPosition && !this.profile?.availabilityStatus) {
-    this.missingFields.push('Career Information (experience, position, or availability)');
-  }
+      // Professional Summary (15%)
+      bio: this.profile?.about && this.profile.about.length >= 50 ? 15 : 0,
 
-  // Generate recommendations based on profile fields only
-  this.completionRecommendations = [];
-  if (this.profile.profileCompletion < 100) {
-    if (this.missingFields.length > 0) {
-      this.completionRecommendations.push(`Complete ${this.missingFields.length} remaining field(s):`);
-      this.completionRecommendations.push(...this.missingFields.slice(0, 3)); // Show top 3
-      if (this.missingFields.length > 3) {
-        this.completionRecommendations.push(`...and ${this.missingFields.length - 3} more`);
+      // Skills (20%)
+      skills:
+        this.profile?.selectedSkills && this.profile.selectedSkills.length >= 3
+          ? 20
+          : 0,
+
+      // Career Preferences (10%)
+      career_info:
+        this.profile?.yearsOfExperience > 0 ||
+        this.profile?.currentPosition ||
+        this.profile?.availabilityStatus
+          ? 10
+          : 0,
+    };
+
+    const totalScore = Object.values(fields).reduce(
+      (sum, score) => sum + (typeof score === 'number' ? score : 0),
+      0,
+    );
+    this.profile.profileCompletion = totalScore;
+
+    // Update missing fields list (ONLY profile fields, not CV fields)
+    this.missingFields = [];
+    if (!this.profile?.fullName) this.missingFields.push('Full Name');
+    if (!this.profile?.email) this.missingFields.push('Email');
+    if (!this.profile?.phone) this.missingFields.push('Phone Number');
+    if (!this.profile?.location) this.missingFields.push('Location');
+    if (!this.hasProfileImage()) this.missingFields.push('Profile Image');
+    if (!this.profile?.about || this.profile.about.length < 50)
+      this.missingFields.push('Professional Summary (50+ characters)');
+    if (!this.profile?.selectedSkills || this.profile.selectedSkills.length < 3)
+      this.missingFields.push('Skills (at least 3)');
+    if (
+      !this.profile?.yearsOfExperience &&
+      !this.profile?.currentPosition &&
+      !this.profile?.availabilityStatus
+    ) {
+      this.missingFields.push(
+        'Career Information (experience, position, or availability)',
+      );
+    }
+
+    // Generate recommendations based on profile fields only
+    this.completionRecommendations = [];
+    if (this.profile.profileCompletion < 100) {
+      if (this.missingFields.length > 0) {
+        this.completionRecommendations.push(
+          `Complete ${this.missingFields.length} remaining field(s):`,
+        );
+        this.completionRecommendations.push(...this.missingFields.slice(0, 3)); // Show top 3
+        if (this.missingFields.length > 3) {
+          this.completionRecommendations.push(
+            `...and ${this.missingFields.length - 3} more`,
+          );
+        }
       }
-    }
-    
-    // Specific recommendations
-    if (!this.profile.about || this.profile.about.length < 50) {
-      this.completionRecommendations.push('💡 Tip: Add a professional summary to stand out');
-    }
-    if (!this.profile.selectedSkills || this.profile.selectedSkills.length < 3) {
-      this.completionRecommendations.push('💡 Tip: Add your top skills to attract employers');
-    }
-    if (!this.hasProfileImage()) {
-      this.completionRecommendations.push('💡 Tip: Upload a professional photo');
-    }
-  } else {
-    this.completionRecommendations.push('🎉 Perfect! Your profile is 100% complete!');
-    this.completionRecommendations.push('💼 You can now apply for jobs with confidence');
-  }
 
-  console.log('Profile completion calculated:', {
-    score: this.profile.profileCompletion,
-    missingFields: this.missingFields.length,
-    fields: fields
-  });
-}
+      // Specific recommendations
+      if (!this.profile.about || this.profile.about.length < 50) {
+        this.completionRecommendations.push(
+          '💡 Tip: Add a professional summary to stand out',
+        );
+      }
+      if (
+        !this.profile.selectedSkills ||
+        this.profile.selectedSkills.length < 3
+      ) {
+        this.completionRecommendations.push(
+          '💡 Tip: Add your top skills to attract employers',
+        );
+      }
+      if (!this.hasProfileImage()) {
+        this.completionRecommendations.push(
+          '💡 Tip: Upload a professional photo',
+        );
+      }
+    } else {
+      this.completionRecommendations.push(
+        '🎉 Perfect! Your profile is 100% complete!',
+      );
+      this.completionRecommendations.push(
+        '💼 You can now apply for jobs with confidence',
+      );
+    }
+
+    console.log('Profile completion calculated:', {
+      score: this.profile.profileCompletion,
+      missingFields: this.missingFields.length,
+      fields: fields,
+    });
+  }
 
   hasProfileImage(): boolean {
     const img = this.profile?.profileImage;
     if (!img) return false;
     const trimmed = (img || '').toString().trim();
-    if (trimmed === '' || trimmed.includes('profile-placeholder') || trimmed === 'assets/images/profile-placeholder.jpg') {
+    if (
+      trimmed === '' ||
+      trimmed.includes('profile-placeholder') ||
+      trimmed === 'assets/images/profile-placeholder.jpg'
+    ) {
       return false;
     }
     return true;
@@ -417,10 +548,17 @@ calculateProfileCompletion(): void {
     }
 
     if (personalInfo.profile_image) {
-      this.profile.profileImage = this.getFullImageUrl(personalInfo.profile_image);
+      this.profile.profileImage = this.getFullImageUrl(
+        personalInfo.profile_image,
+      );
     }
 
-    if (this.technicalSkills.length === 0 && this.softSkills.length === 0 && this.otherSkills.length === 0 && cvData.skills) {
+    if (
+      this.technicalSkills.length === 0 &&
+      this.softSkills.length === 0 &&
+      this.otherSkills.length === 0 &&
+      cvData.skills
+    ) {
       const cvSkills: Skill[] = cvData.skills;
       const allSkills = cvSkills.map((s) => s.skill_name);
       this.profile.selectedSkills = allSkills;
@@ -433,21 +571,31 @@ calculateProfileCompletion(): void {
         institution: edu.institution,
         graduationDate: edu.end_date || edu.start_date,
         gpa: edu.gpa,
-        coursework: edu.coursework ? edu.coursework.split(',').map((c) => c.trim()) : undefined,
+        coursework: edu.coursework
+          ? edu.coursework.split(',').map((c) => c.trim())
+          : undefined,
       }));
     }
 
     if (cvData.work_experience && cvData.work_experience.length > 0) {
       this.experiences = cvData.work_experience.map((work) => {
-        const duration = this.calculateDuration(work.start_date, work.end_date, work.is_current);
+        const duration = this.calculateDuration(
+          work.start_date,
+          work.end_date,
+          work.is_current,
+        );
         return {
           title: work.position,
           company: work.company,
           duration: duration,
           startDate: work.start_date,
           endDate: work.is_current ? 'Present' : work.end_date || '',
-          responsibilities: work.responsibilities ? work.responsibilities.split('\n').filter((r) => r.trim()) : [],
-          achievements: work.achievements ? work.achievements.split('\n').filter((a) => a.trim()) : [],
+          responsibilities: work.responsibilities
+            ? work.responsibilities.split('\n').filter((r) => r.trim())
+            : [],
+          achievements: work.achievements
+            ? work.achievements.split('\n').filter((a) => a.trim())
+            : [],
           companyLogo: work.company_logo,
         };
       });
@@ -466,7 +614,9 @@ calculateProfileCompletion(): void {
       this.projects = cvData.projects.map((proj) => ({
         title: proj.project_name,
         description: proj.description || '',
-        technologies: proj.technologies ? proj.technologies.split(',').map((t) => t.trim()) : [],
+        technologies: proj.technologies
+          ? proj.technologies.split(',').map((t) => t.trim())
+          : [],
         githubUrl: proj.github_url,
         liveUrl: proj.project_url,
         imageUrl: proj.image_url,
@@ -485,7 +635,9 @@ calculateProfileCompletion(): void {
     if (!name) return '?';
     const names = name.trim().split(' ');
     if (names.length === 1) return names[0].charAt(0).toUpperCase();
-    return (names[0].charAt(0) + names[names.length - 1].charAt(0)).toUpperCase();
+    return (
+      names[0].charAt(0) + names[names.length - 1].charAt(0)
+    ).toUpperCase();
   }
 
   toggleEditMode(): void {
@@ -502,7 +654,9 @@ calculateProfileCompletion(): void {
         this.profile.selectedSkills.push(skill);
       }
     } else {
-      this.profile.selectedSkills = this.profile.selectedSkills.filter((s) => s !== skill);
+      this.profile.selectedSkills = this.profile.selectedSkills.filter(
+        (s) => s !== skill,
+      );
     }
     this.populateSkills(this.profile.selectedSkills);
   }
@@ -520,9 +674,12 @@ calculateProfileCompletion(): void {
 
   saveProfile(): void {
     const updates: any = {};
-    if (this.profile.phone !== undefined) updates.phone = this.profile.phone || null;
-    if (this.profile.location !== undefined) updates.location = this.profile.location || null;
-    if (this.profile.about !== undefined) updates.bio = this.profile.about || null;
+    if (this.profile.phone !== undefined)
+      updates.phone = this.profile.phone || null;
+    if (this.profile.location !== undefined)
+      updates.location = this.profile.location || null;
+    if (this.profile.about !== undefined)
+      updates.bio = this.profile.about || null;
 
     const skillsArray = this.profile.selectedSkills || [];
     updates.skills = JSON.stringify(skillsArray);
@@ -535,10 +692,16 @@ calculateProfileCompletion(): void {
     updates.current_position = this.profile.currentPosition || null;
     updates.availability_status = this.profile.availabilityStatus || null;
 
-    const jobTypes = this.profile.preferredJobTypes.split('\n').map((t) => t.trim()).filter((t) => t);
+    const jobTypes = this.profile.preferredJobTypes
+      .split('\n')
+      .map((t) => t.trim())
+      .filter((t) => t);
     updates.preferred_job_types = JSON.stringify(jobTypes);
 
-    const locations = this.profile.preferredLocations.split('\n').map((l) => l.trim()).filter((l) => l);
+    const locations = this.profile.preferredLocations
+      .split('\n')
+      .map((l) => l.trim())
+      .filter((l) => l);
     updates.preferred_locations = JSON.stringify(locations);
 
     updates.salary_expectation_min = this.profile.salaryMin || null;
@@ -592,14 +755,20 @@ calculateProfileCompletion(): void {
     if (diffMonths === 1) return '1 month ago';
     if (diffMonths < 12) return `${diffMonths} months ago`;
 
-    return date.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+    return date.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+    });
   }
 
   getSuccessRate(): number {
     if (this.ratingStats.totalRatings > 0) {
       if (this.ratingStats.averageRating >= 4.5) return 100;
-      if (this.ratingStats.averageRating >= 4.0) return Math.round(85 + (this.ratingStats.averageRating - 4.0) * 30);
-      if (this.ratingStats.averageRating >= 3.0) return Math.round(60 + (this.ratingStats.averageRating - 3.0) * 25);
+      if (this.ratingStats.averageRating >= 4.0)
+        return Math.round(85 + (this.ratingStats.averageRating - 4.0) * 30);
+      if (this.ratingStats.averageRating >= 3.0)
+        return Math.round(60 + (this.ratingStats.averageRating - 3.0) * 25);
       return Math.round((this.ratingStats.averageRating / 5) * 100);
     }
     return 0;
@@ -637,26 +806,31 @@ calculateProfileCompletion(): void {
       return;
     }
 
-    this.ratingService.getJobseekerRatings(userId, { page: 1, limit: 100 }).subscribe({
-      next: (response) => {
-        if (response.success && response.data) {
-          this.myRatings = response.data.ratings || [];
-          console.log('✅ Loaded ratings count:', this.myRatings.length);
-          
-          // Debug: Check what fields are available
-          if (this.myRatings.length > 0) {
-            console.log('📊 Full rating object:', JSON.stringify(this.myRatings[0], null, 2));
+    this.ratingService
+      .getJobseekerRatings(userId, { page: 1, limit: 100 })
+      .subscribe({
+        next: (response) => {
+          if (response.success && response.data) {
+            this.myRatings = response.data.ratings || [];
+            console.log('✅ Loaded ratings count:', this.myRatings.length);
+
+            // Debug: Check what fields are available
+            if (this.myRatings.length > 0) {
+              console.log(
+                '📊 Full rating object:',
+                JSON.stringify(this.myRatings[0], null, 2),
+              );
+            }
+
+            this.calculateRatingStats();
           }
-          
-          this.calculateRatingStats();
-        }
-        this.isLoadingRatings = false;
-      },
-      error: (error) => {
-        console.error('❌ Error loading ratings:', error);
-        this.isLoadingRatings = false;
-      },
-    });
+          this.isLoadingRatings = false;
+        },
+        error: (error) => {
+          console.error('❌ Error loading ratings:', error);
+          this.isLoadingRatings = false;
+        },
+      });
   }
 
   private calculateRatingStats(): void {
@@ -711,7 +885,10 @@ calculateProfileCompletion(): void {
     if (diffDays < 7) return `${diffDays} days ago`;
     if (diffDays < 30) return `${Math.floor(diffDays / 7)} weeks ago`;
     if (diffDays < 365) return `${Math.floor(diffDays / 30)} months ago`;
-    return date.toLocaleDateString('en-US', { year: 'numeric', month: 'short' });
+    return date.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+    });
   }
 
   cancelEdit(): void {
@@ -719,18 +896,29 @@ calculateProfileCompletion(): void {
     this.toggleEditMode();
   }
 
-  private getFullImageUrl(imagePath: string): string {
-    if (!imagePath) return 'assets/images/profile-placeholder.jpg';
-    if (imagePath.startsWith('http')) return imagePath;
-    if (imagePath.startsWith('/uploads') || imagePath.startsWith('uploads')) {
-      const baseUrl = environment.apiUrl.replace('/api', '');
-      return `${baseUrl}${imagePath.startsWith('/') ? '' : '/'}${imagePath}`;
-    }
-    return imagePath;
+  getFullImageUrl(imagePath: string | null | undefined): string {
+  if (!imagePath || imagePath.trim() === '') {
+    return 'https://via.placeholder.com/150/cccccc/666666?text=Profile';
   }
 
+  const path = imagePath.trim();
+
+  if (path.startsWith('http://') || path.startsWith('https://')) {
+    return path;
+  }
+
+  if (path.startsWith('/uploads/') || path.startsWith('uploads/')) {
+    const baseUrl = environment.apiUrl.replace('/api', '');
+    return `${baseUrl}${path.startsWith('/') ? '' : '/'}${path}`;
+  }
+
+  return 'https://via.placeholder.com/150/cccccc/666666?text=Profile';
+}
+
   handleImageError(event: any): void {
-    event.target.src = 'assets/images/profile-placeholder.jpg';
+    event.target.src =
+      'https://via.placeholder.com/150/cccccc/666666?text=Profile';
+    event.target.onerror = null; // Prevent infinite loop
   }
 
   getCompletedFieldsCount(section: CompletedSection): number {
@@ -748,13 +936,25 @@ calculateProfileCompletion(): void {
   private buildSocialLinks(): void {
     this.socialLinks = [];
     if (this.profile.linkedIn) {
-      this.socialLinks.push({ platform: 'LinkedIn', url: this.profile.linkedIn, icon: 'fab fa-linkedin' });
+      this.socialLinks.push({
+        platform: 'LinkedIn',
+        url: this.profile.linkedIn,
+        icon: 'fab fa-linkedin',
+      });
     }
     if (this.profile.github) {
-      this.socialLinks.push({ platform: 'GitHub', url: this.profile.github, icon: 'fab fa-github' });
+      this.socialLinks.push({
+        platform: 'GitHub',
+        url: this.profile.github,
+        icon: 'fab fa-github',
+      });
     }
     if (this.profile.website) {
-      this.socialLinks.push({ platform: 'Website', url: this.profile.website, icon: 'fas fa-globe' });
+      this.socialLinks.push({
+        platform: 'Website',
+        url: this.profile.website,
+        icon: 'fas fa-globe',
+      });
     }
   }
 
@@ -798,7 +998,9 @@ calculateProfileCompletion(): void {
               if (profileResponse.success && profileResponse.data) {
                 const data = profileResponse.data;
                 if (data.profile_image || data.profileImage) {
-                  this.profile.profileImage = this.getFullImageUrl(data.profile_image || data.profileImage);
+                  this.profile.profileImage = this.getFullImageUrl(
+                    data.profile_image || data.profileImage,
+                  );
                 }
                 this.calculateProfileCompletion();
               }
@@ -841,7 +1043,11 @@ calculateProfileCompletion(): void {
 
   handleCVUpload(event: any): void {
     const file = event.target.files[0];
-    if (file && (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf'))) {
+    if (
+      file &&
+      (file.type === 'application/pdf' ||
+        file.name.toLowerCase().endsWith('.pdf'))
+    ) {
       if (file.size > 5 * 1024 * 1024) {
         alert('CV file size must be less than 5MB.');
         return;
@@ -893,10 +1099,20 @@ calculateProfileCompletion(): void {
     });
   }
 
-  private calculateDuration(startDate: string, endDate: string | undefined, isCurrent: boolean): string {
+  private calculateDuration(
+    startDate: string,
+    endDate: string | undefined,
+    isCurrent: boolean,
+  ): string {
     const start = new Date(startDate);
-    const end = isCurrent ? new Date() : endDate ? new Date(endDate) : new Date();
-    const months = (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth());
+    const end = isCurrent
+      ? new Date()
+      : endDate
+        ? new Date(endDate)
+        : new Date();
+    const months =
+      (end.getFullYear() - start.getFullYear()) * 12 +
+      (end.getMonth() - start.getMonth());
     const years = Math.floor(months / 12);
     const remainingMonths = months % 12;
 
@@ -931,7 +1147,9 @@ calculateProfileCompletion(): void {
 
   shareProfile(): void {
     if (!this.isProfileComplete()) {
-      const proceed = confirm('Your profile is not complete yet. A complete profile makes a better impression on employers. Would you like to complete your profile first?');
+      const proceed = confirm(
+        'Your profile is not complete yet. A complete profile makes a better impression on employers. Would you like to complete your profile first?',
+      );
       if (proceed) {
         this.completeProfile();
         return;
@@ -945,14 +1163,18 @@ calculateProfileCompletion(): void {
         if (this.shareableUrl) {
           this.shareProfile();
         } else {
-          alert('Unable to generate shareable link. Please try again or contact support.');
+          alert(
+            'Unable to generate shareable link. Please try again or contact support.',
+          );
         }
       }, 2000);
       return;
     }
 
     if (!this.isPublic) {
-      const makePublic = confirm('Your portfolio is currently private. Would you like to make it public to share it?');
+      const makePublic = confirm(
+        'Your portfolio is currently private. Would you like to make it public to share it?',
+      );
       if (makePublic) {
         this.profileService.togglePortfolioVisibility(true).subscribe({
           next: (response) => {
@@ -978,29 +1200,36 @@ calculateProfileCompletion(): void {
 
   private copyShareLink(): void {
     if (navigator.share && this.isMobileDevice()) {
-      navigator.share({
-        title: `${this.profile.fullName} - Professional Portfolio`,
-        text: `Check out ${this.profile.fullName}'s professional portfolio`,
-        url: this.shareableUrl,
-      }).catch((err) => {
-        this.copyToClipboard();
-      });
+      navigator
+        .share({
+          title: `${this.profile.fullName} - Professional Portfolio`,
+          text: `Check out ${this.profile.fullName}'s professional portfolio`,
+          url: this.shareableUrl,
+        })
+        .catch((err) => {
+          this.copyToClipboard();
+        });
     } else {
       this.copyToClipboard();
     }
   }
 
   private isMobileDevice(): boolean {
-    return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
+      navigator.userAgent,
+    );
   }
 
   private copyToClipboard(): void {
     if (navigator.clipboard && window.isSecureContext) {
-      navigator.clipboard.writeText(this.shareableUrl).then(() => {
-        this.showSuccessMessage();
-      }).catch((err) => {
-        this.fallbackCopyTextToClipboard(this.shareableUrl);
-      });
+      navigator.clipboard
+        .writeText(this.shareableUrl)
+        .then(() => {
+          this.showSuccessMessage();
+        })
+        .catch((err) => {
+          this.fallbackCopyTextToClipboard(this.shareableUrl);
+        });
     } else {
       this.fallbackCopyTextToClipboard(this.shareableUrl);
     }
@@ -1040,7 +1269,9 @@ calculateProfileCompletion(): void {
     const message = `📋 Your shareable portfolio link:\n\n${text}\n\n⚠️ Automatic copy failed. Please copy this link manually.`;
     const userAction = prompt(message, text);
     if (userAction !== null) {
-      alert('Great! Now you can paste the link wherever you want to share your portfolio.');
+      alert(
+        'Great! Now you can paste the link wherever you want to share your portfolio.',
+      );
     }
   }
 
@@ -1102,20 +1333,28 @@ calculateProfileCompletion(): void {
 
   getFileIcon(type: string): string {
     switch (type.toLowerCase()) {
-      case 'pdf': return 'fas fa-file-pdf';
-      case 'zip': return 'fas fa-file-archive';
-      case 'figma': return 'fab fa-figma';
+      case 'pdf':
+        return 'fas fa-file-pdf';
+      case 'zip':
+        return 'fas fa-file-archive';
+      case 'figma':
+        return 'fab fa-figma';
       case 'doc':
-      case 'docx': return 'fas fa-file-word';
+      case 'docx':
+        return 'fas fa-file-word';
       case 'xls':
-      case 'xlsx': return 'fas fa-file-excel';
+      case 'xlsx':
+        return 'fas fa-file-excel';
       case 'ppt':
-      case 'pptx': return 'fas fa-file-powerpoint';
+      case 'pptx':
+        return 'fas fa-file-powerpoint';
       case 'jpg':
       case 'jpeg':
       case 'png':
-      case 'gif': return 'fas fa-file-image';
-      default: return 'fas fa-file';
+      case 'gif':
+        return 'fas fa-file-image';
+      default:
+        return 'fas fa-file';
     }
   }
 
@@ -1127,13 +1366,15 @@ calculateProfileCompletion(): void {
 
   getSkillsByCategory(): Map<string, SkillDisplay[]> {
     const categorized = new Map<string, SkillDisplay[]>();
-    [...this.technicalSkills, ...this.softSkills, ...this.otherSkills].forEach((skill) => {
-      const category = skill.category || 'General';
-      if (!categorized.has(category)) {
-        categorized.set(category, []);
-      }
-      categorized.get(category)!.push(skill);
-    });
+    [...this.technicalSkills, ...this.softSkills, ...this.otherSkills].forEach(
+      (skill) => {
+        const category = skill.category || 'General';
+        if (!categorized.has(category)) {
+          categorized.set(category, []);
+        }
+        categorized.get(category)!.push(skill);
+      },
+    );
     return categorized;
   }
 
@@ -1168,11 +1409,16 @@ calculateProfileCompletion(): void {
   hasSkillsRating(skills_rating: any): boolean {
     if (!skills_rating) return false;
     return !!(
-      (typeof skills_rating.technical === 'number' && skills_rating.technical > 0) ||
-      (typeof skills_rating.communication === 'number' && skills_rating.communication > 0) ||
-      (typeof skills_rating.professionalism === 'number' && skills_rating.professionalism > 0) ||
-      (typeof skills_rating.quality === 'number' && skills_rating.quality > 0) ||
-      (typeof skills_rating.timeliness === 'number' && skills_rating.timeliness > 0)
+      (typeof skills_rating.technical === 'number' &&
+        skills_rating.technical > 0) ||
+      (typeof skills_rating.communication === 'number' &&
+        skills_rating.communication > 0) ||
+      (typeof skills_rating.professionalism === 'number' &&
+        skills_rating.professionalism > 0) ||
+      (typeof skills_rating.quality === 'number' &&
+        skills_rating.quality > 0) ||
+      (typeof skills_rating.timeliness === 'number' &&
+        skills_rating.timeliness > 0)
     );
   }
 }
