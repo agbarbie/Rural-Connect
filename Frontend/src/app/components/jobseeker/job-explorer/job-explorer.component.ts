@@ -26,6 +26,12 @@ interface ApiResponse<T = any> {
   styleUrls: ['./job-explorer.component.css']
 })
 export class JobExplorerComponent implements OnInit, OnDestroy {
+toggleSidebar() {
+throw new Error('Method not implemented.');
+}
+closeSidebar() {
+throw new Error('Method not implemented.');
+}
   private destroy$ = new Subject<void>();
 
   jobs: Job[] = [];

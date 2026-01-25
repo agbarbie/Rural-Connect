@@ -1,377 +1,292 @@
-<!-- Sidebar -->
-<app-sidebar [userType]="'jobseeker'"></app-sidebar>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body>
+  <div class="app-container">
+    <!-- Sidebar -->
+    <app-sidebar [userType]="'jobseeker'"></app-sidebar>
 
-<div class="job-explorer-container">
-  <!-- Profile Completion Warning Banner -->
-  <div class="profile-warning-banner" *ngIf="!isProfileComplete && !isCheckingProfile">
-    <div class="warning-content">
-      <div class="warning-icon">
-        <i class="fas fa-exclamation-triangle"></i>
-      </div>
-      <div class="warning-text">
-        <h4>⚠️ Complete Your Profile to Apply for Jobs</h4>
-        <p>Your profile is {{ profileCompletion }}% complete. You need at least 80% completion to apply for jobs.</p>
-      </div>
-      <button class="btn-complete-profile" routerLink="/jobseeker/cv-manager">
-        <i class="fas fa-user-edit"></i>
-        Complete Profile Now
-      </button>
-    </div>
-    <div class="progress-bar-container">
-      <div class="progress-bar" [style.width.%]="profileCompletion"></div>
-    </div>
-  </div>
+    <!-- Sidebar Overlay for Mobile -->
+    <div class="sidebar-overlay" (click)="closeSidebar()"></div>
 
-  <!-- Header -->
-  <div class="header">
-    <div class="header-left">
-      <button class="back-btn" routerLink="/dashboard">
-        <i class="fas fa-arrow-left"></i>
-      </button>
-      <h1 class="page-title">Jobs Explorer</h1>
-      <span class="match-count">{{ totalJobs }} {{ totalJobs === 1 ? 'Match' : 'Matches' }}</span>
-    </div>
-    <div class="header-right">
-      <div class="search-container">
-        <i class="fas fa-search search-icon"></i>
-        <input 
-          type="text" 
-          placeholder="Search jobs, companies..." 
-          class="search-input"
-          [(ngModel)]="searchQuery"
-          (keyup.enter)="onSearchSubmit()">
-      </div>
-      
-      <!-- Notification Wrapper (replaces the simple notification-btn) -->
-      <div class="notification-wrapper">
-        <button class="notification-bell" (click)="toggleNotifications()">
-          <i class="fas fa-bell" [class.ringing]="unreadNotificationCount > 0"></i>
-          <span class="notification-badge" *ngIf="unreadNotificationCount > 0">
-            {{ unreadNotificationCount }}
-          </span>
+    <!-- Main Content -->
+    <main class="main-content">
+      <!-- Header -->
+      <header class="header">
+        <button class="hamburger" (click)="toggleSidebar()">
+          <i class="fas fa-bars"></i>
         </button>
-        
-        <!-- Notification Dropdown -->
-        <div class="notification-dropdown" *ngIf="showNotifications">
-          <div class="notification-header">
-            <h3>
-              <i class="fas fa-bell"></i>
-              Notifications
-              <span class="unread-count" *ngIf="unreadNotificationCount > 0">
-                ({{ unreadNotificationCount }} new)
-              </span>
-            </h3>
-            <button class="close-btn" (click)="toggleNotifications()">
-              <i class="fas fa-times"></i>
-            </button>
+
+        <div class="header-left">
+          <h1 class="page-title">Jobs Explorer</h1>
+          <span class="match-count">{{ totalJobs }} {{ totalJobs === 1 ? 'Match' : 'Matches' }}</span>
+        </div>
+
+        <div class="header-right">
+          <div class="search-bar">
+            <i class="fas fa-search search-icon"></i>
+            <input
+              type="text"
+              class="search-input"
+              placeholder="Search jobs, companies..."
+              [(ngModel)]="searchQuery"
+              (keyup.enter)="onSearchSubmit()">
           </div>
-          
-          <div class="notification-list">
-            <div class="notification-item"
-                 *ngFor="let notification of jobNotifications"
-                 [class.unread]="!notification.read"
-                 (click)="handleNotificationClick(notification)">
-              
-              <!-- Type Badge -->
-              <span class="notification-type-badge" [ngClass]="{
-                'badge-job': isJobNotification(notification.type),
-                'badge-training': isTrainingNotification(notification.type),
-                'badge-application': isApplicationNotification(notification.type)
-              }">
-                {{ getNotificationCategory(notification.type) }}
+
+          <!-- Notification Bell with Dropdown -->
+          <div class="notification-wrapper">
+            <button class="notification-icon" (click)="toggleNotifications()">
+              <i class="fas fa-bell" [class.ringing]="unreadNotificationCount > 0"></i>
+              <span class="notification-badge" *ngIf="unreadNotificationCount > 0">
+                {{ unreadNotificationCount }}
               </span>
-              
-              <div class="notification-icon" [ngClass]="'icon-' + notification.type">
-                <i class="fas" [ngClass]="getNotificationIcon(notification.type)"></i>
-              </div>
-              
-              <div class="notification-content">
-                <h4 class="notification-title">{{ notification.title || getNotificationTitle(notification.type) }}</h4>
-                <p class="notification-message">{{ notification.message }}</p>
-                <small>{{ getTimeSince(notification.created_at) }}</small>
-              </div>
-              
-              <div class="notification-actions">
-                <button
-                  *ngIf="!notification.read"
-                  class="btn-mark-read"
-                  (click)="markNotificationAsRead(notification.id); $event.stopPropagation()"
-                  title="Mark as Read">
-                  <i class="fas fa-check"></i>
+            </button>
+
+            <div class="notification-dropdown" *ngIf="showNotifications">
+              <div class="notification-header">
+                <h3>
+                  <i class="fas fa-bell"></i> Notifications
+                  <span class="unread-count" *ngIf="unreadNotificationCount > 0">
+                    ({{ unreadNotificationCount }} new)
+                  </span>
+                </h3>
+                <button class="close-btn" (click)="toggleNotifications()">
+                  <i class="fas fa-times"></i>
                 </button>
               </div>
 
-              <!-- Unread Indicator -->
-              <span *ngIf="!notification.read" class="unread-dot"></span>
+              <div class="notification-list">
+                <div class="notification-item"
+                     *ngFor="let notification of jobNotifications"
+                     [class.unread]="!notification.read"
+                     (click)="handleNotificationClick(notification)">
+
+                  <span class="notification-type-badge"
+                        [ngClass]="{
+                          'badge-job': isJobNotification(notification.type),
+                          'badge-training': isTrainingNotification(notification.type),
+                          'badge-application': isApplicationNotification(notification.type),
+                          'badge-system': getNotificationCategory(notification.type) === 'SYSTEM'
+                        }">
+                    {{ getNotificationCategory(notification.type) }}
+                  </span>
+
+                  <div class="notification-icon" [ngClass]="'icon-' + notification.type">
+                    <i class="fas" [ngClass]="getNotificationIcon(notification.type)"></i>
+                  </div>
+
+                  <div class="notification-content">
+                    <h4 class="notification-title">{{ notification.title || getNotificationTitle(notification.type) }}</h4>
+                    <p class="notification-message">{{ notification.message }}</p>
+                    <small>{{ getTimeSince(notification.created_at) }}</small>
+                  </div>
+
+                  <div class="notification-actions" *ngIf="!notification.read">
+                    <button class="btn-mark-read"
+                            (click)="markNotificationAsRead(notification.id); $event.stopPropagation()">
+                      <i class="fas fa-check"></i>
+                    </button>
+                  </div>
+
+                  <span class="unread-dot" *ngIf="!notification.read"></span>
+                </div>
+
+                <div class="no-notifications" *ngIf="jobNotifications.length === 0">
+                  <i class="fas fa-inbox"></i>
+                  <p>No new notifications</p>
+                </div>
+              </div>
             </div>
-            
-            <div class="no-notifications" *ngIf="jobNotifications.length === 0">
-              <i class="fas fa-inbox"></i>
-              <p>No new notifications</p>
-              <small>You'll be notified about applications and job updates</small>
-            </div>
           </div>
+
+          <button class="back-btn" routerLink="/dashboard">
+            <i class="fas fa-arrow-left"></i>
+          </button>
         </div>
-      </div>
-      
-      <button class="settings-btn">
-        <i class="fas fa-cog"></i>
-      </button>
-    </div>
-  </div>
+      </header>
 
-  <!-- Filters -->
-  <div class="filters-section">
-    <div class="filters-left">
-      <span class="filter-label">Filter by:</span>
-      
-      <div class="filter-dropdown">
-        <select [(ngModel)]="selectedJobType" (change)="onJobTypeChange()" class="filter-select">
-          <option value="">Job type</option>
-          <option value="Full-time">Full-time</option>
-          <option value="Part-time">Part-time</option>
-          <option value="Contract">Contract</option>
-          <option value="Internship">Internship</option>
-        </select>
-        <i class="fas fa-chevron-down dropdown-icon"></i>
-      </div>
-
-      <div class="filter-dropdown">
-        <select [(ngModel)]="selectedLocation" (change)="onLocationChange()" class="filter-select">
-          <option value="">Location</option>
-          <option value="Remote">Remote</option>
-          <option value="Hybrid">Hybrid</option>
-          <option value="On-site">On-site</option>
-        </select>
-        <i class="fas fa-chevron-down dropdown-icon"></i>
-      </div>
-
-      <div class="filter-dropdown">
-        <select [(ngModel)]="selectedSalaryRange" (change)="onSalaryChange()" class="filter-select">
-          <option value="">Salary</option>
-          <option value="50k-80k">$50k - $80k</option>
-          <option value="80k-120k">$80k - $120k</option>
-          <option value="120k+">$120k+</option>
-        </select>
-        <i class="fas fa-chevron-down dropdown-icon"></i>
-      </div>
-    </div>
-
-    <div class="filters-right">
-      <div class="sort-dropdown">
-        <span class="sort-label">Sort by:</span>
-        <select [(ngModel)]="sortBy" (change)="onSortChange()" class="sort-select">
-          <option value="match-score">Match Score</option>
-          <option value="newest">Newest</option>
-          <option value="salary">Salary</option>
-          <option value="rating">Rating</option>
-        </select>
-        <i class="fas fa-chevron-down dropdown-icon"></i>
-      </div>
-    </div>
-  </div>
-
-  <!-- Tabs -->
-  <div class="tabs-section">
-    <button 
-      class="tab-btn" 
-      [class.active]="activeTab === 'recommended'"
-      (click)="setActiveTab('recommended')">
-      Recommended
-      <span class="tab-count">{{ recommendedCount }}</span>
-    </button>
-    <button 
-      class="tab-btn" 
-      [class.active]="activeTab === 'saved'"
-      (click)="setActiveTab('saved')">
-      Saved Jobs
-      <span class="tab-count">{{ savedJobsCount }}</span>
-    </button>
-    <button 
-      class="tab-btn" 
-      [class.active]="activeTab === 'applied'"
-      (click)="setActiveTab('applied')">
-      Applied
-      <span class="tab-count">{{ appliedJobsCount }}</span>
-    </button>
-  </div>
-
-  <!-- Loading Spinner -->
-  <div *ngIf="isLoading" class="loading-overlay">
-    <div class="spinner"></div>
-    <p>Loading jobs...</p>
-  </div>
-
-  <!-- Jobs List -->
-  <div class="jobs-container" *ngIf="!isLoading">
-    <div *ngFor="let job of filteredJobs" class="job-card">
-      <div class="job-header">
-        <div class="company-info">
-          <img 
-            [src]="getCompanyLogo(job)" 
-            [alt]="job.company_name || 'Company'" 
-            class="company-logo">
-          <div class="job-title-company">
-            <h3 class="job-title">{{ job.title }}</h3>
-            <p class="company-name">{{ job.company_name || 'Company' }}</p>
+      <!-- Profile Completion Warning Banner -->
+      <div class="profile-warning-banner" *ngIf="!isProfileComplete && !isCheckingProfile">
+        <div class="warning-content">
+          <div class="warning-icon">
+            <i class="fas fa-exclamation-triangle"></i>
           </div>
-        </div>
-        <div class="match-score">
-          <span class="match-percentage">{{ getMatchScore(job) }}% Match</span>
-        </div>
-      </div>
-
-      <div class="job-details">
-        <div class="job-meta">
-          <div class="meta-item">
-            <i class="fas fa-briefcase"></i>
-            <span>{{ getJobType(job) }}</span>
+          <div class="warning-text">
+            <h4>Complete Your Profile to Apply for Jobs</h4>
+            <p>Your profile is {{ profileCompletion }}% complete. You need at least 80% to apply.</p>
           </div>
-          <div class="meta-item">
-            <i class="fas fa-map-marker-alt"></i>
-            <span>{{ job.location }}</span>
-          </div>
-          <div class="meta-item">
-            <i class="fas fa-clock"></i>
-            <span>Posted {{ getPostedDays(job.created_at) }} days ago</span>
-          </div>
+          <button class="cta-button" routerLink="/jobseeker/profile">
+            <i class="fas fa-user-edit"></i> Complete Profile Now
+          </button>
         </div>
-
-        <div class="salary-rating">
-          <div class="salary">
-            <i class="fas fa-dollar-sign"></i>
-            <span>{{ formatSalary(job) }}</span>
-          </div>
+        <div class="progress-bar-container">
+          <div class="progress-bar" [style.width.%]="profileCompletion"></div>
         </div>
       </div>
 
-      <div class="job-description">
-        <p>{{ job.description }}</p>
-      </div>
-
-      <div class="job-skills" *ngIf="getSkillsArray(job).length > 0">
-        <div class="skills-container">
-          <span *ngFor="let skill of getSkillsArray(job)" class="skill-tag">{{ skill }}</span>
+      <!-- Filters -->
+      <section class="filters-section">
+        <div class="filters-left">
+          <span class="filter-label">Filter by:</span>
+          <select [(ngModel)]="selectedJobType" (change)="onJobTypeChange()" class="filter-select">
+            <option value="">Job type</option>
+            <option value="Full-time">Full-time</option>
+            <option value="Part-time">Part-time</option>
+            <option value="Contract">Contract</option>
+            <option value="Internship">Internship</option>
+          </select>
+          <select [(ngModel)]="selectedLocation" (change)="onLocationChange()" class="filter-select">
+            <option value="">Location</option>
+            <option value="Remote">Remote</option>
+            <option value="Hybrid">Hybrid</option>
+            <option value="On-site">On-site</option>
+          </select>
+          <select [(ngModel)]="selectedSalaryRange" (change)="onSalaryChange()" class="filter-select">
+            <option value="">Salary</option>
+            <option value="50k-80k">$50k - $80k</option>
+            <option value="80k-120k">$80k - $120k</option>
+            <option value="120k+">$120k+</option>
+          </select>
         </div>
-      </div>
-
-      <div class="job-benefits" *ngIf="getBenefitsArray(job).length > 0">
-        <div class="benefits-container">
-          <i class="fas fa-gift benefits-icon"></i>
-          <span *ngFor="let benefit of getBenefitsArray(job); let last = last" class="benefit">
-            {{ benefit }}<span *ngIf="!last">, </span>
-          </span>
+        <div class="filters-right">
+          <span class="sort-label">Sort by:</span>
+          <select [(ngModel)]="sortBy" (change)="onSortChange()" class="filter-select">
+            <option value="match-score">Match Score</option>
+            <option value="newest">Newest</option>
+            <option value="salary">Salary</option>
+            <option value="rating">Rating</option>
+          </select>
         </div>
-      </div>
+      </section>
 
-      <!-- Profile Completion Warning for Individual Job -->
-      <div class="job-card-warning" *ngIf="!isProfileComplete && !isJobApplied(getJobId(job))">
-        <i class="fas fa-info-circle"></i>
-        <span>Complete your profile ({{ profileCompletion }}%/80%) to apply for this job</span>
-      </div>
-
-      <div class="job-actions">
-        <button 
-          class="save-btn" 
-          (click)="saveJob(getJobId(job))"
-          [disabled]="isSaving === getJobId(job)"
-          [class.saved]="isJobSaved(getJobId(job))">
-          <i 
-            [class.fas]="isJobSaved(getJobId(job))" 
-            [class.far]="!isJobSaved(getJobId(job))" 
-            class="fa-bookmark"></i>
+      <!-- Tabs -->
+      <div class="tabs-section">
+        <button class="tab-btn" [class.active]="activeTab === 'recommended'" (click)="setActiveTab('recommended')">
+          Recommended <span class="tab-count">{{ recommendedCount }}</span>
         </button>
-        <button 
-  class="apply-btn" 
-  [class.applied]="isJobApplied(getJobId(job))"
-  [class.disabled-incomplete]="!isProfileComplete && !isJobApplied(getJobId(job))"
-  (click)="applyToJob(getJobId(job))"
-  [disabled]="isApplying === getJobId(job) || (!isProfileComplete && !isJobApplied(getJobId(job)))"
-  [title]="getApplyButtonTitle(job)">
-  
-  <!-- Loading State -->
-  <span *ngIf="isApplying === getJobId(job)">
-    <i class="fas fa-spinner fa-spin"></i> Processing...
-  </span>
-  
-  <!-- Applied State - Click to Withdraw -->
-  <span *ngIf="isApplying !== getJobId(job) && isJobApplied(getJobId(job))">
-    <i class="fas fa-times-circle"></i> Withdraw Application
-  </span>
-  
-  <!-- Not Applied - Profile Incomplete -->
-  <span *ngIf="isApplying !== getJobId(job) && !isJobApplied(getJobId(job)) && !isProfileComplete">
-    <i class="fas fa-lock"></i> Complete Profile First
-  </span>
-  
-  <!-- Not Applied - Can Apply -->
-  <span *ngIf="isApplying !== getJobId(job) && !isJobApplied(getJobId(job)) && isProfileComplete">
-    <i class="fas fa-paper-plane"></i> Apply Now
-  </span>
-</button>
+        <button class="tab-btn" [class.active]="activeTab === 'saved'" (click)="setActiveTab('saved')">
+          Saved Jobs <span class="tab-count">{{ savedJobsCount }}</span>
+        </button>
+        <button class="tab-btn" [class.active]="activeTab === 'applied'" (click)="setActiveTab('applied')">
+          Applied <span class="tab-count">{{ appliedJobsCount }}</span>
+        </button>
       </div>
-    </div>
 
-    <!-- Empty State -->
-    <div *ngIf="filteredJobs.length === 0" class="empty-state">
-      <i class="fas fa-search empty-icon"></i>
-      <h3>No jobs found</h3>
-      <p>Try adjusting your filters to see more results</p>
-    </div>
+      <!-- Content Area -->
+      <div class="dashboard-content">
+        <!-- Loading -->
+        <div class="loading-overlay" *ngIf="isLoading">
+          <div class="spinner"></div>
+          <p>Loading jobs...</p>
+        </div>
 
-    <!-- Pagination -->
-    <div class="pagination" *ngIf="totalPages > 1 && filteredJobs.length > 0">
-      <button 
-        class="pagination-btn" 
-        (click)="previousPage()" 
-        [disabled]="currentPage === 1">
-        <i class="fas fa-chevron-left"></i> Previous
-      </button>
-      <div class="pagination-info">
-        <span>Page {{ currentPage }} of {{ totalPages }}</span>
-        <span class="total-items">({{ totalJobs }} total jobs)</span>
+        <!-- Jobs List -->
+        <div class="jobs-grid" *ngIf="!isLoading && filteredJobs.length > 0">
+          <div class="job-card" *ngFor="let job of filteredJobs">
+            <div class="job-header">
+              <div class="company-info">
+                <img [src]="getCompanyLogo(job)" [alt]="job.company_name" class="company-logo">
+                <div>
+                  <h3 class="job-title">{{ job.title }}</h3>
+                  <p class="company-name">{{ job.company_name }}</p>
+                </div>
+              </div>
+              <div class="match-score">
+                <span>{{ getMatchScore(job) }}% Match</span>
+              </div>
+            </div>
+
+            <div class="job-meta">
+              <span><i class="fas fa-briefcase"></i> {{ getJobType(job) }}</span>
+              <span><i class="fas fa-map-marker-alt"></i> {{ job.location }}</span>
+              <span><i class="fas fa-clock"></i> {{ getPostedDays(job.created_at) }} days ago</span>
+            </div>
+
+            <div class="salary">
+              <i class="fas fa-dollar-sign"></i> {{ formatSalary(job) }}
+            </div>
+
+            <p class="job-description">{{ job.description }}</p>
+
+            <div class="skills-tags" *ngIf="getSkillsArray(job).length">
+              <span class="skill-tag" *ngFor="let skill of getSkillsArray(job)">{{ skill }}</span>
+            </div>
+
+            <div class="benefits" *ngIf="getBenefitsArray(job).length">
+              <i class="fas fa-gift"></i>
+              <span *ngFor="let b of getBenefitsArray(job); let last = last">{{ b }}{{ last ? '' : ', ' }}</span>
+            </div>
+
+            <div class="job-card-warning" *ngIf="!isProfileComplete && !isJobApplied(getJobId(job))">
+              <i class="fas fa-info-circle"></i>
+              Complete your profile ({{ profileCompletion }}%) to apply
+            </div>
+
+            <div class="job-actions">
+              <button class="save-btn"
+                      (click)="saveJob(getJobId(job))"
+                      [disabled]="isSaving === getJobId(job)"
+                      [class.saved]="isJobSaved(getJobId(job))">
+                <i [class.fas]="isJobSaved(getJobId(job))"
+                   [class.far]="!isJobSaved(getJobId(job))"
+                   class="fa-bookmark"></i>
+              </button>
+
+              <button class="apply-btn"
+                      [class.applied]="isJobApplied(getJobId(job))"
+                      [class.disabled-incomplete]="!isProfileComplete && !isJobApplied(getJobId(job))"
+                      (click)="applyToJob(getJobId(job))"
+                      [disabled]="isApplying === getJobId(job) || (!isProfileComplete && !isJobApplied(getJobId(job)))"
+                      [title]="getApplyButtonTitle(job)">
+
+                <span *ngIf="isApplying === getJobId(job)">
+                  <i class="fas fa-spinner fa-spin"></i> Processing...
+                </span>
+                <span *ngIf="isApplying !== getJobId(job) && isJobApplied(getJobId(job))">
+                  <i class="fas fa-times-circle"></i> Withdraw Application
+                </span>
+                <span *ngIf="isApplying !== getJobId(job) && !isJobApplied(getJobId(job)) && !isProfileComplete">
+                  <i class="fas fa-lock"></i> Complete Profile First
+                </span>
+                <span *ngIf="isApplying !== getJobId(job) && !isJobApplied(getJobId(job)) && isProfileComplete">
+                  <i class="fas fa-paper-plane"></i> Apply Now
+                </span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Empty State -->
+        <div class="empty-state" *ngIf="!isLoading && filteredJobs.length === 0">
+          <i class="fas fa-search"></i>
+          <h3>No jobs found</h3>
+          <p>Try adjusting your filters</p>
+        </div>
+
+        <!-- Pagination -->
+        <div class="pagination" *ngIf="totalPages > 1 && filteredJobs.length > 0">
+          <button (click)="previousPage()" [disabled]="currentPage === 1">Previous</button>
+          <span>Page {{ currentPage }} of {{ totalPages }}</span>
+          <button (click)="nextPage()" [disabled]="currentPage === totalPages">Next</button>
+        </div>
       </div>
-      <button 
-        class="pagination-btn" 
-        (click)="nextPage()" 
-        [disabled]="currentPage === totalPages">
-        Next <i class="fas fa-chevron-right"></i>
-      </button>
-    </div>
+    </main>
   </div>
-</div>
 
-<!-- Success Notification -->
-<div *ngIf="showNotification" class="notification-overlay">
-  <div class="notification-popup">
-    <div class="notification-icon">
-      <i class="fas fa-check-circle"></i>
+  <!-- Toast Notifications -->
+  <div class="notifications-container">
+    <div *ngFor="let n of notifications" class="notification-toast" [class]="n.type">
+      <i class="fas"
+         [class.fa-check-circle]="n.type==='success'"
+         [class.fa-exclamation-circle]="n.type==='error'"
+         [class.fa-info-circle]="n.type==='info'"
+         [class.fa-exclamation-triangle]="n.type==='warning'"></i>
+      <span>{{ n.message }}</span>
+      <button class="close-toast" (click)="dismissNotification(n.id)">×</button>
     </div>
-    <div class="notification-content">
-      <h4>Application Submitted!</h4>
-      <p>{{ notificationMessage }}</p>
-    </div>
-    <button class="notification-close" (click)="hideNotification()">
-      <i class="fas fa-times"></i>
-    </button>
   </div>
-</div>
-
-<!-- Error/Info/Warning Notifications -->
-<div class="notifications-container">
-  <div 
-    *ngFor="let notification of notifications" 
-    class="notification-toast" 
-    [class.success]="notification.type === 'success'"
-    [class.error]="notification.type === 'error'"
-    [class.info]="notification.type === 'info'"
-    [class.warning]="notification.type === 'warning'">
-    <i class="fas" 
-       [class.fa-check-circle]="notification.type === 'success'"
-       [class.fa-exclamation-circle]="notification.type === 'error'"
-       [class.fa-info-circle]="notification.type === 'info'"
-       [class.fa-exclamation-triangle]="notification.type === 'warning'"></i>
-    <span>{{ notification.message }}</span>
-    <button class="close-toast" (click)="dismissNotification(notification.id)">×</button>
-  </div>
-</div>
+</body>
+</html>
