@@ -221,6 +221,77 @@ export class RatingController {
 }
   }
 
+   async updateRating(req: AuthenticatedRequest, res: Response): Promise<Response> {
+    try {
+      const employer_id = req.user?.id;
+      const { ratingId } = req.params;
+      const {
+        rating,
+        feedback,
+        would_hire_again,
+        skills_rating,
+        task_description,
+        is_public,
+      } = req.body;
+
+      if (!employer_id || !ratingId) {
+        return res.status(400).json({ success: false, message: 'Missing required data' });
+      }
+
+      if (!rating || !feedback) {
+        return res.status(400).json({ success: false, message: 'Rating and feedback required' });
+      }
+
+      if (rating < 1 || rating > 5) {
+        return res.status(400).json({ success: false, message: 'Rating must be 1–5' });
+      }
+
+      // Check ownership
+      const check = await pool.query(
+        'SELECT employer_id FROM ratings WHERE id = $1',
+        [ratingId]
+      );
+      if (check.rows.length === 0) {
+        return res.status(404).json({ success: false, message: 'Rating not found' });
+      }
+      if (check.rows[0].employer_id !== employer_id) {
+        return res.status(403).json({ success: false, message: 'Not authorized' });
+      }
+
+      const result = await pool.query(
+        `UPDATE ratings
+         SET rating = $1, feedback = $2, would_hire_again = $3,
+             skills_rating = $4, task_description = $5, is_public = $6,
+             updated_at = NOW()
+         WHERE id = $7
+         RETURNING *`,
+        [
+          rating,
+          feedback.trim(),
+          would_hire_again ?? false,
+          skills_rating ? JSON.stringify(skills_rating) : null,
+          task_description?.trim() || null,
+          is_public ?? true,
+          ratingId,
+        ]
+      );
+
+      const updated = result.rows[0];
+
+      return res.json({
+        success: true,
+        message: 'Rating updated successfully',
+        data: {
+          ...updated,
+          skills_rating: updated.skills_rating ? JSON.parse(updated.skills_rating) : {},
+        },
+      });
+    } catch (error) {
+      console.error('Update rating error:', error);
+      return res.status(500).json({ success: false, message: 'Failed to update rating' });
+    }
+  }
+
   /**
    * Get jobseeker ratings with fallback to users table for missing data
    */

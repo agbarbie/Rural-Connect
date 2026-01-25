@@ -1,10 +1,21 @@
 // rating.component.ts - COMPLETE WORKING VERSION
 
-import { Component, Input, Output, EventEmitter, OnInit, OnDestroy } from '@angular/core';
+import {
+  Component,
+  Input,
+  Output,
+  EventEmitter,
+  OnInit,
+  OnDestroy,
+} from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { RatingService, CreateRatingRequest } from '../../../../../services/rating.service';
+import {
+  RatingService,
+  CreateRatingRequest,
+} from '../../../../../services/rating.service';
 import { Subject, takeUntil, finalize } from 'rxjs';
+import { environment } from '../../../../environments/environment.prod';
 
 interface CandidateToRate {
   user_id: string;
@@ -21,7 +32,7 @@ interface CandidateToRate {
   standalone: true,
   imports: [CommonModule, FormsModule],
   templateUrl: './rating.component.html',
-  styleUrls: ['./rating.component.css']
+  styleUrls: ['./rating.component.css'],
 })
 export class RatingComponent implements OnInit, OnDestroy {
   private destroy$ = new Subject<void>();
@@ -31,10 +42,14 @@ export class RatingComponent implements OnInit, OnDestroy {
   @Output() closeModal = new EventEmitter<void>();
   @Output() ratingSubmitted = new EventEmitter<any>();
 
+  @Input() existingRating: any = null; // NEW: Pass existing rating when editing
+  private isEditMode: boolean = false;
+  private ratingId: string | null = null;
+
   // Rating form data
   overallRating: number = 0;
   hoverRating: number = 0;
-  
+
   // Skills rating (optional)
   enableDetailedRating: boolean = false;
   technicalRating: number = 0;
@@ -42,15 +57,15 @@ export class RatingComponent implements OnInit, OnDestroy {
   professionalismRating: number = 0;
   qualityRating: number = 0;
   timelinessRating: number = 0;
-  
+
   feedback: string = '';
   taskDescription: string = '';
   wouldHireAgain: boolean = true;
   isPublic: boolean = true;
-  
+
   isSubmitting: boolean = false;
   errorMessage: string = '';
-  
+
   // Hover states for detailed ratings
   technicalHover: number = 0;
   communicationHover: number = 0;
@@ -61,13 +76,39 @@ export class RatingComponent implements OnInit, OnDestroy {
   constructor(private ratingService: RatingService) {}
 
   ngOnInit(): void {
-    console.log('📝 Rating Modal initialized for candidate:', this.candidate);
-    console.log('📋 Job context:', {
-      hasJobId: !!this.candidate.job_id,
-      jobId: this.candidate.job_id,
-      jobTitle: this.candidate.job_title
-    });
+  console.log('Rating Modal initialized for candidate:', this.candidate);
+  console.log('Existing rating input:', this.existingRating);
+
+  // Reset edit mode
+  this.isEditMode = false;
+  this.ratingId = null;
+
+  // If existingRating is provided → switch to edit mode
+  if (this.existingRating && this.existingRating.id) {
+    this.isEditMode = true;
+    this.ratingId = this.existingRating.id;
+
+    // Pre-fill all fields
+    this.overallRating = this.existingRating.rating || 0;
+    this.feedback = this.existingRating.feedback || '';
+    this.taskDescription = this.existingRating.task_description || '';
+    this.wouldHireAgain = this.existingRating.would_hire_again !== false; // default true
+    this.isPublic = this.existingRating.is_public !== false;
+
+    // Detailed skills
+    const skills = this.existingRating.skills_rating;
+    if (skills && typeof skills === 'object' && Object.keys(skills).length > 0) {
+      this.enableDetailedRating = true;
+      this.technicalRating = skills.technical || 0;
+      this.communicationRating = skills.communication || 0;
+      this.professionalismRating = skills.professionalism || 0;
+      this.qualityRating = skills.quality || 0;
+      this.timelinessRating = skills.timeliness || 0;
+    }
   }
+
+  console.log('Edit mode:', this.isEditMode);
+}
 
   ngOnDestroy(): void {
     this.destroy$.next();
@@ -99,9 +140,13 @@ export class RatingComponent implements OnInit, OnDestroy {
   /**
    * Get star class for display
    */
-  getStarClass(position: number, currentRating: number, hoverRating: number): string {
+  getStarClass(
+    position: number,
+    currentRating: number,
+    hoverRating: number,
+  ): string {
     const rating = hoverRating || currentRating;
-    
+
     if (position <= rating) {
       return 'fas fa-star filled';
     }
@@ -182,12 +227,18 @@ export class RatingComponent implements OnInit, OnDestroy {
    */
   getSkillRating(skill: string): number {
     switch (skill) {
-      case 'technical': return this.technicalRating;
-      case 'communication': return this.communicationRating;
-      case 'professionalism': return this.professionalismRating;
-      case 'quality': return this.qualityRating;
-      case 'timeliness': return this.timelinessRating;
-      default: return 0;
+      case 'technical':
+        return this.technicalRating;
+      case 'communication':
+        return this.communicationRating;
+      case 'professionalism':
+        return this.professionalismRating;
+      case 'quality':
+        return this.qualityRating;
+      case 'timeliness':
+        return this.timelinessRating;
+      default:
+        return 0;
     }
   }
 
@@ -196,12 +247,18 @@ export class RatingComponent implements OnInit, OnDestroy {
    */
   getSkillHover(skill: string): number {
     switch (skill) {
-      case 'technical': return this.technicalHover;
-      case 'communication': return this.communicationHover;
-      case 'professionalism': return this.professionalismHover;
-      case 'quality': return this.qualityHover;
-      case 'timeliness': return this.timelinessHover;
-      default: return 0;
+      case 'technical':
+        return this.technicalHover;
+      case 'communication':
+        return this.communicationHover;
+      case 'professionalism':
+        return this.professionalismHover;
+      case 'quality':
+        return this.qualityHover;
+      case 'timeliness':
+        return this.timelinessHover;
+      default:
+        return 0;
     }
   }
 
@@ -210,7 +267,7 @@ export class RatingComponent implements OnInit, OnDestroy {
    */
   toggleDetailedRating(): void {
     this.enableDetailedRating = !this.enableDetailedRating;
-    
+
     // If disabling, reset skill ratings
     if (!this.enableDetailedRating) {
       this.technicalRating = 0;
@@ -236,9 +293,13 @@ export class RatingComponent implements OnInit, OnDestroy {
     }
 
     if (this.enableDetailedRating) {
-      if (this.technicalRating === 0 || this.communicationRating === 0 || 
-          this.professionalismRating === 0 || this.qualityRating === 0 || 
-          this.timelinessRating === 0) {
+      if (
+        this.technicalRating === 0 ||
+        this.communicationRating === 0 ||
+        this.professionalismRating === 0 ||
+        this.qualityRating === 0 ||
+        this.timelinessRating === 0
+      ) {
         this.errorMessage = 'Please rate all skill categories';
         return false;
       }
@@ -251,90 +312,73 @@ export class RatingComponent implements OnInit, OnDestroy {
    * Submit rating - ENHANCED WITH LOGGING
    */
   submitRating(): void {
-    console.log('🚀 Submit rating clicked');
-    
-    if (!this.validateForm()) {
-      console.log('❌ Form validation failed:', this.errorMessage);
-      return;
-    }
+  console.log('Submit clicked - Edit mode:', this.isEditMode);
 
-    this.isSubmitting = true;
-    this.errorMessage = '';
-
-    // ✅ Build rating request - job_id is optional
-    const ratingData: CreateRatingRequest = {
-      jobseeker_id: this.candidate.user_id,
-      job_id: this.candidate.job_id, // ✅ Can be undefined
-      application_id: this.candidate.application_id,
-      rating: this.overallRating,
-      feedback: this.feedback.trim(),
-      task_description: this.taskDescription.trim() || undefined,
-      would_hire_again: this.wouldHireAgain,
-      is_public: this.isPublic
-    };
-
-    // Add detailed skills rating if enabled
-    if (this.enableDetailedRating) {
-      ratingData.skills_rating = {
-        technical: this.technicalRating,
-        communication: this.communicationRating,
-        professionalism: this.professionalismRating,
-        quality: this.qualityRating,
-        timeliness: this.timelinessRating
-      };
-    }
-
-    console.log('📤 Submitting rating data:', {
-      jobseeker_id: ratingData.jobseeker_id,
-      job_id: ratingData.job_id || 'none',
-      hasJobId: !!ratingData.job_id,
-      rating: ratingData.rating,
-      has_skills_rating: !!ratingData.skills_rating,
-      feedback_length: ratingData.feedback.length
-    });
-
-    this.ratingService.createRating(ratingData)
-      .pipe(
-        takeUntil(this.destroy$),
-        finalize(() => {
-          this.isSubmitting = false;
-        })
-      )
-      .subscribe({
-        next: (response) => {
-          console.log('📥 Rating API response:', response);
-          
-          if (response.success) {
-            console.log('✅ Rating submitted successfully');
-            this.ratingSubmitted.emit(response.data);
-            this.resetForm();
-            this.close();
-          } else {
-            console.log('⚠️ Rating submission returned success=false');
-            this.errorMessage = response.message || 'Failed to submit rating';
-          }
-        },
-        error: (error) => {
-          console.error('❌ Rating API error:', error);
-          console.error('Error details:', {
-            status: error.status,
-            message: error.message,
-            error: error.error
-          });
-          
-          // Better error message based on status code
-          if (error.status === 400) {
-            this.errorMessage = error.message || 'Invalid rating data. Please check all fields.';
-          } else if (error.status === 409) {
-            this.errorMessage = 'You have already rated this candidate for this job.';
-          } else if (error.status === 401) {
-            this.errorMessage = 'You must be logged in to submit a rating.';
-          } else {
-            this.errorMessage = error.message || 'Failed to submit rating. Please try again.';
-          }
-        }
-      });
+  if (!this.validateForm()) {
+    console.log('Validation failed:', this.errorMessage);
+    return;
   }
+
+  this.isSubmitting = true;
+  this.errorMessage = '';
+
+  const ratingData: CreateRatingRequest = {
+    jobseeker_id: this.candidate.user_id,
+    job_id: this.candidate.job_id,
+    application_id: this.candidate.application_id,
+    rating: this.overallRating,
+    feedback: this.feedback.trim(),
+    task_description: this.taskDescription.trim() || undefined,
+    would_hire_again: this.wouldHireAgain,
+    is_public: this.isPublic,
+  };
+
+  if (this.enableDetailedRating) {
+    ratingData.skills_rating = {
+      technical: this.technicalRating,
+      communication: this.communicationRating,
+      professionalism: this.professionalismRating,
+      quality: this.qualityRating,
+      timeliness: this.timelinessRating,
+    };
+  }
+
+  console.log('Sending rating data:', ratingData);
+
+  let apiCall$;
+  if (this.isEditMode && this.ratingId) {
+    // EDIT: Use PUT
+    apiCall$ = this.ratingService.updateRating(this.ratingId, ratingData);
+  } else {
+    // CREATE: Use POST
+    apiCall$ = this.ratingService.createRating(ratingData);
+  }
+
+  apiCall$
+    .pipe(
+      takeUntil(this.destroy$),
+      finalize(() => this.isSubmitting = false)
+    )
+    .subscribe({
+      next: (response) => {
+        console.log('Rating saved successfully:', response);
+        if (response.success) {
+          this.ratingSubmitted.emit(response.data);
+          this.resetForm();
+          this.close();
+        } else {
+          this.errorMessage = response.message || 'Failed to save rating';
+        }
+      },
+      error: (error) => {
+        console.error('Rating submission error:', error);
+        this.errorMessage =
+          error.error?.message ||
+          error.message ||
+          'Failed to save rating. Please try again.';
+      },
+    });
+}
 
   /**
    * Reset form
@@ -370,12 +414,16 @@ export class RatingComponent implements OnInit, OnDestroy {
     if (!imagePath) {
       return `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=4285f4&color=fff&size=128`;
     }
-    
+
+    // If it's already a full URL (http, https, or data:)
     if (imagePath.startsWith('http') || imagePath.startsWith('data:')) {
       return imagePath;
     }
-    
-    // Adjust based on your API URL structure
-    return imagePath;
+
+    // Otherwise, it's a relative path from the backend (e.g. profiles/filename.jpg or uploads/profiles/...)
+    const baseUrl = environment.apiUrl.replace('/api', '');
+    // Handle both "/uploads/profiles/..." and "profiles/..."
+    const cleanPath = imagePath.startsWith('/') ? imagePath : `/${imagePath}`;
+    return `${baseUrl}${cleanPath}`;
   }
 }
