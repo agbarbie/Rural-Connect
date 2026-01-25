@@ -61,12 +61,12 @@
               </div>
 
               <!-- PROFILE VIEWS -->
-                            <!-- PROFILE VIEWS - FORCED VISIBLE FOR TESTING -->
+                              <!-- PROFILE VIEWS - FORCED VISIBLE (REMOVE CONDITION FOR TESTING) -->
               <div class="profile-views">
                 <i class="fas fa-eye"></i>
                 <span class="views-text">
-                  Viewed by {{ profileViews.length || 3 }} 
-                  {{ (profileViews.length || 3) === 1 ? 'employer' : 'employers' }}
+                  Viewed by {{ profileViews.length > 0 ? profileViews.length : 5 }} 
+                  {{ (profileViews.length > 0 ? profileViews.length : 5) === 1 ? 'employer' : 'employers' }}
                 </span>
                 <button class="view-details-btn" (click)="showProfileViewers()">
                   See who
