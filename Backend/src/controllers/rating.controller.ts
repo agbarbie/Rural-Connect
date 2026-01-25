@@ -18,22 +18,18 @@ export class RatingController {
       application_id,
       rating,
       feedback,
-      would_hire_again,
-      skills_rating,
-      task_description,
+      would_hire_again = false,
+      skills_rating = {},
+      task_description = null,
       is_public = true
     } = req.body;
 
-    console.log('Creating rating:', { employer_id, jobseeker_id, rating });
+    console.log('Creating rating for jobseeker:', jobseeker_id, 'by employer:', employer_id);
 
-    if (!employer_id) {
-      return res.status(401).json({ success: false, message: 'Unauthorized' });
-    }
-
-    if (!jobseeker_id || !rating || !feedback) {
+    if (!employer_id || !jobseeker_id || !rating || !feedback) {
       return res.status(400).json({
         success: false,
-        message: 'Missing required fields: jobseeker_id, rating, feedback'
+        message: 'Missing required fields'
       });
     }
 
@@ -46,11 +42,12 @@ export class RatingController {
 
     // Prevent duplicate rating for same job
     if (job_id) {
-      const existing = await pool.query(
-        'SELECT id FROM ratings WHERE employer_id = $1 AND jobseeker_id = $2 AND job_id = $3',
+      const dup = await pool.query(
+        `SELECT id FROM ratings 
+         WHERE employer_id = $1 AND jobseeker_id = $2 AND job_id = $3`,
         [employer_id, jobseeker_id, job_id]
       );
-      if (existing.rows.length > 0) {
+      if (dup.rows.length > 0) {
         return res.status(409).json({
           success: false,
           message: 'You have already rated this candidate for this job'
@@ -58,35 +55,41 @@ export class RatingController {
       }
     }
 
-    // Get employer & company info
-    const employerResult = await pool.query(`
+    // Fetch employer & company info
+    const empResult = await pool.query(`
       SELECT 
-        u.name as employer_name, u.email as employer_email, u.profile_picture as employer_image,
+        u.name AS employer_name,
+        u.email AS employer_email,
+        u.profile_picture AS employer_image,
         u.user_type,
-        e.role_in_company, e.company_id,
-        c.name as company_name, c.logo_url as company_logo,
-        c.description as company_description, c.industry as company_industry,
-        c.company_size, c.website_url as company_website, c.headquarters as company_location
+        e.role_in_company,
+        c.name AS company_name,
+        c.logo_url AS company_logo,
+        c.description AS company_description,
+        c.industry AS company_industry,
+        c.company_size,
+        c.website_url AS company_website,
+        c.headquarters AS company_location
       FROM users u
       LEFT JOIN employers e ON u.id = e.user_id
       LEFT JOIN companies c ON e.company_id = c.id
       WHERE u.id = $1
     `, [employer_id]);
 
-    if (employerResult.rows.length === 0) {
+    if (empResult.rows.length === 0) {
       return res.status(404).json({ success: false, message: 'Employer not found' });
     }
 
-    const emp = employerResult.rows[0];
+    const emp = empResult.rows[0];
 
     // Get job title
     let job_title = null;
     if (job_id) {
-      const jobResult = await pool.query('SELECT title FROM jobs WHERE id = $1', [job_id]);
-      job_title = jobResult.rows[0]?.title || null;
+      const jobRes = await pool.query('SELECT title FROM jobs WHERE id = $1', [job_id]);
+      job_title = jobRes.rows[0]?.title || null;
     }
 
-    // INSERT — let DB handle created_at automatically
+    // INSERT — Let PostgreSQL handle id, created_at, updated_at
     const result = await pool.query(`
       INSERT INTO ratings (
         employer_id, jobseeker_id, job_id, application_id, job_title,
@@ -94,8 +97,8 @@ export class RatingController {
         company_name, company_logo, role_in_company,
         company_description, company_industry, company_size,
         company_website, company_location,
-        rating, feedback, would_hire_again, skills_rating,
-        task_description, is_public
+        rating, feedback, would_hire_again,
+        skills_rating, task_description, is_public
       ) VALUES (
         $1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
         $11, $12, $13, $14, $15, $16, $17,
@@ -122,29 +125,32 @@ export class RatingController {
       emp.company_location || null,
       rating,
       feedback.trim(),
-      would_hire_again ?? false,
-      skills_rating ? JSON.stringify(skills_rating) : null,
+      would_hire_again,
+      JSON.stringify(skills_rating),
       task_description?.trim() || null,
       is_public
     ]);
 
-    const createdRating = result.rows[0];
+    const newRating = result.rows[0];
 
     return res.status(201).json({
       success: true,
       message: 'Rating submitted successfully',
       data: {
-        ...createdRating,
-        skills_rating: createdRating.skills_rating ? JSON.parse(createdRating.skills_rating) : {}
+        ...newRating,
+        skills_rating: newRating.skills_rating ? JSON.parse(newRating.skills_rating) : {}
       }
     });
 
-  } catch (error) {
-    console.error('Error creating rating:', error);
+  } catch (error: any) {
+    console.error('Rating creation failed:', error);
+    console.error('Error code:', error.code);
+    console.error('Detail:', error.detail);
+
     return res.status(500).json({
       success: false,
-      message: 'Failed to create rating',
-      error: error instanceof Error ? error.message : 'Unknown error'
+      message: 'Failed to submit rating',
+      error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
     });
   }
 }
