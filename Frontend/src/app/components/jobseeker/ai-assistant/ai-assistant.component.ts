@@ -68,8 +68,8 @@ interface ChatMessage {
 })
 export class AiAssistantComponent implements OnInit, AfterViewInit {
 
-  
   @ViewChild('skillsChart', { static: false }) skillsChart!: ElementRef<HTMLCanvasElement>;
+  
   userMessage: string = '';
   selectedSkill: string = '';
   isLoading: boolean = false;
@@ -79,7 +79,6 @@ export class AiAssistantComponent implements OnInit, AfterViewInit {
   portfolioData: PortfolioData | null = null;
   lastInitTime: string | null = null;
   
-  // FIX: Add current user ID tracking
   private currentUserId: string | null = null;
   private currentUserEmail: string | null = null;
   
@@ -107,7 +106,6 @@ export class AiAssistantComponent implements OnInit, AfterViewInit {
   ) { }
 
   ngOnInit(): void {
-    // FIX: Get and store current user details FIRST
     this.initializeCurrentUser();
     this.loadUserProfile();
   }
@@ -118,7 +116,6 @@ export class AiAssistantComponent implements OnInit, AfterViewInit {
     }, 500);
   }
 
-  // FIX: New method to initialize and verify current user
   private initializeCurrentUser(): void {
     const currentUser = this.authService.getCurrentUser();
     
@@ -128,7 +125,6 @@ export class AiAssistantComponent implements OnInit, AfterViewInit {
       return;
     }
 
-    // Store current user identifiers
     this.currentUserId = currentUser.id || currentUser.user_id || null;
     this.currentUserEmail = currentUser.email || null;
     
@@ -138,27 +134,22 @@ export class AiAssistantComponent implements OnInit, AfterViewInit {
       name: currentUser.name
     });
 
-    // Set the user's name immediately
     if (currentUser.name) {
       this.userData.name = currentUser.name;
     }
   }
 
-  // FIX: Updated to verify cache belongs to current user
   loadUserProfile(): void {
     this.isInitializing = true;
     
-    // FIX: Clear cache if it doesn't belong to current user
     this.validateAndClearStaleCache();
     
-    // Try to load from cache only if it belongs to current user
     const cachedProfile = this.getCachedProfileForCurrentUser();
     if (cachedProfile) {
       try {
         const parsed = JSON.parse(cachedProfile);
         this.portfolioData = parsed;
         this.populateUserDataFromPortfolio(parsed);
-        // Proceed to check for updates
         this.checkForProfileUpdates();
         return;
       } catch (e) {
@@ -167,86 +158,77 @@ export class AiAssistantComponent implements OnInit, AfterViewInit {
       }
     }
     
-    // Load fresh profile from server
-    // NEW CODE - USE PROFILE API
-this.profileService.getMyProfile().subscribe({
-  next: (response) => {
-    console.log('📥 Profile loaded:', response);
-    
-    if (response.success && response.data) {
-      const data = response.data;
-      
-      // Set user name
-      this.userData.name = data.name || 'User';
-      
-      // ✅ Set profile image
-      const profileImage = data.profile_image || 
-                          data.profileImage || 
-                          data.profile_picture;
-      
-      if (profileImage) {
-        this.userData.avatar = this.getFullImageUrl(profileImage);
-        console.log('✅ Avatar set:', this.userData.avatar);
-      }
-      
-      // ✅ Parse and set skills
-      const skillsArray = this.parseSkillsArray(data.skills);
-      if (skillsArray.length > 0) {
-        this.userData.topSkills = skillsArray.slice(0, 3).map(skill => ({
-          name: skill,
-          level: 'medium' // Can be enhanced later
-        }));
+    this.profileService.getMyProfile().subscribe({
+      next: (response) => {
+        console.log('📥 Profile loaded:', response);
         
-        // Set up chart data
-        this.skillsChartData.labels = skillsArray.slice(0, 6);
-        this.skillsChartData.userSkills = skillsArray.slice(0, 6).map(() => 70);
-        this.skillsChartData.marketDemand = skillsArray.slice(0, 6).map(() => 
-          Math.floor(Math.random() * 30) + 70
-        );
+        if (response.success && response.data) {
+          const data = response.data;
+          
+          this.userData.name = data.name || 'User';
+          
+          const profileImage = data.profile_image || 
+                              data.profileImage || 
+                              data.profile_picture;
+          
+          if (profileImage) {
+            this.userData.avatar = this.getFullImageUrl(profileImage);
+            console.log('✅ Avatar set:', this.userData.avatar);
+          }
+          
+          const skillsArray = this.parseSkillsArray(data.skills);
+          if (skillsArray.length > 0) {
+            this.userData.topSkills = skillsArray.slice(0, 3).map(skill => ({
+              name: skill,
+              level: 'medium'
+            }));
+            
+            this.skillsChartData.labels = skillsArray.slice(0, 6);
+            this.skillsChartData.userSkills = skillsArray.slice(0, 6).map(() => 70);
+            this.skillsChartData.marketDemand = skillsArray.slice(0, 6).map(() => 
+              Math.floor(Math.random() * 30) + 70
+            );
+            
+            this.skillsProgress = skillsArray.slice(0, 3).map(skill => ({
+              name: skill,
+              current: 70,
+              change: Math.floor(Math.random() * 20) + 5,
+              note: 'Core skill - Keep building!'
+            }));
+          }
+        }
         
-        // Set up progress data
-        this.skillsProgress = skillsArray.slice(0, 3).map(skill => ({
-          name: skill,
-          current: 70,
-          change: Math.floor(Math.random() * 20) + 5,
-          note: 'Core skill - Keep building!'
-        }));
+        this.isInitializing = false;
+        this.loadInsightsInBackground();
+      },
+      error: (error) => {
+        console.error('❌ Error loading profile:', error);
+        this.useDefaultData();
+        this.isInitializing = false;
       }
-    }
-    
-    this.isInitializing = false;
-    this.loadInsightsInBackground();
-  },
-  error: (error) => {
-    console.error('❌ Error loading profile:', error);
-    this.useDefaultData();
-    this.isInitializing = false;
-  }
-});
+    });
   }
 
   private parseSkillsArray(skills: any): string[] {
-  if (!skills) return [];
-  
-  try {
-    if (typeof skills === 'string') {
-      return JSON.parse(skills);
-    } else if (Array.isArray(skills)) {
-      return skills;
+    if (!skills) return [];
+    
+    try {
+      if (typeof skills === 'string') {
+        return JSON.parse(skills);
+      } else if (Array.isArray(skills)) {
+        return skills;
+      }
+      return [];
+    } catch (e) {
+      console.error('Error parsing skills:', e);
+      return [];
     }
-    return [];
-  } catch (e) {
-    console.error('Error parsing skills:', e);
-    return [];
   }
-}
 
-  // FIX: New method to validate cache belongs to current user
   private validateAndClearStaleCache(): void {
     const cacheUserId = localStorage.getItem('cached_user_id');
     const cacheUserEmail = localStorage.getItem('cached_user_email');
     
-    // If cache exists but doesn't match current user, clear it
     if (cacheUserId || cacheUserEmail) {
       if (cacheUserId !== this.currentUserId || cacheUserEmail !== this.currentUserEmail) {
         console.warn('Cache belongs to different user, clearing...');
@@ -255,12 +237,10 @@ this.profileService.getMyProfile().subscribe({
     }
   }
 
-  // FIX: New method to get cached profile only if it belongs to current user
   private getCachedProfileForCurrentUser(): string | null {
     const cacheUserId = localStorage.getItem('cached_user_id');
     const cacheUserEmail = localStorage.getItem('cached_user_email');
     
-    // Only return cache if it belongs to current user
     if (cacheUserId === this.currentUserId && cacheUserEmail === this.currentUserEmail) {
       return localStorage.getItem('cached_portfolio');
     }
@@ -268,7 +248,6 @@ this.profileService.getMyProfile().subscribe({
     return null;
   }
 
-  // FIX: New method to cache profile with user identifier
   private cacheProfileForCurrentUser(portfolio: PortfolioData): void {
     try {
       localStorage.setItem('cached_portfolio', JSON.stringify(portfolio));
@@ -280,29 +259,23 @@ this.profileService.getMyProfile().subscribe({
     }
   }
 
-  // FIX: New method to verify portfolio belongs to current user
   private verifyPortfolioBelongsToCurrentUser(portfolio: PortfolioData): boolean {
-    // Check if portfolio has user identification
     const portfolioUserId = portfolio.userId || portfolio.userId || portfolio.cvData?.user_id;
     const portfolioEmail = portfolio.cvData?.personal_info?.email || 
                           portfolio.cvData?.personal_info?.email;
     
-    // If we have user ID, verify it matches
     if (portfolioUserId && this.currentUserId) {
       return portfolioUserId === this.currentUserId;
     }
     
-    // If we have email, verify it matches
     if (portfolioEmail && this.currentUserEmail) {
       return portfolioEmail.toLowerCase() === this.currentUserEmail.toLowerCase();
     }
     
-    // If no identification found, assume it's correct (backend should send correct data)
     console.warn('Could not verify portfolio ownership - assuming correct');
     return true;
   }
 
-  // FIX: Enhanced method to clear all user-specific cache
   private clearUserCache(): void {
     localStorage.removeItem('cached_portfolio');
     localStorage.removeItem('cached_user_id');
@@ -313,18 +286,14 @@ this.profileService.getMyProfile().subscribe({
   }
 
   private checkForProfileUpdates(): void {
-    // Assume portfolio.cvData.updated_at exists; adjust if different
     const profileUpdatedAt = this.portfolioData?.cvData?.updated_at || this.portfolioData?.updatedAt || new Date().toISOString();
     
-    // FIX: Use user-specific cache key
     const cacheKey = `ai_assistant_last_init_${this.currentUserId}`;
     this.lastInitTime = localStorage.getItem(cacheKey);
 
     if (!this.lastInitTime || new Date(profileUpdatedAt) > new Date(this.lastInitTime)) {
-      // Profile updated or first time, load insights in background
       this.loadInsightsInBackground(profileUpdatedAt);
     } else {
-      // Use cached insights if available, or skip
       this.loadCachedInsights();
     }
     
@@ -334,29 +303,26 @@ this.profileService.getMyProfile().subscribe({
   private async loadInsightsInBackground(updatedAt?: string): Promise<void> {
     this.isLoadingInsights = true;
     try {
-      // Get initial career recommendations from Gemini
       const response = await this.geminiService.getInitialRecommendations().toPromise();
       
       if (response?.success) {
-        // Clear previous recommendations
         this.jobRecommendations = [];
         this.trainingRecommendations = [];
         this.conversationMessages = [];
 
-        // Map Gemini job recommendations to frontend format
         if (response.recommendations?.matchedJobs) {
           this.jobRecommendations = response.recommendations.matchedJobs.map(job =>
             this.mapGeminiJobToFrontend(job)
           );
         }
-        // Generate training recommendations based on skill gaps
+        
         if (response.recommendations?.skillGaps) {
           this.trainingRecommendations = this.generateTrainingFromSkillGaps(
             response.recommendations.skillGaps,
             response.recommendations.learningPaths || []
           );
         }
-        // Add initial AI message with recommendations - Updated text for better engagement
+        
         if (response.message) {
           this.conversationMessages.push({
             type: 'ai',
@@ -366,25 +332,21 @@ this.profileService.getMyProfile().subscribe({
           });
         }
 
-        // FIX: Update last init time with user-specific key
         if (updatedAt) {
           const cacheKey = `ai_assistant_last_init_${this.currentUserId}`;
           localStorage.setItem(cacheKey, updatedAt);
         }
 
-        // FIX: Cache insights with user identifier
         this.cacheInsightsForCurrentUser();
       }
     } catch (error) {
       console.error('Error getting Gemini recommendations:', error);
-      // Fallback to static recommendations if Gemini fails
       this.generateStaticRecommendations();
     } finally {
       this.isLoadingInsights = false;
     }
   }
 
-  // FIX: New method to cache insights with user identifier
   private cacheInsightsForCurrentUser(): void {
     try {
       const insights = {
@@ -403,7 +365,6 @@ this.profileService.getMyProfile().subscribe({
     }
   }
 
-  // FIX: Updated to load insights only for current user
   private loadCachedInsights(): void {
     const cacheKey = `cached_insights_${this.currentUserId}`;
     const cachedInsights = localStorage.getItem(cacheKey);
@@ -412,7 +373,6 @@ this.profileService.getMyProfile().subscribe({
       try {
         const parsed = JSON.parse(cachedInsights);
         
-        // Verify cache belongs to current user
         if (parsed.userId === this.currentUserId || parsed.userEmail === this.currentUserEmail) {
           this.jobRecommendations = parsed.jobRecommendations || [];
           this.trainingRecommendations = parsed.trainingRecommendations || [];
@@ -436,7 +396,6 @@ this.profileService.getMyProfile().subscribe({
   refreshInsights(): void {
     if (this.isLoading || this.isLoadingInsights) return;
     
-    // FIX: Clear user-specific cache
     const cacheKey = `ai_assistant_last_init_${this.currentUserId}`;
     const insightsCacheKey = `cached_insights_${this.currentUserId}`;
     
@@ -611,7 +570,6 @@ this.profileService.getMyProfile().subscribe({
     this.userMessage = '';
     this.isLoading = true;
     try {
-      // Send message to Gemini service
       const response = await this.geminiService.sendMessage(
         message,
         this.conversationMessages.filter(m => m.type !== 'user' || m.content)
@@ -623,13 +581,13 @@ this.profileService.getMyProfile().subscribe({
           content: response.message + '<br><br><em>Pro Tip:</em> Refine your query for even better results, like adding location or salary preferences!',
           timestamp: new Date()
         };
-        // Add job cards if recommendations include matched jobs
+        
         if (response.recommendations?.matchedJobs && response.recommendations.matchedJobs.length > 0) {
           aiMessage.cards = response.recommendations.matchedJobs
-            .slice(0, 3)  // Show up to 3 for explorer-like feel
+            .slice(0, 3)
             .map(job => this.mapGeminiJobToFrontend(job));
         }
-        // Add training cards if skill gaps are mentioned
+        
         if (response.recommendations?.skillGaps && response.recommendations.skillGaps.length > 0) {
           const trainingCards = this.generateTrainingFromSkillGaps(
             response.recommendations.skillGaps.slice(0, 2),
@@ -639,7 +597,6 @@ this.profileService.getMyProfile().subscribe({
           if (!aiMessage.cards) {
             aiMessage.cards = trainingCards;
           } else if (aiMessage.cards.length < 3) {
-            // Append if space
             aiMessage.cards = [...aiMessage.cards, ...trainingCards.slice(0, 3 - aiMessage.cards.length)];
           }
         }
@@ -652,7 +609,6 @@ this.profileService.getMyProfile().subscribe({
     } catch (error) {
       console.error('Error sending message to Gemini:', error);
       
-      // Fallback response with better text
       this.conversationMessages.push({
         type: 'ai',
         content: "Oops, a momentary glitch! I'm back online. Try rephrasing your question or ask about 'top Python jobs in Nairobi' for quick wins.",
@@ -670,10 +626,9 @@ this.profileService.getMyProfile().subscribe({
     }
   }
 
-  // Helper methods
   private useDefaultData(): void {
     this.userData = {
-      name: this.userData.name || 'User', // Keep the name we got from auth
+      name: this.userData.name || 'User',
       avatar: 'assets/images/profile-placeholder.jpg',
       topSkills: [{ name: 'General Skills', level: 'medium' }]
     };
@@ -727,7 +682,6 @@ this.profileService.getMyProfile().subscribe({
       .join(' ');
   }
 
-  // Legacy methods for fallback
   private getJobRecommendationsBasedOnSkills(userSkills: string[]): JobRecommendation[] {
     const jobDatabase = [
       {
@@ -896,7 +850,6 @@ this.profileService.getMyProfile().subscribe({
     ctx.stroke();
   }
 
-  // UI interaction methods
   showJobs(): void {
     this.router.navigate(['/jobseeker/job-explorer']);
   }
@@ -964,5 +917,25 @@ this.profileService.getMyProfile().subscribe({
   closeModal(): void {
     this.showPremiumModal = false;
     this.selectedSkill = '';
+  }
+
+  toggleSidebar(): void {
+    const sidebar = document.querySelector('.sidebar');
+    const overlay = document.querySelector('.sidebar-overlay');
+    const hamburger = document.querySelector('.hamburger');
+
+    sidebar?.classList.toggle('open');
+    overlay?.classList.toggle('open');
+    hamburger?.classList.toggle('active');
+  }
+
+  closeSidebar(): void {
+    const sidebar = document.querySelector('.sidebar');
+    const overlay = document.querySelector('.sidebar-overlay');
+    const hamburger = document.querySelector('.hamburger');
+
+    sidebar?.classList.remove('open');
+    overlay?.classList.remove('open');
+    hamburger?.classList.remove('active');
   }
 }
