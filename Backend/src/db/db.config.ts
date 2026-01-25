@@ -20,31 +20,20 @@ console.log('Database Configuration:', {
 });
 
 const pool = new Pool({
-  // Prefer full DATABASE_URL (recommended for Render)
-  connectionString: process.env.DATABASE_URL,
-  
-  // If not using DATABASE_URL, fall back to individual vars
-  ...(process.env.DATABASE_URL ? {} : {
-    user: process.env.DB_USER || 'postgres',
-    host: process.env.DB_HOST || 'localhost',
-    database: process.env.DB_NAME || 'digital_skilling_app',
-    password: dbPassword,
-    port: parseInt(process.env.DB_PORT || '5432'),
-  }),
+  connectionString: process.env.DATABASE_URL || `postgres://${process.env.DB_USER || 'postgres'}:${dbPassword}@${process.env.DB_HOST || 'localhost'}:${parseInt(process.env.DB_PORT || '5432')}/${process.env.DB_NAME || 'digital_skilling_app'}`,
 
-  // CRITICAL for Render PostgreSQL
+  // CRITICAL FOR RENDER
   ssl: process.env.NODE_ENV === 'production' 
-    ? { rejectUnauthorized: false } // Render uses self-signed certs
+    ? { rejectUnauthorized: false } 
     : false,
 
-  // Keep connections alive (fixes timeout 500 errors!)
+  // KEEP CONNECTION ALIVE — THIS FIXES THE 500 ERROR
   keepAlive: true,
   keepAliveInitialDelayMillis: 0,
 
-  // Pool settings
   max: 10,
   idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 5000, // Slightly longer for cold starts
+  connectionTimeoutMillis: 5000,
 });
 
 // Event listeners
