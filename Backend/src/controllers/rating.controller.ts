@@ -9,217 +9,145 @@ export class RatingController {
   /**
    * Create a new rating with complete employer and company information
    */
-  async createRating(req: AuthenticatedRequest, res: Response): Promise<Response> {
-    try {
-      const employer_id = req.user?.id;
-      const {
-        jobseeker_id,
-        job_id,
-        application_id,
-        rating,
-        feedback,
-        would_hire_again,
-        skills_rating,
-        task_description,
-        is_public = true
-      } = req.body;
+ async createRating(req: AuthenticatedRequest, res: Response): Promise<Response> {
+  try {
+    const employer_id = req.user?.id;
+    const {
+      jobseeker_id,
+      job_id,
+      application_id,
+      rating,
+      feedback,
+      would_hire_again,
+      skills_rating,
+      task_description,
+      is_public = true
+    } = req.body;
 
-      console.log('📝 Creating rating:', { employer_id, jobseeker_id, rating });
+    console.log('Creating rating:', { employer_id, jobseeker_id, rating });
 
-      if (!employer_id) {
-        return res.status(401).json({ success: false, message: 'Unauthorized' });
-      }
+    if (!employer_id) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
 
-      if (!jobseeker_id || !rating || !feedback) {
-        return res.status(400).json({
+    if (!jobseeker_id || !rating || !feedback) {
+      return res.status(400).json({
+        success: false,
+        message: 'Missing required fields: jobseeker_id, rating, feedback'
+      });
+    }
+
+    if (rating < 1 || rating > 5) {
+      return res.status(400).json({
+        success: false,
+        message: 'Rating must be between 1 and 5'
+      });
+    }
+
+    // Prevent duplicate rating for same job
+    if (job_id) {
+      const existing = await pool.query(
+        'SELECT id FROM ratings WHERE employer_id = $1 AND jobseeker_id = $2 AND job_id = $3',
+        [employer_id, jobseeker_id, job_id]
+      );
+      if (existing.rows.length > 0) {
+        return res.status(409).json({
           success: false,
-          message: 'Missing required fields: jobseeker_id, rating, feedback'
+          message: 'You have already rated this candidate for this job'
         });
       }
+    }
 
-      if (rating < 1 || rating > 5) {
-        return res.status(400).json({
-          success: false,
-          message: 'Rating must be between 1 and 5'
-        });
+    // Get employer & company info
+    const employerResult = await pool.query(`
+      SELECT 
+        u.name as employer_name, u.email as employer_email, u.profile_picture as employer_image,
+        u.user_type,
+        e.role_in_company, e.company_id,
+        c.name as company_name, c.logo_url as company_logo,
+        c.description as company_description, c.industry as company_industry,
+        c.company_size, c.website_url as company_website, c.headquarters as company_location
+      FROM users u
+      LEFT JOIN employers e ON u.id = e.user_id
+      LEFT JOIN companies c ON e.company_id = c.id
+      WHERE u.id = $1
+    `, [employer_id]);
+
+    if (employerResult.rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Employer not found' });
+    }
+
+    const emp = employerResult.rows[0];
+
+    // Get job title
+    let job_title = null;
+    if (job_id) {
+      const jobResult = await pool.query('SELECT title FROM jobs WHERE id = $1', [job_id]);
+      job_title = jobResult.rows[0]?.title || null;
+    }
+
+    // INSERT — let DB handle created_at automatically
+    const result = await pool.query(`
+      INSERT INTO ratings (
+        employer_id, jobseeker_id, job_id, application_id, job_title,
+        employer_name, employer_email, employer_image, user_type,
+        company_name, company_logo, role_in_company,
+        company_description, company_industry, company_size,
+        company_website, company_location,
+        rating, feedback, would_hire_again, skills_rating,
+        task_description, is_public
+      ) VALUES (
+        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
+        $11, $12, $13, $14, $15, $16, $17,
+        $18, $19, $20, $21, $22, $23
+      )
+      RETURNING *
+    `, [
+      employer_id,
+      jobseeker_id,
+      job_id || null,
+      application_id || null,
+      job_title,
+      emp.employer_name || 'Employer',
+      emp.employer_email || '',
+      emp.employer_image || null,
+      emp.user_type || 'employer',
+      emp.company_name || null,
+      emp.company_logo || null,
+      emp.role_in_company || null,
+      emp.company_description || null,
+      emp.company_industry || null,
+      emp.company_size || null,
+      emp.company_website || null,
+      emp.company_location || null,
+      rating,
+      feedback.trim(),
+      would_hire_again ?? false,
+      skills_rating ? JSON.stringify(skills_rating) : null,
+      task_description?.trim() || null,
+      is_public
+    ]);
+
+    const createdRating = result.rows[0];
+
+    return res.status(201).json({
+      success: true,
+      message: 'Rating submitted successfully',
+      data: {
+        ...createdRating,
+        skills_rating: createdRating.skills_rating ? JSON.parse(createdRating.skills_rating) : {}
       }
+    });
 
-      // Check for duplicate rating
-      if (job_id) {
-        const existingRating = await pool.query(
-          'SELECT id FROM ratings WHERE employer_id = $1 AND jobseeker_id = $2 AND job_id = $3',
-          [employer_id, jobseeker_id, job_id]
-        );
-        if (existingRating.rows.length > 0) {
-          return res.status(409).json({
-            success: false,
-            message: 'You have already rated this candidate for this job'
-          });
-        }
-      }
-
-      // ✅ CRITICAL FIX: Get employer info from users/employers/companies tables
-      const employerInfoQuery = `
-        SELECT 
-          u.id,
-          u.name as employer_name,
-          u.email as employer_email,
-          u.user_type,
-          u.profile_picture as employer_image,
-          e.role_in_company,
-          e.company_id,
-          c.name as company_name,
-          c.logo_url as company_logo,
-          c.description as company_description,
-          c.industry as company_industry,
-          c.company_size as company_size,
-          c.website_url as company_website,
-          c.headquarters as company_location
-        FROM users u
-        LEFT JOIN employers e ON u.id = e.user_id
-        LEFT JOIN companies c ON e.company_id = c.id
-        WHERE u.id = $1
-      `;
-      
-      const employerResult = await pool.query(employerInfoQuery, [employer_id]);
-      
-      if (employerResult.rows.length === 0) {
-        return res.status(404).json({
-          success: false,
-          message: 'Employer not found'
-        });
-      }
-
-      const emp = employerResult.rows[0];
-
-      console.log('✅ Employer data retrieved:', {
-        employer_name: emp.employer_name,
-        company_name: emp.company_name,
-        role_in_company: emp.role_in_company,
-        company_industry: emp.company_industry,
-        company_location: emp.company_location
-      });
-
-      // Get job title if job_id provided
-      let job_title = null;
-      if (job_id) {
-        const jobResult = await pool.query('SELECT title FROM jobs WHERE id = $1', [job_id]);
-        job_title = jobResult.rows[0]?.title || null;
-      }
-
-      // ✅ Insert rating with actual employer and company data
-      const insertQuery = `
-        INSERT INTO ratings (
-          employer_id, jobseeker_id, job_id, application_id, job_title,
-          employer_name, employer_email, employer_image, user_type,
-          company_name, company_logo, role_in_company,
-          company_description, company_industry, company_size, 
-          company_website, company_location,
-          rating, feedback, would_hire_again, skills_rating, 
-          task_description, is_public, created_at
-        ) VALUES (
-          $1, $2, $3, $4, $5,
-          $6, $7, $8, $9,
-          $10, $11, $12,
-          $13, $14, $15, $16, $17,
-          $18, $19, $20, $21, $22, $23, NOW()
-        ) RETURNING *
-      `;
-
-      const result = await pool.query(insertQuery, [
-        employer_id, 
-        jobseeker_id, 
-        job_id || null, 
-        application_id || null, 
-        job_title,
-        // ✅ ACTUAL EMPLOYER DATA
-        emp.employer_name || 'Employer',
-        emp.employer_email || '',
-        emp.employer_image || null,
-        emp.user_type || 'Employer',
-        // ✅ ACTUAL COMPANY DATA
-        emp.company_name || 'Company',
-        emp.company_logo || null,
-        emp.role_in_company || null,
-        emp.company_description || null,
-        emp.company_industry || null,
-        emp.company_size || null,
-        emp.company_website || null,
-        emp.company_location || null,
-        // Rating details
-        rating, 
-        feedback, 
-        would_hire_again || false, 
-        JSON.stringify(skills_rating || {}), 
-        task_description || null, 
-        is_public
-      ]);
-
-      const createdRating = result.rows[0];
-
-      console.log('✅ Rating created with data:', {
-        id: createdRating.id,
-        employer_name: createdRating.employer_name,
-        company_name: createdRating.company_name,
-        role_in_company: createdRating.role_in_company
-      });
-
-      // Create notification
-      try {
-        const employerName = emp.employer_name || 'An employer';
-        const companyName = emp.company_name || 'a company';
-        const notificationMessage = job_title 
-          ? `${employerName} from ${companyName} gave you a ${rating}-star rating for ${job_title}`
-          : `${employerName} from ${companyName} gave you a ${rating}-star rating`;
-
-        await pool.query(
-          `INSERT INTO notifications (user_id, type, title, message, metadata, created_at)
-           VALUES ($1, 'rating_received', 'New Rating Received', $2, $3, NOW())`,
-          [jobseeker_id, notificationMessage, JSON.stringify({ 
-            rating_id: createdRating.id, 
-            job_id: job_id || null, 
-            job_title: job_title || null, 
-            rating,
-            employer_name: employerName,
-            company_name: companyName
-          })]
-        );
-      } catch (err) {
-        console.error('Failed to create notification:', err);
-      }
-
-      return res.status(201).json({
-        success: true,
-        message: 'Rating submitted successfully',
-        data: {
-          ...createdRating,
-          skills_rating: typeof createdRating.skills_rating === 'string'
-            ? JSON.parse(createdRating.skills_rating)
-            : createdRating.skills_rating
-        }
-      });
-
-    } catch (error) {
-  console.error('❌ Error creating rating:', error);
-  console.error('❌ Error details:', {
-    message: error instanceof Error ? error.message : 'Unknown error',
-    stack: error instanceof Error ? error.stack : undefined,
-    code: (error as any).code,
-    detail: (error as any).detail,
-    constraint: (error as any).constraint
-  });
-  
-  return res.status(500).json({
-    success: false,
-    message: 'Failed to create rating',
-    error: error instanceof Error ? error.message : 'Unknown error',
-    details: process.env.NODE_ENV === 'development' ? {
-      code: (error as any).code,
-      detail: (error as any).detail
-    } : undefined
-  });
-}
+  } catch (error) {
+    console.error('Error creating rating:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to create rating',
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
   }
+}
 
    async updateRating(req: AuthenticatedRequest, res: Response): Promise<Response> {
     try {

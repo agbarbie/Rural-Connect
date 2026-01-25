@@ -1,4 +1,4 @@
-/* rating.component.css - COMPLETE STYLES */
+/* rating.component.css - COMPLETE & FINAL STYLES (NO DUPLICATION) */
 
 .modal-overlay {
   position: fixed !important;
@@ -16,12 +16,8 @@
 }
 
 @keyframes fadeIn {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
 .rating-modal {
@@ -409,6 +405,7 @@
   gap: 12px;
 }
 
+/* Base Button Style */
 .btn {
   padding: 10px 20px;
   border: none;
@@ -416,12 +413,25 @@
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.2s;
-  display: flex;
+  transition: all 0.3s ease;
+  display: inline-flex;
   align-items: center;
   gap: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
+.btn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
+}
+
+.btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* Secondary Button */
 .btn-secondary {
   background: #f3f4f6;
   color: #374151;
@@ -431,6 +441,7 @@
   background: #e5e7eb;
 }
 
+/* Primary Button (in modal footer) */
 .btn-primary {
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: white;
@@ -438,13 +449,44 @@
 
 .btn-primary:hover:not(:disabled) {
   transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+  box-shadow: 0 6px 16px rgba(102, 126, 234, 0.4);
 }
 
-.btn:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-  transform: none !important;
+/* Warning Button - "Rate" (Gold/Orange) */
+.btn-warning {
+  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+  color: white;
+}
+
+.btn-warning:hover:not(:disabled) {
+  background: linear-gradient(135deg, #f97316 0%, #c2410c 100%);
+  box-shadow: 0 6px 16px rgba(245, 158, 11, 0.4);
+  animation: pulse-warning 1.5s infinite;
+}
+
+/* Info Button - "Edit Rating" (Blue/Purple) */
+.btn-info {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+}
+
+.btn-info:hover:not(:disabled) {
+  background: linear-gradient(135deg, #5a67d8 0%, #6b46c1 100%);
+  box-shadow: 0 6px 16px rgba(102, 126, 234, 0.4);
+  animation: pulse-info 1.5s infinite;
+}
+
+/* Pulse Animations */
+@keyframes pulse-warning {
+  0% { box-shadow: 0 6px 16px rgba(245, 158, 11, 0.4); }
+  50% { box-shadow: 0 6px 20px rgba(245, 158, 11, 0.6); }
+  100% { box-shadow: 0 6px 16px rgba(245, 158, 11, 0.4); }
+}
+
+@keyframes pulse-info {
+  0% { box-shadow: 0 6px 16px rgba(102, 126, 234, 0.4); }
+  50% { box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6); }
+  100% { box-shadow: 0 6px 16px rgba(102, 126, 234, 0.4); }
 }
 
 /* Responsive */
@@ -488,5 +530,10 @@
     flex-direction: column;
     align-items: flex-start;
     gap: 8px;
+  }
+
+  .btn {
+    padding: 10px 16px;
+    font-size: 13px;
   }
 }

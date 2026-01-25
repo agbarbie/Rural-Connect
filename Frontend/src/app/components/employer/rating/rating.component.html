@@ -1,4 +1,4 @@
-<!-- rating.component.html - COMPLETE TEMPLATE -->
+<!-- rating.component.html - COMPLETE & FINAL VERSION -->
 
 <div class="modal-overlay" *ngIf="showModal" (click)="close()">
   <div class="rating-modal" (click)="$event.stopPropagation()">
@@ -6,28 +6,14 @@
     <div class="modal-header">
       <h2>
         <i class="fas fa-star"></i>
-        Rate Jobseeker
+        {{ existingRating ? 'Edit Rating' : 'Rate Jobseeker' }}
       </h2>
       <button class="close-btn" (click)="close()" [disabled]="isSubmitting">
         <i class="fas fa-times"></i>
       </button>
     </div>
 
-    <h2>
-      <i class="fas fa-star"></i>
-      {{ existingRating ? 'Edit Rating' : 'Rate Jobseeker' }}
-    </h2>
-    <button
-      class="btn btn-primary"
-      (click)="submitRating()"
-      [disabled]="isSubmitting || overallRating === 0">
-      <i
-      class="fas"
-      [class.fa-paper-plane]="!isSubmitting"
-      [class.fa-spinner]="isSubmitting"
-      [class.fa-spin]="isSubmitting"></i>
-      {{ isSubmitting ? 'Saving...' : (existingRating ? 'Update Rating' : 'Submit Rating') }}
-    </button>
+    <!-- Modal Body -->
     <div class="modal-body">
       <!-- Candidate Info -->
       <div class="candidate-info">
@@ -35,6 +21,7 @@
           <img 
             [src]="getAvatarUrl(candidate.profile_image, candidate.name)" 
             [alt]="candidate.name"
+            loading="lazy"
           />
         </div>
         <div class="candidate-details">
@@ -84,15 +71,15 @@
         <div class="rating-value" *ngIf="overallRating > 0">
           <span class="rating-number">{{ overallRating }}</span>
           <span class="rating-text">
-            {{ overallRating === 1 ? 'Poor' : 
-               overallRating === 2 ? 'Fair' : 
-               overallRating === 3 ? 'Good' : 
+            {{ overallRating === 1 ? 'Poor' :
+               overallRating === 2 ? 'Fair' :
+               overallRating === 3 ? 'Good' :
                overallRating === 4 ? 'Very Good' : 'Excellent' }}
           </span>
         </div>
       </div>
 
-      <!-- Detailed Skills Rating (Optional) -->
+      <!-- Detailed Skills Rating Toggle -->
       <div class="detailed-rating-toggle">
         <label class="toggle-label">
           <input 
@@ -108,7 +95,6 @@
       <div class="skills-rating-section" *ngIf="enableDetailedRating">
         <h4>Skills Assessment</h4>
         
-        <!-- Technical Skills -->
         <div class="skill-rating-item">
           <label>Technical Skills</label>
           <div class="skill-stars">
@@ -125,7 +111,6 @@
           </div>
         </div>
 
-        <!-- Communication -->
         <div class="skill-rating-item">
           <label>Communication</label>
           <div class="skill-stars">
@@ -142,7 +127,6 @@
           </div>
         </div>
 
-        <!-- Professionalism -->
         <div class="skill-rating-item">
           <label>Professionalism</label>
           <div class="skill-stars">
@@ -159,7 +143,6 @@
           </div>
         </div>
 
-        <!-- Work Quality -->
         <div class="skill-rating-item">
           <label>Work Quality</label>
           <div class="skill-stars">
@@ -176,7 +159,6 @@
           </div>
         </div>
 
-        <!-- Timeliness -->
         <div class="skill-rating-item">
           <label>Timeliness</label>
           <div class="skill-stars">
@@ -194,7 +176,7 @@
         </div>
       </div>
 
-      <!-- Task Description (Optional) -->
+      <!-- Task/Project Description (Optional) -->
       <div class="form-group">
         <label>Task/Project Description (Optional)</label>
         <p class="field-description">Briefly describe the work they completed</p>
@@ -261,10 +243,10 @@
         (click)="submitRating()"
         [disabled]="isSubmitting || overallRating === 0">
         <i class="fas" 
-           [class.fa-paper-plane]="!isSubmitting"
-           [class.fa-spinner]="isSubmitting"
-           [class.fa-spin]="isSubmitting"></i>
-        {{ isSubmitting ? 'Submitting...' : 'Submit Rating' }}
+           [class.fa-spinner]="isSubmitting" 
+           [class.fa-spin]="isSubmitting"
+           [class.fa-paper-plane]="!isSubmitting"></i>
+        {{ isSubmitting ? 'Saving...' : (existingRating ? 'Update Rating' : 'Submit Rating') }}
       </button>
     </div>
   </div>

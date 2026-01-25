@@ -308,6 +308,66 @@ export class RatingComponent implements OnInit, OnDestroy {
     return true;
   }
 
+  private prevExistingRatingId: string | null = null;
+
+  /**
+   * Detect runtime updates to @Input() existingRating (e.g. set directly after modal opens)
+   * and apply them to the form. Using ngDoCheck avoids having to change the @Input
+   * declaration to a setter and works when the property is assigned on the component instance.
+   */
+  ngDoCheck(): void {
+    const incomingId = this.existingRating && this.existingRating.id ? this.existingRating.id : null;
+
+    // New existing rating arrived
+    if (incomingId && incomingId !== this.prevExistingRatingId) {
+      this.prevExistingRatingId = incomingId;
+      this.applyExistingRating();
+    }
+
+    // existingRating was cleared externally
+    if (!incomingId && this.prevExistingRatingId !== null) {
+      this.prevExistingRatingId = null;
+      this.isEditMode = false;
+      this.ratingId = null;
+      this.resetForm();
+    }
+  }
+
+  /**
+   * Populate component fields from the provided existingRating
+   */
+  private applyExistingRating(): void {
+    if (!this.existingRating) {
+      return;
+    }
+
+    this.isEditMode = true;
+    this.ratingId = this.existingRating.id || null;
+
+    this.overallRating = this.existingRating.rating || 0;
+    this.feedback = this.existingRating.feedback || '';
+    this.taskDescription = this.existingRating.task_description || '';
+    this.wouldHireAgain = this.existingRating.would_hire_again !== false;
+    this.isPublic = this.existingRating.is_public !== false;
+
+    const skills = this.existingRating.skills_rating;
+    if (skills && typeof skills === 'object' && Object.keys(skills).length > 0) {
+      this.enableDetailedRating = true;
+      this.technicalRating = skills.technical || 0;
+      this.communicationRating = skills.communication || 0;
+      this.professionalismRating = skills.professionalism || 0;
+      this.qualityRating = skills.quality || 0;
+      this.timelinessRating = skills.timeliness || 0;
+    } else {
+      this.enableDetailedRating = false;
+      this.technicalRating = 0;
+      this.communicationRating = 0;
+      this.professionalismRating = 0;
+      this.qualityRating = 0;
+      this.timelinessRating = 0;
+    }
+  }
+
   /**
    * Submit rating - ENHANCED WITH LOGGING
    */
