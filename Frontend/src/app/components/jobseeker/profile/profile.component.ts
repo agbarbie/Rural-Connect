@@ -896,9 +896,10 @@ export class ProfileComponent implements OnInit {
     this.toggleEditMode();
   }
 
-  getFullImageUrl(imagePath: string | null | undefined): string {
+ getFullImageUrl(imagePath: string | null | undefined): string {
   if (!imagePath || imagePath.trim() === '') {
-    return 'https://via.placeholder.com/150/cccccc/666666?text=Profile';
+    // Reliable placeholder (always works)
+    return 'https://ui-avatars.com/api/?name=' + encodeURIComponent(this.profile.fullName || 'User') + '&background=6b7280&color=fff&size=150&bold=true';
   }
 
   const path = imagePath.trim();
@@ -912,14 +913,16 @@ export class ProfileComponent implements OnInit {
     return `${baseUrl}${path.startsWith('/') ? '' : '/'}${path}`;
   }
 
-  return 'https://via.placeholder.com/150/cccccc/666666?text=Profile';
+  // Final fallback to initials avatar
+  return 'https://ui-avatars.com/api/?name=' + encodeURIComponent(this.profile.fullName || 'User') + '&background=6b7280&color=fff&size=150&bold=true';
 }
 
-  handleImageError(event: any): void {
-    event.target.src =
-      'https://via.placeholder.com/150/cccccc/666666?text=Profile';
-    event.target.onerror = null; // Prevent infinite loop
+handleImageError(event: any): void {
+  const fallback = 'https://ui-avatars.com/api/?name=' + encodeURIComponent(this.profile.fullName || 'User') + '&background=6b7280&color=fff&size=150&bold=true';
+  if (event.target.src !== fallback) {
+    event.target.src = fallback;
   }
+}
 
   getCompletedFieldsCount(section: CompletedSection): number {
     return section.completed ? 1 : 0;
