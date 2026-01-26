@@ -106,10 +106,10 @@ export class AuthService {
             );
 
             const companyResult = await client.query(
-              `INSERT INTO companies (name, company_password, created_by)
-             VALUES ($1, $2, $3)
+              `INSERT INTO companies (name, company_password)
+             VALUES ($1, $2)
              RETURNING id::text as id, name`,
-              [userData.company_name.trim(), hashedCompanyPassword, newUser.id],
+              [userData.company_name.trim(), hashedCompanyPassword],
             );
 
             company_id = companyResult.rows[0].id;
