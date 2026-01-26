@@ -1,4 +1,4 @@
-// portfolio.component.ts - FINAL FIX (No TypeScript errors)
+// portfolio.component.ts - COMPLETE WITH MOBILE SIDEBAR TOGGLE
 import { Component, OnInit } from '@angular/core';
 import { DatePipe } from '@angular/common'; 
 import { CommonModule } from '@angular/common';
@@ -55,6 +55,27 @@ interface Testimonial {
   styleUrls: ['./portfolio.component.css']
 })
 export class PortfolioComponent implements OnInit {
+  
+  // Sidebar toggle methods for mobile - EXACT SAME AS OTHER COMPONENTS
+  toggleSidebar(): void {
+    const sidebar = document.querySelector('.sidebar');
+    const overlay = document.querySelector('.sidebar-overlay');
+    const hamburger = document.querySelector('.hamburger');
+
+    sidebar?.classList.toggle('open');
+    overlay?.classList.toggle('open');
+    hamburger?.classList.toggle('active');
+  }
+
+  closeSidebar(): void {
+    const sidebar = document.querySelector('.sidebar');
+    const overlay = document.querySelector('.sidebar-overlay');
+    const hamburger = document.querySelector('.hamburger');
+
+    sidebar?.classList.remove('open');
+    overlay?.classList.remove('open');
+    hamburger?.classList.remove('active');
+  }
   
   isLoading = true;
   currentCV: CV | null = null;

@@ -270,6 +270,27 @@ export class ProfileComponent implements OnInit {
     this.loadProfileViewers();
   }
 
+  // Sidebar toggle methods for mobile
+  toggleSidebar(): void {
+    const sidebar = document.querySelector('.sidebar');
+    const overlay = document.querySelector('.sidebar-overlay');
+    const hamburger = document.querySelector('.hamburger');
+    
+    sidebar?.classList.toggle('open');
+    overlay?.classList.toggle('open');
+    hamburger?.classList.toggle('active');
+  }
+
+  closeSidebar(): void {
+    const sidebar = document.querySelector('.sidebar');
+    const overlay = document.querySelector('.sidebar-overlay');
+    const hamburger = document.querySelector('.hamburger');
+    
+    sidebar?.classList.remove('open');
+    overlay?.classList.remove('open');
+    hamburger?.classList.remove('active');
+  }
+
   private loadProfileData(): void {
     this.profileService.getMyProfile().subscribe({
       next: (response: ProfileResponse) => {
@@ -736,7 +757,6 @@ export class ProfileComponent implements OnInit {
     return 0;
   }
 
-  // 🔧 FIX: Enhanced loadProfileViewers with better error handling and debugging
   private loadProfileViewers(): void {
     this.isLoadingViewers = true;
     console.log('🔍 Loading profile viewers...');
@@ -749,7 +769,6 @@ export class ProfileComponent implements OnInit {
           this.profileViews = response.data.viewers || [];
           console.log(`📊 Loaded ${this.profileViews.length} profile viewers`);
           
-          // Debug: Log first viewer if exists
           if (this.profileViews.length > 0) {
             console.log('👀 First viewer:', this.profileViews[0]);
           }
@@ -765,7 +784,6 @@ export class ProfileComponent implements OnInit {
         this.profileViews = [];
         this.isLoadingViewers = false;
         
-        // Check if it's an auth error
         if (error.status === 401) {
           console.error('🔒 Authentication error - user may need to log in again');
         }
@@ -773,12 +791,10 @@ export class ProfileComponent implements OnInit {
     });
   }
 
-  // 🔧 FIX: Added method to check if profile views should be visible
   hasProfileViews(): boolean {
     return this.profileViews && this.profileViews.length > 0;
   }
 
-  // 🔧 FIX: Added method to get profile views count
   getProfileViewsCount(): number {
     return this.profileViews ? this.profileViews.length : 0;
   }

@@ -140,6 +140,30 @@ export class TrainingComponent implements OnInit, OnDestroy {
   }
 
   // ============================================
+  // SIDEBAR TOGGLE METHODS (Fixed)
+  // ============================================
+  
+  toggleSidebar(): void {
+    const sidebar = document.querySelector('.sidebar');
+    const overlay = document.querySelector('.sidebar-overlay');
+    const hamburger = document.querySelector('.hamburger');
+    
+    sidebar?.classList.toggle('open');
+    overlay?.classList.toggle('open');
+    hamburger?.classList.toggle('active');
+  }
+
+  closeSidebar(): void {
+    const sidebar = document.querySelector('.sidebar');
+    const overlay = document.querySelector('.sidebar-overlay');
+    const hamburger = document.querySelector('.hamburger');
+    
+    sidebar?.classList.remove('open');
+    overlay?.classList.remove('open');
+    hamburger?.classList.remove('active');
+  }
+
+  // ============================================
   // UTILITY METHODS FOR TEMPLATE
   // ============================================
   
@@ -223,7 +247,6 @@ export class TrainingComponent implements OnInit, OnDestroy {
     return titleMap[type] || 'Training Update';
   }
   
-  // ✅ FIXED: Enhanced notification click handler with multiple enrollment_id sources
   handleNotificationClick(notification: any): void {
     console.log('🔔 Notification clicked:', notification);
     
@@ -236,20 +259,16 @@ export class TrainingComponent implements OnInit, OnDestroy {
       case 'certificate_issued':
         console.log('📜 Certificate notification metadata:', notification.metadata);
         
-        // ✅ CRITICAL FIX: Try multiple sources for enrollment_id
         let enrollmentId = null;
         
-        // Priority 1: related_id (from database trigger)
         if (notification.related_id) {
           enrollmentId = notification.related_id;
           console.log('✅ Using related_id:', enrollmentId);
         }
-        // Priority 2: metadata.enrollment_id
         else if (notification.metadata?.enrollment_id) {
           enrollmentId = notification.metadata.enrollment_id;
           console.log('✅ Using metadata.enrollment_id:', enrollmentId);
         }
-        // Priority 3: metadata.certificate_id (fallback)
         else if (notification.metadata?.certificate_id) {
           enrollmentId = notification.metadata.certificate_id;
           console.log('✅ Using metadata.certificate_id:', enrollmentId);
@@ -258,12 +277,10 @@ export class TrainingComponent implements OnInit, OnDestroy {
         if (enrollmentId) {
           const trainingTitle = notification.metadata?.training_title || 'Training';
           
-          // Show confirmation dialog
           if (confirm(`Download certificate for "${trainingTitle}"?`)) {
             this.downloadCertificate(enrollmentId, trainingTitle);
           }
           
-          // Close notification panel
           this.showNotifications = false;
         } else {
           console.error('❌ No enrollment_id found in notification:', notification);
@@ -696,7 +713,6 @@ export class TrainingComponent implements OnInit, OnDestroy {
   // CERTIFICATE DOWNLOAD
   // ============================================
   
-  // ✅ FIXED: Main download method with proper error handling
   downloadCertificate(enrollmentId: string, trainingTitle: string): void {
     console.log('📥 Downloading certificate:', { enrollmentId, trainingTitle });
     
@@ -751,7 +767,6 @@ export class TrainingComponent implements OnInit, OnDestroy {
     });
   }
 
-  // ✅ FIXED: Download from list view
   downloadCertificateFromList(training: Training): void {
     console.log('📥 List download - enrollment_id:', training.enrollment_id);
     
@@ -765,7 +780,6 @@ export class TrainingComponent implements OnInit, OnDestroy {
     this.downloadCertificate(training.enrollment_id, training.title);
   }
 
-  // ✅ FIXED: Button click handler with validation
   handleCertificateDownloadClick(training: Training): void {
     console.log('🖱️ Download button clicked:', {
       id: training?.id,
@@ -776,20 +790,17 @@ export class TrainingComponent implements OnInit, OnDestroy {
       enrollmentId: training?.enrollment_id
     });
 
-    // Check if can download
     if (this.canDownloadCertificate(training)) {
       this.downloadCertificate(training.enrollment_id!, training.title || 'Training');
       return;
     }
 
-    // If enrollment_id missing, refresh training details
     if (!training.enrollment_id && training.certificate_issued) {
       console.warn('⚠️ enrollment_id missing but certificate issued, refreshing...');
       this.refreshTrainingDetails();
       return;
     }
 
-    // Provide feedback
     const statusMsg = this.getCertificateStatusMessage(training);
     console.log('ℹ️ Cannot download:', statusMsg);
     alert(statusMsg);
@@ -867,7 +878,6 @@ export class TrainingComponent implements OnInit, OnDestroy {
     return 'Certificate status unknown. Please refresh the page.';
   }
 
-  // ✅ NEW: Check certificate availability
   checkAndDownloadCertificate(enrollmentId: string, trainingTitle: string): void {
     console.log('🔍 Checking certificate availability...');
     
@@ -892,14 +902,12 @@ export class TrainingComponent implements OnInit, OnDestroy {
           this.loading = false;
           console.error('❌ Error checking certificate:', error);
           
-          // Try to download anyway
           console.log('Attempting download anyway...');
           this.downloadCertificate(enrollmentId, trainingTitle);
         }
       });
   }
 
-  // ✅ NEW: Preview certificate (if supported)
   previewCertificate(enrollmentId: string): void {
     console.log('👁️ Previewing certificate:', enrollmentId);
     

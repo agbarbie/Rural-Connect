@@ -1,14 +1,15 @@
 <div class="dashboard-container">
-<!-- Sidebar -->
-<app-sidebar [userType]="'employer'"></app-sidebar>
+  <!-- Sidebar -->
+  <app-sidebar [userType]="'employer'"></app-sidebar>
+  
   <!-- Main Content -->
   <main class="main-content">
-    <!-- Add overlay -->
+    <!-- Sidebar Overlay (Mobile) -->
     <div class="sidebar-overlay" (click)="closeSidebar()"></div>
 
-    <!-- Top Header -->
+    <!-- Top Header (Single, Fixed Version) -->
     <header class="top-header">
-      <!-- Add hamburger button -->
+      <!-- Hamburger Menu (Mobile Only) -->
       <button class="hamburger" (click)="toggleSidebar()" aria-label="Toggle Menu">
         <i class="fas fa-bars"></i>
       </button>
@@ -17,28 +18,7 @@
         <h1>Employer Dashboard</h1>
         <p>Manage your recruitment and training programs</p>
       </div>
-      <div class="header-right">
-        <div class="search-container">
-          <i class="fas fa-search"></i>
-          <input type="text" placeholder="Search candidates, skills, training...">
-        </div>
-        <div class="header-actions">
-          <button class="action-btn notification-btn">
-            <i class="fas fa-bell"></i>
-            <span class="badge">{{urgentActions}}</span>
-          </button>
-          <div class="user-dropdown">
-            <img src="https://via.placeholder.com/36" alt="Profile">
-            <i class="fas fa-chevron-down"></i>
-          </div>
-        </div>
-      </div>
-    </header>
-    <header class="top-header">
-      <div class="header-left">
-        <h1>Employer Dashboard</h1>
-        <p>Manage your recruitment and training programs</p>
-      </div>
+      
       <div class="header-right">
         <div class="search-container">
           <i class="fas fa-search"></i>
@@ -64,15 +44,14 @@
           <h2>Welcome back to Digital Skilling, {{employerName}}!</h2>
           <p>Your recruitment hub is ready. Company profile is {{profileCompletion}}% complete.</p>
           <div class="quick-actions">
-<button class="action-btn primary-btn" (click)="createNewJobPost()">
-  <i class="fas fa-plus"></i>
-  Post New Job
-</button>
-
-<button class="action-btn secondary-btn" (click)="createNewTraining()">
-  <i class="fas fa-graduation-cap"></i>
-  Create Training
-</button>
+            <button class="action-btn primary-btn" (click)="createNewJobPost()">
+              <i class="fas fa-plus"></i>
+              Post New Job
+            </button>
+            <button class="action-btn secondary-btn" (click)="createNewTraining()">
+              <i class="fas fa-graduation-cap"></i>
+              Create Training
+            </button>
           </div>
         </div>
         <div class="banner-visual">
@@ -198,6 +177,8 @@
           </div>
         </div>
       </section>
+
+      <!-- Enrollment Notifications -->
       <section class="dashboard-card enrollment-notifications">
         <div class="card-header">
           <h3><i class="fas fa-user-graduate"></i> Enrollment Notifications</h3>
@@ -301,6 +282,7 @@
           </div>
         </div>
       </section>
+
       <!-- Interview Schedule -->
       <section class="dashboard-card interview-schedule">
         <div class="card-header">
@@ -346,7 +328,7 @@
         <div class="activity-feed">
           <div class="activity-item" *ngFor="let activity of recentActivity.slice(0, 4)">
             <div class="activity-icon" [ngClass]="activity.type">
-              <i [class]="getActivityIcon(activity.type)"></i> <!-- Changed from [ngClass] to [class] -->
+              <i [class]="getActivityIcon(activity.type)"></i>
             </div>
             <div class="activity-content">
               <p>{{activity.message}}</p>

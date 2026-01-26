@@ -9,6 +9,7 @@ import { AuthService } from '../../../../../services/auth.service';
 import { ProfileService } from '../../../../../services/profile.service';
 import { environment } from '../../../../environments/environments';
 import { SidebarComponent } from '../../shared/sidebar/sidebar.component';
+
 @Component({
   selector: 'app-cv-builder',
   templateUrl: './cv-builder.component.html',
@@ -17,25 +18,27 @@ import { SidebarComponent } from '../../shared/sidebar/sidebar.component';
   styleUrls: ['./cv-builder.component.css']
 })
 export class CvBuilderComponent implements OnInit, OnDestroy {
-  toggleSidebar() {
-  const sidebar = document.querySelector('.sidebar');
-  const overlay = document.querySelector('.sidebar-overlay');
-  const hamburger = document.querySelector('.hamburger');
+  
+  // Sidebar toggle methods for mobile - EXACT SAME AS OTHER COMPONENTS
+  toggleSidebar(): void {
+    const sidebar = document.querySelector('.sidebar');
+    const overlay = document.querySelector('.sidebar-overlay');
+    const hamburger = document.querySelector('.hamburger');
 
-  sidebar?.classList.toggle('open');
-  overlay?.classList.toggle('open');
-  hamburger?.classList.toggle('active');
-}
+    sidebar?.classList.toggle('open');
+    overlay?.classList.toggle('open');
+    hamburger?.classList.toggle('active');
+  }
 
-closeSidebar() {
-  const sidebar = document.querySelector('.sidebar');
-  const overlay = document.querySelector('.sidebar-overlay');
-  const hamburger = document.querySelector('.hamburger');
+  closeSidebar(): void {
+    const sidebar = document.querySelector('.sidebar');
+    const overlay = document.querySelector('.sidebar-overlay');
+    const hamburger = document.querySelector('.hamburger');
 
-  sidebar?.classList.remove('open');
-  overlay?.classList.remove('open');
-  hamburger?.classList.remove('active');
-}
+    sidebar?.classList.remove('open');
+    overlay?.classList.remove('open');
+    hamburger?.classList.remove('active');
+  }
   
   currentStep = 1;
   totalSteps = 6;
@@ -306,21 +309,21 @@ closeSidebar() {
   }
 
   getProfileImageUrl(): string {
-  // Add null check for cvData
-  if (!this.cvData || !this.cvData.personalInfo) {
+    // Add null check for cvData
+    if (!this.cvData || !this.cvData.personalInfo) {
+      return 'assets/images/default-avatar.png';
+    }
+
+    if (this.profileImagePreview) {
+      return this.profileImagePreview;
+    }
+    
+    if (this.cvData.personalInfo.profileImage) {
+      return this.getFullImageUrl(this.cvData.personalInfo.profileImage);
+    }
+    
     return 'assets/images/default-avatar.png';
   }
-
-  if (this.profileImagePreview) {
-    return this.profileImagePreview;
-  }
-  
-  if (this.cvData.personalInfo.profileImage) {
-    return this.getFullImageUrl(this.cvData.personalInfo.profileImage);
-  }
-  
-  return 'assets/images/default-avatar.png';
-}
 
   private getFullImageUrl(imagePath: string): string {
     if (!imagePath) return 'assets/images/default-avatar.png';

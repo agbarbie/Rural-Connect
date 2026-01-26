@@ -1,6 +1,14 @@
+<!-- Hamburger Menu Button -->
+<button class="hamburger" (click)="toggleSidebar()">
+  <i class="fas fa-bars"></i>
+</button>
+
+<!-- Sidebar Overlay -->
+<div class="sidebar-overlay" (click)="closeSidebar()"></div>
+
 <div class="portfolio-container">
   <!-- Sidebar -->
-<app-sidebar [userType]="'jobseeker'"></app-sidebar>
+  <app-sidebar [userType]="'jobseeker'"></app-sidebar>
 
   <!-- Main Content -->
   <div class="main-content">

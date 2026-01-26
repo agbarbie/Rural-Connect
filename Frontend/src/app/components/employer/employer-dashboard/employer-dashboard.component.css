@@ -387,6 +387,7 @@ body {
   gap: 0.5rem;
   cursor: pointer;
   transition: all 0.2s;
+  border: none;
 }
 
 .primary-btn:hover {
@@ -1106,7 +1107,7 @@ body {
 
 /* Mobile landscape and below (768px) */
 @media (max-width: 768px) {
-  /* Show hamburger, hide sidebar */
+  /* Show hamburger */
   .hamburger {
     display: block;
   }
@@ -1191,7 +1192,7 @@ body {
   /* Stats Grid */
   .stats-grid {
     padding: 0 1rem;
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, 1fr);
     gap: 1rem;
   }
 

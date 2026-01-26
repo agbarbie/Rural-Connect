@@ -1,5 +1,5 @@
 /* ========================================
-   PROFILE COMPONENT - FINAL CLEAN STYLES
+   PROFILE COMPONENT - ORIGINAL DESIGN + MOBILE RESPONSIVE
    ======================================== */
 
 @import url("https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css");
@@ -24,16 +24,6 @@ body {
 .app-container {
   display: flex;
   min-height: 100vh;
-}
-
-app-sidebar {
-  width: 280px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
-  position: fixed;
-  height: 100vh;
-  overflow-y: auto;
-  z-index: 1000;
 }
 
 .main-content {
@@ -73,6 +63,62 @@ app-sidebar {
 
 @keyframes spin {
   to { transform: rotate(360deg); }
+}
+
+/* ========================================
+   HAMBURGER MENU (Mobile Only)
+   ======================================== */
+
+.hamburger {
+  display: none;
+  background: none;
+  border: none;
+  color: #64748b;
+  font-size: 24px;
+  cursor: pointer;
+  padding: 8px;
+  border-radius: 6px;
+  transition: all 0.2s;
+  position: fixed;
+  top: 20px;
+  left: 20px;
+  z-index: 1001;
+  width: 44px;
+  height: 44px;
+  align-items: center;
+  justify-content: center;
+  background: white;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.hamburger:hover,
+.hamburger:focus {
+  background: #f1f5f9;
+  color: #3B82F6;
+}
+
+.hamburger.active {
+  color: #3B82F6;
+}
+
+/* Sidebar Overlay for Mobile */
+.sidebar-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 999;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.3s ease, visibility 0.3s ease;
+  backdrop-filter: blur(2px);
+}
+
+.sidebar-overlay.open {
+  opacity: 1;
+  visibility: visible;
 }
 
 /* ========================================
@@ -1263,6 +1309,16 @@ app-sidebar {
   gap: 12px;
 }
 
+.optional-section-toggle {
+  margin-bottom: 24px;
+}
+
+.toggle-help {
+  font-size: 13px;
+  color: #6b7280;
+  margin-top: 8px;
+}
+
 .form-card {
   background: #f9fafb;
   border-radius: 8px;
@@ -1433,19 +1489,42 @@ app-sidebar {
 }
 
 /* ========================================
-   RESPONSIVE DESIGN
+   MOBILE RESPONSIVE - SIDEBAR & LAYOUT
    ======================================== */
 
+/* Tablets and below (1024px) */
+@media (max-width: 1024px) {
+  .main-content {
+    margin-left: 260px;
+  }
+}
+
+/* Mobile landscape and below (768px) */
 @media (max-width: 768px) {
+  /* Show hamburger menu */
+  .hamburger {
+    display: flex;
+  }
+
+  /* Hide sidebar by default on mobile */
+  ::ng-deep .sidebar {
+    transform: translateX(-100%);
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  /* Show sidebar when open class is added */
+  ::ng-deep .sidebar.open {
+    transform: translateX(0);
+  }
+
+  /* Main content takes full width */
   .main-content {
     margin-left: 0;
-    padding: 10px;
+    padding: 16px;
+    padding-top: 80px; /* Space for hamburger menu */
   }
 
-  app-sidebar {
-    transform: translateX(-100%);
-  }
-
+  /* Profile header stacks */
   .profile-header {
     flex-direction: column;
     padding: 30px 20px;
@@ -1454,28 +1533,183 @@ app-sidebar {
   .header-left {
     flex-direction: column;
     align-items: center;
+    width: 100%;
   }
 
-  .header-actions {
+  .profile-info {
+    align-items: center;
+    text-align: center;
+  }
+
+  .rating-bar {
     justify-content: center;
   }
 
+  .profile-email,
+  .profile-phone,
+  .profile-location {
+    justify-content: center;
+  }
+
+  .header-actions {
+    width: 100%;
+    justify-content: center;
+  }
+
+  /* Completion card */
+  .completion-content {
+    flex-direction: column;
+    text-align: center;
+    padding: 20px;
+  }
+
+  /* Content cards */
+  .content-card {
+    padding: 24px 20px;
+  }
+
+  /* Form grids */
   .form-grid,
   .checkbox-grid {
     grid-template-columns: 1fr;
   }
 
+  /* Ratings */
   .rating-overview {
     flex-direction: column;
     gap: 24px;
   }
 
+  /* Reviews */
   .review-header {
     flex-direction: column;
   }
 
+  /* Info grid */
+  .info-grid {
+    grid-template-columns: 1fr;
+  }
+
+  /* Edit section */
+  .edit-section {
+    padding: 24px 20px;
+  }
+}
+
+/* Small mobile (480px and below) */
+@media (max-width: 480px) {
+  .main-content {
+    padding: 12px;
+  }
+
+  .profile-header {
+    padding: 24px 16px;
+  }
+
+  .profile-image-wrapper {
+    width: 100px;
+    height: 100px;
+  }
+
+  .initials-fallback {
+    font-size: 40px;
+  }
+
+  .profile-name {
+    font-size: 24px;
+  }
+
+  .btn {
+    width: 100%;
+    justify-content: center;
+  }
+
   .completion-content {
-    flex-direction: column;
-    text-align: center;
+    padding: 18px;
+  }
+
+  .percentage-number {
+    font-size: 36px;
+  }
+
+  .content-card {
+    padding: 20px 16px;
+  }
+
+  .card-title {
+    font-size: 20px;
+  }
+
+  .rating-summary {
+    padding: 24px 20px;
+  }
+
+  .score-number {
+    font-size: 42px;
+  }
+
+  .review-card {
+    padding: 18px;
+  }
+
+  .reviewer-avatar {
+    width: 48px;
+    height: 48px;
+    font-size: 18px;
+  }
+
+  .modal-body {
+    padding: 20px;
+  }
+
+  .viewer-card {
+    padding: 16px;
+  }
+
+  .viewer-avatar {
+    width: 50px;
+    height: 50px;
+    font-size: 20px;
+  }
+
+  .edit-section {
+    padding: 20px 16px;
+  }
+
+  .form-card {
+    padding: 18px;
+  }
+}
+
+/* Extra small screens (360px and below) */
+@media (max-width: 360px) {
+  .main-content {
+    padding: 10px;
+  }
+
+  .profile-header {
+    padding: 20px 14px;
+  }
+
+  .profile-image-wrapper {
+    width: 90px;
+    height: 90px;
+  }
+
+  .profile-name {
+    font-size: 22px;
+  }
+
+  .btn {
+    padding: 10px 18px;
+    font-size: 13px;
+  }
+
+  .content-card {
+    padding: 18px 14px;
+  }
+
+  .edit-section {
+    padding: 18px 14px;
   }
 }

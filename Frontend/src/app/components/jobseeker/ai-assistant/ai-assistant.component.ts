@@ -116,6 +116,27 @@ export class AiAssistantComponent implements OnInit, AfterViewInit {
     }, 500);
   }
 
+  // Sidebar toggle methods for mobile - EXACT SAME AS DASHBOARD & PROFILE
+  toggleSidebar(): void {
+    const sidebar = document.querySelector('.sidebar');
+    const overlay = document.querySelector('.sidebar-overlay');
+    const hamburger = document.querySelector('.hamburger');
+    
+    sidebar?.classList.toggle('open');
+    overlay?.classList.toggle('open');
+    hamburger?.classList.toggle('active');
+  }
+
+  closeSidebar(): void {
+    const sidebar = document.querySelector('.sidebar');
+    const overlay = document.querySelector('.sidebar-overlay');
+    const hamburger = document.querySelector('.hamburger');
+    
+    sidebar?.classList.remove('open');
+    overlay?.classList.remove('open');
+    hamburger?.classList.remove('active');
+  }
+
   private initializeCurrentUser(): void {
     const currentUser = this.authService.getCurrentUser();
     
@@ -917,25 +938,5 @@ export class AiAssistantComponent implements OnInit, AfterViewInit {
   closeModal(): void {
     this.showPremiumModal = false;
     this.selectedSkill = '';
-  }
-
-  toggleSidebar(): void {
-    const sidebar = document.querySelector('.sidebar');
-    const overlay = document.querySelector('.sidebar-overlay');
-    const hamburger = document.querySelector('.hamburger');
-
-    sidebar?.classList.toggle('open');
-    overlay?.classList.toggle('open');
-    hamburger?.classList.toggle('active');
-  }
-
-  closeSidebar(): void {
-    const sidebar = document.querySelector('.sidebar');
-    const overlay = document.querySelector('.sidebar-overlay');
-    const hamburger = document.querySelector('.hamburger');
-
-    sidebar?.classList.remove('open');
-    overlay?.classList.remove('open');
-    hamburger?.classList.remove('active');
   }
 }

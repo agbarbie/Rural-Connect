@@ -1,7 +1,6 @@
 /* ======================================================
-   JOB EXPLORER - COMPLETE RESPONSIVE CSS (2000+ LINES)
-   Matches the exact design language of your Dashboard
-   Fully mobile-responsive with smooth sidebar behavior
+   JOB EXPLORER - MOBILE RESPONSIVE CSS
+   Exact same approach as Dashboard and Profile
    ====================================================== */
 
 @import url("https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css");
@@ -42,116 +41,49 @@ body {
 }
 
 /* ======================================================
-   SIDEBAR STYLES (Identical to Dashboard)
+   MAIN CONTENT AREA
    ====================================================== */
-.sidebar {
-  width: 280px;
-  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
-  color: white;
-  position: fixed;
-  top: 0;
-  left: 0;
-  height: 100vh;
-  overflow-y: auto;
-  z-index: 1000;
-  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  box-shadow: 4px 0 20px rgba(0, 0, 0, 0.1);
-  scrollbar-width: thin;
-  scrollbar-color: rgba(255, 255, 255, 0.3) transparent;
+.main-content {
+  flex: 1;
+  margin-left: 280px;
+  background: #f8fafc;
+  transition: margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  min-height: 100vh;
 }
 
-.sidebar::-webkit-scrollbar {
-  width: 6px;
-}
-
-.sidebar::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.sidebar::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.3);
-  border-radius: 3px;
-}
-
-.sidebar::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.5);
-}
-
-.sidebar-header {
-  padding: 24px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.logo {
-  display: flex;
-  align-items: center;
-  gap: 12px;
+/* ======================================================
+   HAMBURGER MENU (Mobile Only)
+   ====================================================== */
+.hamburger {
+  display: none;
+  background: none;
+  border: none;
+  color: #64748b;
   font-size: 24px;
-  font-weight: 700;
-}
-
-.logo-icon {
-  width: 36px;
-  height: 36px;
-  background: rgba(255, 255, 255, 0.2);
-  border-radius: 8px;
-  display: flex;
+  cursor: pointer;
+  padding: 8px;
+  border-radius: 6px;
+  transition: all 0.2s;
+  position: fixed;
+  top: 20px;
+  left: 20px;
+  z-index: 1001;
+  width: 44px;
+  height: 44px;
   align-items: center;
   justify-content: center;
-  font-size: 18px;
-}
-
-.nav-section {
-  margin: 32px 0;
-}
-
-.nav-title {
-  color: rgba(255, 255, 255, 0.6);
-  font-size: 12px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  margin-bottom: 16px;
-  padding: 0 24px;
-}
-
-.nav-item {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 12px 24px;
-  color: rgba(255, 255, 255, 0.8);
-  text-decoration: none;
-  transition: all 0.2s ease;
-  position: relative;
-  cursor: pointer;
-}
-
-.nav-item:hover,
-.nav-item.active {
-  background: rgba(255, 255, 255, 0.1);
-  color: white;
-}
-
-.nav-item.active::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  width: 4px;
   background: white;
-  border-radius: 0 4px 4px 0;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
-.nav-badge {
-  background: #ef4444;
-  color: white;
-  font-size: 12px;
-  padding: 2px 8px;
-  border-radius: 12px;
-  margin-left: auto;
-  font-weight: 600;
+.hamburger:hover,
+.hamburger:focus {
+  background: #f1f5f9;
+  color: #10b981;
+}
+
+.hamburger.active {
+  color: #10b981;
 }
 
 /* Sidebar Overlay for Mobile */
@@ -166,23 +98,12 @@ body {
   opacity: 0;
   visibility: hidden;
   transition: opacity 0.3s ease, visibility 0.3s ease;
-  backdrop-filter: blur(4px);
+  backdrop-filter: blur(2px);
 }
 
 .sidebar-overlay.open {
   opacity: 1;
   visibility: visible;
-}
-
-/* ======================================================
-   MAIN CONTENT AREA
-   ====================================================== */
-.main-content {
-  flex: 1;
-  margin-left: 280px;
-  background: #f8fafc;
-  transition: margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  min-height: 100vh;
 }
 
 /* ======================================================
@@ -200,28 +121,6 @@ body {
   top: 0;
   z-index: 900;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
-}
-
-.hamburger {
-  display: none;
-  background: none;
-  border: none;
-  color: #64748b;
-  font-size: 20px;
-  cursor: pointer;
-  padding: 8px;
-  border-radius: 4px;
-  transition: background 0.2s, color 0.2s;
-}
-
-.hamburger:hover,
-.hamburger:focus {
-  background: #f1f5f9;
-  color: #10b981;
-}
-
-.hamburger.active {
-  color: #10b981;
 }
 
 .header-left {
@@ -321,6 +220,7 @@ body {
   cursor: pointer;
   transition: all 0.2s ease;
   position: relative;
+  border: none;
 }
 
 .notification-icon:hover {
@@ -506,6 +406,25 @@ body {
   display: block;
 }
 
+.notification-actions {
+  display: flex;
+  align-items: center;
+}
+
+.btn-mark-read {
+  background: none;
+  border: none;
+  color: #10b981;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 6px;
+  transition: all 0.2s;
+}
+
+.btn-mark-read:hover {
+  background: #f0fdf4;
+}
+
 .unread-dot {
   width: 8px;
   height: 8px;
@@ -615,6 +534,7 @@ body {
   transition: all 0.3s ease;
   box-shadow: 0 4px 12px rgba(245, 158, 11, 0.3);
   white-space: nowrap;
+  text-decoration: none;
 }
 
 .cta-button:hover {
@@ -1048,6 +968,11 @@ body {
   box-shadow: none;
 }
 
+.apply-btn:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
 /* ======================================================
    LOADING & EMPTY STATES
    ====================================================== */
@@ -1201,25 +1126,56 @@ body {
 }
 
 /* ======================================================
-   RESPONSIVE BREAKPOINTS (Matching Dashboard Exactly)
+   RESPONSIVE BREAKPOINTS (EXACT SAME AS DASHBOARD & PROFILE)
    ====================================================== */
 
-/* Tablets and below */
+/* Tablets and below (1024px) */
 @media (max-width: 1024px) {
-  .sidebar { width: 260px; }
-  .main-content { margin-left: 260px; }
-  .dashboard-content { padding: 24px; }
-  .profile-warning-banner { margin: 24px; padding: 20px; }
-  .filters-section { padding: 20px; }
-  .jobs-grid { gap: 24px; }
+  .main-content { 
+    margin-left: 260px; 
+  }
+  
+  .dashboard-content { 
+    padding: 24px; 
+  }
+  
+  .profile-warning-banner { 
+    margin: 24px; 
+    padding: 20px; 
+  }
+  
+  .filters-section { 
+    padding: 20px; 
+  }
+  
+  .jobs-grid { 
+    gap: 24px; 
+  }
 }
 
-/* Mobile landscape and below */
+/* Mobile landscape and below (768px) */
 @media (max-width: 768px) {
-  .hamburger { display: block; }
-  .sidebar { transform: translateX(-100%); }
-  .sidebar.open { transform: translateX(0); }
-  .main-content { margin-left: 0; }
+  /* Show hamburger menu */
+  .hamburger { 
+    display: flex; 
+  }
+  
+  /* Hide sidebar by default on mobile */
+  ::ng-deep .sidebar { 
+    transform: translateX(-100%);
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  
+  /* Show sidebar when open class is added */
+  ::ng-deep .sidebar.open { 
+    transform: translateX(0);
+  }
+  
+  /* Main content takes full width */
+  .main-content { 
+    margin-left: 0;
+    padding-top: 80px; /* Space for fixed hamburger */
+  }
 
   .header {
     padding: 12px 16px;
@@ -1227,9 +1183,20 @@ body {
     gap: 12px;
   }
 
-  .header-left { width: 100%; justify-content: space-between; }
-  .page-title { font-size: 24px; }
-  .search-bar { order: 3; width: 100%; max-width: none; }
+  .header-left { 
+    width: 100%; 
+    justify-content: space-between; 
+  }
+  
+  .page-title { 
+    font-size: 24px; 
+  }
+  
+  .search-bar { 
+    order: 3; 
+    width: 100%; 
+    max-width: none; 
+  }
 
   .filters-section {
     padding: 16px;
@@ -1244,7 +1211,9 @@ body {
     align-items: stretch;
   }
 
-  .filter-select { width: 100%; }
+  .filter-select { 
+    width: 100%; 
+  }
 
   .tabs-section {
     padding: 0 16px;
@@ -1257,33 +1226,96 @@ body {
     align-items: center;
   }
 
-  .warning-icon { width: 48px; height: 48px; font-size: 24px; }
+  .warning-icon { 
+    width: 48px; 
+    height: 48px; 
+    font-size: 24px; 
+  }
 
-  .job-card { padding: 20px; }
-  .job-actions { flex-direction: column; }
-  .apply-btn, .save-btn { width: 100%; height: 48px; }
-  .save-btn { height: 48px; font-size: 20px; }
+  .dashboard-content {
+    padding: 16px;
+  }
+
+  .job-card { 
+    padding: 20px; 
+  }
+  
+  .job-actions { 
+    flex-direction: column; 
+  }
+  
+  .apply-btn, .save-btn { 
+    width: 100%; 
+    height: 48px; 
+  }
+  
+  .save-btn { 
+    height: 48px; 
+    font-size: 20px; 
+  }
+
+  .notification-dropdown {
+    width: 340px;
+    right: -10px;
+  }
 }
 
-/* Small mobile */
+/* Small mobile (480px and below) */
 @media (max-width: 480px) {
-  .header { padding: 12px; }
-  .page-title { font-size: 20px; }
-  .match-count { font-size: 13px; padding: 5px 12px; }
-  .dashboard-content { padding: 16px; }
-  .profile-warning-banner { margin: 16px; padding: 16px; }
-  .job-card { padding: 16px; }
-  .company-logo { width: 48px; height: 48px; }
-  .job-title { font-size: 18px; }
-  .match-score { padding: 8px 16px; font-size: 14px; }
-  .notification-dropdown { width: 340px; right: -10px; }
+  .header { 
+    padding: 12px; 
+  }
+  
+  .page-title { 
+    font-size: 20px; 
+  }
+  
+  .match-count { 
+    font-size: 13px; 
+    padding: 5px 12px; 
+  }
+  
+  .dashboard-content { 
+    padding: 16px; 
+  }
+  
+  .profile-warning-banner { 
+    margin: 16px; 
+    padding: 16px; 
+  }
+  
+  .job-card { 
+    padding: 16px; 
+  }
+  
+  .company-logo { 
+    width: 48px; 
+    height: 48px; 
+  }
+  
+  .job-title { 
+    font-size: 18px; 
+  }
+  
+  .match-score { 
+    padding: 8px 16px; 
+    font-size: 14px; 
+  }
 }
 
-/* Extra small */
+/* Extra small screens (360px and below) */
 @media (max-width: 360px) {
-  .page-title { font-size: 18px; }
-  .job-title { font-size: 17px; }
-  .apply-btn { font-size: 14px; }
+  .page-title { 
+    font-size: 18px; 
+  }
+  
+  .job-title { 
+    font-size: 17px; 
+  }
+  
+  .apply-btn { 
+    font-size: 14px; 
+  }
 }
 
 /* Accessibility & Reduced Motion */
@@ -1292,22 +1324,4 @@ body {
     animation-duration: 0.01ms !important;
     transition-duration: 0.01ms !important;
   }
-}
-
-@media (prefers-contrast: high) {
-  .job-card { border: 2px solid #1e293b; }
-  .apply-btn { border: 3px solid white; }
-}
-
-/* Dark mode support (optional future use) */
-@media (prefers-color-scheme: dark) {
-  body { background: #0f172a; color: #e2e8f0; }
-  .main-content, .header, .job-card, .filters-section, .tabs-section { background: #1e293b; }
-  /* Add more dark mode styles if needed */
-}
-
-/* Print styles */
-@media print {
-  .sidebar, .header, .notification-wrapper, .filters-section { display: none; }
-  .main-content { margin-left: 0; }
 }

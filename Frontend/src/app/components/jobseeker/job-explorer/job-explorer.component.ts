@@ -26,12 +26,27 @@ interface ApiResponse<T = any> {
   styleUrls: ['./job-explorer.component.css']
 })
 export class JobExplorerComponent implements OnInit, OnDestroy {
-toggleSidebar() {
-throw new Error('Method not implemented.');
-}
-closeSidebar() {
-throw new Error('Method not implemented.');
-}
+  // Sidebar toggle methods for mobile
+  toggleSidebar(): void {
+    const sidebar = document.querySelector('.sidebar');
+    const overlay = document.querySelector('.sidebar-overlay');
+    const hamburger = document.querySelector('.hamburger');
+    
+    sidebar?.classList.toggle('open');
+    overlay?.classList.toggle('open');
+    hamburger?.classList.toggle('active');
+  }
+
+  closeSidebar(): void {
+    const sidebar = document.querySelector('.sidebar');
+    const overlay = document.querySelector('.sidebar-overlay');
+    const hamburger = document.querySelector('.hamburger');
+    
+    sidebar?.classList.remove('open');
+    overlay?.classList.remove('open');
+    hamburger?.classList.remove('active');
+  }
+
   private destroy$ = new Subject<void>();
 
   jobs: Job[] = [];

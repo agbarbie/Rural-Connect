@@ -1,11 +1,15 @@
 import { Component, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { Router } from '@angular/router';
-import { RouterModule } from '@angular/router';
+import { Router, RouterModule } from '@angular/router';
 import { Subscription } from 'rxjs';
-import { AuthService } from '../../../../../services/auth.service'; // Adjust path as needed
+import { AuthService } from '../../../../../services/auth.service';
 import { SidebarComponent } from '../../shared/sidebar/sidebar.component';
+
+// ============================================
+// INTERFACES
+// ============================================
+
 interface JobApplicant {
   id: string;
   name: string;
@@ -41,6 +45,25 @@ interface AnalyticsData {
   timeToHire: { value: string; change: number };
 }
 
+interface EnrollmentNotification {
+  id: string;
+  notification_type: 'new' | 'completed' | 'in_progress';
+  jobseeker_id: string;
+  jobseeker_name?: string;
+  student_name?: string;
+  training_id: string;
+  training_title: string;
+  enrollment_id: string;
+  enrolled_at: string;
+  progress_percentage?: number;
+  certificate_issued: boolean;
+  read?: boolean;
+}
+
+// ============================================
+// COMPONENT
+// ============================================
+
 @Component({
   selector: 'app-employer-dashboard',
   templateUrl: './employer-dashboard.component.html',
@@ -49,69 +72,16 @@ interface AnalyticsData {
   styleUrls: ['./employer-dashboard.component.css']
 })
 export class EmployerDashboardComponent implements OnInit, OnDestroy {
-toggleNotifications() {
-throw new Error('Method not implemented.');
-}
-viewStudentProfile(_t129: any) {
-throw new Error('Method not implemented.');
-}
-getNotificationColor(arg0: any) {
-throw new Error('Method not implemented.');
-}
-getNotificationIcon(arg0: any): string|string[]|Set<string>|{ [klass: string]: any; }|null|undefined {
-throw new Error('Method not implemented.');
-}
-getJobseekerDisplayName(_t129: any) {
-throw new Error('Method not implemented.');
-}
-issueCertificateFromNotification(_t129: any) {
-throw new Error('Method not implemented.');
-}
-downloadEmployerCertificate(arg0: any) {
-throw new Error('Method not implemented.');
-}
-markAllEnrollmentNotificationsRead() {
-throw new Error('Method not implemented.');
-}
-loadMoreEnrollmentNotifications() {
-throw new Error('Method not implemented.');
-}
-confirmClearEnrollmentNotifications() {
-throw new Error('Method not implemented.');
-}
-// Add this property at the top with other properties
-sidebarOpen = false;
-
-// Add these methods to your component class
-
-toggleSidebar(): void {
-  this.sidebarOpen = !this.sidebarOpen;
-  const sidebar = document.querySelector('.sidebar');
-  const overlay = document.querySelector('.sidebar-overlay');
-  const hamburger = document.querySelector('.hamburger');
   
-  if (this.sidebarOpen) {
-    sidebar?.classList.add('open');
-    overlay?.classList.add('open');
-    hamburger?.classList.add('active');
-  } else {
-    sidebar?.classList.remove('open');
-    overlay?.classList.remove('open');
-    hamburger?.classList.remove('active');
-  }
-}
-
-closeSidebar(): void {
-  this.sidebarOpen = false;
-  const sidebar = document.querySelector('.sidebar');
-  const overlay = document.querySelector('.sidebar-overlay');
-  const hamburger = document.querySelector('.hamburger');
+  // ============================================
+  // PROPERTIES
+  // ============================================
   
-  sidebar?.classList.remove('open');
-  overlay?.classList.remove('open');
-  hamburger?.classList.remove('active');
-}
-  employerName: string = 'Tech Innovators Ltd'; // Fallback
+  // Sidebar state
+  sidebarOpen = false;
+  
+  // User info
+  employerName: string = 'Tech Innovators Ltd';
   profileCompletion = 85;
   
   // Dashboard stats
@@ -119,6 +89,11 @@ closeSidebar(): void {
   totalCandidates = 52;
   scheduledInterviews = 12;
   urgentActions = 4;
+  
+  // Notifications
+  showNotifications = false;
+  enrollmentNotifications: EnrollmentNotification[] = [];
+  hasMoreEnrollmentNotifications = false;
   
   // Top applicants with AI matching
   topApplicants: JobApplicant[] = [
@@ -220,28 +195,35 @@ closeSidebar(): void {
   };
 
   private authSubscription: Subscription | null = null;
-showNotifications: any;
-enrollmentNotifications: any;
-hasMoreEnrollmentNotifications: any;
+
+  // ============================================
+  // CONSTRUCTOR
+  // ============================================
 
   constructor(
     private router: Router,
     private authService: AuthService
   ) { }
 
+  // ============================================
+  // LIFECYCLE HOOKS
+  // ============================================
+
   ngOnInit(): void {
-    // Ensure all data is initialized
+    // Initialize data validation
     if (!this.recentActivity || this.recentActivity.length === 0) {
       console.warn('Recent activity data is empty or undefined');
     }
 
-    // Subscribe to current user changes to update employerName dynamically
+    // Subscribe to current user changes
     this.authSubscription = this.authService.currentUser$.subscribe(user => {
       if (user && user.user_type === 'employer') {
-        // Assuming User has a 'name' or 'company_name' field; adjust as per your User interface
-        this.employerName = user.name || user.company_name || 'Tech Innovators Ltd'; // Fallback
+        this.employerName = user.name || user.company_name || 'Tech Innovators Ltd';
       }
     });
+
+    // Load initial notifications
+    this.loadEnrollmentNotifications();
   }
 
   ngOnDestroy(): void {
@@ -250,24 +232,34 @@ hasMoreEnrollmentNotifications: any;
     }
   }
 
-  // Action methods
-  viewApplicant(applicantId: string): void {
-    console.log('Viewing applicant:', applicantId);
+  // ============================================
+  // SIDEBAR TOGGLE METHODS (Mobile Responsive)
+  // ============================================
+
+  toggleSidebar(): void {
+    const sidebar = document.querySelector('.sidebar');
+    const overlay = document.querySelector('.sidebar-overlay');
+    const hamburger = document.querySelector('.hamburger');
+    
+    sidebar?.classList.toggle('open');
+    overlay?.classList.toggle('open');
+    hamburger?.classList.toggle('active');
   }
 
-  contactApplicant(applicantId: string): void {
-    console.log('Contacting applicant:', applicantId);
+  closeSidebar(): void {
+    const sidebar = document.querySelector('.sidebar');
+    const overlay = document.querySelector('.sidebar-overlay');
+    const hamburger = document.querySelector('.hamburger');
+    
+    sidebar?.classList.remove('open');
+    overlay?.classList.remove('open');
+    hamburger?.classList.remove('active');
   }
 
-  joinInterview(interviewId: string): void {
-    console.log('Joining interview:', interviewId);
-  }
+  // ============================================
+  // NAVIGATION METHODS
+  // ============================================
 
-  viewInterviewDetails(interviewId: string): void {
-    console.log('Viewing interview details:', interviewId);
-  }
-
-  // UPDATED NAVIGATION METHODS - SIMPLIFIED
   createNewJobPost(): void {
     console.log('Navigating to post-jobs page...');
     
@@ -301,29 +293,21 @@ hasMoreEnrollmentNotifications: any;
     window.location.href = '/employer/training';
   }
 
-  takeColorTest(): void {
-    console.log('Taking color profiling test');
+  // ============================================
+  // APPLICANT MANAGEMENT
+  // ============================================
+
+  viewApplicant(applicantId: string): void {
+    console.log('Viewing applicant:', applicantId);
+    this.router.navigate(['/employer/applicants', applicantId]).catch(() => {
+      console.log('Navigation to applicant failed');
+    });
   }
 
-  takeCareTest(): void {
-    console.log('Taking care test');
-  }
-
-  getActivityIcon(type: string): string {
-    switch (type) {
-      case 'job_post':
-        return 'fas fa-briefcase';
-      case 'training_post':
-        return 'fas fa-graduation-cap';
-      case 'interview':
-        return 'fas fa-calendar-alt';
-      case 'application':
-        return 'fas fa-user-plus';
-      case 'certificate':
-        return 'fas fa-certificate';
-      default:
-        return 'fas fa-bell'; // Default icon
-    }
+  contactApplicant(applicantId: string): void {
+    console.log('Contacting applicant:', applicantId);
+    // Open contact modal or navigate to messaging
+    alert(`Contact feature coming soon for applicant ${applicantId}`);
   }
 
   getMatchScoreClass(score: number): string {
@@ -348,5 +332,252 @@ hasMoreEnrollmentNotifications: any;
       default:
         return '';
     }
+  }
+
+  // ============================================
+  // INTERVIEW MANAGEMENT
+  // ============================================
+
+  joinInterview(interviewId: string): void {
+    console.log('Joining interview:', interviewId);
+    // Open video call or navigate to interview page
+    this.router.navigate(['/employer/interviews', interviewId, 'join']).catch(() => {
+      console.log('Navigation to interview failed');
+    });
+  }
+
+  viewInterviewDetails(interviewId: string): void {
+    console.log('Viewing interview details:', interviewId);
+    this.router.navigate(['/employer/interviews', interviewId]).catch(() => {
+      console.log('Navigation to interview details failed');
+    });
+  }
+
+  // ============================================
+  // NOTIFICATION MANAGEMENT
+  // ============================================
+
+  toggleNotifications(): void {
+    this.showNotifications = !this.showNotifications;
+    
+    if (this.showNotifications) {
+      console.log('Notifications panel opened');
+      this.loadEnrollmentNotifications();
+    }
+  }
+
+  loadEnrollmentNotifications(): void {
+    console.log('Loading enrollment notifications...');
+    
+    // Mock data - replace with actual service call
+    this.enrollmentNotifications = [
+      {
+        id: '1',
+        notification_type: 'completed',
+        jobseeker_id: 'js1',
+        jobseeker_name: 'John Doe',
+        training_id: 't1',
+        training_title: 'JavaScript Fundamentals',
+        enrollment_id: 'enr1',
+        enrolled_at: new Date().toISOString(),
+        progress_percentage: 100,
+        certificate_issued: false,
+        read: false
+      },
+      {
+        id: '2',
+        notification_type: 'new',
+        jobseeker_id: 'js2',
+        student_name: 'Jane Smith',
+        training_id: 't2',
+        training_title: 'React Advanced Patterns',
+        enrollment_id: 'enr2',
+        enrolled_at: new Date().toISOString(),
+        progress_percentage: 0,
+        certificate_issued: false,
+        read: false
+      }
+    ];
+    
+    // Example implementation with actual service:
+    // this.notificationService.getEnrollmentNotifications().subscribe({
+    //   next: (response) => {
+    //     if (response.success && response.data) {
+    //       this.enrollmentNotifications = response.data;
+    //     }
+    //   },
+    //   error: (error) => {
+    //     console.error('Error loading notifications:', error);
+    //   }
+    // });
+  }
+
+  getNotificationColor(type: string): string {
+    const colorMap: Record<string, string> = {
+      'new': '#3b82f6',
+      'completed': '#10b981',
+      'in_progress': '#f59e0b'
+    };
+    return colorMap[type] || '#6b7280';
+  }
+
+  getNotificationIcon(type: string): string {
+    const iconMap: Record<string, string> = {
+      'new': 'fa-user-plus',
+      'completed': 'fa-check-circle',
+      'in_progress': 'fa-spinner'
+    };
+    return iconMap[type] || 'fa-bell';
+  }
+
+  getJobseekerDisplayName(notification: EnrollmentNotification): string {
+    return notification.jobseeker_name || notification.student_name || 'Student';
+  }
+
+  viewStudentProfile(notification: EnrollmentNotification): void {
+    console.log('Viewing student profile:', notification);
+    this.router.navigate(['/employer/students', notification.jobseeker_id]).catch(() => {
+      console.log('Navigation to student profile failed');
+    });
+  }
+
+  // ============================================
+  // CERTIFICATE MANAGEMENT
+  // ============================================
+
+  issueCertificateFromNotification(notification: EnrollmentNotification): void {
+    console.log('Issuing certificate for:', notification);
+    
+    const studentName = this.getJobseekerDisplayName(notification);
+    if (confirm(`Issue certificate for ${studentName}?`)) {
+      this.issueCertificate(notification.enrollment_id);
+    }
+  }
+
+  issueCertificate(enrollmentId: string): void {
+    console.log('Issuing certificate for enrollment:', enrollmentId);
+    
+    // Mock implementation - replace with actual service call
+    alert('Certificate issued successfully!');
+    
+    // Update notification status
+    const notification = this.enrollmentNotifications.find(n => n.enrollment_id === enrollmentId);
+    if (notification) {
+      notification.certificate_issued = true;
+    }
+    
+    // Example implementation with actual service:
+    // this.certificateService.issueCertificate(enrollmentId).subscribe({
+    //   next: (response) => {
+    //     if (response.success) {
+    //       alert('Certificate issued successfully!');
+    //       this.loadEnrollmentNotifications();
+    //     }
+    //   },
+    //   error: (error) => {
+    //     console.error('Error issuing certificate:', error);
+    //     alert('Failed to issue certificate. Please try again.');
+    //   }
+    // });
+  }
+
+  downloadEmployerCertificate(enrollmentId: string): void {
+    console.log('Downloading certificate for enrollment:', enrollmentId);
+    
+    // Mock implementation - replace with actual service call
+    alert(`Downloading certificate for enrollment ${enrollmentId}`);
+    
+    // Example implementation with actual service:
+    // this.certificateService.downloadCertificate(enrollmentId).subscribe({
+    //   next: (blob: Blob) => {
+    //     const url = window.URL.createObjectURL(blob);
+    //     const link = document.createElement('a');
+    //     link.href = url;
+    //     link.download = `certificate_${enrollmentId}.pdf`;
+    //     document.body.appendChild(link);
+    //     link.click();
+    //     document.body.removeChild(link);
+    //     window.URL.revokeObjectURL(url);
+    //   },
+    //   error: (error) => {
+    //     console.error('Error downloading certificate:', error);
+    //     alert('Failed to download certificate.');
+    //   }
+    // });
+  }
+
+  markAllEnrollmentNotificationsRead(): void {
+    console.log('Marking all notifications as read...');
+    
+    this.enrollmentNotifications.forEach(n => n.read = true);
+    alert('All notifications marked as read');
+    
+    // Example implementation with actual service:
+    // this.notificationService.markAllRead().subscribe({
+    //   next: () => {
+    //     this.enrollmentNotifications.forEach(n => n.read = true);
+    //     alert('All notifications marked as read');
+    //   },
+    //   error: (error) => {
+    //     console.error('Error marking notifications as read:', error);
+    //   }
+    // });
+  }
+
+  loadMoreEnrollmentNotifications(): void {
+    console.log('Loading more notifications...');
+    // Implement pagination logic
+    this.hasMoreEnrollmentNotifications = false;
+  }
+
+  confirmClearEnrollmentNotifications(): void {
+    if (confirm('Are you sure you want to clear all read notifications?')) {
+      this.clearEnrollmentNotifications();
+    }
+  }
+
+  clearEnrollmentNotifications(): void {
+    console.log('Clearing read notifications...');
+    this.enrollmentNotifications = this.enrollmentNotifications.filter(n => !n.read);
+    alert('Read notifications cleared');
+  }
+
+  // ============================================
+  // ACTIVITY TRACKING
+  // ============================================
+
+  getActivityIcon(type: string): string {
+    const iconMap: Record<string, string> = {
+      'job_post': 'fas fa-briefcase',
+      'training_post': 'fas fa-graduation-cap',
+      'interview': 'fas fa-calendar-check',
+      'application': 'fas fa-file-alt',
+      'certificate': 'fas fa-certificate'
+    };
+    return iconMap[type] || 'fas fa-circle';
+  }
+
+  // ============================================
+  // ADDITIONAL UTILITY METHODS
+  // ============================================
+
+  takeColorTest(): void {
+    console.log('Taking color profiling test');
+    this.router.navigate(['/employer/assessments/color-test']).catch(() => {
+      alert('Color profiling test coming soon!');
+    });
+  }
+
+  takeCareTest(): void {
+    console.log('Taking care test');
+    this.router.navigate(['/employer/assessments/care-test']).catch(() => {
+      alert('Care assessment test coming soon!');
+    });
+  }
+
+  refreshDashboard(): void {
+    console.log('Refreshing dashboard data...');
+    this.loadEnrollmentNotifications();
+    // Add other data refresh calls as needed
   }
 }

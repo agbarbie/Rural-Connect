@@ -1,8 +1,16 @@
 <!-- AI Assistant Component HTML -->
 <div class="ai-assistant-container">
+  <!-- Hamburger Menu Button -->
+  <button class="hamburger" (click)="toggleSidebar()">
+    <i class="fas fa-bars"></i>
+  </button>
+
   <!-- Sidebar Overlay -->
-  <div class="sidebar-overlay"></div>
+  <div class="sidebar-overlay" (click)="closeSidebar()"></div>
+  
+  <!-- Sidebar Component -->
   <app-sidebar [userType]="'jobseeker'"></app-sidebar>
+  
   <!-- Loading State -->
   @if (isInitializing) {
   <div class="loading-container">
@@ -11,14 +19,12 @@
     <p class="loading-subtext">Quick setup for personalized insights</p>
   </div>
   }
+  
   <!-- Main Content Area -->
   @if (!isInitializing) {
   <div class="main-content">
     <!-- Header Section -->
     <div class="header-section">
-      <button class="hamburger">
-  <i class="fas fa-bars"></i>
-</button>
       <div class="greeting-container">
         <div class="greeting-text">
           <h1>👋 Hi {{ userData.name || 'there' }}, I've analyzed your profile with AI!</h1>
@@ -40,6 +46,7 @@
         </div>
       </div>
     </div>
+    
     <!-- Conversation Area -->
     <div class="conversation-area">
       <!-- Show initial recommendations if available -->
@@ -69,6 +76,7 @@
         </div>
       </div>
       }
+      
       <!-- Dynamic conversation messages -->
       @for (msg of conversationMessages; track msg.timestamp) {
       <div class="message" [class]="msg.type === 'user' ? 'user-message' : 'ai-message'">
@@ -171,6 +179,7 @@
         </div>
       </div>
       }
+      
       <!-- Typing indicator when AI is responding -->
       @if (isLoading) {
       <div class="message ai-message">
@@ -190,6 +199,7 @@
       </div>
       }
     </div>
+    
     <!-- Quick Actions Panel -->
     <div class="quick-actions">
       <button class="action-chip" (click)="showJobs()">
@@ -213,6 +223,7 @@
         Refresh Insights
       </button>
     </div>
+    
     <!-- Input Area -->
     <div class="input-area">
       <div class="input-container">
@@ -245,6 +256,7 @@
       </div>
     </div>
   </div>
+  
   <!-- Right Sidebar -->
   <div class="right-sidebar">
     <!-- Skills Radar Chart -->
@@ -269,6 +281,7 @@
       </div>
     </div>
     }
+    
     <!-- Progress Tracker -->
     @if (skillsProgress.length > 0) {
     <div class="insights-card">
@@ -294,6 +307,7 @@
       </div>
     </div>
     }
+    
     <!-- AI Tips -->
     <div class="insights-card ai-tips-card">
       <div class="card-header">
@@ -315,6 +329,7 @@
         </div>
       </div>
     </div>
+    
     <!-- What-If Simulator -->
     <div class="insights-card premium-feature">
       <div class="card-header">
@@ -338,6 +353,7 @@
       </div>
     </div>
   </div>
+  
   <!-- Premium Modal -->
   @if (showPremiumModal) {
   <div class="modal" (click)="closeModal()">

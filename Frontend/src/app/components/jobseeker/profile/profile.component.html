@@ -2,6 +2,14 @@
   <app-sidebar [userType]="'jobseeker'"></app-sidebar>
 
   <div class="main-content">
+    <!-- Hamburger Menu (Mobile Only) -->
+    <button class="hamburger" (click)="toggleSidebar()">
+      <i class="fas fa-bars"></i>
+    </button>
+
+    <!-- Sidebar Overlay (Mobile Only) -->
+    <div class="sidebar-overlay" (click)="closeSidebar()"></div>
+
     @if (isLoading) {
       <div class="loading-container">
         <div class="spinner"></div>

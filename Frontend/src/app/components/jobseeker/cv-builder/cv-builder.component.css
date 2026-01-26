@@ -13,6 +13,60 @@ body {
   color: #1e293b;
 }
 
+/* ============================================
+   HAMBURGER MENU (Hidden by default, shows on mobile)
+   ============================================ */
+.hamburger {
+  display: none;
+  background: white;
+  border: none;
+  color: #64748b;
+  font-size: 24px;
+  cursor: pointer;
+  padding: 8px;
+  border-radius: 6px;
+  transition: all 0.2s;
+  position: fixed;
+  top: 20px;
+  left: 20px;
+  z-index: 1001;
+  width: 44px;
+  height: 44px;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.hamburger:hover,
+.hamburger:focus {
+  background: #f1f5f9;
+  color: #10b981;
+}
+
+.hamburger.active {
+  color: #10b981;
+}
+
+/* Sidebar Overlay for Mobile */
+.sidebar-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 999;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.3s ease, visibility 0.3s ease;
+  backdrop-filter: blur(2px);
+}
+
+.sidebar-overlay.open {
+  opacity: 1;
+  visibility: visible;
+}
+
 /* Container */
 .cv-builder-container {
   display: flex;
@@ -459,82 +513,6 @@ body {
   box-shadow: 4px 0 10px rgba(0, 0, 0, 0.1);
 }
 
-.sidebar-header {
-  padding: 2rem 1.5rem;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.logo {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  font-weight: 700;
-  font-size: 1.25rem;
-}
-
-.logo-icon {
-  width: 40px;
-  height: 40px;
-  background: rgba(255, 255, 255, 0.2);
-  border-radius: 12px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 1.2rem;
-}
-
-.nav-section {
-  padding: 1.5rem 0;
-}
-
-.nav-title {
-  padding: 0 1.5rem 0.75rem;
-  font-size: 0.75rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: rgba(255, 255, 255, 0.7);
-}
-
-.nav-item {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  padding: 0.75rem 1.5rem;
-  color: rgba(255, 255, 255, 0.8);
-  text-decoration: none;
-  transition: all 0.2s ease;
-  font-weight: 500;
-  border-left: 3px solid transparent;
-}
-
-.nav-item:hover {
-  background: rgba(255, 255, 255, 0.1);
-  color: white;
-  border-left-color: rgba(255, 255, 255, 0.3);
-}
-
-.nav-item.active {
-  background: rgba(255, 255, 255, 0.15);
-  color: white;
-  border-left-color: #60a5fa;
-}
-
-.nav-item i {
-  width: 20px;
-  text-align: center;
-}
-
-.nav-badge {
-  margin-left: auto;
-  background: #ef4444;
-  color: white;
-  padding: 0.125rem 0.5rem;
-  border-radius: 12px;
-  font-size: 0.75rem;
-  font-weight: 600;
-}
-
 /* Main Content */
 .main-content {
   flex: 1;
@@ -786,6 +764,12 @@ body {
   font-weight: 700;
 }
 
+.create-description {
+  color: #64748b;
+  margin: 1rem 0;
+  font-size: 0.875rem;
+}
+
 /* Progress Bar */
 .progress-container {
   padding: 2rem;
@@ -869,6 +853,11 @@ body {
 
 .section-header {
   margin-bottom: 2rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 1rem;
 }
 
 .section-header h2 {
@@ -1016,13 +1005,12 @@ body {
   display: inline-flex;
   align-items: center;
   gap: 0.5rem;
+  border: none;
 }
 
 .btn.btn-primary {
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: white;
-  border: none;
-  padding-top: 20px;
 }
 
 .btn.btn-primary:hover {
@@ -1045,7 +1033,6 @@ body {
 .btn.btn-secondary {
   background: #64748b;
   color: white;
-  border: none;
 }
 
 .btn.btn-secondary:hover {
@@ -1071,33 +1058,6 @@ body {
 
 .btn-icon.delete:hover {
   color: #dc2626;
-}
-
-/* Empty State */
-.empty-state {
-  text-align: center;
-  padding: 3rem;
-  background: #f8fafc;
-  border-radius: 12px;
-  border: 1px dashed #cbd5e1;
-}
-
-.empty-state i {
-  font-size: 3rem;
-  color: #cbd5e1;
-  margin-bottom: 1rem;
-}
-
-.empty-state h3 {
-  font-size: 1.25rem;
-  font-weight: 600;
-  color: #374151;
-  margin-bottom: 0.5rem;
-}
-
-.empty-state p {
-  color: #64748b;
-  font-size: 0.875rem;
 }
 
 /* Skills Grid */
@@ -1163,6 +1123,8 @@ body {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 2rem;
+  flex-wrap: wrap;
+  gap: 1rem;
 }
 
 .preview-header h2 {
@@ -1312,6 +1274,7 @@ body {
   display: flex;
   gap: 0.5rem;
   justify-content: center;
+  flex-wrap: wrap;
 }
 
 .format-tag {
@@ -1329,31 +1292,57 @@ body {
   padding: 1rem;
 }
 
-.spinner {
-  width: 40px;
-  height: 40px;
-  border: 4px solid #f3f3f3;
-  border-top: 4px solid #667eea;
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
-  margin: 0 auto 1rem;
-}
-
 .processing-text {
   font-size: 0.875rem;
   color: #374151;
   font-weight: 500;
 }
 
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ============================================
+   RESPONSIVE DESIGN - EXACT SAME AS OTHER COMPONENTS
+   ============================================ */
+
+/* Tablets and below (1024px) */
 @media (max-width: 1024px) {
   .main-content {
     margin-left: 0;
   }
+
+  .welcome-options {
+    grid-template-columns: 1fr;
+  }
+
+  .cvs-grid {
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  }
 }
 
+/* Mobile landscape and below (768px) */
 @media (max-width: 768px) {
+  /* Show hamburger menu */
   .hamburger {
-    display: block;
+    display: flex;
+  }
+
+  /* Hide sidebar by default on mobile */
+  ::ng-deep .sidebar {
+    transform: translateX(-100%);
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  /* Show sidebar when open class is added */
+  ::ng-deep .sidebar.open {
+    transform: translateX(0);
+  }
+
+  /* Main content takes full width */
+  .main-content {
+    margin-left: 0;
   }
 
   .header {
@@ -1363,13 +1352,15 @@ body {
     gap: 16px;
   }
 
-  .header-left, .header-right {
+  .header-left, 
+  .header-right {
     text-align: center;
   }
 
   .header-right {
     flex-direction: column;
     align-items: stretch;
+    gap: 12px;
   }
 
   .cv-selector select {
@@ -1383,10 +1374,16 @@ body {
 
   .header-actions {
     justify-content: center;
+    flex-wrap: wrap;
   }
 
   .welcome-section {
     padding: 24px 16px;
+    margin: 16px;
+  }
+
+  .welcome-content h2 {
+    font-size: 2rem;
   }
 
   .welcome-options {
@@ -1399,6 +1396,7 @@ body {
 
   .my-cvs-section {
     padding: 20px;
+    margin: 16px;
   }
 
   .cvs-grid {
@@ -1408,6 +1406,19 @@ body {
   .progress-container {
     margin: 16px;
     padding: 16px;
+  }
+
+  .progress-bar {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .progress-step {
+    flex: 0 0 calc(33.333% - 8px);
+  }
+
+  .progress-step .step-label {
+    font-size: 0.75rem;
   }
 
   .form-section {
@@ -1428,10 +1439,25 @@ body {
   .step-indicator {
     order: -1;
   }
+
+  .cv-preview-container {
+    margin: 16px;
+    padding: 16px;
+  }
+
+  .preview-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .preview-actions {
+    flex-direction: column;
+  }
 }
 
+/* Small mobile (480px and below) */
 @media (max-width: 480px) {
-  .page-title {
+  .header-left h1 {
     font-size: 24px;
   }
 
@@ -1452,23 +1478,31 @@ body {
     height: 120px;
   }
 
-  .profile-image-actions {
+  .profile-image-container {
     flex-direction: column;
     align-items: center;
   }
 
-  .btn-upload, .btn-remove {
+  .profile-image-actions {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
     width: 100%;
-    justify-content: center;
   }
 
-  .progress-bar {
-    flex-wrap: wrap;
-    gap: 12px;
+  .btn-upload, 
+  .btn-remove {
+    width: 100%;
+    justify-content: center;
+    margin-right: 0;
+  }
+
+  .progress-step {
+    flex: 0 0 calc(50% - 8px);
   }
 
   .progress-step .step-label {
-    font-size: 12px;
+    font-size: 11px;
   }
 
   .entry-card {
@@ -1477,11 +1511,6 @@ body {
 
   .skills-grid {
     grid-template-columns: 1fr;
-  }
-
-  .cv-preview-container {
-    margin: 16px;
-    padding: 16px;
   }
 
   .cv-document {
@@ -1496,16 +1525,6 @@ body {
     flex-direction: column;
     gap: 8px;
   }
-}
-
-@media (max-width: 360px) {
-  .welcome-content h2 {
-    font-size: 24px;
-  }
-
-  .page-title {
-    font-size: 20px;
-  }
 
   .btn {
     padding: 10px 14px;
@@ -1513,12 +1532,17 @@ body {
   }
 }
 
-@keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
-}
+/* Extra small screens (360px and below) */
+@media (max-width: 360px) {
+  .welcome-content h2 {
+    font-size: 24px;
+  }
 
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateY(20px); }
-  to { opacity: 1; transform: translateY(0); }
+  .header-left h1 {
+    font-size: 20px;
+  }
+
+  .progress-step {
+    flex: 0 0 100%;
+  }
 }
