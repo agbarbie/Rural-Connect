@@ -2637,4 +2637,544 @@ body {
     font-size: 1rem;
   }
 }
+.rating-badge-compact {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 10px;
+  background: rgba(255, 193, 7, 0.1);
+  border: 1px solid rgba(255, 193, 7, 0.3);
+  border-radius: 12px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #1a1a1a;
+  margin: 8px 0;
+}
+
+.rating-badge-compact i {
+  color: #ffc107;
+  font-size: 12px;
+}
+
+.review-count-mini {
+  color: #666;
+  font-weight: 400;
+  font-size: 12px;
+}
+
+.success-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  background: rgba(16, 185, 129, 0.1);
+  border-radius: 10px;
+  color: #10b981;
+  font-size: 12px;
+  font-weight: 600;
+  margin-left: 8px;
+}
+
+.success-badge i {
+  font-size: 10px;
+}
+/* ✅ NEW RATINGS STYLES - Add to candidates.component.css */
+
+/* ===================================
+   RATINGS IN HEADER
+   =================================== */
+.rating-bar-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 12px 0;
+  padding: 10px;
+  background: rgba(255, 193, 7, 0.1);
+  border-radius: 8px;
+  border: 1px solid rgba(255, 193, 7, 0.3);
+}
+
+.rating-stars-inline {
+  display: flex;
+  gap: 3px;
+}
+
+.rating-stars-inline i {
+  color: #ffc107;
+  font-size: 16px;
+}
+
+.rating-value {
+  font-weight: 700;
+  font-size: 18px;
+  color: #1a1a1a;
+  margin-left: 8px;
+}
+
+.review-count {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: #666;
+  font-size: 14px;
+  padding: 4px 10px;
+  background: rgba(0, 0, 0, 0.05);
+  border-radius: 12px;
+}
+
+.success-rate {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: #10b981;
+  font-weight: 600;
+  font-size: 14px;
+  padding: 4px 10px;
+  background: rgba(16, 185, 129, 0.1);
+  border-radius: 12px;
+}
+
+/* ===================================
+   RATINGS SECTION IN MODAL
+   =================================== */
+.ratings-section {
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  padding: 20px;
+  border-radius: 12px;
+  margin: 20px 0;
+}
+
+.rating-summary-compact {
+  display: grid;
+  gap: 20px;
+  margin-bottom: 20px;
+}
+
+.rating-overview-compact {
+  display: flex;
+  gap: 30px;
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+
+.rating-score-compact {
+  text-align: center;
+  padding: 15px;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  min-width: 150px;
+}
+
+.score-number {
+  font-size: 48px;
+  font-weight: 700;
+  color: #1a1a1a;
+  display: block;
+  line-height: 1;
+}
+
+.rating-stars-large {
+  display: flex;
+  justify-content: center;
+  gap: 4px;
+  margin: 10px 0;
+}
+
+.rating-stars-large i {
+  font-size: 20px;
+  color: #ffc107;
+}
+
+.rating-count {
+  color: #666;
+  font-size: 14px;
+  margin-top: 8px;
+}
+
+/* Rating Distribution */
+.rating-distribution-compact {
+  flex: 1;
+  min-width: 250px;
+  background: white;
+  padding: 15px;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.distribution-row-compact {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.distribution-row-compact:last-child {
+  margin-bottom: 0;
+}
+
+.distribution-label {
+  min-width: 35px;
+  font-size: 13px;
+  color: #666;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.distribution-label i {
+  color: #ffc107;
+  font-size: 11px;
+}
+
+.distribution-bar {
+  flex: 1;
+  height: 8px;
+  background: #e5e7eb;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.distribution-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #ffc107, #ff9800);
+  border-radius: 4px;
+  transition: width 0.3s ease;
+}
+
+.distribution-count {
+  min-width: 30px;
+  text-align: right;
+  font-size: 13px;
+  color: #666;
+  font-weight: 500;
+}
+
+/* Skills Breakdown Summary */
+.skills-breakdown-summary {
+  background: white;
+  padding: 20px;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.skills-breakdown-summary h5 {
+  margin: 0 0 15px 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: #1a1a1a;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.skills-breakdown-summary h5 i {
+  color: #3b82f6;
+}
+
+.skill-ratings-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 15px;
+}
+
+.skill-rating-item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px;
+  background: #f9fafb;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+}
+
+.skill-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #4b5563;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.skill-label i {
+  color: #6b7280;
+  font-size: 12px;
+}
+
+.skill-stars-small {
+  display: flex;
+  gap: 2px;
+}
+
+.skill-stars-small i {
+  font-size: 14px;
+  color: #ffc107;
+}
+
+.skill-value {
+  font-size: 12px;
+  color: #6b7280;
+  font-weight: 500;
+  margin-top: 2px;
+}
+
+/* ===================================
+   REVIEWS LIST
+   =================================== */
+.reviews-list-compact {
+  margin-top: 20px;
+}
+
+.reviews-list-compact h5 {
+  margin: 0 0 15px 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: #1a1a1a;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 0 10px 0;
+  border-bottom: 2px solid #e5e7eb;
+}
+
+.reviews-list-compact h5 i {
+  color: #3b82f6;
+}
+
+.review-card-compact {
+  background: white;
+  padding: 15px;
+  border-radius: 10px;
+  margin-bottom: 12px;
+  border: 1px solid #e5e7eb;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  transition: box-shadow 0.2s ease;
+}
+
+.review-card-compact:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.review-header-compact {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 12px;
+  gap: 10px;
+}
+
+.reviewer-info-compact {
+  display: flex;
+  gap: 12px;
+  flex: 1;
+}
+
+.reviewer-avatar-small {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-weight: 600;
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+.reviewer-details-compact {
+  flex: 1;
+}
+
+.reviewer-details-compact h6 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: #1a1a1a;
+}
+
+.reviewer-role-small {
+  margin: 2px 0;
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.review-time-small {
+  font-size: 11px;
+  color: #9ca3af;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 4px;
+}
+
+.review-time-small i {
+  font-size: 10px;
+}
+
+.review-rating-compact {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.rating-stars-tiny {
+  display: flex;
+  gap: 2px;
+}
+
+.rating-stars-tiny i {
+  font-size: 12px;
+  color: #ffc107;
+}
+
+.rating-number-small {
+  font-weight: 700;
+  font-size: 14px;
+  color: #1a1a1a;
+}
+
+.review-content-compact {
+  margin: 10px 0;
+  padding: 10px;
+  background: #f9fafb;
+  border-radius: 8px;
+  border-left: 3px solid #3b82f6;
+}
+
+.review-content-compact p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.6;
+  color: #374151;
+}
+
+.review-badges-compact {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.badge-compact {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.badge-compact.would-hire {
+  background: rgba(16, 185, 129, 0.1);
+  color: #10b981;
+  border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+.badge-compact.job-title {
+  background: rgba(59, 130, 246, 0.1);
+  color: #3b82f6;
+  border: 1px solid rgba(59, 130, 246, 0.3);
+}
+
+.badge-compact i {
+  font-size: 11px;
+}
+
+.btn-view-all-ratings {
+  width: 100%;
+  padding: 12px;
+  margin-top: 15px;
+  background: white;
+  border: 2px solid #e5e7eb;
+  border-radius: 8px;
+  color: #3b82f6;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.btn-view-all-ratings:hover {
+  background: #3b82f6;
+  color: white;
+  border-color: #3b82f6;
+}
+
+.btn-view-all-ratings i {
+  font-size: 12px;
+  transition: transform 0.2s ease;
+}
+
+.btn-view-all-ratings:hover i {
+  transform: translateY(2px);
+}
+
+/* ===================================
+   RESPONSIVE DESIGN
+   =================================== */
+@media (max-width: 768px) {
+  .rating-overview-compact {
+    flex-direction: column;
+  }
+
+  .rating-distribution-compact {
+    width: 100%;
+  }
+
+  .skill-ratings-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .review-header-compact {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .review-rating-compact {
+    margin-left: 52px; /* Align with reviewer name */
+  }
+}
+
+/* ===================================
+   RATING DISPLAY IN CANDIDATE CARDS
+   =================================== */
+.candidate-card .rating-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 0;
+  padding: 8px 12px;
+  background: rgba(255, 193, 7, 0.1);
+  border-radius: 6px;
+  border: 1px solid rgba(255, 193, 7, 0.2);
+}
+
+.candidate-card .rating-stars-mini {
+  display: flex;
+  gap: 2px;
+}
+
+.candidate-card .rating-stars-mini i {
+  font-size: 12px;
+  color: #ffc107;
+}
+
+.candidate-card .rating-text {
+  font-size: 13px;
+  color: #666;
+  font-weight: 500;
+}
+
+.candidate-card .rating-text strong {
+  color: #1a1a1a;
+}
 }

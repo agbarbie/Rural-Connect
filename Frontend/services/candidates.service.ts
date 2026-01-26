@@ -1,11 +1,11 @@
-// src/app/services/candidates.service.ts - UPDATED WITH ALL FIELDS
+// frontend/src/app/services/candidates.service.ts - ENHANCED WITH RATINGS
 
 import { Injectable } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { map, Observable } from 'rxjs';
 import { environment } from '../src/environments/environment.prod';
 
-// ✅ UPDATED: Complete Candidate interface with ALL fields
+// ✅ ENHANCED: Complete Candidate interface with RATINGS
 export interface Candidate {
   // Basic info
   id: string;
@@ -17,7 +17,7 @@ export interface Candidate {
   // Profile info
   title: string;
   profile_picture: string | null;
-  bio?: string; // ✅ NEW
+  bio?: string;
   location: string;
   
   // Match and skills
@@ -27,13 +27,13 @@ export interface Candidate {
   
   // Experience
   experience: string;
-  years_of_experience?: number; // ✅ NEW
-  current_position?: string; // ✅ NEW
+  years_of_experience?: number;
+  current_position?: string;
   recent_work: string;
   
   // Availability
   availability: string;
-  availability_status?: string; // ✅ NEW
+  availability_status?: string;
   
   // Application details
   application_status: string;
@@ -62,11 +62,17 @@ export interface Candidate {
   // Education
   education: Education[];
   
-  // Career preferences (NEW)
+  // Career preferences
   preferred_job_types?: string[];
   preferred_locations?: string[];
   salary_expectation_min?: number;
   salary_expectation_max?: number;
+  
+  // ✅ NEW: Rating information
+  average_rating?: number;
+  total_ratings?: number;
+  would_hire_again_count?: number;
+  success_rate?: number;
 }
 
 export interface Certification {
@@ -81,6 +87,93 @@ export interface Education {
   degree: string;
   institution: string;
   year: number;
+}
+
+// ✅ NEW: Rating interfaces
+export interface SkillsRating {
+  technical?: number;
+  communication?: number;
+  professionalism?: number;
+  quality?: number;
+  timeliness?: number;
+}
+
+export interface RatingEmployer {
+  name: string;
+  role: string;
+  company_name: string;
+  company_industry?: string;
+  company_size?: string;
+  company_location?: string;
+  company_description?: string;
+  company_website?: string;
+  company_logo?: string;
+}
+
+export interface Rating {
+  id: string;
+  rating: number;
+  feedback: string;
+  would_hire_again: boolean;
+  task_description?: string;
+  created_at: string;
+  employer: RatingEmployer;
+  job_title?: string;
+  skills_rating?: SkillsRating;
+}
+
+export interface RatingStats {
+  average_rating: number;
+  total_ratings: number;
+  would_hire_again_count: number;
+  rating_distribution: {
+    1: number;
+    2: number;
+    3: number;
+    4: number;
+    5: number;
+  };
+  success_rate: number;
+  skill_ratings?: SkillsRating;
+}
+
+// ✅ ENHANCED: Profile with ratings
+export interface CandidateProfile {
+  user_id: string;
+  name: string;
+  email: string;
+  phone: string;
+  location: string;
+  profile_image: string;
+  bio: string;
+  title: string;
+  years_of_experience: number;
+  current_position: string;
+  availability_status: string;
+  skills: string[];
+  social_links: {
+    linkedin?: string;
+    github?: string;
+    portfolio?: string;
+    website?: string;
+  };
+  application?: {
+    id: string;
+    status: string;
+    cover_letter: string;
+    expected_salary: number;
+    availability_date: string;
+    applied_at: string;
+  };
+  preferences: {
+    job_types: string[];
+    locations: string[];
+    salary_min: number;
+    salary_max: number;
+  };
+  // ✅ NEW: Rating data
+  rating_stats?: RatingStats;
+  ratings?: Rating[];
 }
 
 export interface JobPost {
@@ -105,7 +198,7 @@ export interface CandidatesQuery {
   location?: string;
   experience?: string;
   training?: string;
-  sort_by?: 'match_score' | 'newest' | 'experience' | 'recent_activity';
+  sort_by?: 'match_score' | 'newest' | 'experience' | 'recent_activity' | 'highestRated'; // ✅ NEW: Added rating sort
   page?: number;
   limit?: number;
 }
@@ -161,12 +254,12 @@ export class CandidatesService {
   }
 
   /**
-   * Get candidate full profile
+   * ✅ ENHANCED: Get candidate full profile with detailed ratings
    */
-  getCandidateProfile(userId: string, jobId?: string): Observable<ApiResponse<any>> {
+  getCandidateProfile(userId: string, jobId?: string): Observable<ApiResponse<CandidateProfile>> {
     const params = jobId ? new HttpParams().set('jobId', jobId) : new HttpParams();
 
-    return this.http.get<ApiResponse<any>>(
+    return this.http.get<ApiResponse<CandidateProfile>>(
       `${this.apiUrl}/candidates/${userId}`,
       { headers: this.getHeaders(), params }
     ).pipe(
@@ -174,10 +267,6 @@ export class CandidatesService {
         // Ensure profile image has full URL
         if (response?.success && response.data?.profile_image) {
           response.data.profile_image = this.getFullImageUrl(response.data.profile_image);
-        }
-        // Also normalize legacy field name if present
-        if (response?.success && response.data?.profile_picture) {
-          response.data.profile_picture = this.getFullImageUrl(response.data.profile_picture);
         }
         return response;
       })
@@ -267,5 +356,44 @@ export class CandidatesService {
       `${environment.apiUrl}/interviews/schedule`,
       data
     );
+  }
+
+  // ✅ NEW: Helper method to get star array for ratings display
+  getStarArray(rating: number): number[] {
+    const stars = [];
+    const fullStars = Math.floor(rating);
+    const hasHalfStar = rating % 1 >= 0.5;
+
+    for (let i = 0; i < fullStars; i++) stars.push(1);
+    if (hasHalfStar && fullStars < 5) stars.push(0.5);
+    const remaining = 5 - stars.length;
+    for (let i = 0; i < remaining; i++) stars.push(0);
+
+    return stars;
+  }
+
+  // ✅ NEW: Format rating date
+  formatRatingDate(dateString: string): string {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffTime = Math.abs(now.getTime() - date.getTime());
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+    if (diffDays === 0) return 'Today';
+    if (diffDays === 1) return 'Yesterday';
+    if (diffDays < 7) return `${diffDays} days ago`;
+    if (diffDays < 30) return `${Math.floor(diffDays / 7)} weeks ago`;
+    if (diffDays < 365) return `${Math.floor(diffDays / 30)} months ago`;
+    
+    return date.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+    });
+  }
+
+  // ✅ NEW: Calculate rating percentage
+  getRatingPercentage(count: number, total: number): number {
+    if (total === 0) return 0;
+    return (count / total) * 100;
   }
 }

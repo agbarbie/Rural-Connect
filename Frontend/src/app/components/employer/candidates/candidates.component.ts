@@ -1,4 +1,4 @@
-// candidates.component.ts - COMPLETE WITH MOBILE SIDEBAR & CHAT TOGGLE
+// candidates.component.ts - COMPLETE WITH MOBILE SIDEBAR, CHAT TOGGLE & RATING METHODS
 import { Component, OnInit, OnDestroy, HostListener } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -10,6 +10,9 @@ import {
   Candidate,
   JobPost,
   CandidatesQuery,
+  CandidateProfile,
+  RatingStats,
+  Rating
 } from '../../../../../services/candidates.service';
 import { environment } from '../../../../environments/environments';
 import {
@@ -22,41 +25,6 @@ import {
 } from '../../../../../services/training.service';
 import { RatingComponent } from '../rating/rating.component'; 
 import { RatingService } from '../../../../../services/rating.service';
-
-interface CandidateProfile {
-  user_id: string;
-  name: string;
-  email: string;
-  phone: string;
-  location: string;
-  profile_image: string;
-  bio: string;
-  title: string;
-  years_of_experience: number;
-  current_position: string;
-  availability_status: string;
-  skills: string[];
-  social_links: {
-    linkedin?: string;
-    github?: string;
-    portfolio?: string;
-    website?: string;
-  };
-  application?: {
-    id: string;
-    status: string;
-    cover_letter: string;
-    expected_salary: number;
-    availability_date: string;
-    applied_at: string;
-  };
-  preferences: {
-    job_types: string[];
-    locations: string[];
-    salary_min: number;
-    salary_max: number;
-  };
-}
 
 @Component({
   selector: 'app-candidates',
@@ -136,10 +104,12 @@ export class CandidatesComponent implements OnInit, OnDestroy {
   isChatLoading = false;
   chatHistory: { role: 'user' | 'assistant'; content: string }[] = [];
 
-  Math = Math;
-
+  // Rating
   showRatingModal = false;
   candidateToRate: any = null;
+
+  // Math utility for templates
+  Math = Math;
 
   constructor(
     private candidatesService: CandidatesService,
@@ -334,6 +304,101 @@ export class CandidatesComponent implements OnInit, OnDestroy {
       month: 'short',
       day: 'numeric',
     });
+  }
+
+  // ============================================
+  // RATING HELPER METHODS
+  // ============================================
+
+  /**
+   * Get star array for rating display (full, half, empty stars)
+   */
+  getStarArray(rating: number): number[] {
+    const stars = [];
+    const fullStars = Math.floor(rating);
+    const hasHalfStar = rating % 1 >= 0.5;
+    
+    for (let i = 0; i < fullStars; i++) stars.push(1);
+    if (hasHalfStar && fullStars < 5) stars.push(0.5);
+    
+    const remaining = 5 - stars.length;
+    for (let i = 0; i < remaining; i++) stars.push(0);
+    
+    return stars;
+  }
+
+  /**
+   * Format rating date (e.g., "2 days ago", "3 weeks ago")
+   */
+  formatRatingDate(dateString: string): string {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffTime = Math.abs(now.getTime() - date.getTime());
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    
+    if (diffDays === 0) return 'Today';
+    if (diffDays === 1) return 'Yesterday';
+    if (diffDays < 7) return `${diffDays} days ago`;
+    if (diffDays < 30) return `${Math.floor(diffDays / 7)} weeks ago`;
+    if (diffDays < 365) return `${Math.floor(diffDays / 30)} months ago`;
+    
+    return date.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+    });
+  }
+
+  /**
+   * Calculate rating percentage for distribution bar
+   */
+  getRatingPercentage(count: number, total: number): number {
+    if (total === 0) return 0;
+    return (count / total) * 100;
+  }
+
+  /**
+   * Get initials from name (for avatars)
+   */
+  getInitials(name: string): string {
+    if (!name) return '?';
+    const parts = name.split(' ');
+    if (parts.length >= 2) {
+      return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
+    }
+    return name.substring(0, 2).toUpperCase();
+  }
+
+  /**
+   * Check if candidate has ratings
+   */
+  hasRatings(candidate: Candidate): boolean {
+    return (candidate.total_ratings ?? 0) > 0;
+  }
+
+  /**
+   * Get rating badge class based on average rating
+   */
+  getRatingBadgeClass(rating: number): string {
+    if (rating >= 4.5) return 'rating-excellent';
+    if (rating >= 4.0) return 'rating-good';
+    if (rating >= 3.0) return 'rating-fair';
+    return 'rating-poor';
+  }
+
+  /**
+   * Check if profile has skill ratings
+   */
+  hasSkillRatings(profile: CandidateProfile): boolean {
+    if (!profile.rating_stats?.skill_ratings) return false;
+    
+    const skills = profile.rating_stats.skill_ratings;
+    return !!(
+      (skills.technical ?? 0) > 0 ||
+      (skills.communication ?? 0) > 0 ||
+      (skills.professionalism ?? 0) > 0 ||
+      (skills.quality ?? 0) > 0 ||
+      (skills.timeliness ?? 0) > 0
+    );
   }
 
   // ============================================
@@ -701,15 +766,6 @@ export class CandidatesComponent implements OnInit, OnDestroy {
     event.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(
       candidateName
     )}&background=4285f4&color=fff&size=128`;
-  }
-
-  getInitials(name: string): string {
-    if (!name) return '?';
-    const parts = name.split(' ');
-    if (parts.length >= 2) {
-      return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
-    }
-    return name.substring(0, 2).toUpperCase();
   }
 
   get paginatedCandidates(): Candidate[] {

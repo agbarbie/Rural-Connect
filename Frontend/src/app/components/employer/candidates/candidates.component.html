@@ -288,6 +288,18 @@
           <div class="profile-info">
             <h3 class="candidate-name">{{ candidate.name }}</h3>
             <p class="candidate-title">{{ candidate.title }}</p>
+
+            <!-- Compact Rating Badge -->
+            <div class="rating-badge-compact" *ngIf="hasRatings(candidate)">
+              <i class="fas fa-star"></i>
+              <span>{{ candidate.average_rating | number: '1.1-1' }}</span>
+              <span class="review-count-mini">({{ candidate.total_ratings }})</span>
+            </div>
+
+            <!-- Success Rate Badge -->
+            <span class="success-badge" *ngIf="candidate.success_rate && candidate.success_rate > 0">
+              <i class="fas fa-check-circle"></i> {{ candidate.success_rate }}%
+            </span>
           </div>
         </div>
 
@@ -713,7 +725,7 @@
   </div>
 </div>
 
-<!-- Profile View Modal -->
+<!-- ENHANCED Profile View Modal with Ratings -->
 <div
   class="modal-overlay profile-modal-overlay"
   *ngIf="showProfileModal"
@@ -743,12 +755,7 @@
       <div class="profile-modal-header">
         <div class="profile-image-large">
           <img
-            [src]="
-              getFullImageUrl(
-                currentProfileData.profile_image,
-                currentProfileData.name
-              )
-            "
+            [src]="getFullImageUrl(currentProfileData.profile_image, currentProfileData.name)"
             [alt]="currentProfileData.name"
             (error)="handleImageError($event, currentProfileData.name)"
           />
@@ -756,15 +763,35 @@
         <div class="profile-header-info">
           <h2>{{ currentProfileData.name }}</h2>
           <p class="profile-title">{{ currentProfileData.title }}</p>
+          
+          <!-- Rating Bar in Header -->
+          <div class="rating-bar-header" *ngIf="currentProfileData.rating_stats">
+            <div class="rating-stars-inline">
+              <ng-container *ngFor="let star of getStarArray(currentProfileData.rating_stats.average_rating)">
+                <i class="fas fa-star" *ngIf="star === 1"></i>
+                <i class="fas fa-star-half-alt" *ngIf="star === 0.5"></i>
+                <i class="far fa-star" *ngIf="star === 0"></i>
+              </ng-container>
+            </div>
+            <span class="rating-value">
+              {{ currentProfileData.rating_stats.average_rating | number: '1.1-1' }}
+            </span>
+            <span class="review-count">
+              <i class="fas fa-comment-dots"></i>
+              {{ currentProfileData.rating_stats.total_ratings }}
+            </span>
+            <span class="success-rate" *ngIf="currentProfileData.rating_stats.success_rate > 0">
+              <i class="fas fa-check-circle"></i>
+              {{ currentProfileData.rating_stats.success_rate }}%
+            </span>
+          </div>
+          
           <p class="profile-location" *ngIf="currentProfileData.location">
             <i class="fas fa-map-marker-alt"></i>
             {{ currentProfileData.location }}
           </p>
           <div class="profile-contact">
-            <a
-              [href]="'mailto:' + currentProfileData.email"
-              class="contact-link"
-            >
+            <a [href]="'mailto:' + currentProfileData.email" class="contact-link">
               <i class="fas fa-envelope"></i>
               {{ currentProfileData.email }}
             </a>
@@ -788,83 +815,196 @@
           >
             <i
               class="fas"
-              [class.fa-heart]="
-                currentProfileData.application &&
-                currentProfileData.application.status === 'shortlisted'
-              "
-              [class.fa-heart-o]="
-                !currentProfileData.application ||
-                currentProfileData.application.status !== 'shortlisted'
-              "
+              [class.fa-heart]="currentProfileData.application?.status === 'shortlisted'"
+              [class.fa-heart-o]="currentProfileData.application?.status !== 'shortlisted'"
             ></i>
-            {{
-              currentProfileData.application &&
-              currentProfileData.application.status === "shortlisted"
-                ? "Shortlisted"
-                : "Shortlist"
-            }}
+            {{ currentProfileData.application?.status === 'shortlisted' ? 'Shortlisted' : 'Shortlist' }}
           </button>
         </div>
       </div>
 
       <!-- Bio Section -->
       <div class="profile-section" *ngIf="currentProfileData.bio">
-        <h4>
-          <i class="fas fa-user"></i>
-          About
-        </h4>
+        <h4><i class="fas fa-user"></i> About</h4>
         <p class="bio-text">{{ currentProfileData.bio }}</p>
+      </div>
+
+      <!-- RATINGS & REVIEWS SECTION -->
+      <div class="profile-section ratings-section" *ngIf="currentProfileData.rating_stats && currentProfileData.rating_stats.total_ratings > 0">
+        <h4><i class="fas fa-star"></i> Ratings & Reviews</h4>
+        
+        <!-- Rating Summary -->
+        <div class="rating-summary-compact">
+          <div class="rating-overview-compact">
+            <div class="rating-score-compact">
+              <span class="score-number">{{ currentProfileData.rating_stats.average_rating | number: '1.1-1' }}</span>
+              <div class="rating-stars-large">
+                <ng-container *ngFor="let star of getStarArray(currentProfileData.rating_stats.average_rating)">
+                  <i class="fas fa-star" *ngIf="star === 1"></i>
+                  <i class="fas fa-star-half-alt" *ngIf="star === 0.5"></i>
+                  <i class="far fa-star" *ngIf="star === 0"></i>
+                </ng-container>
+              </div>
+              <p class="rating-count">
+                {{ currentProfileData.rating_stats.total_ratings }} 
+                {{ currentProfileData.rating_stats.total_ratings === 1 ? 'rating' : 'ratings' }}
+              </p>
+            </div>
+
+            <div class="rating-distribution-compact">
+              <ng-container *ngFor="let r of [5, 4, 3, 2, 1]">
+                <div class="distribution-row-compact">
+                  <span class="distribution-label">{{ r }} <i class="fas fa-star"></i></span>
+                  <div class="distribution-bar">
+                    <div
+                      class="distribution-fill"
+                      [style.width.%]="getRatingPercentage(currentProfileData.rating_stats.rating_distribution[r], currentProfileData.rating_stats.total_ratings)"
+                    ></div>
+                  </div>
+                  <span class="distribution-count">{{ currentProfileData.rating_stats.rating_distribution[r] }}</span>
+                </div>
+              </ng-container>
+            </div>
+          </div>
+
+          <!-- Skills Breakdown -->
+          <div class="skills-breakdown-summary" *ngIf="currentProfileData.rating_stats.skill_ratings">
+            <h5><i class="fas fa-chart-bar"></i> Average Skill Ratings:</h5>
+            <div class="skill-ratings-grid">
+              <div class="skill-rating-item" *ngIf="currentProfileData.rating_stats.skill_ratings.technical > 0">
+                <span class="skill-label"><i class="fas fa-code"></i> Technical:</span>
+                <div class="skill-stars-small">
+                  <ng-container *ngFor="let i of [1,2,3,4,5]">
+                    <i class="fas fa-star" *ngIf="i <= currentProfileData.rating_stats.skill_ratings.technical"></i>
+                    <i class="far fa-star" *ngIf="i > currentProfileData.rating_stats.skill_ratings.technical"></i>
+                  </ng-container>
+                </div>
+                <span class="skill-value">{{ currentProfileData.rating_stats.skill_ratings.technical | number: '1.1-1' }}/5</span>
+              </div>
+
+              <div class="skill-rating-item" *ngIf="currentProfileData.rating_stats.skill_ratings.communication > 0">
+                <span class="skill-label"><i class="fas fa-comments"></i> Communication:</span>
+                <div class="skill-stars-small">
+                  <ng-container *ngFor="let i of [1,2,3,4,5]">
+                    <i class="fas fa-star" *ngIf="i <= currentProfileData.rating_stats.skill_ratings.communication"></i>
+                    <i class="far fa-star" *ngIf="i > currentProfileData.rating_stats.skill_ratings.communication"></i>
+                  </ng-container>
+                </div>
+                <span class="skill-value">{{ currentProfileData.rating_stats.skill_ratings.communication | number: '1.1-1' }}/5</span>
+              </div>
+
+              <div class="skill-rating-item" *ngIf="currentProfileData.rating_stats.skill_ratings.professionalism > 0">
+                <span class="skill-label"><i class="fas fa-user-tie"></i> Professionalism:</span>
+                <div class="skill-stars-small">
+                  <ng-container *ngFor="let i of [1,2,3,4,5]">
+                    <i class="fas fa-star" *ngIf="i <= currentProfileData.rating_stats.skill_ratings.professionalism"></i>
+                    <i class="far fa-star" *ngIf="i > currentProfileData.rating_stats.skill_ratings.professionalism"></i>
+                  </ng-container>
+                </div>
+                <span class="skill-value">{{ currentProfileData.rating_stats.skill_ratings.professionalism | number: '1.1-1' }}/5</span>
+              </div>
+
+              <div class="skill-rating-item" *ngIf="currentProfileData.rating_stats.skill_ratings.quality > 0">
+                <span class="skill-label"><i class="fas fa-medal"></i> Quality:</span>
+                <div class="skill-stars-small">
+                  <ng-container *ngFor="let i of [1,2,3,4,5]">
+                    <i class="fas fa-star" *ngIf="i <= currentProfileData.rating_stats.skill_ratings.quality"></i>
+                    <i class="far fa-star" *ngIf="i > currentProfileData.rating_stats.skill_ratings.quality"></i>
+                  </ng-container>
+                </div>
+                <span class="skill-value">{{ currentProfileData.rating_stats.skill_ratings.quality | number: '1.1-1' }}/5</span>
+              </div>
+
+              <div class="skill-rating-item" *ngIf="currentProfileData.rating_stats.skill_ratings.timeliness > 0">
+                <span class="skill-label"><i class="fas fa-clock"></i> Timeliness:</span>
+                <div class="skill-stars-small">
+                  <ng-container *ngFor="let i of [1,2,3,4,5]">
+                    <i class="fas fa-star" *ngIf="i <= currentProfileData.rating_stats.skill_ratings.timeliness"></i>
+                    <i class="far fa-star" *ngIf="i > currentProfileData.rating_stats.skill_ratings.timeliness"></i>
+                  </ng-container>
+                </div>
+                <span class="skill-value">{{ currentProfileData.rating_stats.skill_ratings.timeliness | number: '1.1-1' }}/5</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Individual Reviews -->
+        <div class="reviews-list-compact" *ngIf="currentProfileData.ratings && currentProfileData.ratings.length > 0">
+          <h5><i class="fas fa-comment-dots"></i> Recent Reviews ({{ Math.min(3, currentProfileData.ratings.length) }} of {{ currentProfileData.ratings.length }})</h5>
+          
+          <div class="review-card-compact" *ngFor="let rating of currentProfileData.ratings.slice(0, 3)">
+            <div class="review-header-compact">
+              <div class="reviewer-info-compact">
+                <div class="reviewer-avatar-small">
+                  <span>{{ getInitials(rating.employer.name) }}</span>
+                </div>
+                <div class="reviewer-details-compact">
+                  <h6>{{ rating.employer.name }}</h6>
+                  <p class="reviewer-role-small">{{ rating.employer.role }} at {{ rating.employer.company_name }}</p>
+                  <span class="review-time-small">
+                    <i class="fas fa-clock"></i> {{ formatRatingDate(rating.created_at) }}
+                  </span>
+                </div>
+              </div>
+              <div class="review-rating-compact">
+                <div class="rating-stars-tiny">
+                  <ng-container *ngFor="let i of [1,2,3,4,5]">
+                    <i class="fas fa-star" *ngIf="i <= rating.rating"></i>
+                    <i class="far fa-star" *ngIf="i > rating.rating"></i>
+                  </ng-container>
+                </div>
+                <span class="rating-number-small">{{ rating.rating }}.0</span>
+              </div>
+            </div>
+            
+            <div class="review-content-compact" *ngIf="rating.feedback">
+              <p>{{ rating.feedback.length > 150 ? (rating.feedback | slice:0:150) + '...' : rating.feedback }}</p>
+            </div>
+            
+            <div class="review-badges-compact">
+              <span class="badge-compact would-hire" *ngIf="rating.would_hire_again">
+                <i class="fas fa-check-circle"></i> Would hire again
+              </span>
+              <span class="badge-compact job-title" *ngIf="rating.job_title">
+                <i class="fas fa-briefcase"></i> {{ rating.job_title }}
+              </span>
+            </div>
+          </div>
+          
+          <button class="btn-view-all-ratings" *ngIf="currentProfileData.ratings.length > 3">
+            <i class="fas fa-chevron-down"></i>
+            View All {{ currentProfileData.ratings.length }} Reviews
+          </button>
+        </div>
       </div>
 
       <!-- Application Details -->
       <div class="profile-section" *ngIf="currentProfileData.application">
-        <h4>
-          <i class="fas fa-file-alt"></i>
-          Application Details
-        </h4>
+        <h4><i class="fas fa-file-alt"></i> Application Details</h4>
         <div class="info-grid">
           <div class="info-item">
             <span class="label">Status</span>
             <span class="value">
-              <span
-                class="status-badge"
-                [class]="currentProfileData.application.status"
-              >
+              <span class="status-badge" [class]="currentProfileData.application.status">
                 {{ currentProfileData.application.status }}
               </span>
             </span>
           </div>
           <div class="info-item">
             <span class="label">Applied</span>
-            <span class="value">{{
-              formatDate(currentProfileData.application.applied_at)
-            }}</span>
+            <span class="value">{{ formatDate(currentProfileData.application.applied_at) }}</span>
           </div>
-          <div
-            class="info-item"
-            *ngIf="currentProfileData.application.expected_salary"
-          >
+          <div class="info-item" *ngIf="currentProfileData.application.expected_salary">
             <span class="label">Expected Salary</span>
-            <span class="value"
-              >Ksh{{
-                currentProfileData.application.expected_salary | number
-              }}</span
-            >
+            <span class="value">Ksh{{ currentProfileData.application.expected_salary | number }}</span>
           </div>
-          <div
-            class="info-item"
-            *ngIf="currentProfileData.application.availability_date"
-          >
+          <div class="info-item" *ngIf="currentProfileData.application.availability_date">
             <span class="label">Available From</span>
-            <span class="value">{{
-              formatDate(currentProfileData.application.availability_date)
-            }}</span>
+            <span class="value">{{ formatDate(currentProfileData.application.availability_date) }}</span>
           </div>
         </div>
-        <div
-          class="cover-letter"
-          *ngIf="currentProfileData.application.cover_letter"
-        >
+        <div class="cover-letter" *ngIf="currentProfileData.application.cover_letter">
           <h5>Cover Letter</h5>
           <p>{{ currentProfileData.application.cover_letter }}</p>
         </div>
@@ -872,31 +1012,19 @@
 
       <!-- Skills -->
       <div class="profile-section" *ngIf="currentProfileData.skills.length > 0">
-        <h4>
-          <i class="fas fa-cogs"></i>
-          Skills
-        </h4>
+        <h4><i class="fas fa-cogs"></i> Skills</h4>
         <div class="skills-container">
-          <span
-            class="skill-tag"
-            *ngFor="let skill of currentProfileData.skills"
-            >{{ skill }}</span
-          >
+          <span class="skill-tag" *ngFor="let skill of currentProfileData.skills">{{ skill }}</span>
         </div>
       </div>
 
       <!-- Career Info -->
       <div class="profile-section">
-        <h4>
-          <i class="fas fa-briefcase"></i>
-          Career Information
-        </h4>
+        <h4><i class="fas fa-briefcase"></i> Career Information</h4>
         <div class="info-grid">
           <div class="info-item" *ngIf="currentProfileData.years_of_experience">
             <span class="label">Experience</span>
-            <span class="value"
-              >{{ currentProfileData.years_of_experience }} years</span
-            >
+            <span class="value">{{ currentProfileData.years_of_experience }} years</span>
           </div>
           <div class="info-item" *ngIf="currentProfileData.current_position">
             <span class="label">Current Position</span>
@@ -904,60 +1032,24 @@
           </div>
           <div class="info-item">
             <span class="label">Availability</span>
-            <span class="value">{{
-              currentProfileData.availability_status
-            }}</span>
+            <span class="value">{{ currentProfileData.availability_status }}</span>
           </div>
         </div>
       </div>
 
       <!-- Preferences -->
-      <div
-        class="profile-section"
-        *ngIf="
-          currentProfileData.preferences &&
-          (currentProfileData.preferences.job_types.length ||
-            currentProfileData.preferences.locations.length ||
-            currentProfileData.preferences.salary_min ||
-            currentProfileData.preferences.salary_max)
-        "
-      >
-        <h4>
-          <i class="fas fa-list-check"></i>
-          Job Preferences
-        </h4>
+      <div class="profile-section" *ngIf="currentProfileData.preferences">
+        <h4><i class="fas fa-list-check"></i> Job Preferences</h4>
         <div class="preferences-grid">
-          <div
-            class="pref-item"
-            *ngIf="
-              currentProfileData.preferences.job_types &&
-              currentProfileData.preferences.job_types.length > 0
-            "
-          >
+          <div class="pref-item" *ngIf="currentProfileData.preferences.job_types?.length">
             <strong>Job Types:</strong>
-            <span>{{
-              currentProfileData.preferences.job_types.join(", ")
-            }}</span>
+            <span>{{ currentProfileData.preferences.job_types.join(', ') }}</span>
           </div>
-          <div
-            class="pref-item"
-            *ngIf="
-              currentProfileData.preferences.locations &&
-              currentProfileData.preferences.locations.length > 0
-            "
-          >
+          <div class="pref-item" *ngIf="currentProfileData.preferences.locations?.length">
             <strong>Preferred Locations:</strong>
-            <span>{{
-              currentProfileData.preferences.locations.join(", ")
-            }}</span>
+            <span>{{ currentProfileData.preferences.locations.join(', ') }}</span>
           </div>
-          <div
-            class="pref-item"
-            *ngIf="
-              currentProfileData.preferences.salary_min ||
-              currentProfileData.preferences.salary_max
-            "
-          >
+          <div class="pref-item" *ngIf="currentProfileData.preferences.salary_min || currentProfileData.preferences.salary_max">
             <strong>Salary Range:</strong>
             <span>
               Ksh{{ currentProfileData.preferences.salary_min | number }} -
@@ -969,10 +1061,7 @@
 
       <!-- Social Links -->
       <div class="profile-section" *ngIf="hasSocialLinks(currentProfileData)">
-        <h4>
-          <i class="fas fa-link"></i>
-          Professional Links
-        </h4>
+        <h4><i class="fas fa-link"></i> Professional Links</h4>
         <div class="social-links">
           <a
             [href]="currentProfileData.social_links.linkedin"
@@ -993,16 +1082,10 @@
             GitHub Profile
           </a>
           <a
-            [href]="
-              currentProfileData.social_links.portfolio ||
-              currentProfileData.social_links.website
-            "
+            [href]="currentProfileData.social_links.portfolio || currentProfileData.social_links.website"
             target="_blank"
             class="social-link"
-            *ngIf="
-              currentProfileData.social_links.portfolio ||
-              currentProfileData.social_links.website
-            "
+            *ngIf="currentProfileData.social_links.portfolio || currentProfileData.social_links.website"
           >
             <i class="fas fa-globe"></i>
             Portfolio Website
