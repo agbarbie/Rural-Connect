@@ -40,7 +40,7 @@ export class AuthService {
       const userResult = await client.query(
         `
       INSERT INTO users (
-        name, email, password, user_type, location, contact_number, 
+        name, email, password_hash, user_type, location, contact_number, 
         company_name, role_in_company
       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
       RETURNING id::text as id, name, email, user_type, location, contact_number, 
@@ -174,7 +174,7 @@ export class AuthService {
         // Create admin profile
         await client.query(
           `
-        INSERT INTO admins (user_id, name, email, password, contact_number, role, permissions, created_at, updated_at)
+        INSERT INTO admins (user_id, name, email, password_hash, contact_number, role, permissions, created_at, updated_at)
         VALUES ($1::uuid, $2, $3, $4, $5, $6, $7::jsonb, $8, $9)
       `,
           [
@@ -234,7 +234,7 @@ export class AuthService {
           u.id::text AS id,
           u.name,
           u.email,
-          u.password,
+          u.password_hash,
           u.user_type,
           u.created_at,
           u.updated_at,
@@ -273,7 +273,7 @@ export class AuthService {
       // Verify password using existing helper
       const isPasswordValid = await comparePassword(
         loginData.password,
-        user.password,
+        user.password_hash,
       );
 
       if (!isPasswordValid) {
