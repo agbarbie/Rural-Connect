@@ -1679,7 +1679,6 @@ body {
 .filter-actions {
   margin-top: 12px;
 }
-/* Add this to your candidates.component.css */
 
 /* AI Chat Context Display */
 .chat-context {
@@ -1751,6 +1750,7 @@ body {
   font-size: 0.65rem;
   color: #3b82f6;
 }
+
 /* Profile Modal Styles */
 .profile-modal-overlay {
   position: fixed;
@@ -2077,13 +2077,514 @@ body {
   background: white;
 }
 
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
+/* ============================================
+   ENHANCED RATING & REVIEWS SECTION
+   ============================================ */
+
+/* Rating Bar in Header */
+.rating-bar-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 12px 0;
+  padding: 10px 15px;
+  background: linear-gradient(135deg, #fef3c7, #fde68a);
+  border-radius: 8px;
+  border: 1px solid #fbbf24;
 }
 
-/* Responsive */
+.rating-stars-inline {
+  display: flex;
+  gap: 3px;
+}
+
+.rating-stars-inline i {
+  color: #f59e0b;
+  font-size: 1rem;
+  filter: drop-shadow(0 1px 2px rgba(245, 158, 11, 0.3));
+}
+
+.rating-value {
+  font-size: 1.125rem;
+  font-weight: 700;
+  color: #92400e;
+  margin-left: 5px;
+}
+
+.review-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: #78350f;
+  font-size: 0.9375rem;
+  font-weight: 600;
+}
+
+.review-count i {
+  font-size: 0.875rem;
+}
+
+.success-rate {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: #065f46;
+  font-size: 0.9375rem;
+  font-weight: 700;
+  margin-left: auto;
+  padding: 4px 10px;
+  background: rgba(16, 185, 129, 0.15);
+  border-radius: 20px;
+  border: 1px solid #10b981;
+}
+
+.success-rate i {
+  font-size: 0.875rem;
+}
+
+/* Ratings Section */
+.ratings-section {
+  background: linear-gradient(135deg, #fffbeb, #fef3c7);
+  border: 2px solid #fbbf24;
+  border-radius: 12px;
+  padding: 25px;
+}
+
+.ratings-section h4 {
+  color: #92400e;
+  border-bottom-color: #fbbf24;
+}
+
+/* Rating Summary Compact */
+.rating-summary-compact {
+  display: flex;
+  flex-direction: column;
+  gap: 25px;
+}
+
+.rating-overview-compact {
+  display: grid;
+  grid-template-columns: 180px 1fr;
+  gap: 30px;
+  align-items: start;
+}
+
+/* Rating Score */
+.rating-score-compact {
+  text-align: center;
+  padding: 20px;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(245, 158, 11, 0.15);
+  border: 2px solid #fbbf24;
+}
+
+.score-number {
+  font-size: 3.5rem;
+  font-weight: 900;
+  color: #f59e0b;
+  line-height: 1;
+  display: block;
+  text-shadow: 0 2px 4px rgba(245, 158, 11, 0.2);
+}
+
+.rating-stars-large {
+  display: flex;
+  gap: 5px;
+  justify-content: center;
+  margin: 15px 0;
+}
+
+.rating-stars-large i {
+  color: #f59e0b;
+  font-size: 1.5rem;
+  filter: drop-shadow(0 2px 4px rgba(245, 158, 11, 0.3));
+}
+
+.rating-count {
+  color: #78350f;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+/* Rating Distribution */
+.rating-distribution-compact {
+  flex: 1;
+}
+
+.distribution-row-compact {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.distribution-label {
+  font-size: 0.9375rem;
+  color: #92400e;
+  font-weight: 600;
+  min-width: 60px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.distribution-label i {
+  color: #f59e0b;
+  font-size: 0.875rem;
+}
+
+.distribution-bar {
+  flex: 1;
+  height: 10px;
+  background: #fef3c7;
+  border-radius: 20px;
+  overflow: hidden;
+  border: 1px solid #fbbf24;
+}
+
+.distribution-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #f59e0b, #d97706);
+  border-radius: 20px;
+  transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 2px 4px rgba(245, 158, 11, 0.3);
+}
+
+.distribution-count {
+  font-size: 0.9375rem;
+  color: #78350f;
+  font-weight: 600;
+  min-width: 35px;
+  text-align: right;
+}
+
+/* Skills Breakdown Summary */
+.skills-breakdown-summary {
+  padding: 20px;
+  background: white;
+  border-radius: 12px;
+  border: 2px solid #e5e7eb;
+}
+
+.skills-breakdown-summary h5 {
+  font-size: 1.125rem;
+  font-weight: 700;
+  color: #1f2937;
+  margin-bottom: 15px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.skills-breakdown-summary h5 i {
+  color: #3b82f6;
+}
+
+.skill-ratings-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 15px;
+}
+
+.skill-rating-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 15px;
+  background: #f9fafb;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+  transition: all 0.2s ease;
+}
+
+.skill-rating-item:hover {
+  background: #eff6ff;
+  border-color: #3b82f6;
+  transform: translateX(3px);
+}
+
+.skill-label {
+  font-size: 0.9375rem;
+  color: #374151;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.skill-label i {
+  color: #6b7280;
+  font-size: 0.875rem;
+}
+
+.skill-stars-small {
+  display: flex;
+  gap: 2px;
+  margin: 0 10px;
+}
+
+.skill-stars-small i {
+  color: #f59e0b;
+  font-size: 0.875rem;
+}
+
+.skill-value {
+  font-size: 0.9375rem;
+  font-weight: 700;
+  color: #f59e0b;
+  margin-left: auto;
+  white-space: nowrap;
+}
+
+/* Reviews List Compact */
+.reviews-list-compact {
+  margin-top: 25px;
+}
+
+.reviews-list-compact h5 {
+  font-size: 1.125rem;
+  font-weight: 700;
+  color: #1f2937;
+  margin-bottom: 15px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.reviews-list-compact h5 i {
+  color: #3b82f6;
+}
+
+.review-card-compact {
+  padding: 20px;
+  background: white;
+  border-radius: 12px;
+  border: 2px solid #e5e7eb;
+  margin-bottom: 15px;
+  transition: all 0.3s ease;
+}
+
+.review-card-compact:hover {
+  border-color: #3b82f6;
+  box-shadow: 0 8px 20px rgba(59, 130, 246, 0.15);
+  transform: translateY(-3px);
+}
+
+.review-header-compact {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 15px;
+  padding-bottom: 15px;
+  border-bottom: 1px solid #f3f4f6;
+}
+
+.reviewer-info-compact {
+  display: flex;
+  gap: 12px;
+  flex: 1;
+}
+
+.reviewer-avatar-small {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-weight: 700;
+  font-size: 1.125rem;
+  flex-shrink: 0;
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+}
+
+.reviewer-details-compact {
+  flex: 1;
+}
+
+.reviewer-details-compact h6 {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #1f2937;
+  margin-bottom: 3px;
+}
+
+.reviewer-role-small {
+  font-size: 0.875rem;
+  color: #6b7280;
+  margin-bottom: 5px;
+  line-height: 1.3;
+}
+
+.review-time-small {
+  font-size: 0.8125rem;
+  color: #9ca3af;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.review-time-small i {
+  font-size: 0.75rem;
+}
+
+.review-rating-compact {
+  text-align: right;
+  flex-shrink: 0;
+}
+
+.rating-stars-tiny {
+  display: flex;
+  gap: 2px;
+  margin-bottom: 5px;
+  justify-content: flex-end;
+}
+
+.rating-stars-tiny i {
+  color: #f59e0b;
+  font-size: 0.875rem;
+}
+
+.rating-number-small {
+  font-size: 1rem;
+  font-weight: 800;
+  color: #f59e0b;
+  display: block;
+}
+
+.review-content-compact p {
+  color: #4b5563;
+  line-height: 1.7;
+  font-size: 0.9375rem;
+  margin-bottom: 15px;
+}
+
+.review-badges-compact {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.badge-compact {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 20px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+
+.badge-compact.would-hire {
+  background: linear-gradient(135deg, #d1fae5, #a7f3d0);
+  color: #065f46;
+  border: 1px solid #10b981;
+}
+
+.badge-compact.would-hire i {
+  font-size: 0.875rem;
+}
+
+.badge-compact.job-title {
+  background: linear-gradient(135deg, #dbeafe, #bfdbfe);
+  color: #1e40af;
+  border: 1px solid #3b82f6;
+}
+
+.badge-compact.job-title i {
+  font-size: 0.875rem;
+}
+
+.btn-view-all-ratings {
+  width: 100%;
+  padding: 12px 20px;
+  background: white;
+  border: 2px solid #3b82f6;
+  color: #3b82f6;
+  border-radius: 10px;
+  cursor: pointer;
+  font-size: 0.9375rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: all 0.3s ease;
+  margin-top: 15px;
+}
+
+.btn-view-all-ratings:hover {
+  background: #3b82f6;
+  color: white;
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(59, 130, 246, 0.3);
+}
+
+.btn-view-all-ratings i {
+  transition: transform 0.3s ease;
+}
+
+.btn-view-all-ratings:hover i {
+  transform: translateY(3px);
+}
+
+/* Rating Info in Card */
+.rating-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 8px;
+  padding: 8px 12px;
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.1), rgba(217, 119, 6, 0.1));
+  border-radius: 8px;
+  border: 1px solid rgba(245, 158, 11, 0.3);
+}
+
+.rating-stars-mini {
+  display: flex;
+  gap: 2px;
+}
+
+.rating-stars-mini i {
+  color: #f59e0b;
+  font-size: 0.875rem;
+  filter: drop-shadow(0 1px 2px rgba(245, 158, 11, 0.3));
+}
+
+.rating-text {
+  font-size: 0.875rem;
+  color: #78350f;
+  font-weight: 500;
+}
+
+.rating-text strong {
+  color: #92400e;
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.rating-info .success-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.15), rgba(5, 150, 105, 0.15));
+  color: #065f46;
+  border-radius: 20px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  border: 1px solid #10b981;
+}
+
+.rating-info .success-badge i {
+  font-size: 0.75rem;
+}
+
+/* Responsive for Ratings */
 @media (max-width: 768px) {
   .profile-modal {
     max-width: 100%;
@@ -2107,23 +2608,35 @@ body {
   .info-grid {
     grid-template-columns: 1fr;
   }
-}
-  /* Rating Modal Styles */
-.modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.7);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 10000;
-  backdrop-filter: blur(5px);
-  animation: fadeIn 0.3s ease-out;
+
+  .rating-overview-compact {
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+
+  .skill-ratings-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .review-header-compact {
+    flex-direction: column;
+    gap: 15px;
+  }
+
+  .review-rating-compact {
+    text-align: left;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .rating-stars-tiny {
+    justify-content: flex-start;
+    margin-bottom: 0;
+  }
 }
 
+/* Rating Modal Styles */
 .rating-modal-wrapper {
   max-width: 650px;
   width: 95%;
