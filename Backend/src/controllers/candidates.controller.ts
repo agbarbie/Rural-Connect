@@ -1,4 +1,4 @@
-// src/controllers/candidates.controller.ts - ENHANCED WITH RATINGS
+// src/controllers/candidates.controller.ts - FIXED FOR YOUR DATABASE SCHEMA
 
 import { Request, Response } from "express";
 import pool from "../db/db.config";
@@ -6,7 +6,7 @@ import { AuthenticatedRequest } from "../middleware/auth.middleware";
 
 export class CandidatesController {
   /**
-   * Get all candidates (applicants) with FULL PROFILE DATA
+   * Get all candidates (applicants) with FULL PROFILE DATA + RATINGS
    * GET /api/employer/candidates
    */
   async getCandidates(
@@ -71,7 +71,7 @@ export class CandidatesController {
       const offsetIndex = paramIndex + 1;
       queryParams.push(Number(limit), offset);
 
-      // 🔥 ENHANCED QUERY: Include rating statistics
+      // ✅ FIXED QUERY: Proper aggregation with GROUP BY for ratings (rating is INTEGER not DECIMAL)
       const query = `
         SELECT
           u.id as user_id,
@@ -117,8 +117,8 @@ export class CandidatesController {
           -- Company info
           c.name as company_name,
           
-          -- ✅ NEW: Rating statistics
-          COALESCE(AVG(r.rating), 0) as average_rating,
+          -- ✅ FIXED: Rating statistics (rating is INTEGER)
+          COALESCE(ROUND(AVG(r.rating::numeric), 1), 0) as average_rating,
           COUNT(r.id) as total_ratings,
           COUNT(CASE WHEN r.would_hire_again = true THEN 1 END) as would_hire_again_count
           
@@ -129,7 +129,7 @@ export class CandidatesController {
         LEFT JOIN employers e ON j.employer_id = e.id
         LEFT JOIN companies c ON e.company_id = c.id
         
-        -- ✅ NEW: Join ratings table
+        -- ✅ Join ratings table
         LEFT JOIN ratings r ON u.id = r.jobseeker_id
         
         WHERE ${whereClause}
@@ -256,7 +256,7 @@ export class CandidatesController {
           salary_expectation_min: row.salary_expectation_min,
           salary_expectation_max: row.salary_expectation_max,
 
-          // ✅ NEW: Rating information
+          // ✅ Rating information (safely parsed)
           average_rating: parseFloat(row.average_rating) || 0,
           total_ratings: parseInt(row.total_ratings) || 0,
           would_hire_again_count: parseInt(row.would_hire_again_count) || 0,
@@ -337,7 +337,7 @@ export class CandidatesController {
   }
 
   /**
-   * ✅ ENHANCED: Get candidate full profile with detailed ratings
+   * ✅ FIXED: Get candidate full profile with detailed ratings
    * GET /api/employer/candidates/:userId
    */
   async getCandidateProfile(
@@ -365,14 +365,9 @@ export class CandidatesController {
           DO UPDATE SET viewed_at = NOW()
         `;
         await pool.query(trackViewQuery, [userId, candidateUserId]);
-        console.log(
-          `✅ Tracked profile view: ${userId} viewed ${candidateUserId}`,
-        );
+        console.log(`✅ Tracked profile view: ${userId} viewed ${candidateUserId}`);
       } catch (viewError) {
-        console.error(
-          "Failed to track profile view (non-critical):",
-          viewError,
-        );
+        console.error("Failed to track profile view (non-critical):", viewError);
       }
 
       const employerQuery = `SELECT id as employer_id FROM employers WHERE user_id = $1`;
@@ -406,7 +401,7 @@ export class CandidatesController {
         });
       }
 
-      // ✅ ENHANCED QUERY: Get full profile with detailed ratings
+      // ✅ FIXED QUERY: Get full profile WITHOUT aggregation (we'll do separate query for ratings)
       const query = `
         SELECT 
           u.id as user_id,
@@ -438,36 +433,13 @@ export class CandidatesController {
           ja.cover_letter,
           ja.expected_salary,
           ja.availability_date,
-          ja.applied_at,
-          
-          -- ✅ NEW: Rating statistics
-          COALESCE(AVG(r.rating), 0) as average_rating,
-          COUNT(r.id) as total_ratings,
-          COUNT(CASE WHEN r.would_hire_again = true THEN 1 END) as would_hire_again_count,
-          
-          -- ✅ NEW: Skill ratings averages
-          COALESCE(AVG((r.skills_rating->>'technical')::numeric), 0) as avg_technical_rating,
-          COALESCE(AVG((r.skills_rating->>'communication')::numeric), 0) as avg_communication_rating,
-          COALESCE(AVG((r.skills_rating->>'professionalism')::numeric), 0) as avg_professionalism_rating,
-          COALESCE(AVG((r.skills_rating->>'quality')::numeric), 0) as avg_quality_rating,
-          COALESCE(AVG((r.skills_rating->>'timeliness')::numeric), 0) as avg_timeliness_rating
+          ja.applied_at
           
         FROM users u
         LEFT JOIN jobseeker_profiles jp ON u.id = jp.user_id
         LEFT JOIN job_applications ja ON u.id = ja.user_id 
           ${jobId ? "AND ja.job_id = $2" : ""}
-        LEFT JOIN ratings r ON u.id = r.jobseeker_id
-        
         WHERE u.id = $1 AND u.user_type = 'jobseeker'
-        
-        GROUP BY 
-          u.id, u.first_name, u.last_name, u.name, u.email, u.profile_picture,
-          jp.phone, jp.bio, jp.skills, jp.location, jp.linkedin_url, jp.github_url, 
-          jp.portfolio_url, jp.years_of_experience, jp.current_position, jp.availability_status,
-          jp.preferred_job_types, jp.preferred_locations, jp.salary_expectation_min, 
-          jp.salary_expectation_max,
-          ja.id, ja.status, ja.cover_letter, ja.expected_salary, ja.availability_date, ja.applied_at
-        
         LIMIT 1
       `;
 
@@ -482,6 +454,66 @@ export class CandidatesController {
       }
 
       const row = result.rows[0];
+
+      // ✅ SEPARATE QUERY: Get rating statistics (rating is INTEGER in your schema)
+      const ratingStatsQuery = `
+        SELECT 
+          COUNT(id) as total_ratings,
+          COALESCE(ROUND(AVG(rating::numeric), 1), 0) as average_rating,
+          COUNT(CASE WHEN would_hire_again = true THEN 1 END) as would_hire_again_count,
+          
+          -- Rating distribution
+          COUNT(CASE WHEN rating = 5 THEN 1 END) as rating_5,
+          COUNT(CASE WHEN rating = 4 THEN 1 END) as rating_4,
+          COUNT(CASE WHEN rating = 3 THEN 1 END) as rating_3,
+          COUNT(CASE WHEN rating = 2 THEN 1 END) as rating_2,
+          COUNT(CASE WHEN rating = 1 THEN 1 END) as rating_1,
+          
+          -- Skill ratings averages (from JSONB)
+          COALESCE(ROUND(AVG((skills_rating->>'technical')::numeric), 1), 0) as avg_technical,
+          COALESCE(ROUND(AVG((skills_rating->>'communication')::numeric), 1), 0) as avg_communication,
+          COALESCE(ROUND(AVG((skills_rating->>'professionalism')::numeric), 1), 0) as avg_professionalism,
+          COALESCE(ROUND(AVG((skills_rating->>'quality')::numeric), 1), 0) as avg_quality,
+          COALESCE(ROUND(AVG((skills_rating->>'timeliness')::numeric), 1), 0) as avg_timeliness
+          
+        FROM ratings
+        WHERE jobseeker_id = $1
+      `;
+
+      const ratingStatsResult = await pool.query(ratingStatsQuery, [candidateUserId]);
+      const ratingStats = ratingStatsResult.rows[0];
+
+      // ✅ Get detailed ratings list
+      const ratingsQuery = `
+        SELECT 
+          r.id,
+          r.rating,
+          r.feedback,
+          r.would_hire_again,
+          r.skills_rating,
+          r.task_description,
+          r.created_at,
+          r.job_title,
+          
+          -- Employer info from ratings table (your schema has these fields)
+          r.employer_name,
+          r.role_in_company,
+          r.company_name,
+          r.company_industry,
+          r.company_size,
+          r.company_location,
+          r.company_description,
+          r.company_website,
+          r.company_logo
+          
+        FROM ratings r
+        WHERE r.jobseeker_id = $1
+        ORDER BY r.created_at DESC
+        LIMIT 50
+      `;
+
+      const ratingsResult = await pool.query(ratingsQuery, [candidateUserId]);
+      const ratings = ratingsResult.rows;
 
       // Parse skills
       let skills: string[] = [];
@@ -510,54 +542,6 @@ export class CandidatesController {
           profileImage = `/uploads/profiles/${row.profile_picture.split("/").pop()}`;
         }
       }
-
-      // ✅ NEW: Fetch detailed ratings for this candidate
-      const ratingsQuery = `
-        SELECT 
-          r.id,
-          r.rating,
-          r.feedback,
-          r.would_hire_again,
-          r.skills_rating,
-          r.task_description,
-          r.created_at,
-          
-          -- Employer info
-          u.name as employer_name,
-          e.role_in_company,
-          c.name as company_name,
-          c.industry as company_industry,
-          c.size as company_size,
-          c.location as company_location,
-          c.description as company_description,
-          c.website as company_website,
-          c.logo_url as company_logo,
-          
-          -- Job info
-          j.title as job_title
-          
-        FROM ratings r
-        INNER JOIN users u ON r.employer_id = u.id
-        LEFT JOIN employers e ON r.employer_id = e.user_id
-        LEFT JOIN companies c ON e.company_id = c.id
-        LEFT JOIN jobs j ON r.job_id = j.id
-        
-        WHERE r.jobseeker_id = $1
-        ORDER BY r.created_at DESC
-        LIMIT 50
-      `;
-
-      const ratingsResult = await pool.query(ratingsQuery, [candidateUserId]);
-      const ratings = ratingsResult.rows;
-
-      // Calculate rating distribution
-      const ratingDistribution = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
-      ratings.forEach((rating) => {
-        const ratingValue = Math.round(rating.rating);
-        if (ratingValue >= 1 && ratingValue <= 5) {
-          ratingDistribution[ratingValue as keyof typeof ratingDistribution]++;
-        }
-      });
 
       const candidateProfile = {
         user_id: row.user_id,
@@ -601,28 +585,34 @@ export class CandidatesController {
           salary_max: row.salary_expectation_max || 0,
         },
 
-        // ✅ NEW: Rating statistics
+        // ✅ Rating statistics
         rating_stats: {
-          average_rating: parseFloat(row.average_rating) || 0,
-          total_ratings: parseInt(row.total_ratings) || 0,
-          would_hire_again_count: parseInt(row.would_hire_again_count) || 0,
-          rating_distribution: ratingDistribution,
+          average_rating: parseFloat(ratingStats.average_rating) || 0,
+          total_ratings: parseInt(ratingStats.total_ratings) || 0,
+          would_hire_again_count: parseInt(ratingStats.would_hire_again_count) || 0,
+          rating_distribution: {
+            5: parseInt(ratingStats.rating_5) || 0,
+            4: parseInt(ratingStats.rating_4) || 0,
+            3: parseInt(ratingStats.rating_3) || 0,
+            2: parseInt(ratingStats.rating_2) || 0,
+            1: parseInt(ratingStats.rating_1) || 0,
+          },
           success_rate: this.calculateSuccessRate(
-            parseFloat(row.average_rating) || 0,
-            parseInt(row.total_ratings) || 0
+            parseFloat(ratingStats.average_rating) || 0,
+            parseInt(ratingStats.total_ratings) || 0
           ),
           
           // Skill ratings breakdown
           skill_ratings: {
-            technical: parseFloat(row.avg_technical_rating) || 0,
-            communication: parseFloat(row.avg_communication_rating) || 0,
-            professionalism: parseFloat(row.avg_professionalism_rating) || 0,
-            quality: parseFloat(row.avg_quality_rating) || 0,
-            timeliness: parseFloat(row.avg_timeliness_rating) || 0,
+            technical: parseFloat(ratingStats.avg_technical) || 0,
+            communication: parseFloat(ratingStats.avg_communication) || 0,
+            professionalism: parseFloat(ratingStats.avg_professionalism) || 0,
+            quality: parseFloat(ratingStats.avg_quality) || 0,
+            timeliness: parseFloat(ratingStats.avg_timeliness) || 0,
           },
         },
 
-        // ✅ NEW: Detailed ratings list
+        // ✅ Detailed ratings list
         ratings: ratings.map(rating => ({
           id: rating.id,
           rating: rating.rating,
@@ -632,9 +622,9 @@ export class CandidatesController {
           created_at: rating.created_at,
           
           employer: {
-            name: rating.employer_name,
-            role: rating.role_in_company,
-            company_name: rating.company_name,
+            name: rating.employer_name || "Employer",
+            role: rating.role_in_company || "Employer",
+            company_name: rating.company_name || "Company",
             company_industry: rating.company_industry,
             company_size: rating.company_size,
             company_location: rating.company_location,
@@ -704,7 +694,7 @@ export class CandidatesController {
     return Math.min(Math.round(matchPercentage + bonus), 100);
   }
 
-  // ✅ NEW: Calculate success rate from ratings
+  // Calculate success rate from ratings
   private calculateSuccessRate(averageRating: number, totalRatings: number): number {
     if (totalRatings === 0) return 0;
     
@@ -738,14 +728,12 @@ export class CandidatesController {
       mostExperienced:
         "jp.years_of_experience DESC NULLS LAST, ja.applied_at DESC",
       recentlyActive: "ja.applied_at DESC",
-      // ✅ NEW: Sort by rating
-      highestRated: "AVG(r.rating) DESC NULLS LAST, ja.applied_at DESC",
     };
 
     return validSortFields[sortBy] || validSortFields["newest"];
   }
 
-  // Existing methods (toggleShortlist, inviteCandidate, getJobPosts) remain the same
+  // Existing methods remain the same
   async getJobPosts(
     req: AuthenticatedRequest,
     res: Response,
