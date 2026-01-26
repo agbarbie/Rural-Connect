@@ -40,7 +40,7 @@ export class AuthService {
       const userResult = await client.query(
         `
       INSERT INTO users (
-        name, email, password, user_type, location, contact_number, 
+        name, email, password_hash, user_type, location, contact_number, 
         company_name, role_in_company
       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
       RETURNING id::text as id, name, email, user_type, location, contact_number, 
@@ -76,7 +76,7 @@ export class AuthService {
         if (userData.company_name && userData.company_password) {
           // Check if company already exists (case-insensitive)
           const existingCompany = await client.query(
-            `SELECT id::text as id, name, password FROM companies WHERE LOWER(name) = LOWER($1)`,
+            `SELECT id::text as id, name, company_password FROM companies WHERE LOWER(name) = LOWER($1)`,
             [userData.company_name.trim()],
           );
 
@@ -85,7 +85,7 @@ export class AuthService {
             const company = existingCompany.rows[0];
             const isValidPassword = await comparePassword(
               userData.company_password,
-              company.password,
+              company.company_password,
             );
 
             if (!isValidPassword) {
@@ -106,7 +106,7 @@ export class AuthService {
             );
 
             const companyResult = await client.query(
-              `INSERT INTO companies (name, password, created_by)
+              `INSERT INTO companies (name, company_password, created_by)
              VALUES ($1, $2, $3)
              RETURNING id::text as id, name`,
               [userData.company_name.trim(), hashedCompanyPassword, newUser.id],
