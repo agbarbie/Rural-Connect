@@ -13,212 +13,213 @@ import { hashPassword, comparePassword, generateToken } from "../utils/helpers";
 import { validate as isValidUUID } from "uuid";
 
 export class AuthService {
-  async register(userData: CreateUserRequest): Promise<AuthResponse> {
-    const client = await pool.connect();
+ async register(userData: CreateUserRequest): Promise<AuthResponse> {
+  const client = await pool.connect();
 
-    try {
-      await client.query("BEGIN");
+  try {
+    await client.query("BEGIN");
 
-      // Check if user already exists
-      const existingUser = await client.query(
-        "SELECT id FROM users WHERE email = $1",
-        [userData.email.trim().toLowerCase()]
-      );
+    // Check if user already exists
+    const existingUser = await client.query(
+      "SELECT id FROM users WHERE email = $1",
+      [userData.email.trim().toLowerCase()]
+    );
 
-      if (existingUser.rows.length > 0) {
-        await client.query("ROLLBACK");
-        return {
-          success: false,
-          message: "User with this email already exists",
-        };
+    if (existingUser.rows.length > 0) {
+      await client.query("ROLLBACK");
+      return {
+        success: false,
+        message: "User with this email already exists",
+      };
+    }
+
+    // Hash password
+    const hashedPassword = await hashPassword(userData.password);
+
+    // Insert new user (removed company_password from here)
+    const userResult = await client.query(
+      `
+      INSERT INTO users (
+        name, email, password, user_type, location, contact_number, 
+        company_name, role_in_company
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      RETURNING id::text as id, name, email, user_type, location, contact_number, 
+               company_name, role_in_company, created_at, updated_at
+    `,
+      [
+        userData.name.trim(),
+        userData.email.trim().toLowerCase(),
+        hashedPassword,
+        userData.user_type,
+        userData.location || null,
+        userData.contact_number || null,
+        userData.company_name || null,
+        userData.role_in_company || null,
+      ]
+    );
+
+    const newUser = userResult.rows[0];
+    console.log(`DEBUG - Registered user with id: ${newUser.id}`);
+
+    // Validate UUID
+    if (!isValidUUID(newUser.id)) {
+      await client.query("ROLLBACK");
+      throw new Error(`Invalid UUID generated for user: ${newUser.id}`);
+    }
+
+    // Company handling for employers
+    let company_id: string | null = null;
+    let actualCompanyName: string | null =
+      userData.company_name?.trim() || `${userData.name.trim()}'s Company`;
+
+    if (userData.user_type === "employer") {
+      if (userData.company_name && userData.company_password) {
+        // Check if company already exists (case-insensitive)
+        const existingCompany = await client.query(
+          `SELECT id::text as id, name, password FROM companies WHERE LOWER(name) = LOWER($1)`,
+          [userData.company_name.trim()]
+        );
+
+        if (existingCompany.rows.length > 0) {
+          // Company exists - verify password
+          const company = existingCompany.rows[0];
+          const isValidPassword = await comparePassword(
+            userData.company_password,
+            company.password
+          );
+
+          if (!isValidPassword) {
+            await client.query("ROLLBACK");
+            return {
+              success: false,
+              message: "Invalid company password",
+            };
+          }
+
+          company_id = company.id;
+          actualCompanyName = company.name;
+          console.log("✅ User joined existing company:", actualCompanyName);
+        } else {
+          // Create new company with password
+          const hashedCompanyPassword = await hashPassword(
+            userData.company_password
+          );
+
+          const companyResult = await client.query(
+            `INSERT INTO companies (name, password, created_by)
+             VALUES ($1, $2, $3)
+             RETURNING id::text as id, name`,
+            [userData.company_name.trim(), hashedCompanyPassword, newUser.id]
+          );
+
+          company_id = companyResult.rows[0].id;
+          actualCompanyName = companyResult.rows[0].name;
+          console.log("✅ New company created:", actualCompanyName);
+        }
       }
 
-      // Hash password
-      const hashedPassword = await hashPassword(userData.password);
-
-      // Pre-hash company password if provided (kept in users table for backward compatibility)
-      let hashedCompanyPassword: string | null = null;
-      if (userData.company_password) {
-        hashedCompanyPassword = await hashPassword(userData.company_password);
-      }
-
-      // Insert new user
-      const userResult = await client.query(
+      // Insert employer profile
+      await client.query(
         `
-        INSERT INTO users (
-          name, email, password, user_type, location, contact_number, 
-          company_name, company_password, role_in_company
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-        RETURNING id::text as id, name, email, user_type, location, contact_number, 
-                 company_name, role_in_company, created_at, updated_at
+        INSERT INTO employers (
+          user_id,
+          company_id,
+          company_name,
+          role_in_company,
+          department,
+          can_post_jobs,
+          can_manage_candidates,
+          created_at,
+          updated_at
+        ) VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8, $9)
       `,
         [
-          userData.name.trim(),
-          userData.email.trim().toLowerCase(),
-          hashedPassword,
-          userData.user_type,
-          userData.location || null,
-          userData.contact_number || null,
-          userData.company_name || null,
-          hashedCompanyPassword,
+          newUser.id,
+          company_id,
+          actualCompanyName,
           userData.role_in_company || null,
+          null,
+          true,
+          true,
+          new Date(),
+          new Date(),
         ]
       );
 
-      const newUser = userResult.rows[0];
-      console.log(`DEBUG - Registered user with id: ${newUser.id}`);
-
-      // Validate UUID
-      if (!isValidUUID(newUser.id)) {
-        await client.query("ROLLBACK");
-        throw new Error(`Invalid UUID generated for user: ${newUser.id}`);
-      }
-
-      // Company handling for employers
-      let company_id: string | null = null;
-      let actualCompanyName: string | null =
-        userData.company_name?.trim() || `${userData.name.trim()}'s Company`;
-
-      if (userData.user_type === "employer") {
-        if (userData.company_name && userData.company_password) {
-          // Check if company already exists (case-insensitive)
-          const existingCompany = await client.query(
-            `SELECT id::text as id, name, password FROM companies WHERE LOWER(name) = LOWER($1)`,
-            [userData.company_name.trim()]
-          );
-
-          if (existingCompany.rows.length > 0) {
-            // Company exists - verify password
-            const company = existingCompany.rows[0];
-            const isValidPassword = await comparePassword(
-              userData.company_password,
-              company.password
-            );
-
-            if (!isValidPassword) {
-              await client.query("ROLLBACK");
-              return {
-                success: false,
-                message: "Invalid company password",
-              };
-            }
-
-            company_id = company.id;
-            actualCompanyName = company.name;
-            console.log("✅ User joined existing company:", actualCompanyName);
-          } else {
-            // Create new company (created_by is the new user)
-            const hashedCompanyPasswordForCompany = await hashPassword(
-              userData.company_password
-            );
-
-            const companyResult = await client.query(
-              `INSERT INTO companies (name, password, created_by)
-               VALUES ($1, $2, $3)
-               RETURNING id::text as id, name`,
-              [userData.company_name.trim(), hashedCompanyPasswordForCompany, newUser.id]
-            );
-
-            company_id = companyResult.rows[0].id;
-            actualCompanyName = companyResult.rows[0].name;
-            console.log("✅ New company created:", actualCompanyName);
-          }
-        }
-
-        // Insert employer profile with actual company info (company_id may be null)
+      // Update users.company_name to the actualCompanyName
+      if (actualCompanyName) {
         await client.query(
-          `
-          INSERT INTO employers (
-            user_id,
-            company_id,
-            role_in_company,
-            department,
-            can_post_jobs,
-            can_manage_candidates,
-            created_at,
-            updated_at
-          ) VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8)
-        `,
-          [
-            newUser.id,
-            company_id,
-            userData.role_in_company || null,
-            null,
-            true,
-            true,
-            new Date(),
-            new Date(),
-          ]
+          `UPDATE users SET company_name = $1, updated_at = $2 WHERE id = $3::uuid`,
+          [actualCompanyName, new Date(), newUser.id]
         );
-
-        // Optionally update the users.company_name to the actualCompanyName (keeps consistency)
-        if (actualCompanyName) {
-          await client.query(
-            `UPDATE users SET company_name = $1, updated_at = $2 WHERE id = $3::uuid`,
-            [actualCompanyName, new Date(), newUser.id]
-          );
-          newUser.company_name = actualCompanyName;
-        }
-      } else if (userData.user_type === "jobseeker") {
-        // Create jobseeker profile
-        await client.query(
-          `
-          INSERT INTO jobseekers (user_id, location, contact_number, skills, created_at, updated_at)
-          VALUES ($1::uuid, $2, $3, $4::jsonb, $5, $6)
-        `,
-          [newUser.id, userData.location || null, userData.contact_number || null, JSON.stringify([]), new Date(), new Date()]
-        );
-      } else if (userData.user_type === "admin") {
-        // Create admin profile
-        await client.query(
-          `
-          INSERT INTO admins (user_id, name, email, password_hash, contact_number, role, permissions, created_at, updated_at)
-          VALUES ($1::uuid, $2, $3, $4, $5, $6, $7::jsonb, $8, $9)
-        `,
-          [
-            newUser.id,
-            newUser.name,
-            newUser.email,
-            hashedPassword,
-            userData.contact_number || null,
-            "admin",
-            JSON.stringify(["all"]),
-            new Date(),
-            new Date(),
-          ]
-        );
+        newUser.company_name = actualCompanyName;
       }
-
-      await client.query("COMMIT");
-
-      // Prepare user object to return (remove sensitive fields)
-      const userToReturn: any = { ...newUser };
-      // Attach company info if employer
-      if (userData.user_type === "employer") {
-        userToReturn.company_id = company_id || null;
-        userToReturn.company_name = actualCompanyName || null;
-      }
-
-      // Generate token using your existing helper
-      const token = generateToken(userToReturn);
-
-      return {
-        success: true,
-        message: "User registered successfully",
-        user: userToReturn,
-        token: token,
-      };
-    } catch (error: any) {
-      await client.query("ROLLBACK");
-      console.error("Registration error:", error.message ?? error);
-      return {
-        success: false,
-        message: error.message || "Registration failed",
-      };
-    } finally {
-      client.release();
+    } else if (userData.user_type === "jobseeker") {
+      // FIXED: Create jobseeker profile with text[] for skills
+      await client.query(
+        `
+        INSERT INTO jobseekers (user_id, location, contact_number, skills, created_at, updated_at)
+        VALUES ($1::uuid, $2, $3, $4::text[], $5, $6)
+      `,
+        [
+          newUser.id,
+          userData.location || null,
+          userData.contact_number || null,
+          '{}', // Empty text array instead of JSON
+          new Date(),
+          new Date()
+        ]
+      );
+    } else if (userData.user_type === "admin") {
+      // Create admin profile
+      await client.query(
+        `
+        INSERT INTO admins (user_id, name, email, password_hash, contact_number, role, permissions, created_at, updated_at)
+        VALUES ($1::uuid, $2, $3, $4, $5, $6, $7::jsonb, $8, $9)
+      `,
+        [
+          newUser.id,
+          newUser.name,
+          newUser.email,
+          hashedPassword,
+          userData.contact_number || null,
+          "admin",
+          JSON.stringify(["all"]),
+          new Date(),
+          new Date(),
+        ]
+      );
     }
+
+    await client.query("COMMIT");
+
+    // Prepare user object to return
+    const userToReturn: any = { ...newUser };
+    if (userData.user_type === "employer") {
+      userToReturn.company_id = company_id || null;
+      userToReturn.company_name = actualCompanyName || null;
+    }
+
+    // Generate token
+    const token = generateToken(userToReturn);
+
+    return {
+      success: true,
+      message: "User registered successfully",
+      user: userToReturn,
+      token: token,
+    };
+  } catch (error: any) {
+    await client.query("ROLLBACK");
+    console.error("Registration error:", error.message ?? error);
+    return {
+      success: false,
+      message: error.message || "Registration failed",
+    };
+  } finally {
+    client.release();
   }
+}
 
   async login(
     loginData: LoginRequest & { expected_role?: string }
