@@ -36,8 +36,8 @@ export class AuthService {
       // Hash password
       const hashedPassword = await hashPassword(userData.password);
 
-      // Hash company password if provided
-      let hashedCompanyPassword = null;
+      // Pre-hash company password if provided
+      let hashedCompanyPassword: string | null = null;
       if (userData.company_password) {
         hashedCompanyPassword = await hashPassword(userData.company_password);
       }
@@ -68,53 +68,149 @@ export class AuthService {
       const newUser = userResult.rows[0];
       console.log(`DEBUG - Registered user with id: ${newUser.id}`);
 
-      // Validate UUID
       if (!isValidUUID(newUser.id)) {
         await client.query("ROLLBACK");
         throw new Error(`Invalid UUID generated for user: ${newUser.id}`);
       }
 
-    // Create associated profile based on user type
-// Create associated profile based on user type
-if (userData.user_type === 'employer') {
-  await client.query(`
-    INSERT INTO employers (user_id, role_in_company, can_post_jobs, can_manage_candidates)
-    VALUES ($1::uuid, $2, $3, $4)
-  `, [newUser.id, userData.role_in_company || null, true, true]);
-} else if (userData.user_type === 'jobseeker') {
-  await client.query(`
-    INSERT INTO jobseekers (user_id, location, contact_number, skills)
-    VALUES ($1::uuid, $2, $3, $4)
-  `, [newUser.id, userData.location || null, userData.contact_number || null, []]);
-} else if (userData.user_type === 'admin') {
-  await client.query(`
-    INSERT INTO admins (user_id, name, email, password_hash, contact_number, role, permissions)
-    VALUES ($1::uuid, $2, $3, $4, $5, $6, $7::jsonb)
-  `, [
-    newUser.id, 
-    userData.name,
-    userData.email,
-    hashedPassword,
-    userData.contact_number || null, 
-    'admin',
-    '["all"]'
-  ]);
-}
+      let company_id: string | null = null;
+      let finalCompanyName: string | null = null;
+
+      if (userData.user_type === "employer") {
+        if (userData.company_name && userData.company_password) {
+          // Check if company exists (case-insensitive)
+          const existingCompany = await client.query(
+            `SELECT id::text as id, name, password FROM companies WHERE LOWER(name) = LOWER($1)`,
+            [userData.company_name.trim()]
+          );
+
+          if (existingCompany.rows.length > 0) {
+            const company = existingCompany.rows[0];
+            const isValidPassword = await comparePassword(
+              userData.company_password,
+              company.password
+            );
+
+            if (!isValidPassword) {
+              await client.query("ROLLBACK");
+              return {
+                success: false,
+                message: "Invalid company password",
+              };
+            }
+
+            company_id = company.id;
+            finalCompanyName = company.name;
+            console.log("✅ User joined existing company:", finalCompanyName);
+          } else {
+            // Create new company
+            const hashedCompanyPasswordForCompany = await hashPassword(
+              userData.company_password
+            );
+
+            const companyResult = await client.query(
+              `INSERT INTO companies (name, password, created_by)
+               VALUES ($1, $2, $3)
+               RETURNING id::text as id, name`,
+              [userData.company_name.trim(), hashedCompanyPasswordForCompany, newUser.id]
+            );
+
+            company_id = companyResult.rows[0].id;
+            finalCompanyName = companyResult.rows[0].name;
+            console.log("✅ New company created:", finalCompanyName);
+          }
+        } else {
+          // Personal employer (no shared company)
+          finalCompanyName = `${userData.name.trim()}'s Company`;
+          console.log("✅ Personal employer account created:", finalCompanyName);
+        }
+
+        // Insert employer profile
+        await client.query(
+          `
+          INSERT INTO employers (
+            user_id, company_id, role_in_company, department,
+            can_post_jobs, can_manage_candidates, created_at, updated_at
+          ) VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8)
+        `,
+          [
+            newUser.id,
+            company_id,
+            userData.role_in_company || null,
+            null,
+            true,
+            true,
+            new Date(),
+            new Date(),
+          ]
+        );
+
+        // Sync final company name back to users table
+        if (finalCompanyName) {
+          await client.query(
+            `UPDATE users SET company_name = $1, updated_at = $2 WHERE id = $3::uuid`,
+            [finalCompanyName, new Date(), newUser.id]
+          );
+          newUser.company_name = finalCompanyName;
+        }
+      } else if (userData.user_type === "jobseeker") {
+        await client.query(
+          `
+          INSERT INTO jobseekers (user_id, location, contact_number, skills, created_at, updated_at)
+          VALUES ($1::uuid, $2, $3, $4::jsonb, $5, $6)
+        `,
+          [newUser.id, userData.location || null, userData.contact_number || null, JSON.stringify([]), new Date(), new Date()]
+        );
+      } else if (userData.user_type === "admin") {
+        await client.query(
+          `
+          INSERT INTO admins (user_id, name, email, password_hash, contact_number, role, permissions, created_at, updated_at)
+          VALUES ($1::uuid, $2, $3, $4, $5, $6, $7::jsonb, $8, $9)
+        `,
+          [
+            newUser.id,
+            newUser.name,
+            newUser.email,
+            hashedPassword,
+            userData.contact_number || null,
+            "admin",
+            JSON.stringify(["all"]),
+            new Date(),
+            new Date(),
+          ]
+        );
+      }
 
       await client.query("COMMIT");
 
-      // Generate token using your existing helper
-      const token = generateToken(newUser);
+      const userToReturn: any = {
+        id: newUser.id,
+        name: newUser.name,
+        email: newUser.email,
+        user_type: newUser.user_type,
+        created_at: newUser.created_at,
+        updated_at: newUser.updated_at,
+      };
+
+      if (userData.user_type === "employer") {
+        userToReturn.company_id = company_id;
+        userToReturn.company_name = finalCompanyName;
+        userToReturn.role_in_company = userData.role_in_company || null;
+      }
+
+      const token = generateToken(userToReturn);
+
+      console.log("✅ Registration successful. Company name returned:", finalCompanyName);
 
       return {
         success: true,
         message: "User registered successfully",
-        user: newUser,
-        token: token,
+        user: userToReturn,
+        token,
       };
     } catch (error: any) {
       await client.query("ROLLBACK");
-      console.error("Registration error:", error.message);
+      console.error("Registration error:", error.message ?? error);
       return {
         success: false,
         message: error.message || "Registration failed",
@@ -124,16 +220,30 @@ if (userData.user_type === 'employer') {
     }
   }
 
-  async login(loginData: LoginRequest): Promise<AuthResponse> {
+  async login(
+    loginData: LoginRequest & { expected_role?: string }
+  ): Promise<AuthResponse> {
     const client = await pool.connect();
 
     try {
-      // Find user by email
       const result = await client.query(
         `
-        SELECT id::text as id, name, email, password, user_type, location, contact_number, 
-               company_name, role_in_company, created_at, updated_at
-        FROM users WHERE email = $1
+        SELECT
+          u.id::text AS id,
+          u.name,
+          u.email,
+          u.password,
+          u.user_type,
+          u.created_at,
+          u.updated_at,
+          u.role_in_company,
+          e.company_id::text AS company_id,
+          COALESCE(c.name, u.company_name) AS company_name,
+          c.logo_url AS company_logo
+        FROM users u
+        LEFT JOIN employers e ON u.id = e.user_id
+        LEFT JOIN companies c ON e.company_id = c.id
+        WHERE LOWER(u.email) = $1
       `,
         [loginData.email.trim().toLowerCase()]
       );
@@ -148,7 +258,6 @@ if (userData.user_type === 'employer') {
       const user = result.rows[0];
       console.log(`DEBUG - Found user with id: ${user.id}`);
 
-      // Validate UUID
       if (!isValidUUID(user.id)) {
         console.error(`Invalid UUID for user: ${user.id}`);
         return {
@@ -157,12 +266,7 @@ if (userData.user_type === 'employer') {
         };
       }
 
-      // Verify password
-      const isPasswordValid = await comparePassword(
-        loginData.password,
-        user.password
-      );
-
+      const isPasswordValid = await comparePassword(loginData.password, user.password);
       if (!isPasswordValid) {
         return {
           success: false,
@@ -170,22 +274,50 @@ if (userData.user_type === 'employer') {
         };
       }
 
-      // Remove password from user object
-      const { password, ...userWithoutPassword } = user;
+      if (loginData.expected_role && user.user_type !== loginData.expected_role) {
+        return {
+          success: false,
+          message: `Account type mismatch. This account is registered as ${user.user_type}, but you're trying to login as ${loginData.expected_role}.`,
+        };
+      }
 
-      // Generate token using your existing helper
-      const token = generateToken(userWithoutPassword);
+      const userData: any = {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        user_type: user.user_type,
+        created_at: user.created_at,
+        updated_at: user.updated_at || user.created_at,
+      };
+
+      if (user.user_type === "employer") {
+        userData.company_id = user.company_id || null;
+        userData.company_name = user.company_name || null; // Real name via COALESCE
+        userData.role_in_company = user.role_in_company || null;
+        userData.company_logo = user.company_logo || null;
+
+        console.log("✅ Login successful. Company name returned:", userData.company_name);
+      }
+
+      const token = generateToken(userData);
 
       return {
         success: true,
         message: "Login successful",
-        user: userWithoutPassword,
-        token: token,
+        user: userData,
+        token,
+      };
+    } catch (error: any) {
+      console.error("Login error:", error.message ?? error);
+      return {
+        success: false,
+        message: error.message || "Login failed",
       };
     } finally {
       client.release();
     }
   }
+
   async logout(userId: string): Promise<boolean> {
     const client = await pool.connect();
 
@@ -196,9 +328,6 @@ if (userData.user_type === 'employer') {
         return false;
       }
 
-      // Try to record a logout timestamp on the user record if the column exists.
-      // If the column doesn't exist or the update fails, fall back to treating logout
-      // as successful since JWTs are stateless (future token blacklist can be added).
       try {
         const now = new Date();
         const result = await client.query(
@@ -212,12 +341,10 @@ if (userData.user_type === 'employer') {
         console.log(`User ${trimmedUserId} logout: user not found`);
         return false;
       } catch (innerErr: any) {
-        // Likely the last_logout_at column doesn't exist; log and return success for now.
         console.warn(
           `Logout DB update failed for user ${trimmedUserId}, treating as success:`,
           innerErr.message
         );
-        console.log(`User ${trimmedUserId} logged out`);
         return true;
       }
     } catch (error: any) {
@@ -242,9 +369,19 @@ if (userData.user_type === 'employer') {
 
       const result = await client.query(
         `
-        SELECT id::text as id, name, email, user_type, location, contact_number, 
-               company_name, role_in_company, created_at, updated_at
-        FROM users WHERE id = $1::uuid
+        SELECT 
+          id::text as id, 
+          name, 
+          email, 
+          user_type, 
+          location, 
+          contact_number, 
+          company_name, 
+          role_in_company, 
+          created_at, 
+          updated_at
+        FROM users 
+        WHERE id = $1::uuid
       `,
         [trimmedUserId]
       );
@@ -277,10 +414,18 @@ if (userData.user_type === 'employer') {
 
       const result = await client.query(
         `
-        SELECT id::text as id, user_id::text as user_id, company_id::text as company_id, 
-               role_in_company, department, can_post_jobs, can_manage_candidates, 
-               created_at, updated_at
-        FROM employers WHERE user_id = $1::uuid
+        SELECT 
+          id::text as id, 
+          user_id::text as user_id, 
+          company_id::text as company_id, 
+          role_in_company, 
+          department, 
+          can_post_jobs, 
+          can_manage_candidates, 
+          created_at, 
+          updated_at
+        FROM employers 
+        WHERE user_id = $1::uuid
       `,
         [trimmedUserId]
       );
@@ -300,34 +445,49 @@ if (userData.user_type === 'employer') {
   }
 
   async getEmployerWithDetails(
-    employerId: string
+    userId: string
   ): Promise<EmployerWithDetails | null> {
     const client = await pool.connect();
 
     try {
-      const trimmedEmployerId = employerId.trim();
-      if (!isValidUUID(trimmedEmployerId)) {
-        console.log(`DEBUG - Invalid UUID format: ${trimmedEmployerId}`);
+      const trimmedUserId = userId.trim();
+      if (!isValidUUID(trimmedUserId)) {
+        console.log(`DEBUG - Invalid UUID format: ${trimmedUserId}`);
         return null;
       }
 
       const result = await client.query(
         `
         SELECT 
-          e.id::text as id, e.user_id::text as user_id, e.company_id::text as company_id, 
-          e.role_in_company, e.department, e.can_post_jobs, e.can_manage_candidates, 
-          e.created_at, e.updated_at,
-          u.name, u.email, u.user_type, u.location, u.contact_number, u.company_name,
-          c.id::text as company_id_full, c.name as company_name_full, 
-          c.description as company_description, c.industry, c.company_size, 
-          c.website_url, c.logo_url, c.is_verified, c.created_at as company_created_at,
+          e.id::text as id, 
+          e.user_id::text as user_id, 
+          e.company_id::text as company_id, 
+          e.role_in_company, 
+          e.department, 
+          e.can_post_jobs, 
+          e.can_manage_candidates, 
+          e.created_at, 
+          e.updated_at,
+          u.name, 
+          u.email, 
+          u.user_type, 
+          u.location, 
+          u.contact_number,
+          COALESCE(c.name, u.company_name) as company_name,
+          c.logo_url,
+          c.description as company_description,
+          c.industry,
+          c.company_size,
+          c.website_url,
+          c.is_verified,
+          c.created_at as company_created_at,
           c.updated_at as company_updated_at
         FROM employers e
         INNER JOIN users u ON e.user_id = u.id
         LEFT JOIN companies c ON e.company_id = c.id
         WHERE e.user_id = $1::uuid
       `,
-        [trimmedEmployerId]
+        [trimmedUserId]
       );
 
       if (result.rows.length === 0) {
@@ -335,6 +495,7 @@ if (userData.user_type === 'employer') {
       }
 
       const row = result.rows[0];
+
       return {
         id: row.id,
         user_id: row.user_id,
@@ -360,8 +521,8 @@ if (userData.user_type === 'employer') {
         },
         company: row.company_id
           ? {
-              id: row.company_id_full,
-              name: row.company_name_full,
+              id: row.company_id,
+              name: row.company_name,
               description: row.company_description,
               industry: row.industry,
               company_size: row.company_size,
@@ -375,7 +536,7 @@ if (userData.user_type === 'employer') {
       };
     } catch (error: any) {
       console.error(
-        `Get employer with details error for id ${employerId}:`,
+        `Get employer with details error for id ${userId}:`,
         error.message
       );
       return null;
@@ -396,11 +557,24 @@ if (userData.user_type === 'employer') {
 
       const result = await client.query(
         `
-        SELECT id::text as id, user_id::text as user_id, location, contact_number, 
-               skills, experience_level, preferred_salary_min, preferred_salary_max, 
-               availability, profile_picture, bio, resume_url, portfolio_url, 
-               created_at, updated_at
-        FROM jobseekers WHERE user_id = $1::uuid
+        SELECT 
+          id::text as id, 
+          user_id::text as user_id, 
+          location, 
+          contact_number, 
+          skills, 
+          experience_level, 
+          preferred_salary_min, 
+          preferred_salary_max, 
+          availability, 
+          profile_picture, 
+          bio, 
+          resume_url, 
+          portfolio_url, 
+          created_at, 
+          updated_at
+        FROM jobseekers 
+        WHERE user_id = $1::uuid
       `,
         [trimmedUserId]
       );
@@ -437,11 +611,25 @@ if (userData.user_type === 'employer') {
       const result = await client.query(
         `
         SELECT 
-          j.id::text as id, j.user_id::text as user_id, j.location, j.contact_number, 
-          j.skills, j.experience_level, j.preferred_salary_min, j.preferred_salary_max, 
-          j.availability, j.profile_picture, j.bio, j.resume_url, j.portfolio_url, 
-          j.created_at, j.updated_at,
-          u.name, u.email, u.user_type, u.location as user_location, 
+          j.id::text as id, 
+          j.user_id::text as user_id, 
+          j.location, 
+          j.contact_number, 
+          j.skills, 
+          j.experience_level, 
+          j.preferred_salary_min, 
+          j.preferred_salary_max, 
+          j.availability, 
+          j.profile_picture, 
+          j.bio, 
+          j.resume_url, 
+          j.portfolio_url, 
+          j.created_at, 
+          j.updated_at,
+          u.name, 
+          u.email, 
+          u.user_type, 
+          u.location as user_location, 
           u.contact_number as user_contact
         FROM jobseekers j
         INNER JOIN users u ON j.user_id = u.id
@@ -593,7 +781,6 @@ if (userData.user_type === 'employer') {
       Object.entries(updateData).forEach(([key, value]) => {
         if (updatableFields.includes(key) && value !== undefined) {
           paramCount++;
-          // Handle skills array properly
           if (key === "skills" && Array.isArray(value)) {
             updateFields.push(`${key} = $${paramCount}::jsonb`);
             updateValues.push(JSON.stringify(value));

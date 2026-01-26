@@ -630,225 +630,194 @@ async updateVideoProgress(
 
 async generateCertificate(
   enrollmentId: string,
-  userId: string,
-  trainingId: string,
-  trainingTitle: string
+  arg2: string,
+  arg3: string,
+  arg4?: any,
+  arg5?: string
 ): Promise<{ certificate_url: string }> {
-  // Get jobseeker details
-  const userResult = await this.db.query(
-    'SELECT name, email FROM users WHERE id = $1',
-    [userId]
+  // Flexible signature support:
+  // Old callers: (enrollmentId, userId, trainingId, trainingTitle)
+  // New callers: (enrollmentId, jobseekerName, trainingTitle, completionDate, employerId)
+  let jobseekerName: string;
+  let trainingTitle: string;
+  let completionDate: Date;
+  let employerId: string;
+
+  if (arguments.length >= 5) {
+    // New signature
+    jobseekerName = arg2;
+    trainingTitle = arg3;
+    completionDate = arg4 instanceof Date ? arg4 : new Date(arg4);
+    employerId = arg5!;
+  } else {
+    // Old signature: need to load details from DB
+    const userId = arg2;
+    const trainingId = arg3;
+    // Load enrollment, user and training/provider info
+    const enrollmentRes = await this.db.query(
+      `SELECT en.completed_at, en.user_id, en.training_id, t.provider_id, u.first_name, u.last_name, u.email
+       FROM training_enrollments en
+       JOIN users u ON en.user_id = u.id
+       JOIN trainings t ON en.training_id = t.id
+       WHERE en.id = $1`,
+      [enrollmentId]
+    );
+    if (enrollmentRes.rows.length === 0) {
+      throw new Error('Enrollment not found');
+    }
+    const er = enrollmentRes.rows[0];
+    jobseekerName = `${(er.first_name || '').trim()} ${(er.last_name || '').trim()}`.trim() || er.email;
+    trainingTitle = arg4 || ''; // caller provided trainingTitle as 4th param in old signature
+    completionDate = er.completed_at ? new Date(er.completed_at) : new Date();
+    employerId = er.provider_id;
+  }
+
+  // STEP 1: Get actual company/employer info
+  const companyQuery = await this.db.query(
+    `SELECT 
+       u.name AS employer_name,
+       e.company_name,
+       c.name AS company_full_name,
+       c.logo_url AS company_logo,
+       c.description AS company_description,
+       e.role_in_company,
+       u.email AS employer_email
+     FROM users u
+     LEFT JOIN employers e ON u.id = e.user_id
+     LEFT JOIN companies c ON e.company_id = c.id
+     WHERE u.id = $1`,
+    [employerId]
   );
-  const user = userResult.rows[0];
-  const userName = user.name || user.email.split('@')[0];
 
-  // ✅ FIXED QUERY: Get ACTUAL company name from companies table
-  const trainingResult = await this.db.query(`
-    SELECT 
-      t.provider_name,
-      t.provider_id,
-      
-      -- Direct join (provider_id = user_id)
-      COALESCE(u_direct.name, '') as direct_name,
-      COALESCE(u_direct.email, '') as direct_email,
-      
-      -- Indirect join (provider_id = employer_id → user_id)
-      COALESCE(u_indirect.name, '') as indirect_name,
-      COALESCE(u_indirect.email, '') as indirect_email,
-      
-      -- ✅ CRITICAL: Get actual company name from companies table
-      COALESCE(c.name, '') as actual_company_name,
-      e.company_id
-      
-    FROM trainings t
-    LEFT JOIN users u_direct ON u_direct.id = t.provider_id
-    LEFT JOIN employers e ON e.id = t.provider_id
-    LEFT JOIN users u_indirect ON u_indirect.id = e.user_id
-    LEFT JOIN companies c ON c.id = e.company_id
-    WHERE t.id = $1
-  `, [trainingId]);
-
-  const trainingData = trainingResult.rows[0];
-  
-  if (!trainingData) {
-    throw new Error('Training not found');
-  }
-  
-  // ✅ Build company and employer names with smart priority
-  let companyName = '';
-  let employerPersonalName = '';
-  
-  // ========================================
-  // PRIORITY 1: Use actual company name from companies table
-  // ========================================
-  if (trainingData.actual_company_name && trainingData.actual_company_name.trim()) {
-    companyName = trainingData.actual_company_name.trim();
-    console.log('✅ Using company from companies table:', companyName);
-  }
-  // FALLBACK: Use provider_name from training
-  else if (trainingData.provider_name && trainingData.provider_name.trim()) {
-    companyName = trainingData.provider_name.trim();
-    console.log('⚠️ Using provider_name as fallback:', companyName);
-  }
-  
-  // ========================================
-  // Get employer personal name
-  // ========================================
-  // Priority 1: Try direct join first (provider_id = user_id)
-  if (trainingData.direct_name && trainingData.direct_name.trim()) {
-    employerPersonalName = trainingData.direct_name.trim();
-  }
-  // Priority 2: Try indirect join through employers table
-  else if (trainingData.indirect_name && trainingData.indirect_name.trim()) {
-    employerPersonalName = trainingData.indirect_name.trim();
-  }
-  // Priority 3: Parse email from direct join
-  else if (trainingData.direct_email && trainingData.direct_email.trim()) {
-    const username = trainingData.direct_email.split('@')[0];
-    employerPersonalName = username
-      .replace(/[_.-]/g, ' ')
-      .replace(/\b\w/g, (letter: string) => letter.toUpperCase());
-  }
-  // Priority 4: Parse email from indirect join
-  else if (trainingData.indirect_email && trainingData.indirect_email.trim()) {
-    const username = trainingData.indirect_email.split('@')[0];
-    employerPersonalName = username
-      .replace(/[_.-]/g, ' ')
-      .replace(/\b\w/g, (letter: string) => letter.toUpperCase());
-  }
-  
-  // Absolute fallback
-  if (!companyName && !employerPersonalName) {
-    companyName = 'Training Provider';
+  if (!companyQuery.rows || companyQuery.rows.length === 0) {
+    throw new Error('Employer not found');
   }
 
-  console.log('📜 Certificate details:', {
-    jobseeker: userName,
-    company: companyName,
-    employer: employerPersonalName,
-    training: trainingTitle,
-    provider_id: trainingData.provider_id,
-    company_id: trainingData.company_id,
-    actual_company: trainingData.actual_company_name,
-    provider_name: trainingData.provider_name
-  });
+  const companyData = companyQuery.rows[0];
 
-  const certificateFileName = `certificate-${enrollmentId}-${Date.now()}.pdf`;
+  const actualCompanyName =
+    companyData.company_name ||
+    companyData.company_full_name ||
+    companyData.employer_name ||
+    'Training Provider';
 
-  // Generate PDF
+  // STEP 2: Generate certificate PDF
   const fs = require('fs');
   const path = require('path');
-  const PDFDocument = require('pdfkit');
+  const fileName = `certificate-${enrollmentId}-${Date.now()}.pdf`;
+  const certificatesDir = path.join(__dirname, '../../uploads/certificates');
 
-  const baseUploadPath = path.join(__dirname, '../../uploads');
-  const certificateDir = path.join(baseUploadPath, 'certificates');
-  
-  if (!fs.existsSync(certificateDir)) {
-    fs.mkdirSync(certificateDir, { recursive: true });
+  if (!fs.existsSync(certificatesDir)) {
+    fs.mkdirSync(certificatesDir, { recursive: true });
   }
 
-  const certificatePath = path.join(certificateDir, certificateFileName);
-  const doc = new PDFDocument({ size: 'A4', layout: 'landscape' });
-  const writeStream = fs.createWriteStream(certificatePath);
+  const filePath = path.join(certificatesDir, fileName);
 
-  doc.pipe(writeStream);
+  // Use imported PDFDocument and createWriteStream
+  const doc = new PDFDocument({
+    size: 'A4',
+    layout: 'landscape',
+    margin: 50
+  });
 
-  // ==========================================
-  // CERTIFICATE DESIGN
-  // ==========================================
+  const stream = createWriteStream(filePath);
+  doc.pipe(stream);
 
-  // Decorative border
-  doc.rect(50, 50, doc.page.width - 100, doc.page.height - 100).stroke();
-  doc.rect(55, 55, doc.page.width - 110, doc.page.height - 110).stroke();
+  const pageWidth = doc.page.width;
+  const pageHeight = doc.page.height;
 
-  // Header
-  doc.fontSize(40).font('Helvetica-Bold').text('Certificate of Completion', 100, 100, {
+  // Border (with color)
+  doc.lineWidth(3).strokeColor('#1a73e8').rect(40, 40, pageWidth - 80, pageHeight - 80).stroke();
+  // Inner border
+  doc.lineWidth(1).strokeColor('#1a73e8').rect(50, 50, pageWidth - 100, pageHeight - 100).stroke();
+
+  // Title
+  doc.fontSize(48).fillColor('#1a73e8').text('Certificate of Completion', 0, 120, {
     align: 'center',
-    width: doc.page.width - 200
+    width: pageWidth
   });
 
-  // "This is to certify that"
-  doc.fontSize(16).font('Helvetica').text('This is to certify that', 100, 170, {
+  // Subtitle
+  doc.fontSize(16).fillColor('#666').text('This is to certify that', 0, 200, {
     align: 'center',
-    width: doc.page.width - 200
+    width: pageWidth
   });
 
-  // Jobseeker Name
-  doc.fontSize(32).font('Helvetica-Bold').text(userName, 100, 210, {
+  // Recipient name
+  doc.fontSize(36).fillColor('#000').text(jobseekerName, 0, 240, {
     align: 'center',
-    width: doc.page.width - 200
+    width: pageWidth
   });
 
-  // "has successfully completed the training"
-  doc.fontSize(16).font('Helvetica').text('has successfully completed the training', 100, 270, {
+  // Achievement text
+  doc.fontSize(16).fillColor('#666').text('has successfully completed the training', 0, 300, {
     align: 'center',
-    width: doc.page.width - 200
+    width: pageWidth
   });
 
-  // Training Title
-  doc.fontSize(26).font('Helvetica-Bold').text(trainingTitle, 100, 310, {
+  // Training title
+  doc.fontSize(28).fillColor('#1a73e8').text(trainingTitle, 0, 340, {
     align: 'center',
-    width: doc.page.width - 200
+    width: pageWidth
   });
 
-  // Completion Date
-  const completionDate = new Date().toLocaleDateString('en-US', {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric'
-  });
+  // Completion date
+  doc.fontSize(14).fillColor('#666').text(
+    `Date of Completion: ${completionDate.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    })}`,
+    0,
+    400,
+    { align: 'center', width: pageWidth }
+  );
 
-  doc.fontSize(14).font('Helvetica').text(`Date of Completion: ${completionDate}`, 100, 380, {
+  // Issued by (company)
+  doc.fontSize(14).fillColor('#000').text('Issued by:', 0, 450, {
     align: 'center',
-    width: doc.page.width - 200
+    width: pageWidth
   });
 
-  // ✅ EMPLOYER SECTION
-  doc.moveTo(200, 430).lineTo(doc.page.width - 200, 430).stroke();
-
-  doc.fontSize(12).font('Helvetica-Oblique').text('Issued by:', 100, 450, {
+  doc.fontSize(18).fillColor('#1a73e8').text(actualCompanyName, 0, 475, {
     align: 'center',
-    width: doc.page.width - 200
+    width: pageWidth
   });
 
-  // Company Name (large and bold)
-  if (companyName) {
-    doc.fontSize(20).font('Helvetica-Bold').text(companyName, 100, 475, {
+  if (companyData.role_in_company) {
+    doc.fontSize(12).fillColor('#666').text(companyData.role_in_company, 0, 505, {
       align: 'center',
-      width: doc.page.width - 200
-    });
-  }
-
-  // Employer Personal Name (smaller, below company if different)
-  if (employerPersonalName && companyName !== employerPersonalName) {
-    doc.fontSize(14).font('Helvetica').text(employerPersonalName, 100, 505, {
-      align: 'center',
-      width: doc.page.width - 200
+      width: pageWidth
     });
   }
 
   // Signature line
-  const signatureY = employerPersonalName && companyName !== employerPersonalName ? 535 : 510;
-  doc.moveTo(300, signatureY).lineTo(doc.page.width - 300, signatureY).stroke();
-  doc.fontSize(10).font('Helvetica-Oblique').text('Authorized Signature', 100, signatureY + 5, {
+  const signatureY = 540;
+  const signatureWidth = 200;
+  const signatureX = (pageWidth - signatureWidth) / 2;
+
+  doc.moveTo(signatureX, signatureY).lineTo(signatureX + signatureWidth, signatureY).strokeColor('#000').stroke();
+
+  doc.fontSize(10).fillColor('#666').text('Authorized Signature', signatureX, signatureY + 10, {
+    width: signatureWidth,
+    align: 'center'
+  });
+
+  // Footer
+  doc.fontSize(10).fillColor('#999').text('This is a digitally generated certificate', 0, pageHeight - 80, {
     align: 'center',
-    width: doc.page.width - 200
+    width: pageWidth
   });
 
   doc.end();
 
-  return new Promise((resolve, reject) => {
-    writeStream.on('finish', () => {
-      console.log('✅ Certificate generated successfully:', {
-        file: certificateFileName,
-        company: companyName,
-        employer: employerPersonalName,
-        company_source: trainingData.actual_company_name ? 'companies table' : 'provider_name fallback'
-      });
-      resolve({ certificate_url: certificateFileName });
-    });
-    writeStream.on('error', reject);
+  await new Promise<void>((resolve, reject) => {
+    stream.on('finish', resolve);
+    stream.on('error', reject);
   });
+
+  // Return object compatible with existing callers
+  return { certificate_url: `/certificates/${fileName}` };
 }
 
   // ============================================
@@ -2830,95 +2799,110 @@ async getEnrolledTrainings(userId: string, params: TrainingSearchParams): Promis
   }
   // ✅ FIXED: Certificate issuance with proper notification
 async issueCertificate(enrollmentId: string, employerId: string): Promise<any> {
+  const client = await this.db.connect();
   try {
-    console.log('🎓 Issuing certificate:', { enrollmentId, employerId });
-    
-    // Get enrollment details
-    const enrollmentRes = await this.db.query(
+    console.log('🎓 issueCertificate called:', { enrollmentId, employerId });
+
+    await client.query('BEGIN');
+
+    // Load enrollment, training and jobseeker info
+    const enrollmentRes = await client.query(
       `SELECT 
-        en.*, 
-        tr.title AS training_title, 
-        tr.provider_id AS training_provider_id, 
-        tr.has_certificate AS supports_certificate, 
-        us.id AS jobseeker_id, 
-        us.email AS jobseeker_email, 
-        us.first_name, 
-        us.last_name
+         en.id,
+         en.user_id,
+         en.training_id,
+         en.progress_percentage,
+         en.certificate_issued,
+         en.certificate_url,
+         en.completed_at,
+         t.title AS training_title,
+         t.provider_id AS training_provider_id,
+         t.has_certificate,
+         u.first_name,
+         u.last_name,
+         u.email AS jobseeker_email
        FROM training_enrollments en
-       JOIN trainings tr ON en.training_id = tr.id
-       JOIN users us ON en.user_id = us.id
-       WHERE en.id = $1`,
+       JOIN trainings t ON en.training_id = t.id
+       JOIN users u ON en.user_id = u.id
+       WHERE en.id = $1
+       FOR UPDATE
+      `,
       [enrollmentId]
     );
 
     if (enrollmentRes.rows.length === 0) {
+      await client.query('ROLLBACK');
       throw new Error('Enrollment not found');
     }
 
     const row = enrollmentRes.rows[0];
 
-    // Verify employer ownership
-    const profileCheck = await this.db.query(
+    // Ownership check (allow either user_id or employer profile id)
+    const profileCheck = await client.query(
       'SELECT id FROM employers WHERE user_id = $1',
       [employerId]
     );
     const profileId = profileCheck.rows.length > 0 ? profileCheck.rows[0].id : null;
 
-    const ownerMatch = row.training_provider_id === employerId || 
-                      row.training_provider_id === profileId;
-    
-    if (!ownerMatch) {
+    const isOwner = row.training_provider_id === employerId || row.training_provider_id === profileId;
+    if (!isOwner) {
+      await client.query('ROLLBACK');
       throw new Error('Unauthorized: You can only issue certificates for your own trainings');
     }
 
-    if (!row.supports_certificate) {
-      throw new Error('This training does not provide certificates');
+    // Validations
+    if (!row.has_certificate) {
+      await client.query('ROLLBACK');
+      throw new Error('This training does not offer certificates');
+    }
+
+    if ((row.progress_percentage ?? 0) < 100 && !row.completed_at) {
+      await client.query('ROLLBACK');
+      throw new Error('Training must be 100% complete to issue certificate');
     }
 
     if (row.certificate_issued) {
-      console.log('ℹ️ Certificate already issued');
-      return { 
-        success: true, 
-        message: 'Certificate already issued', 
+      await client.query('ROLLBACK');
+      return {
+        success: true,
+        message: 'Certificate already issued',
         certificate_url: row.certificate_url,
-        enrollment_id: enrollmentId  // ✅ Return enrollment_id
+        enrollment_id: enrollmentId
       };
     }
 
-    // Generate certificate PDF
+    const jobseekerName = `${(row.first_name || '').trim()} ${(row.last_name || '').trim()}`.trim() || row.jobseeker_email;
+    const completionDate = row.completed_at ? new Date(row.completed_at) : new Date();
+
+    // Generate certificate (use new signature: enrollmentId, jobseekerName, trainingTitle, completionDate, employerId)
     const cert = await this.generateCertificate(
-      enrollmentId, 
-      row.user_id, 
-      row.training_id, 
-      row.training_title
+      enrollmentId,
+      jobseekerName,
+      row.training_title,
+      completionDate,
+      employerId
     );
 
-    console.log('📄 Certificate generated:', cert.certificate_url);
-
-    // Update database with certificate info
-    await this.db.query(
+    // Persist certificate info
+    await client.query(
       `UPDATE training_enrollments
-       SET certificate_issued = true, 
-           certificate_url = $1, 
+       SET certificate_issued = true,
+           certificate_url = $1,
            certificate_issued_at = CURRENT_TIMESTAMP
        WHERE id = $2`,
       [cert.certificate_url, enrollmentId]
     );
 
-    console.log('✅ Database updated with certificate URL');
+    await client.query('COMMIT');
 
-    const jobseekerName = `${row.first_name || ''} ${row.last_name || ''}`.trim() || 
-                          row.jobseeker_email;
-
-    // ✅ CRITICAL: Notify jobseeker with ALL required metadata
-    console.log('📬 Sending notification to jobseeker...');
+    // Notify jobseeker
     await this.createNotification(
-      row.user_id,  // jobseeker user_id
+      row.user_id,
       'certificate_issued',
       `🎉 Certificate issued for "${row.training_title}"! Click to download.`,
       {
         training_id: row.training_id,
-        enrollment_id: enrollmentId,           // ✅ CRITICAL - This becomes related_id
+        enrollment_id: enrollmentId,
         certificate_url: cert.certificate_url,
         training_title: row.training_title,
         issued_by: employerId,
@@ -2926,15 +2910,12 @@ async issueCertificate(enrollmentId: string, employerId: string): Promise<any> {
       }
     );
 
-    console.log('✅ Jobseeker notification sent');
-
     // Notify employer
-    console.log('📬 Sending notification to employer...');
     await this.createNotification(
       employerId,
       'certificate_issued',
       `Certificate issued to ${jobseekerName} for "${row.training_title}".`,
-      { 
+      {
         enrollment_id: enrollmentId,
         training_id: row.training_id,
         jobseeker_id: row.user_id,
@@ -2943,18 +2924,21 @@ async issueCertificate(enrollmentId: string, employerId: string): Promise<any> {
       }
     );
 
-    console.log('✅ Employer notification sent');
-    console.log('✅ Certificate issuance complete');
+    console.log('✅ Certificate issuance complete:', { enrollmentId, certificate_url: cert.certificate_url });
 
-    return { 
-      success: true, 
-      message: 'Certificate issued successfully', 
+    return {
+      success: true,
+      message: 'Certificate issued successfully',
       certificate_url: cert.certificate_url,
-      enrollment_id: enrollmentId  // ✅ Return enrollment_id
+      enrollment_id: enrollmentId,
+      issued_at: new Date().toISOString()
     };
   } catch (err: any) {
-    console.error('❌ Error issuing certificate:', err);
+    try { await client.query('ROLLBACK'); } catch (_) {}
+    console.error('❌ issueCertificate error:', err);
     throw err;
+  } finally {
+    client.release();
   }
 }
 
