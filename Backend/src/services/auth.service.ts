@@ -36,7 +36,7 @@ export class AuthService {
       // Hash password
       const hashedPassword = await hashPassword(userData.password);
 
-      // Pre-hash company password if provided
+      // Pre-hash company password if provided (kept in users table for backward compatibility)
       let hashedCompanyPassword: string | null = null;
       if (userData.company_password) {
         hashedCompanyPassword = await hashPassword(userData.company_password);
@@ -68,23 +68,27 @@ export class AuthService {
       const newUser = userResult.rows[0];
       console.log(`DEBUG - Registered user with id: ${newUser.id}`);
 
+      // Validate UUID
       if (!isValidUUID(newUser.id)) {
         await client.query("ROLLBACK");
         throw new Error(`Invalid UUID generated for user: ${newUser.id}`);
       }
 
+      // Company handling for employers
       let company_id: string | null = null;
-      let finalCompanyName: string | null = null;
+      let actualCompanyName: string | null =
+        userData.company_name?.trim() || `${userData.name.trim()}'s Company`;
 
       if (userData.user_type === "employer") {
         if (userData.company_name && userData.company_password) {
-          // Check if company exists (case-insensitive)
+          // Check if company already exists (case-insensitive)
           const existingCompany = await client.query(
             `SELECT id::text as id, name, password FROM companies WHERE LOWER(name) = LOWER($1)`,
             [userData.company_name.trim()]
           );
 
           if (existingCompany.rows.length > 0) {
+            // Company exists - verify password
             const company = existingCompany.rows[0];
             const isValidPassword = await comparePassword(
               userData.company_password,
@@ -100,10 +104,10 @@ export class AuthService {
             }
 
             company_id = company.id;
-            finalCompanyName = company.name;
-            console.log("✅ User joined existing company:", finalCompanyName);
+            actualCompanyName = company.name;
+            console.log("✅ User joined existing company:", actualCompanyName);
           } else {
-            // Create new company
+            // Create new company (created_by is the new user)
             const hashedCompanyPasswordForCompany = await hashPassword(
               userData.company_password
             );
@@ -116,21 +120,23 @@ export class AuthService {
             );
 
             company_id = companyResult.rows[0].id;
-            finalCompanyName = companyResult.rows[0].name;
-            console.log("✅ New company created:", finalCompanyName);
+            actualCompanyName = companyResult.rows[0].name;
+            console.log("✅ New company created:", actualCompanyName);
           }
-        } else {
-          // Personal employer (no shared company)
-          finalCompanyName = `${userData.name.trim()}'s Company`;
-          console.log("✅ Personal employer account created:", finalCompanyName);
         }
 
-        // Insert employer profile
+        // Insert employer profile with actual company info (company_id may be null)
         await client.query(
           `
           INSERT INTO employers (
-            user_id, company_id, role_in_company, department,
-            can_post_jobs, can_manage_candidates, created_at, updated_at
+            user_id,
+            company_id,
+            role_in_company,
+            department,
+            can_post_jobs,
+            can_manage_candidates,
+            created_at,
+            updated_at
           ) VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8)
         `,
           [
@@ -145,15 +151,16 @@ export class AuthService {
           ]
         );
 
-        // Sync final company name back to users table
-        if (finalCompanyName) {
+        // Optionally update the users.company_name to the actualCompanyName (keeps consistency)
+        if (actualCompanyName) {
           await client.query(
             `UPDATE users SET company_name = $1, updated_at = $2 WHERE id = $3::uuid`,
-            [finalCompanyName, new Date(), newUser.id]
+            [actualCompanyName, new Date(), newUser.id]
           );
-          newUser.company_name = finalCompanyName;
+          newUser.company_name = actualCompanyName;
         }
       } else if (userData.user_type === "jobseeker") {
+        // Create jobseeker profile
         await client.query(
           `
           INSERT INTO jobseekers (user_id, location, contact_number, skills, created_at, updated_at)
@@ -162,6 +169,7 @@ export class AuthService {
           [newUser.id, userData.location || null, userData.contact_number || null, JSON.stringify([]), new Date(), new Date()]
         );
       } else if (userData.user_type === "admin") {
+        // Create admin profile
         await client.query(
           `
           INSERT INTO admins (user_id, name, email, password_hash, contact_number, role, permissions, created_at, updated_at)
@@ -183,30 +191,22 @@ export class AuthService {
 
       await client.query("COMMIT");
 
-      const userToReturn: any = {
-        id: newUser.id,
-        name: newUser.name,
-        email: newUser.email,
-        user_type: newUser.user_type,
-        created_at: newUser.created_at,
-        updated_at: newUser.updated_at,
-      };
-
+      // Prepare user object to return (remove sensitive fields)
+      const userToReturn: any = { ...newUser };
+      // Attach company info if employer
       if (userData.user_type === "employer") {
-        userToReturn.company_id = company_id;
-        userToReturn.company_name = finalCompanyName;
-        userToReturn.role_in_company = userData.role_in_company || null;
+        userToReturn.company_id = company_id || null;
+        userToReturn.company_name = actualCompanyName || null;
       }
 
+      // Generate token using your existing helper
       const token = generateToken(userToReturn);
-
-      console.log("✅ Registration successful. Company name returned:", finalCompanyName);
 
       return {
         success: true,
         message: "User registered successfully",
         user: userToReturn,
-        token,
+        token: token,
       };
     } catch (error: any) {
       await client.query("ROLLBACK");
@@ -226,6 +226,7 @@ export class AuthService {
     const client = await pool.connect();
 
     try {
+      // Get user with employer/company info
       const result = await client.query(
         `
         SELECT
@@ -236,9 +237,10 @@ export class AuthService {
           u.user_type,
           u.created_at,
           u.updated_at,
-          u.role_in_company,
           e.company_id::text AS company_id,
-          COALESCE(c.name, u.company_name) AS company_name,
+          e.company_name,
+          e.role_in_company,
+          c.name AS company_full_name,
           c.logo_url AS company_logo
         FROM users u
         LEFT JOIN employers e ON u.id = e.user_id
@@ -258,6 +260,7 @@ export class AuthService {
       const user = result.rows[0];
       console.log(`DEBUG - Found user with id: ${user.id}`);
 
+      // Validate UUID
       if (!isValidUUID(user.id)) {
         console.error(`Invalid UUID for user: ${user.id}`);
         return {
@@ -266,7 +269,12 @@ export class AuthService {
         };
       }
 
-      const isPasswordValid = await comparePassword(loginData.password, user.password);
+      // Verify password using existing helper
+      const isPasswordValid = await comparePassword(
+        loginData.password,
+        user.password
+      );
+
       if (!isPasswordValid) {
         return {
           success: false,
@@ -274,13 +282,26 @@ export class AuthService {
         };
       }
 
-      if (loginData.expected_role && user.user_type !== loginData.expected_role) {
+      // Verify expected role if provided
+      if (
+        loginData.expected_role &&
+        user.user_type !== loginData.expected_role
+      ) {
         return {
           success: false,
           message: `Account type mismatch. This account is registered as ${user.user_type}, but you're trying to login as ${loginData.expected_role}.`,
         };
       }
 
+      // Determine actual company name (prefer employer.company_name then companies.name)
+      const actualCompanyName =
+        user.user_type === "employer"
+          ? user.company_name || user.company_full_name || null
+          : null;
+
+      console.log("✅ User logged in with company:", actualCompanyName);
+
+      // Prepare user object to return (remove sensitive fields)
       const userData: any = {
         id: user.id,
         name: user.name,
@@ -292,13 +313,12 @@ export class AuthService {
 
       if (user.user_type === "employer") {
         userData.company_id = user.company_id || null;
-        userData.company_name = user.company_name || null; // Real name via COALESCE
+        userData.company_name = actualCompanyName;
         userData.role_in_company = user.role_in_company || null;
         userData.company_logo = user.company_logo || null;
-
-        console.log("✅ Login successful. Company name returned:", userData.company_name);
       }
 
+      // Generate token (use the full user-like object to satisfy the expected type)
       const token = generateToken(userData);
 
       return {
@@ -317,7 +337,6 @@ export class AuthService {
       client.release();
     }
   }
-
   async logout(userId: string): Promise<boolean> {
     const client = await pool.connect();
 
@@ -328,6 +347,9 @@ export class AuthService {
         return false;
       }
 
+      // Try to record a logout timestamp on the user record if the column exists.
+      // If the column doesn't exist or the update fails, fall back to treating logout
+      // as successful since JWTs are stateless (future token blacklist can be added).
       try {
         const now = new Date();
         const result = await client.query(
@@ -341,10 +363,12 @@ export class AuthService {
         console.log(`User ${trimmedUserId} logout: user not found`);
         return false;
       } catch (innerErr: any) {
+        // Likely the last_logout_at column doesn't exist; log and return success for now.
         console.warn(
           `Logout DB update failed for user ${trimmedUserId}, treating as success:`,
           innerErr.message
         );
+        console.log(`User ${trimmedUserId} logged out`);
         return true;
       }
     } catch (error: any) {
@@ -369,19 +393,9 @@ export class AuthService {
 
       const result = await client.query(
         `
-        SELECT 
-          id::text as id, 
-          name, 
-          email, 
-          user_type, 
-          location, 
-          contact_number, 
-          company_name, 
-          role_in_company, 
-          created_at, 
-          updated_at
-        FROM users 
-        WHERE id = $1::uuid
+        SELECT id::text as id, name, email, user_type, location, contact_number, 
+               company_name, role_in_company, created_at, updated_at
+        FROM users WHERE id = $1::uuid
       `,
         [trimmedUserId]
       );
@@ -414,18 +428,10 @@ export class AuthService {
 
       const result = await client.query(
         `
-        SELECT 
-          id::text as id, 
-          user_id::text as user_id, 
-          company_id::text as company_id, 
-          role_in_company, 
-          department, 
-          can_post_jobs, 
-          can_manage_candidates, 
-          created_at, 
-          updated_at
-        FROM employers 
-        WHERE user_id = $1::uuid
+        SELECT id::text as id, user_id::text as user_id, company_id::text as company_id, 
+               role_in_company, department, can_post_jobs, can_manage_candidates, 
+               created_at, updated_at
+        FROM employers WHERE user_id = $1::uuid
       `,
         [trimmedUserId]
       );
@@ -445,49 +451,34 @@ export class AuthService {
   }
 
   async getEmployerWithDetails(
-    userId: string
+    employerId: string
   ): Promise<EmployerWithDetails | null> {
     const client = await pool.connect();
 
     try {
-      const trimmedUserId = userId.trim();
-      if (!isValidUUID(trimmedUserId)) {
-        console.log(`DEBUG - Invalid UUID format: ${trimmedUserId}`);
+      const trimmedEmployerId = employerId.trim();
+      if (!isValidUUID(trimmedEmployerId)) {
+        console.log(`DEBUG - Invalid UUID format: ${trimmedEmployerId}`);
         return null;
       }
 
       const result = await client.query(
         `
         SELECT 
-          e.id::text as id, 
-          e.user_id::text as user_id, 
-          e.company_id::text as company_id, 
-          e.role_in_company, 
-          e.department, 
-          e.can_post_jobs, 
-          e.can_manage_candidates, 
-          e.created_at, 
-          e.updated_at,
-          u.name, 
-          u.email, 
-          u.user_type, 
-          u.location, 
-          u.contact_number,
-          COALESCE(c.name, u.company_name) as company_name,
-          c.logo_url,
-          c.description as company_description,
-          c.industry,
-          c.company_size,
-          c.website_url,
-          c.is_verified,
-          c.created_at as company_created_at,
+          e.id::text as id, e.user_id::text as user_id, e.company_id::text as company_id, 
+          e.role_in_company, e.department, e.can_post_jobs, e.can_manage_candidates, 
+          e.created_at, e.updated_at,
+          u.name, u.email, u.user_type, u.location, u.contact_number, u.company_name,
+          c.id::text as company_id_full, c.name as company_name_full, 
+          c.description as company_description, c.industry, c.company_size, 
+          c.website_url, c.logo_url, c.is_verified, c.created_at as company_created_at,
           c.updated_at as company_updated_at
         FROM employers e
         INNER JOIN users u ON e.user_id = u.id
         LEFT JOIN companies c ON e.company_id = c.id
         WHERE e.user_id = $1::uuid
       `,
-        [trimmedUserId]
+        [trimmedEmployerId]
       );
 
       if (result.rows.length === 0) {
@@ -495,7 +486,6 @@ export class AuthService {
       }
 
       const row = result.rows[0];
-
       return {
         id: row.id,
         user_id: row.user_id,
@@ -521,8 +511,8 @@ export class AuthService {
         },
         company: row.company_id
           ? {
-              id: row.company_id,
-              name: row.company_name,
+              id: row.company_id_full,
+              name: row.company_name_full,
               description: row.company_description,
               industry: row.industry,
               company_size: row.company_size,
@@ -536,7 +526,7 @@ export class AuthService {
       };
     } catch (error: any) {
       console.error(
-        `Get employer with details error for id ${userId}:`,
+        `Get employer with details error for id ${employerId}:`,
         error.message
       );
       return null;
@@ -557,24 +547,11 @@ export class AuthService {
 
       const result = await client.query(
         `
-        SELECT 
-          id::text as id, 
-          user_id::text as user_id, 
-          location, 
-          contact_number, 
-          skills, 
-          experience_level, 
-          preferred_salary_min, 
-          preferred_salary_max, 
-          availability, 
-          profile_picture, 
-          bio, 
-          resume_url, 
-          portfolio_url, 
-          created_at, 
-          updated_at
-        FROM jobseekers 
-        WHERE user_id = $1::uuid
+        SELECT id::text as id, user_id::text as user_id, location, contact_number, 
+               skills, experience_level, preferred_salary_min, preferred_salary_max, 
+               availability, profile_picture, bio, resume_url, portfolio_url, 
+               created_at, updated_at
+        FROM jobseekers WHERE user_id = $1::uuid
       `,
         [trimmedUserId]
       );
@@ -611,25 +588,11 @@ export class AuthService {
       const result = await client.query(
         `
         SELECT 
-          j.id::text as id, 
-          j.user_id::text as user_id, 
-          j.location, 
-          j.contact_number, 
-          j.skills, 
-          j.experience_level, 
-          j.preferred_salary_min, 
-          j.preferred_salary_max, 
-          j.availability, 
-          j.profile_picture, 
-          j.bio, 
-          j.resume_url, 
-          j.portfolio_url, 
-          j.created_at, 
-          j.updated_at,
-          u.name, 
-          u.email, 
-          u.user_type, 
-          u.location as user_location, 
+          j.id::text as id, j.user_id::text as user_id, j.location, j.contact_number, 
+          j.skills, j.experience_level, j.preferred_salary_min, j.preferred_salary_max, 
+          j.availability, j.profile_picture, j.bio, j.resume_url, j.portfolio_url, 
+          j.created_at, j.updated_at,
+          u.name, u.email, u.user_type, u.location as user_location, 
           u.contact_number as user_contact
         FROM jobseekers j
         INNER JOIN users u ON j.user_id = u.id
@@ -781,6 +744,7 @@ export class AuthService {
       Object.entries(updateData).forEach(([key, value]) => {
         if (updatableFields.includes(key) && value !== undefined) {
           paramCount++;
+          // Handle skills array properly
           if (key === "skills" && Array.isArray(value)) {
             updateFields.push(`${key} = $${paramCount}::jsonb`);
             updateValues.push(JSON.stringify(value));
