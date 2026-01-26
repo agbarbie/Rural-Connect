@@ -10,11 +10,14 @@
   transition: all 0.3s ease;
   z-index: 1000;
   box-shadow: 2px 0 10px rgba(0, 0, 0, 0.1);
+  display: flex;
+  flex-direction: column;
 }
 
 .sidebar-header {
   padding: 24px 20px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  flex-shrink: 0;
 }
 
 .logo {
@@ -40,6 +43,7 @@
 .nav-section {
   padding: 20px 0;
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  flex-shrink: 0;
 }
 
 .nav-section:last-child {
@@ -111,6 +115,56 @@
   text-align: center;
 }
 
+/* Sidebar Footer - Logout Button */
+.sidebar-footer {
+  margin-top: auto;
+  padding: 20px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  flex-shrink: 0;
+}
+
+.logout-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 12px 20px;
+  background: rgba(239, 68, 68, 0.2);
+  border: 2px solid rgba(239, 68, 68, 0.3);
+  border-radius: 10px;
+  color: white;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.logout-btn:hover:not(:disabled) {
+  background: rgba(239, 68, 68, 0.4);
+  border-color: rgba(239, 68, 68, 0.6);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
+}
+
+.logout-btn:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.logout-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.logout-btn i {
+  font-size: 16px;
+}
+
+.logout-btn span {
+  font-size: 14px;
+}
+
 /* Scrollbar styling */
 .sidebar::-webkit-scrollbar {
   width: 6px;
@@ -137,7 +191,8 @@
 
   .logo span,
   .nav-title,
-  .nav-item span:not(.nav-badge) {
+  .nav-item span:not(.nav-badge),
+  .logout-btn span {
     display: none;
   }
 
@@ -154,65 +209,18 @@
     top: 8px;
     right: 10px;
   }
-}
-/* ============================================
-   GLOBAL LAYOUT STYLES - Add to styles.css
-   ============================================ */
 
-/* Reset and base styles */
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
-}
+  .logout-btn {
+    padding: 12px;
+    justify-content: center;
+  }
 
-body {
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
-    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  background: #f3f4f6;
-}
-
-/* App Container Layout */
-.app-container {
-  display: flex;
-  min-height: 100vh;
-  background: #f3f4f6;
-  width: 100%;
-  position: relative;
-}
-
-/* Main Content Area */
-.main-content {
-  flex: 1;
-  margin-left: 260px; /* Sidebar width */
-  width: calc(100% - 260px);
-  min-height: 100vh;
-  background: #f3f4f6;
-  transition: margin-left 0.3s ease;
-  overflow-x: hidden;
-}
-
-/* Ensure content inside main-content takes full width */
-.main-content > * {
-  width: 100%;
-}
-
-/* Responsive adjustments */
-@media (max-width: 768px) {
-  .main-content {
-    margin-left: 70px;
-    width: calc(100% - 70px);
+  .logout-btn i {
+    margin: 0;
   }
 }
 
 @media (max-width: 480px) {
-  .main-content {
-    margin-left: 0;
-    width: 100%;
-  }
-  
   .sidebar {
     transform: translateX(-100%);
   }

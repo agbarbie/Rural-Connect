@@ -2,12 +2,14 @@ import { Component, Input, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule, Router, NavigationEnd } from '@angular/router';
 import { filter } from 'rxjs/operators';
+import { AuthService } from '../../../../../services/auth.service'; // Adjust path as needed
 
 interface NavItem {
   label: string;
   icon: string;
   route: string;
   badge?: number | string;
+  action?: string; // Add action property for special items
 }
 
 interface NavSection {
@@ -27,6 +29,7 @@ export class SidebarComponent implements OnInit {
   
   currentRoute: string = '';
   navSections: NavSection[] = [];
+  isLoggingOut: boolean = false;
 
   private jobseekerNav: NavSection[] = [
     {
@@ -45,8 +48,7 @@ export class SidebarComponent implements OnInit {
       title: 'Support',
       items: [
         { label: 'Settings', icon: 'fas fa-cog', route: '/jobseeker/settings' },
-        { label: 'Help & Support', icon: 'fas fa-question-circle', route: '/jobseeker/help' },
-        { label: 'Logout', icon: 'fas fa-sign-out-alt', route: '/logout' }
+        { label: 'Help & Support', icon: 'fas fa-question-circle', route: '/jobseeker/help' }
       ]
     }
   ];
@@ -58,7 +60,6 @@ export class SidebarComponent implements OnInit {
         { label: 'Dashboard', icon: 'fas fa-th-large', route: '/employer/employer-dashboard' },
         { label: 'Post Jobs', icon: 'fas fa-briefcase', route: '/employer/post-jobs' },
         { label: 'Candidates', icon: 'fas fa-users', route: '/employer/candidates' },
-        // { label: 'Interviews', icon: 'fas fa-calendar-alt', route: '/employer/interviews' },
         { label: 'Training', icon: 'fas fa-play-circle', route: '/employer/training' },
         { label: 'AI Assistant', icon: 'fas fa-robot', route: '/employer/ai-assistant' },
         { label: 'Company Profile', icon: 'fas fa-building', route: '/employer/company-profile' }
@@ -68,8 +69,7 @@ export class SidebarComponent implements OnInit {
       title: 'Support',
       items: [
         { label: 'Settings', icon: 'fas fa-cog', route: '/employer/settings' },
-        { label: 'Help & Support', icon: 'fas fa-question-circle', route: '/employer/help' },
-        { label: 'Logout', icon: 'fas fa-sign-out-alt', route: '/logout' }
+        { label: 'Help & Support', icon: 'fas fa-question-circle', route: '/employer/help' }
       ]
     }
   ];
@@ -89,15 +89,15 @@ export class SidebarComponent implements OnInit {
       title: 'Support',
       items: [
         { label: 'Settings', icon: 'fas fa-cog', route: '/admin/settings' },
-        { label: 'Help & Support', icon: 'fas fa-question-circle', route: '/admin/help' },
-        { label: 'Logout', icon: 'fas fa-sign-out-alt', route: '/logout' }
+        { label: 'Help & Support', icon: 'fas fa-question-circle', route: '/admin/help' }
       ]
     }
   ];
-  authService: any;
-  isLoggingOut: boolean | undefined;
 
-  constructor(private router: Router) {}
+  constructor(
+    private router: Router,
+    private authService: AuthService
+  ) {}
 
   ngOnInit(): void {
     // Set navigation based on user type
@@ -139,6 +139,7 @@ export class SidebarComponent implements OnInit {
     }
     this.router.navigate([route]);
   }
+
   logout(): void {
     if (this.isLoggingOut) return; // Prevent multiple clicks
     
