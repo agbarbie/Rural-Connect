@@ -1,4 +1,4 @@
-// ai-assistant.component.ts - WITH PROFILE MODAL INTEGRATION
+// ai-assistant.component.ts - COMPLETE WITH MOBILE SIDEBAR TOGGLE
 import { Component, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -25,7 +25,6 @@ interface SkillGap {
   totalCandidates: number;
 }
 
-// ✅ NEW: Profile interface (same as candidates component)
 interface CandidateProfile {
   user_id: string;
   name: string;
@@ -71,6 +70,27 @@ interface CandidateProfile {
 export class AiAssistantComponent implements OnInit, OnDestroy {
   private destroy$ = new Subject<void>();
   
+  // Sidebar toggle methods for mobile - EXACT SAME AS OTHER COMPONENTS
+  toggleSidebar(): void {
+    const sidebar = document.querySelector('.sidebar');
+    const overlay = document.querySelector('.sidebar-overlay');
+    const hamburger = document.querySelector('.hamburger');
+
+    sidebar?.classList.toggle('open');
+    overlay?.classList.toggle('open');
+    hamburger?.classList.toggle('active');
+  }
+
+  closeSidebar(): void {
+    const sidebar = document.querySelector('.sidebar');
+    const overlay = document.querySelector('.sidebar-overlay');
+    const hamburger = document.querySelector('.hamburger');
+
+    sidebar?.classList.remove('open');
+    overlay?.classList.remove('open');
+    hamburger?.classList.remove('active');
+  }
+  
   activeTab: 'candidates' | 'training' | 'insights' = 'candidates';
   
   // Real data from services
@@ -91,7 +111,7 @@ export class AiAssistantComponent implements OnInit, OnDestroy {
   isLoading: boolean = false;
   chatMessages: ChatMessage[] = [];
   
-  // ✅ NEW: Profile modal state
+  // Profile modal state
   showProfileModal: boolean = false;
   currentProfileData: CandidateProfile | null = null;
   isLoadingProfile: boolean = false;
@@ -129,12 +149,9 @@ export class AiAssistantComponent implements OnInit, OnDestroy {
   }
 
   // ============================================
-  // ✅ NEW: PROFILE MODAL FUNCTIONS
+  // PROFILE MODAL FUNCTIONS
   // ============================================
   
-  /**
-   * Open profile modal and load full candidate data
-   */
   viewProfile(candidateId: string): void {
     console.log('📋 Loading full profile for candidate:', candidateId);
     
@@ -142,7 +159,6 @@ export class AiAssistantComponent implements OnInit, OnDestroy {
     this.isLoadingProfile = true;
     this.currentProfileData = null;
     
-    // Get job ID if a specific job role is selected
     const jobId = this.selectedJobRole ? 
       this.jobPosts.find(j => j.title === this.selectedJobRole)?.id : 
       undefined;
@@ -170,36 +186,24 @@ export class AiAssistantComponent implements OnInit, OnDestroy {
       });
   }
 
-  /**
-   * Close profile modal
-   */
   closeProfileModal(): void {
     this.showProfileModal = false;
     this.currentProfileData = null;
     this.isLoadingProfile = false;
   }
 
-  /**
-   * Check if profile has social links
-   */
   hasSocialLinks(profile: CandidateProfile | null): boolean {
     if (!profile) return false;
     const links = profile.social_links;
     return !!(links.linkedin || links.github || links.portfolio || links.website);
   }
 
-  /**
-   * Format date for display
-   */
   formatDate(dateString: string): string {
     if (!dateString) return '';
     const date = new Date(dateString);
     return date.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
   }
 
-  /**
-   * Schedule interview from modal
-   */
   scheduleInterviewFromModal(): void {
     if (!this.currentProfileData) return;
     
@@ -223,7 +227,6 @@ export class AiAssistantComponent implements OnInit, OnDestroy {
   loadRealData(): void {
     this.isLoading = true;
     
-    // Load job posts
     this.candidatesService.getJobPosts()
       .pipe(takeUntil(this.destroy$))
       .subscribe({
@@ -241,7 +244,6 @@ export class AiAssistantComponent implements OnInit, OnDestroy {
         }
       });
     
-    // Load trainings
     const employerId = localStorage.getItem('userId') || '';
     this.trainingService.getMyTrainings({ 
       status: 'published',
@@ -269,7 +271,6 @@ export class AiAssistantComponent implements OnInit, OnDestroy {
           if (response.success && response.data) {
             this.candidates = Array.isArray(response.data.data) ? response.data.data : [];
             
-            // Extract unique skills and industries
             const allSkills = new Set<string>();
             const allIndustries = new Set<string>();
             
@@ -283,7 +284,6 @@ export class AiAssistantComponent implements OnInit, OnDestroy {
             this.skillOptions = Array.from(allSkills);
             this.industries = Array.from(allIndustries);
             
-            // Calculate skill gaps
             this.calculateSkillGaps();
             
             console.log('✅ Loaded candidates:', this.candidates.length);
@@ -303,21 +303,18 @@ export class AiAssistantComponent implements OnInit, OnDestroy {
     const skillDemand = new Map<string, number>();
     const skillCount = new Map<string, number>();
     
-    // Count required skills from job posts
     this.jobPosts.forEach(job => {
       job.skills_required?.forEach((skill: string) => {
         skillDemand.set(skill, (skillDemand.get(skill) || 0) + 1);
       });
     });
     
-    // Count candidates with each skill
     this.candidates.forEach(candidate => {
       candidate.skills?.forEach(skill => {
         skillCount.set(skill, (skillCount.get(skill) || 0) + 1);
       });
     });
     
-    // Calculate gaps
     this.skillGaps = Array.from(skillDemand.entries())
       .map(([skill, demand]) => ({
         skill,
@@ -347,7 +344,6 @@ export class AiAssistantComponent implements OnInit, OnDestroy {
     let filtered = [...this.candidates];
     
     if (this.selectedJobRole) {
-      // Filter by job role match
       const job = this.jobPosts.find(j => j.title === this.selectedJobRole);
       if (job && job.skills_required) {
         filtered = filtered.filter(candidate => 
@@ -469,7 +465,6 @@ export class AiAssistantComponent implements OnInit, OnDestroy {
     const trainingTitle = this.selectedTraining.title;
     
     if (confirm(`Assign "${trainingTitle}" to ${candidateCount} candidate(s)?`)) {
-      // In a real implementation, you would call a service method here
       console.log('Assigning training to candidates:', {
         training: this.selectedTraining,
         candidates: Array.from(this.selectedCandidatesForAssignment)
@@ -532,13 +527,11 @@ export class AiAssistantComponent implements OnInit, OnDestroy {
     this.currentChatMessage = '';
     this.isLoading = true;
     
-    // Add to chat history
     this.chatHistory.push({
       role: 'user',
       content: userMessage
     });
 
-    // Prepare context for Gemini
     const context = {
       jobs: this.jobPosts.map(j => ({
         id: j.id,

@@ -1,4 +1,5 @@
-import { Component, OnInit, signal, computed, OnDestroy } from '@angular/core';
+// company-profile.component.ts - COMPLETE WITH MOBILE SIDEBAR TOGGLE
+import { Component, OnInit, signal, computed, OnDestroy, HostListener } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { SidebarComponent } from '../../shared/sidebar/sidebar.component';
 import { AuthService } from '../../../../../services/auth.service';
@@ -54,6 +55,30 @@ interface AIInsights {
   styleUrls: ['./company-profile.component.css']
 })
 export class CompanyProfileComponent implements OnInit, OnDestroy {
+  // Mobile state
+  isMobile = false;
+
+  // Sidebar toggle methods for mobile - EXACT SAME AS OTHER COMPONENTS
+  toggleSidebar(): void {
+    const sidebar = document.querySelector('.sidebar');
+    const overlay = document.querySelector('.sidebar-overlay');
+    const hamburger = document.querySelector('.hamburger');
+
+    sidebar?.classList.toggle('open');
+    overlay?.classList.toggle('open');
+    hamburger?.classList.toggle('active');
+  }
+
+  closeSidebar(): void {
+    const sidebar = document.querySelector('.sidebar');
+    const overlay = document.querySelector('.sidebar-overlay');
+    const hamburger = document.querySelector('.hamburger');
+
+    sidebar?.classList.remove('open');
+    overlay?.classList.remove('open');
+    hamburger?.classList.remove('active');
+  }
+
   activeTab = signal<string>('overview');
   currentUser: User | null = null;
   private userSubscription?: Subscription;
@@ -184,8 +209,14 @@ export class CompanyProfileComponent implements OnInit, OnDestroy {
 
   constructor(private authService: AuthService) {}
 
+  @HostListener('window:resize', ['$event'])
+  onResize(event: any) {
+    this.checkIfMobile();
+  }
+
   ngOnInit() {
     console.log('Company Profile Component initialized');
+    this.checkIfMobile();
     
     // Subscribe to current user data from auth service
     this.userSubscription = this.authService.currentUser$.subscribe(user => {
@@ -210,6 +241,11 @@ export class CompanyProfileComponent implements OnInit, OnDestroy {
     if (this.userSubscription) {
       this.userSubscription.unsubscribe();
     }
+  }
+
+  // Mobile detection
+  checkIfMobile(): void {
+    this.isMobile = window.innerWidth <= 768;
   }
 
   /**
@@ -249,26 +285,6 @@ export class CompanyProfileComponent implements OnInit, OnDestroy {
   editProfile() {
     console.log('Edit profile clicked');
     // TODO: Implement profile editing functionality
-    // Example implementation:
-    /*
-    const updatedData = {
-      company_name: 'New Company Name',
-      company_description: 'Updated description',
-      company_size: '100-500'
-    };
-    
-    this.authService.updateCompanyProfile(updatedData).subscribe({
-      next: (response) => {
-        console.log('Profile updated successfully:', response);
-        // The currentUser$ observable will automatically update
-        // and trigger loadCompanyInfoFromUser()
-      },
-      error: (error) => {
-        console.error('Failed to update profile:', error);
-        // Show error message to user
-      }
-    });
-    */
   }
 
   onSearchChange(event: any) {

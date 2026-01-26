@@ -2156,4 +2156,485 @@ body {
     max-height: 100vh;
     border-radius: 0;
   }
+  /* Hamburger Menu (Hidden by default, shows on mobile) */
+.hamburger {
+  display: none;
+  background: white;
+  border: none;
+  color: #64748b;
+  font-size: 24px;
+  cursor: pointer;
+  padding: 8px;
+  border-radius: 6px;
+  transition: all 0.2s;
+  position: fixed;
+  top: 20px;
+  left: 20px;
+  z-index: 1001;
+  width: 44px;
+  height: 44px;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.hamburger:hover,
+.hamburger:focus {
+  background: #f1f5f9;
+  color: #10b981;
+}
+
+.hamburger.active {
+  color: #10b981;
+}
+
+/* Sidebar Overlay for Mobile */
+.sidebar-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 999;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.3s ease, visibility 0.3s ease;
+  backdrop-filter: blur(2px);
+}
+
+.sidebar-overlay.open {
+  opacity: 1;
+  visibility: visible;
+}
+
+/* ============================================
+   MOBILE RESPONSIVE UPDATES
+   ============================================ */
+
+/* Tablets (1024px) */
+@media (max-width: 1024px) {
+  .app-container {
+    grid-template-columns: 260px 1fr;
+  }
+  
+  .right-sidebar {
+    position: fixed;
+    right: 0;
+    top: 0;
+    width: 280px;
+    height: 100vh;
+    z-index: 998;
+    transform: translateX(100%);
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  
+  .right-sidebar.open {
+    transform: translateX(0);
+  }
+  
+  .candidates-container {
+    grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+  }
+}
+
+/* Mobile Landscape (768px) */
+@media (max-width: 768px) {
+  /* Show hamburger menu */
+  .hamburger {
+    display: flex;
+  }
+
+  /* Hide sidebar by default on mobile */
+  ::ng-deep .sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 280px;
+    height: 100vh;
+    z-index: 1000;
+    transform: translateX(-100%);
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  /* Show sidebar when open class is added */
+  ::ng-deep .sidebar.open {
+    transform: translateX(0);
+  }
+
+  /* Main content adjustments */
+  .app-container {
+    grid-template-columns: 1fr;
+  }
+  
+  .main-content {
+    margin-left: 0;
+    max-width: 100%;
+    padding: 1rem;
+  }
+
+  /* Header adjustments */
+  .header-top {
+    flex-direction: column;
+    gap: 1rem;
+    align-items: stretch;
+  }
+  
+  .page-title {
+    font-size: 1.5rem;
+  }
+
+  /* Filters mobile friendly */
+  .filter-sort-bar {
+    flex-direction: column;
+    padding: 1rem;
+  }
+  
+  .filter-section {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.5rem;
+  }
+  
+  .filter-group {
+    width: 100%;
+  }
+  
+  .filter-select,
+  .filter-input,
+  .search-input {
+    width: 100%;
+    min-width: auto;
+  }
+
+  /* Batch actions mobile */
+  .batch-actions {
+    flex-direction: column;
+    gap: 1rem;
+    text-align: center;
+  }
+  
+  .batch-buttons {
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+
+  /* Candidate cards responsive */
+  .candidates-container {
+    grid-template-columns: 1fr;
+  }
+  
+  .candidate-card {
+    padding: 1rem;
+  }
+  
+  .card-actions {
+    flex-direction: column;
+  }
+  
+  .card-actions .btn {
+    flex: none;
+    width: 100%;
+  }
+
+  /* Pagination mobile */
+  .pagination-container {
+    flex-direction: column;
+    gap: 1rem;
+    text-align: center;
+  }
+
+  /* Comparison modal mobile */
+  .comparison-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .comparison-modal {
+    margin: 1rem;
+    max-width: calc(100vw - 2rem);
+  }
+
+  /* ============================================
+     RIGHT SIDEBAR - CHAT & QUICK ACTIONS MOBILE
+     ============================================ */
+  
+  /* Mobile Chat Widget - Fixed at bottom */
+  .right-sidebar {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    width: 100%;
+    height: auto;
+    max-height: 70vh;
+    padding: 0;
+    border-left: none;
+    border-top: 1px solid #475569;
+    z-index: 997;
+    transform: translateY(calc(100% - 60px));
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+  }
+
+  .right-sidebar.chat-open {
+    transform: translateY(0);
+  }
+
+  /* Chatbot Widget Mobile Styles */
+  .chatbot-widget {
+    order: 1;
+    margin: 0;
+    border-radius: 0;
+  }
+
+  .chatbot-widget.expanded {
+    max-height: 60vh;
+  }
+
+  .chat-header {
+    cursor: pointer;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+  }
+
+  .chat-content {
+    height: 50vh;
+  }
+
+  .chat-messages {
+    padding: 0.75rem;
+  }
+
+  .chat-message {
+    max-width: 85%;
+    font-size: 0.875rem;
+  }
+
+  .chat-input {
+    padding: 0.75rem;
+  }
+
+  .message-input {
+    font-size: 0.875rem;
+  }
+
+  /* Quick Actions Mobile - Show as floating button */
+  .quick-actions-widget {
+    position: fixed;
+    bottom: 70px;
+    right: 1rem;
+    width: auto;
+    background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+    border-radius: 50%;
+    padding: 0;
+    border: none;
+    box-shadow: 0 4px 20px rgba(59, 130, 246, 0.4);
+    z-index: 996;
+  }
+
+  .quick-actions-widget .widget-header {
+    display: none;
+  }
+
+  .quick-buttons {
+    display: none;
+  }
+
+  /* Floating action button */
+  .quick-actions-widget::before {
+    content: '\f0c9';
+    font-family: 'Font Awesome 6 Free';
+    font-weight: 900;
+    font-size: 1.25rem;
+    color: white;
+    width: 56px;
+    height: 56px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+  }
+
+  /* Show actions on click/hover */
+  .quick-actions-widget:hover .quick-buttons,
+  .quick-actions-widget.active .quick-buttons {
+    display: flex;
+    flex-direction: column;
+    position: absolute;
+    bottom: 70px;
+    right: 0;
+    width: 200px;
+    background: #334155;
+    border-radius: 12px;
+    padding: 0.5rem;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+  }
+
+  /* Alternative: Show quick actions as bottom sheet */
+  .quick-actions-mobile-sheet {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: #334155;
+    border-top-left-radius: 16px;
+    border-top-right-radius: 16px;
+    padding: 1rem;
+    transform: translateY(100%);
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    z-index: 995;
+  }
+
+  .quick-actions-mobile-sheet.open {
+    transform: translateY(0);
+  }
+
+  /* Chat Status Indicator */
+  .chat-status {
+    font-size: 0.75rem;
+  }
+
+  /* Quick Suggestions Mobile */
+  .quick-suggestions {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .suggestion-chip {
+    flex-shrink: 0;
+  }
+}
+
+/* Small Mobile (480px) */
+@media (max-width: 480px) {
+  .main-content {
+    padding: 0.75rem;
+  }
+  
+  .page-header {
+    margin-bottom: 1rem;
+  }
+  
+  .filter-sort-bar {
+    padding: 1rem;
+  }
+  
+  .candidate-card {
+    padding: 0.75rem;
+    margin-left: 0;
+  }
+  
+  .candidate-profile {
+    margin-left: 24px;
+  }
+  
+  .profile-image {
+    width: 60px;
+    height: 60px;
+  }
+  
+  .candidate-name {
+    font-size: 1rem;
+  }
+  
+  .skills-chips {
+    gap: 4px;
+  }
+  
+  .skill-chip {
+    font-size: 0.6875rem;
+    padding: 2px 6px;
+  }
+  
+  .card-actions .btn {
+    font-size: 0.6875rem;
+    padding: 4px 8px;
+  }
+  
+  .page-numbers {
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  
+  .modal-header {
+    padding: 1rem;
+  }
+  
+  .modal-header h3 {
+    font-size: 1.125rem;
+  }
+  
+  .comparison-content {
+    padding: 1rem;
+  }
+  
+  .comparison-item {
+    padding: 1rem;
+  }
+
+  /* Chat adjustments */
+  .right-sidebar {
+    transform: translateY(calc(100% - 56px));
+  }
+
+  .chat-content {
+    height: 45vh;
+  }
+
+  .chat-message {
+    font-size: 0.8125rem;
+    padding: 6px 10px;
+  }
+
+  .message-input {
+    font-size: 0.8125rem;
+    padding: 6px 10px;
+  }
+
+  /* Quick actions button smaller */
+  .quick-actions-widget::before {
+    width: 48px;
+    height: 48px;
+    font-size: 1.125rem;
+  }
+
+  .quick-actions-widget {
+    bottom: 65px;
+  }
+}
+
+/* Extra Small (360px) */
+@media (max-width: 360px) {
+  .page-title {
+    font-size: 1.25rem;
+  }
+  
+  .hamburger {
+    top: 15px;
+    left: 15px;
+  }
+  
+  .filter-sort-bar {
+    padding: 0.75rem;
+  }
+
+  .chat-content {
+    height: 40vh;
+  }
+
+  .quick-actions-widget {
+    bottom: 60px;
+    right: 0.75rem;
+  }
+
+  .quick-actions-widget::before {
+    width: 44px;
+    height: 44px;
+    font-size: 1rem;
+  }
+}
 }

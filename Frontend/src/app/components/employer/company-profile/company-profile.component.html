@@ -1,5 +1,13 @@
+<!-- Hamburger Menu Button -->
+<button class="hamburger" (click)="toggleSidebar()">
+  <i class="fas fa-bars"></i>
+</button>
+
+<!-- Sidebar Overlay -->
+<div class="sidebar-overlay" (click)="closeSidebar()"></div>
 <div class="app-layout">
       <!-- Sidebar Navigation -->
+
 <app-sidebar [userType]="'employer'"></app-sidebar>
 
       <!-- Main Content -->

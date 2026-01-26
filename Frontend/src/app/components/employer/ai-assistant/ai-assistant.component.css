@@ -1,4 +1,4 @@
-/* ai-assistant.component.css */
+/* ai-assistant.component.css - COMPLETE WITH MOBILE RESPONSIVE */
 @import url("https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css");
 @import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap");
 
@@ -7,7 +7,60 @@
   padding: 0;
   box-sizing: border-box;
 }
-/* ai-assistant.component.css - COMPLETE WITH ASSIGNMENT MODAL */
+
+/* ============================================
+   HAMBURGER MENU (Hidden by default, shows on mobile)
+   ============================================ */
+.hamburger {
+  display: none;
+  background: white;
+  border: none;
+  color: #64748b;
+  font-size: 24px;
+  cursor: pointer;
+  padding: 8px;
+  border-radius: 6px;
+  transition: all 0.2s;
+  position: fixed;
+  top: 20px;
+  left: 20px;
+  z-index: 1001;
+  width: 44px;
+  height: 44px;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.hamburger:hover,
+.hamburger:focus {
+  background: #f1f5f9;
+  color: #10b981;
+}
+
+.hamburger.active {
+  color: #10b981;
+}
+
+/* Sidebar Overlay for Mobile */
+.sidebar-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 999;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.3s ease, visibility 0.3s ease;
+  backdrop-filter: blur(2px);
+}
+
+.sidebar-overlay.open {
+  opacity: 1;
+  visibility: visible;
+}
 
 .ai-assistant-container {
   display: flex;
@@ -267,6 +320,16 @@
   margin-bottom: 1rem;
 }
 
+.bio-section {
+  margin-bottom: 1rem;
+}
+
+.bio-preview {
+  font-size: 0.9rem;
+  color: #4b5563;
+  line-height: 1.5;
+}
+
 .skills-section h4,
 .experience-section h4,
 .certifications-section h4 {
@@ -416,6 +479,7 @@
 .training-actions {
   display: flex;
   gap: 0.5rem;
+  flex-wrap: wrap;
 }
 
 /* Insights Dashboard */
@@ -725,32 +789,28 @@
 }
 
 .quick-actions {
-  position: fixed;
-  bottom: 2rem;
-  right: 450px;
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
-  max-width: 300px;
+  padding: 1rem;
+  border-top: 1px solid #e5e7eb;
 }
 
 .quick-action {
   padding: 0.75rem 1rem;
-  background: white;
+  background: #f9fafb;
   border: 1px solid #e5e7eb;
   border-radius: 8px;
   font-size: 0.85rem;
   text-align: left;
   cursor: pointer;
   transition: all 0.3s;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
 }
 
 .quick-action:hover {
   background: #667eea;
   color: white;
   border-color: #667eea;
-  transform: translateX(-5px);
 }
 
 /* Assignment Modal */
@@ -1049,51 +1109,7 @@
   margin: 0 0 1.5rem 0;
 }
 
-/* Responsive */
-@media (max-width: 768px) {
-  .main-content {
-    margin-left: 0;
-    max-width: 100%;
-    padding: 1rem;
-  }
-
-  .filters-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .candidates-grid,
-  .training-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .insights-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .chatbot-container {
-    width: calc(100% - 2rem);
-    right: 1rem;
-    bottom: 1rem;
-  }
-
-  .quick-actions {
-    display: none;
-  }
-
-  .assignment-modal {
-    width: 95%;
-  }
-
-  .candidate-item {
-    flex-wrap: wrap;
-  }
-}
-/* ========================================
-   PROFILE MODAL STYLES - STANDALONE
-   ADD THIS AT THE VERY END OF YOUR CSS FILE
-   ======================================== */
-
-/* Modal Overlay - FIXED */
+/* Profile Modal Styles */
 .profile-modal-overlay {
   position: fixed !important;
   top: 0 !important;
@@ -1108,7 +1124,6 @@
   padding: 20px !important;
 }
 
-/* Modal Container - FIXED */
 .profile-modal {
   background: white !important;
   border-radius: 12px !important;
@@ -1121,7 +1136,6 @@
   z-index: 100000 !important;
 }
 
-/* Modal Header */
 .profile-modal .modal-header {
   display: flex;
   justify-content: space-between;
@@ -1165,7 +1179,6 @@
   border-color: #fca5a5;
 }
 
-/* Loading State */
 .profile-modal .modal-loading {
   display: flex;
   flex-direction: column;
@@ -1184,14 +1197,12 @@
   animation: spin 0.8s linear infinite;
 }
 
-/* Modal Body */
 .profile-modal .modal-body {
   padding: 24px;
   overflow-y: auto;
   max-height: calc(85vh - 140px);
 }
 
-/* Profile Header Section */
 .profile-modal .profile-modal-header {
   display: flex;
   gap: 20px;
@@ -1265,7 +1276,6 @@
   text-decoration: underline;
 }
 
-/* Action Buttons */
 .profile-modal .profile-actions {
   width: 100%;
   display: flex;
@@ -1277,39 +1287,8 @@
 .profile-modal .profile-actions .btn {
   flex: 1;
   min-width: 150px;
-  padding: 10px 16px;
-  font-size: 14px;
-  font-weight: 500;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  border-radius: 6px;
-  cursor: pointer;
-  transition: all 0.2s;
-  border: none;
 }
 
-.profile-modal .profile-actions .btn-primary {
-  background: #3b82f6;
-  color: white;
-}
-
-.profile-modal .profile-actions .btn-primary:hover {
-  background: #2563eb;
-}
-
-.profile-modal .profile-actions .btn-secondary {
-  background: white;
-  color: #374151;
-  border: 1px solid #d1d5db;
-}
-
-.profile-modal .profile-actions .btn-secondary:hover {
-  background: #f3f4f6;
-}
-
-/* Profile Sections */
 .profile-modal .profile-section {
   margin-bottom: 24px;
 }
@@ -1336,7 +1315,6 @@
   font-size: 14px;
 }
 
-/* Info Grid */
 .profile-modal .info-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
@@ -1364,7 +1342,6 @@
   color: #111827;
 }
 
-/* Status Badges */
 .profile-modal .status-badge {
   padding: 4px 12px;
   border-radius: 12px;
@@ -1388,7 +1365,6 @@
   color: #065f46;
 }
 
-/* Cover Letter */
 .profile-modal .cover-letter {
   margin-top: 16px;
   padding: 16px;
@@ -1411,23 +1387,12 @@
   font-size: 14px;
 }
 
-/* Skills Container */
 .profile-modal .skills-container {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
 }
 
-.profile-modal .skill-tag {
-  padding: 6px 12px;
-  background: #eff6ff;
-  color: #1e40af;
-  border-radius: 16px;
-  font-size: 13px;
-  font-weight: 500;
-}
-
-/* Preferences Grid */
 .profile-modal .preferences-grid {
   display: flex;
   flex-direction: column;
@@ -1453,7 +1418,6 @@
   font-size: 14px;
 }
 
-/* Social Links */
 .profile-modal .social-links {
   display: flex;
   flex-direction: column;
@@ -1482,7 +1446,6 @@
   color: #3b82f6;
 }
 
-/* Modal Footer */
 .profile-modal .modal-footer {
   display: flex;
   justify-content: space-between;
@@ -1494,40 +1457,120 @@
   bottom: 0;
 }
 
-.profile-modal .modal-footer .btn {
-  padding: 10px 20px;
-  font-size: 14px;
-  font-weight: 500;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  border-radius: 6px;
-  cursor: pointer;
-  transition: all 0.2s;
-  border: none;
+/* ============================================
+   RESPONSIVE DESIGN - EXACT SAME AS OTHER COMPONENTS
+   ============================================ */
+
+/* Tablets and below (1024px) */
+@media (max-width: 1024px) {
+  .main-content {
+    margin-left: 0;
+    max-width: 100%;
+  }
+
+  .insights-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
-.profile-modal .modal-footer .btn-secondary {
-  background: white;
-  color: #374151;
-  border: 1px solid #d1d5db;
-}
-
-.profile-modal .modal-footer .btn-secondary:hover {
-  background: #f3f4f6;
-}
-
-.profile-modal .modal-footer .btn-primary {
-  background: #3b82f6;
-  color: white;
-}
-
-.profile-modal .modal-footer .btn-primary:hover {
-  background: #2563eb;
-}
-
-/* Responsive Design */
+/* Mobile landscape and below (768px) */
 @media (max-width: 768px) {
+  /* Show hamburger menu */
+  .hamburger {
+    display: flex;
+  }
+
+  /* Hide sidebar by default on mobile */
+  ::ng-deep .sidebar {
+    transform: translateX(-100%);
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  /* Show sidebar when open class is added */
+  ::ng-deep .sidebar.open {
+    transform: translateX(0);
+  }
+
+  /* Main content takes full width */
+  .main-content {
+    margin-left: 0;
+    max-width: 100%;
+    padding: 1rem;
+  }
+
+  .header-content {
+    padding: 1.5rem;
+  }
+
+  .page-title {
+    font-size: 1.5rem;
+  }
+
+  .filters-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .filter-actions {
+    flex-direction: column;
+  }
+
+  .filter-actions .btn {
+    width: 100%;
+  }
+
+  .tabs-nav {
+    flex-direction: column;
+  }
+
+  .tab-btn {
+    width: 100%;
+    justify-content: flex-start;
+    padding: 1rem;
+  }
+
+  .tab-content {
+    padding: 1rem;
+  }
+
+  .candidates-grid,
+  .training-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .candidate-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .training-actions {
+    flex-direction: column;
+  }
+
+  .training-actions .btn {
+    width: 100%;
+  }
+
+  .insights-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .chatbot-container {
+    width: calc(100% - 2rem);
+    right: 1rem;
+    bottom: 1rem;
+  }
+
+  .quick-actions {
+    display: none;
+  }
+
+  .assignment-modal {
+    width: 95%;
+  }
+
+  .candidate-item {
+    flex-wrap: wrap;
+  }
+
   .profile-modal {
     max-width: 95% !important;
     max-height: 90vh !important;
@@ -1546,7 +1589,7 @@
     align-items: center;
     text-align: center;
   }
-  
+
   .profile-modal .profile-image-large {
     width: 80px;
     height: 80px;
@@ -1563,7 +1606,7 @@
   .profile-modal .profile-actions .btn {
     width: 100%;
   }
-  
+
   .profile-modal .info-grid {
     grid-template-columns: 1fr;
   }
@@ -1579,7 +1622,36 @@
   }
 }
 
+/* Small mobile (480px and below) */
 @media (max-width: 480px) {
+  .page-title {
+    font-size: 1.25rem;
+  }
+
+  .page-subtitle {
+    font-size: 0.9rem;
+  }
+
+  .candidate-header {
+    flex-direction: column;
+    text-align: center;
+  }
+
+  .match-score {
+    position: static;
+    margin-top: 0.5rem;
+  }
+
+  .impact-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .chatbot-container {
+    width: calc(100% - 1rem);
+    right: 0.5rem;
+    bottom: 0.5rem;
+  }
+
   .profile-modal-overlay {
     padding: 10px !important;
   }
@@ -1594,5 +1666,20 @@
 
   .profile-modal .profile-section h4 {
     font-size: 15px;
+  }
+}
+
+/* Extra small screens (360px and below) */
+@media (max-width: 360px) {
+  .page-title {
+    font-size: 1.1rem;
+  }
+
+  .candidate-name {
+    font-size: 1rem;
+  }
+
+  .training-title {
+    font-size: 1rem;
   }
 }

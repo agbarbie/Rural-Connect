@@ -1,4 +1,11 @@
-<!-- ai-assistant.component.html - COMPLETE WITH PROFILE MODAL -->
+<!-- Hamburger Menu Button -->
+<button class="hamburger" (click)="toggleSidebar()">
+  <i class="fas fa-bars"></i>
+</button>
+
+<!-- Sidebar Overlay -->
+<div class="sidebar-overlay" (click)="closeSidebar()"></div>
+
 <div class="ai-assistant-container">
   <!-- Sidebar Navigation -->
   <app-sidebar [userType]="'employer'"></app-sidebar>

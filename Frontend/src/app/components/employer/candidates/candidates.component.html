@@ -1,4 +1,11 @@
-<!-- src/app/employer/candidates/candidates.component.html -->
+<!-- Hamburger Menu Button -->
+<button class="hamburger" (click)="toggleSidebar()">
+  <i class="fas fa-bars"></i>
+</button>
+
+<!-- Sidebar Overlay -->
+<div class="sidebar-overlay" (click)="closeSidebar()"></div>
+
 <div class="app-container">
   <!-- Sidebar Navigation -->
   <app-sidebar [userType]="'employer'"></app-sidebar>
@@ -292,7 +299,7 @@
           {{ candidate.match_score }}%
         </div>
 
-        <!-- Bio Section (NEW) -->
+        <!-- Bio Section -->
         <div
           class="bio-section"
           *ngIf="candidate.bio && candidate.bio.length > 0"
@@ -389,13 +396,14 @@
             Chat
           </button>
           <button
-  class="btn btn-warning"
-  (click)="openRatingModal(candidate)"
-  title="Rate this candidate"
-  style="background: #f59e0b; color: white">
-  <i class="fas fa-star"></i>
-  Rate
-</button>
+            class="btn btn-warning"
+            (click)="openRatingModal(candidate)"
+            title="Rate this candidate"
+            style="background: #f59e0b; color: white"
+          >
+            <i class="fas fa-star"></i>
+            Rate
+          </button>
         </div>
       </div>
 
@@ -838,7 +846,7 @@
           >
             <span class="label">Expected Salary</span>
             <span class="value"
-              >${{
+              >Ksh{{
                 currentProfileData.application.expected_salary | number
               }}</span
             >
@@ -952,7 +960,8 @@
           >
             <strong>Salary Range:</strong>
             <span>
-              Ksh{{ currentProfileData.preferences.salary_min | number }} - Ksh{{ currentProfileData.preferences.salary_max | number }}
+              Ksh{{ currentProfileData.preferences.salary_min | number }} -
+              Ksh{{ currentProfileData.preferences.salary_max | number }}
             </span>
           </div>
         </div>
@@ -1011,10 +1020,12 @@
   </div>
 </div>
 
+<!-- Rating Component -->
 <app-rating
   *ngIf="showRatingModal && candidateToRate"
   [candidate]="candidateToRate"
   [showModal]="showRatingModal"
   (closeModal)="closeRatingModal()"
-  (ratingSubmitted)="onRatingSubmitted($event)">
+  (ratingSubmitted)="onRatingSubmitted($event)"
+>
 </app-rating>

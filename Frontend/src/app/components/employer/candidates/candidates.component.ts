@@ -1,6 +1,5 @@
-// src/app/employer/candidates/candidates.component.ts - WITH PROFILE MODAL
-
-import { Component, OnInit, OnDestroy } from '@angular/core';
+// candidates.component.ts - COMPLETE WITH MOBILE SIDEBAR & CHAT TOGGLE
+import { Component, OnInit, OnDestroy, HostListener } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
@@ -69,6 +68,31 @@ interface CandidateProfile {
 export class CandidatesComponent implements OnInit, OnDestroy {
   private destroy$ = new Subject<void>();
 
+  // Mobile state
+  isMobile = false;
+  isChatOpenMobile = false;
+
+  // Sidebar toggle methods for mobile - EXACT SAME AS OTHER COMPONENTS
+  toggleSidebar(): void {
+    const sidebar = document.querySelector('.sidebar');
+    const overlay = document.querySelector('.sidebar-overlay');
+    const hamburger = document.querySelector('.hamburger');
+
+    sidebar?.classList.toggle('open');
+    overlay?.classList.toggle('open');
+    hamburger?.classList.toggle('active');
+  }
+
+  closeSidebar(): void {
+    const sidebar = document.querySelector('.sidebar');
+    const overlay = document.querySelector('.sidebar-overlay');
+    const hamburger = document.querySelector('.hamburger');
+
+    sidebar?.classList.remove('open');
+    overlay?.classList.remove('open');
+    hamburger?.classList.remove('active');
+  }
+
   // Data properties
   candidates: Candidate[] = [];
   filteredCandidates: Candidate[] = [];
@@ -101,11 +125,11 @@ export class CandidatesComponent implements OnInit, OnDestroy {
 
   // Modals
   showComparison = false;
-  showProfileModal = false; // NEW: Profile modal
-  currentProfileData: CandidateProfile | null = null; // NEW: Profile data
-  isLoadingProfile = false; // NEW: Loading state for profile
+  showProfileModal = false;
+  currentProfileData: CandidateProfile | null = null;
+  isLoadingProfile = false;
 
-  // Existing modals and chat
+  // Chat
   isChatOpen = false;
   currentMessage = '';
   chatMessages: any[] = [];
@@ -125,8 +149,14 @@ export class CandidatesComponent implements OnInit, OnDestroy {
     private router: Router
   ) {}
 
+  @HostListener('window:resize', ['$event'])
+  onResize(event: any) {
+    this.checkIfMobile();
+  }
+
   ngOnInit() {
     console.log('🚀 Candidates Component initialized');
+    this.checkIfMobile();
     this.loadJobPosts();
     this.loadEmployerTrainings();
     this.initializeChat();
@@ -138,12 +168,29 @@ export class CandidatesComponent implements OnInit, OnDestroy {
   }
 
   // ============================================
-  // NEW: PROFILE MODAL FUNCTIONS
+  // MOBILE DETECTION & CHAT TOGGLE
   // ============================================
 
-  /**
-   * Open profile modal and load full candidate data
-   */
+  checkIfMobile(): void {
+    this.isMobile = window.innerWidth <= 768;
+  }
+
+  toggleMobileChat(): void {
+    this.isChatOpenMobile = !this.isChatOpenMobile;
+    const rightSidebar = document.querySelector('.right-sidebar');
+    if (rightSidebar) {
+      if (this.isChatOpenMobile) {
+        rightSidebar.classList.add('chat-open');
+      } else {
+        rightSidebar.classList.remove('chat-open');
+      }
+    }
+  }
+
+  // ============================================
+  // PROFILE MODAL FUNCTIONS
+  // ============================================
+
   viewFullProfile(candidateId: string): void {
     console.log('📋 Loading full profile for candidate:', candidateId);
 
@@ -176,31 +223,30 @@ export class CandidatesComponent implements OnInit, OnDestroy {
         },
       });
   }
+
   openRatingModal(candidate: any): void {
-  console.log('📝 Opening rating modal for candidate:', candidate.name);
-  
-  this.candidateToRate = {
-    user_id: candidate.id,
-    name: candidate.name,
-    email: candidate.email,
-    profile_image: candidate.profile_picture,
-    // ✅ job_id is optional
-    job_id: this.selectedJob !== 'all' ? this.selectedJob : candidate.job_id,
-    // ✅ Get job title from selected job or candidate's application
-    job_title: this.getJobTitleForCandidate(candidate),
-    // ✅ Pass application_id if available
-    application_id: candidate.application_id
-  };
-  
-  this.showRatingModal = true;
-}
-private getJobTitleForCandidate(candidate: any): string | undefined {
-  if (this.selectedJob !== 'all') {
-    const selectedJobPost = this.jobPosts.find(j => j.id === this.selectedJob);
-    return selectedJobPost?.title;
+    console.log('📝 Opening rating modal for candidate:', candidate.name);
+    
+    this.candidateToRate = {
+      user_id: candidate.id,
+      name: candidate.name,
+      email: candidate.email,
+      profile_image: candidate.profile_picture,
+      job_id: this.selectedJob !== 'all' ? this.selectedJob : candidate.job_id,
+      job_title: this.getJobTitleForCandidate(candidate),
+      application_id: candidate.application_id
+    };
+    
+    this.showRatingModal = true;
   }
-  return candidate.job_title;
-}
+
+  private getJobTitleForCandidate(candidate: any): string | undefined {
+    if (this.selectedJob !== 'all') {
+      const selectedJobPost = this.jobPosts.find(j => j.id === this.selectedJob);
+      return selectedJobPost?.title;
+    }
+    return candidate.job_title;
+  }
 
   closeRatingModal(): void {
     this.showRatingModal = false;
@@ -212,20 +258,13 @@ private getJobTitleForCandidate(candidate: any): string | undefined {
     this.closeRatingModal();
     this.loadCandidates();
   }
-  
 
-  /**
-   * Close profile modal
-   */
   closeProfileModal(): void {
     this.showProfileModal = false;
     this.currentProfileData = null;
     this.isLoadingProfile = false;
   }
 
-  /**
-   * Toggle shortlist from modal
-   */
   toggleShortlistFromModal(): void {
     if (
       !this.currentProfileData ||
@@ -247,7 +286,6 @@ private getJobTitleForCandidate(candidate: any): string | undefined {
               ? 'shortlisted'
               : 'reviewed';
 
-            // Update in candidates list
             const candidate = this.candidates.find(
               (c) => c.id === this.currentProfileData?.user_id
             );
@@ -265,9 +303,6 @@ private getJobTitleForCandidate(candidate: any): string | undefined {
       });
   }
 
-  /**
-   * Schedule interview from modal
-   */
   scheduleInterviewFromModal(): void {
     if (!this.currentProfileData) return;
 
@@ -280,9 +315,6 @@ private getJobTitleForCandidate(candidate: any): string | undefined {
     });
   }
 
-  /**
-   * Check if profile has social links
-   */
   hasSocialLinks(profile: CandidateProfile | null): boolean {
     if (!profile) return false;
     const links = profile.social_links;
@@ -294,9 +326,6 @@ private getJobTitleForCandidate(candidate: any): string | undefined {
     );
   }
 
-  /**
-   * Format date for display
-   */
   formatDate(dateString: string): string {
     if (!dateString) return '';
     const date = new Date(dateString);
@@ -308,7 +337,7 @@ private getJobTitleForCandidate(candidate: any): string | undefined {
   }
 
   // ============================================
-  // EXISTING FUNCTIONS (keep all your existing functions)
+  // DATA LOADING
   // ============================================
 
   loadEmployerTrainings(): void {
@@ -447,7 +476,10 @@ private getJobTitleForCandidate(candidate: any): string | undefined {
     this.filteredCandidates = filtered;
   }
 
-  // Filter actions
+  // ============================================
+  // FILTER ACTIONS
+  // ============================================
+
   applyFilters(): void {
     this.currentPage = 1;
     this.loadCandidates();
@@ -488,7 +520,10 @@ private getJobTitleForCandidate(candidate: any): string | undefined {
     this.viewMode = this.viewMode === 'grid' ? 'list' : 'grid';
   }
 
-  // Selection
+  // ============================================
+  // SELECTION
+  // ============================================
+
   toggleCandidateSelection(candidateId: string): void {
     const index = this.selectedCandidates.indexOf(candidateId);
     if (index > -1) {
@@ -569,6 +604,10 @@ private getJobTitleForCandidate(candidate: any): string | undefined {
       });
   }
 
+  // ============================================
+  // CANDIDATE ACTIONS
+  // ============================================
+
   toggleShortlist(candidate: Candidate): void {
     if (this.selectedJob === 'all') {
       alert('Please select a specific job to shortlist candidates');
@@ -630,7 +669,10 @@ private getJobTitleForCandidate(candidate: any): string | undefined {
     });
   }
 
-  // Utility
+  // ============================================
+  // UTILITY
+  // ============================================
+
   getFullImageUrl(
     imagePath: string | null | undefined,
     candidateName: string
@@ -714,7 +756,10 @@ private getJobTitleForCandidate(candidate: any): string | undefined {
     this.loadCandidates();
   }
 
-  // Chat functions
+  // ============================================
+  // CHAT FUNCTIONS (Updated for mobile)
+  // ============================================
+
   initializeChat(): void {
     this.chatMessages = [
       {
@@ -727,6 +772,9 @@ private getJobTitleForCandidate(candidate: any): string | undefined {
   }
 
   toggleChat(): void {
+    if (this.isMobile) {
+      this.toggleMobileChat();
+    }
     this.isChatOpen = !this.isChatOpen;
   }
 
