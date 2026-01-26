@@ -40,7 +40,7 @@ export class AuthService {
       const userResult = await client.query(
         `
       INSERT INTO users (
-        name, email, password_hash, user_type, location, contact_number, 
+        name, email, password, user_type, location, contact_number, 
         company_name, role_in_company
       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
       RETURNING id::text as id, name, email, user_type, location, contact_number, 
