@@ -1,11 +1,11 @@
-// frontend/src/app/services/candidates.service.ts - ENHANCED WITH RATINGS
+// frontend/src/app/services/candidates.service.ts - ACTUALLY FIXED (ALL PROPERTIES OPTIONAL)
 
 import { Injectable } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { map, Observable } from 'rxjs';
 import { environment } from '../src/environments/environment.prod';
 
-// ✅ ENHANCED: Complete Candidate interface with RATINGS
+// ✅ Complete Candidate interface with RATINGS
 export interface Candidate {
   // Basic info
   id: string;
@@ -68,7 +68,7 @@ export interface Candidate {
   salary_expectation_min?: number;
   salary_expectation_max?: number;
   
-  // ✅ NEW: Rating information
+  // ✅ Rating information
   average_rating?: number;
   total_ratings?: number;
   would_hire_again_count?: number;
@@ -89,7 +89,7 @@ export interface Education {
   year: number;
 }
 
-// ✅ NEW: Rating interfaces
+// ✅ FIXED: All properties optional
 export interface SkillsRating {
   technical?: number;
   communication?: number;
@@ -123,21 +123,21 @@ export interface Rating {
 }
 
 export interface RatingStats {
-  average_rating: number;
-  total_ratings: number;
-  would_hire_again_count: number;
-  rating_distribution: {
+  average_rating?: number;          // ✅ Now optional
+  total_ratings?: number;           // ✅ Now optional
+  would_hire_again_count?: number;
+  rating_distribution?: {
     1: number;
     2: number;
     3: number;
     4: number;
     5: number;
   };
-  success_rate: number;
+  success_rate?: number;            // ✅ Now optional
   skill_ratings?: SkillsRating;
 }
 
-// ✅ ENHANCED: Profile with ratings
+// ✅ Profile with ratings - rating_stats is optional
 export interface CandidateProfile {
   user_id: string;
   name: string;
@@ -171,7 +171,6 @@ export interface CandidateProfile {
     salary_min: number;
     salary_max: number;
   };
-  // ✅ NEW: Rating data
   rating_stats?: RatingStats;
   ratings?: Rating[];
 }
@@ -198,7 +197,7 @@ export interface CandidatesQuery {
   location?: string;
   experience?: string;
   training?: string;
-  sort_by?: 'match_score' | 'newest' | 'experience' | 'recent_activity' | 'highestRated'; // ✅ NEW: Added rating sort
+  sort_by?: 'match_score' | 'newest' | 'experience' | 'recent_activity' | 'highestRated';
   page?: number;
   limit?: number;
 }
@@ -228,9 +227,6 @@ export class CandidatesService {
 
   constructor(private http: HttpClient) {}
 
-  /**
-   * Get all candidates (applicants) for employer's jobs
-   */
   getCandidates(query: CandidatesQuery = {}): Observable<ApiResponse<PaginatedResponse<Candidate>>> {
     let params = new HttpParams();
     
@@ -246,16 +242,10 @@ export class CandidatesService {
     return this.http.get<ApiResponse<PaginatedResponse<Candidate>>>(`${this.apiUrl}/candidates`, { params });
   }
 
-  /**
-   * Get employer's job posts with application counts
-   */
   getJobPosts(): Observable<ApiResponse<JobPost[]>> {
     return this.http.get<ApiResponse<JobPost[]>>(`${this.apiUrl}/job-posts`);
   }
 
-  /**
-   * ✅ ENHANCED: Get candidate full profile with detailed ratings
-   */
   getCandidateProfile(userId: string, jobId?: string): Observable<ApiResponse<CandidateProfile>> {
     const params = jobId ? new HttpParams().set('jobId', jobId) : new HttpParams();
 
@@ -264,7 +254,6 @@ export class CandidatesService {
       { headers: this.getHeaders(), params }
     ).pipe(
       map(response => {
-        // Ensure profile image has full URL
         if (response?.success && response.data?.profile_image) {
           response.data.profile_image = this.getFullImageUrl(response.data.profile_image);
         }
@@ -289,9 +278,6 @@ export class CandidatesService {
     return imagePath;
   }
 
-  /**
-   * Toggle shortlist status for a candidate
-   */
   toggleShortlist(userId: string, jobId: string): Observable<ApiResponse<{ is_shortlisted: boolean }>> {
     return this.http.post<ApiResponse<{ is_shortlisted: boolean }>>(
       `${this.apiUrl}/candidates/${userId}/shortlist`,
@@ -299,9 +285,6 @@ export class CandidatesService {
     );
   }
 
-  /**
-   * Send invitation to candidate
-   */
   inviteCandidate(userId: string, jobId: string, message: string): Observable<ApiResponse<any>> {
     return this.http.post<ApiResponse<any>>(
       `${this.apiUrl}/candidates/${userId}/invite`,
@@ -309,9 +292,6 @@ export class CandidatesService {
     );
   }
 
-  /**
-   * Update application status
-   */
   updateApplicationStatus(
     applicationId: string,
     status: string,
@@ -323,9 +303,6 @@ export class CandidatesService {
     );
   }
 
-  /**
-   * Send bulk invitations
-   */
   sendBulkInvitations(
     userIds: string[],
     jobId: string,
@@ -337,9 +314,6 @@ export class CandidatesService {
     );
   }
 
-  /**
-   * Schedule interview with candidate
-   */
   scheduleInterview(data: {
     applicationId: string;
     candidateId: string;
@@ -358,7 +332,6 @@ export class CandidatesService {
     );
   }
 
-  // ✅ NEW: Helper method to get star array for ratings display
   getStarArray(rating: number): number[] {
     const stars = [];
     const fullStars = Math.floor(rating);
@@ -372,7 +345,6 @@ export class CandidatesService {
     return stars;
   }
 
-  // ✅ NEW: Format rating date
   formatRatingDate(dateString: string): string {
     const date = new Date(dateString);
     const now = new Date();
@@ -391,7 +363,6 @@ export class CandidatesService {
     });
   }
 
-  // ✅ NEW: Calculate rating percentage
   getRatingPercentage(count: number, total: number): number {
     if (total === 0) return 0;
     return (count / total) * 100;

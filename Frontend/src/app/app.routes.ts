@@ -18,7 +18,7 @@ import { CandidatesComponent } from './components/employer/candidates/candidates
 import { InterviewsComponent } from './components/employer/interviews/interviews.component';
 import { CompanyProfileComponent } from './components/employer/company-profile/company-profile.component';
 import { UsersComponent } from './components/admin/users/users.component';
-import { CandidateProfileComponent } from './components/employer/candidate-profile/candidate-profile.component';
+// import { CandidateProfileComponent } from './components/employer/candidate-profile/candidate-profile.component';
 import { AuthGuard } from '../guards/auth.guards';
 
 export const routes: Routes = [
@@ -168,12 +168,12 @@ export const routes: Routes = [
     canActivate: [AuthGuard],
     data: { role: 'employer' }
   },
-  { 
-    path: 'employer/candidate-profile/:id', 
-    component: CandidateProfileComponent,
-    canActivate: [AuthGuard],
-    data: { role: 'employer' }
-  },
+  // { 
+  //   path: 'employer/candidate-profile/:id', 
+  //   component: CandidateProfileComponent,
+  //   canActivate: [AuthGuard],
+  //   data: { role: 'employer' }
+  // },
   { 
     path: 'post-jobs', 
     component: PostJobsComponent,

@@ -1,5 +1,6 @@
-// candidates.component.ts - COMPLETE WITH MOBILE SIDEBAR, CHAT TOGGLE & RATING METHODS
-import { Component, OnInit, OnDestroy, HostListener } from '@angular/core';
+// src/app/employer/candidates/candidates.component.ts - WITH RATINGS INTEGRATION
+
+import { Component, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
@@ -10,9 +11,9 @@ import {
   Candidate,
   JobPost,
   CandidatesQuery,
-  CandidateProfile,
-  RatingStats,
-  Rating
+  CandidateProfile, // ✅ NEW: Enhanced profile with ratings
+  RatingStats,      // ✅ NEW
+  Rating            // ✅ NEW
 } from '../../../../../services/candidates.service';
 import { environment } from '../../../../environments/environments';
 import {
@@ -35,31 +36,6 @@ import { RatingService } from '../../../../../services/rating.service';
 })
 export class CandidatesComponent implements OnInit, OnDestroy {
   private destroy$ = new Subject<void>();
-
-  // Mobile state
-  isMobile = false;
-  isChatOpenMobile = false;
-
-  // Sidebar toggle methods for mobile - EXACT SAME AS OTHER COMPONENTS
-  toggleSidebar(): void {
-    const sidebar = document.querySelector('.sidebar');
-    const overlay = document.querySelector('.sidebar-overlay');
-    const hamburger = document.querySelector('.hamburger');
-
-    sidebar?.classList.toggle('open');
-    overlay?.classList.toggle('open');
-    hamburger?.classList.toggle('active');
-  }
-
-  closeSidebar(): void {
-    const sidebar = document.querySelector('.sidebar');
-    const overlay = document.querySelector('.sidebar-overlay');
-    const hamburger = document.querySelector('.hamburger');
-
-    sidebar?.classList.remove('open');
-    overlay?.classList.remove('open');
-    hamburger?.classList.remove('active');
-  }
 
   // Data properties
   candidates: Candidate[] = [];
@@ -108,7 +84,7 @@ export class CandidatesComponent implements OnInit, OnDestroy {
   showRatingModal = false;
   candidateToRate: any = null;
 
-  // Math utility for templates
+  // ✅ NEW: Expose Math to template
   Math = Math;
 
   constructor(
@@ -119,14 +95,8 @@ export class CandidatesComponent implements OnInit, OnDestroy {
     private router: Router
   ) {}
 
-  @HostListener('window:resize', ['$event'])
-  onResize(event: any) {
-    this.checkIfMobile();
-  }
-
   ngOnInit() {
     console.log('🚀 Candidates Component initialized');
-    this.checkIfMobile();
     this.loadJobPosts();
     this.loadEmployerTrainings();
     this.initializeChat();
@@ -138,29 +108,141 @@ export class CandidatesComponent implements OnInit, OnDestroy {
   }
 
   // ============================================
-  // MOBILE DETECTION & CHAT TOGGLE
+  // ✅ NEW: RATING HELPER METHODS
   // ============================================
 
-  checkIfMobile(): void {
-    this.isMobile = window.innerWidth <= 768;
+  /**
+   * Get star array for rating display (full, half, empty stars)
+   * Returns array of 1 (full), 0.5 (half), 0 (empty)
+   */
+  getStarArray(rating: number): number[] {
+    const stars: number[] = [];
+    const fullStars = Math.floor(rating);
+    const hasHalfStar = rating % 1 >= 0.5;
+    
+    // Add full stars
+    for (let i = 0; i < fullStars; i++) {
+      stars.push(1);
+    }
+    
+    // Add half star if needed
+    if (hasHalfStar && fullStars < 5) {
+      stars.push(0.5);
+    }
+    
+    // Fill remaining with empty stars
+    const remaining = 5 - stars.length;
+    for (let i = 0; i < remaining; i++) {
+      stars.push(0);
+    }
+    
+    return stars;
   }
 
-  toggleMobileChat(): void {
-    this.isChatOpenMobile = !this.isChatOpenMobile;
-    const rightSidebar = document.querySelector('.right-sidebar');
-    if (rightSidebar) {
-      if (this.isChatOpenMobile) {
-        rightSidebar.classList.add('chat-open');
-      } else {
-        rightSidebar.classList.remove('chat-open');
-      }
+  /**
+   * Format rating date (e.g., "2 days ago", "3 weeks ago")
+   */
+  formatRatingDate(dateString: string): string {
+    if (!dateString) return '';
+    
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffTime = Math.abs(now.getTime() - date.getTime());
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    
+    if (diffDays === 0) return 'Today';
+    if (diffDays === 1) return 'Yesterday';
+    if (diffDays < 7) return `${diffDays} days ago`;
+    if (diffDays < 30) {
+      const weeks = Math.floor(diffDays / 7);
+      return `${weeks} ${weeks === 1 ? 'week' : 'weeks'} ago`;
     }
+    if (diffDays < 365) {
+      const months = Math.floor(diffDays / 30);
+      return `${months} ${months === 1 ? 'month' : 'months'} ago`;
+    }
+    
+    return date.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+    });
+  }
+
+  /**
+   * Calculate rating percentage for distribution bar
+   */
+  getRatingPercentage(count: number, total: number): number {
+    if (total === 0) return 0;
+    return Math.round((count / total) * 100);
+  }
+
+  /**
+   * Get initials from name (for avatars)
+   */
+  getInitials(name: string): string {
+    if (!name) return '?';
+    const parts = name.trim().split(' ');
+    if (parts.length >= 2) {
+      return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
+    }
+    return name.substring(0, 2).toUpperCase();
+  }
+
+  /**
+   * Check if candidate has ratings
+   */
+  hasRatings(candidate: Candidate): boolean {
+    return (candidate.total_ratings ?? 0) > 0;
+  }
+
+  /**
+   * Get rating badge class based on average rating
+   */
+  getRatingBadgeClass(rating: number): string {
+    if (rating >= 4.5) return 'rating-excellent';
+    if (rating >= 4.0) return 'rating-good';
+    if (rating >= 3.0) return 'rating-fair';
+    return 'rating-poor';
+  }
+
+  /**
+   * Check if profile has skill ratings
+   */
+  hasSkillRatings(profile: CandidateProfile | null): boolean {
+    if (!profile?.rating_stats?.skill_ratings) return false;
+    
+    const skills = profile.rating_stats.skill_ratings;
+    return !!(
+      (skills.technical ?? 0) > 0 ||
+      (skills.communication ?? 0) > 0 ||
+      (skills.professionalism ?? 0) > 0 ||
+      (skills.quality ?? 0) > 0 ||
+      (skills.timeliness ?? 0) > 0
+    );
+  }
+
+  /**
+   * Get rating distribution value safely
+   * Handles the index signature issue for rating_distribution
+   */
+  getRatingDistributionValue(
+    distribution: { 1: number; 2: number; 3: number; 4: number; 5: number } | undefined,
+    rating: number
+  ): number {
+    if (!distribution) return 0;
+    
+    // Use type assertion to handle the index signature
+    const dist = distribution as { [key: number]: number };
+    return dist[rating] || 0;
   }
 
   // ============================================
   // PROFILE MODAL FUNCTIONS
   // ============================================
 
+  /**
+   * Open profile modal and load full candidate data
+   */
   viewFullProfile(candidateId: string): void {
     console.log('📋 Loading full profile for candidate:', candidateId);
 
@@ -194,47 +276,18 @@ export class CandidatesComponent implements OnInit, OnDestroy {
       });
   }
 
-  openRatingModal(candidate: any): void {
-    console.log('📝 Opening rating modal for candidate:', candidate.name);
-    
-    this.candidateToRate = {
-      user_id: candidate.id,
-      name: candidate.name,
-      email: candidate.email,
-      profile_image: candidate.profile_picture,
-      job_id: this.selectedJob !== 'all' ? this.selectedJob : candidate.job_id,
-      job_title: this.getJobTitleForCandidate(candidate),
-      application_id: candidate.application_id
-    };
-    
-    this.showRatingModal = true;
-  }
-
-  private getJobTitleForCandidate(candidate: any): string | undefined {
-    if (this.selectedJob !== 'all') {
-      const selectedJobPost = this.jobPosts.find(j => j.id === this.selectedJob);
-      return selectedJobPost?.title;
-    }
-    return candidate.job_title;
-  }
-
-  closeRatingModal(): void {
-    this.showRatingModal = false;
-    this.candidateToRate = null;
-  }
-
-  onRatingSubmitted(rating: any): void {
-    alert(`✅ Successfully rated ${this.candidateToRate.name}!`);
-    this.closeRatingModal();
-    this.loadCandidates();
-  }
-
+  /**
+   * Close profile modal
+   */
   closeProfileModal(): void {
     this.showProfileModal = false;
     this.currentProfileData = null;
     this.isLoadingProfile = false;
   }
 
+  /**
+   * Toggle shortlist from modal
+   */
   toggleShortlistFromModal(): void {
     if (
       !this.currentProfileData ||
@@ -256,6 +309,7 @@ export class CandidatesComponent implements OnInit, OnDestroy {
               ? 'shortlisted'
               : 'reviewed';
 
+            // Update in candidates list
             const candidate = this.candidates.find(
               (c) => c.id === this.currentProfileData?.user_id
             );
@@ -273,18 +327,9 @@ export class CandidatesComponent implements OnInit, OnDestroy {
       });
   }
 
-  scheduleInterviewFromModal(): void {
-    if (!this.currentProfileData) return;
-
-    this.closeProfileModal();
-    this.router.navigate(['/employer/schedule-interview'], {
-      queryParams: {
-        candidateId: this.currentProfileData.user_id,
-        jobId: this.selectedJob === 'all' ? undefined : this.selectedJob,
-      },
-    });
-  }
-
+  /**
+   * Check if profile has social links
+   */
   hasSocialLinks(profile: CandidateProfile | null): boolean {
     if (!profile) return false;
     const links = profile.social_links;
@@ -296,6 +341,9 @@ export class CandidatesComponent implements OnInit, OnDestroy {
     );
   }
 
+  /**
+   * Format date for display
+   */
   formatDate(dateString: string): string {
     if (!dateString) return '';
     const date = new Date(dateString);
@@ -307,102 +355,59 @@ export class CandidatesComponent implements OnInit, OnDestroy {
   }
 
   // ============================================
-  // RATING HELPER METHODS
+  // RATING MODAL FUNCTIONS
   // ============================================
 
   /**
-   * Get star array for rating display (full, half, empty stars)
+   * Open rating modal for a candidate
    */
-  getStarArray(rating: number): number[] {
-    const stars = [];
-    const fullStars = Math.floor(rating);
-    const hasHalfStar = rating % 1 >= 0.5;
+  openRatingModal(candidate: any): void {
+    console.log('📝 Opening rating modal for candidate:', candidate.name);
     
-    for (let i = 0; i < fullStars; i++) stars.push(1);
-    if (hasHalfStar && fullStars < 5) stars.push(0.5);
+    this.candidateToRate = {
+      user_id: candidate.id,
+      name: candidate.name,
+      email: candidate.email,
+      profile_image: candidate.profile_picture,
+      job_id: this.selectedJob !== 'all' ? this.selectedJob : candidate.job_id,
+      job_title: this.getJobTitleForCandidate(candidate),
+      application_id: candidate.application_id
+    };
     
-    const remaining = 5 - stars.length;
-    for (let i = 0; i < remaining; i++) stars.push(0);
-    
-    return stars;
+    this.showRatingModal = true;
   }
 
   /**
-   * Format rating date (e.g., "2 days ago", "3 weeks ago")
+   * Get job title for candidate
    */
-  formatRatingDate(dateString: string): string {
-    const date = new Date(dateString);
-    const now = new Date();
-    const diffTime = Math.abs(now.getTime() - date.getTime());
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    
-    if (diffDays === 0) return 'Today';
-    if (diffDays === 1) return 'Yesterday';
-    if (diffDays < 7) return `${diffDays} days ago`;
-    if (diffDays < 30) return `${Math.floor(diffDays / 7)} weeks ago`;
-    if (diffDays < 365) return `${Math.floor(diffDays / 30)} months ago`;
-    
-    return date.toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-    });
-  }
-
-  /**
-   * Calculate rating percentage for distribution bar
-   */
-  getRatingPercentage(count: number, total: number): number {
-    if (total === 0) return 0;
-    return (count / total) * 100;
-  }
-
-  /**
-   * Get initials from name (for avatars)
-   */
-  getInitials(name: string): string {
-    if (!name) return '?';
-    const parts = name.split(' ');
-    if (parts.length >= 2) {
-      return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
+  private getJobTitleForCandidate(candidate: any): string | undefined {
+    if (this.selectedJob !== 'all') {
+      const selectedJobPost = this.jobPosts.find(j => j.id === this.selectedJob);
+      return selectedJobPost?.title;
     }
-    return name.substring(0, 2).toUpperCase();
+    return candidate.job_title;
   }
 
   /**
-   * Check if candidate has ratings
+   * Close rating modal
    */
-  hasRatings(candidate: Candidate): boolean {
-    return (candidate.total_ratings ?? 0) > 0;
+  closeRatingModal(): void {
+    this.showRatingModal = false;
+    this.candidateToRate = null;
   }
 
   /**
-   * Get rating badge class based on average rating
+   * Handle rating submission
    */
-  getRatingBadgeClass(rating: number): string {
-    if (rating >= 4.5) return 'rating-excellent';
-    if (rating >= 4.0) return 'rating-good';
-    if (rating >= 3.0) return 'rating-fair';
-    return 'rating-poor';
-  }
-
-  /**
-   * Check if profile has skill ratings
-   */
-  hasSkillRatings(profile: CandidateProfile): boolean {
-    if (!profile.rating_stats?.skill_ratings) return false;
-    
-    const skills = profile.rating_stats.skill_ratings;
-    return !!(
-      (skills.technical ?? 0) > 0 ||
-      (skills.communication ?? 0) > 0 ||
-      (skills.professionalism ?? 0) > 0 ||
-      (skills.quality ?? 0) > 0 ||
-      (skills.timeliness ?? 0) > 0
-    );
+  onRatingSubmitted(rating: any): void {
+    console.log('✅ Rating submitted:', rating);
+    alert(`✅ Successfully rated ${this.candidateToRate.name}!`);
+    this.closeRatingModal();
+    this.loadCandidates(); // Refresh to show updated ratings
   }
 
   // ============================================
-  // DATA LOADING
+  // DATA LOADING FUNCTIONS
   // ============================================
 
   loadEmployerTrainings(): void {
@@ -542,7 +547,7 @@ export class CandidatesComponent implements OnInit, OnDestroy {
   }
 
   // ============================================
-  // FILTER ACTIONS
+  // FILTER & SORT FUNCTIONS
   // ============================================
 
   applyFilters(): void {
@@ -586,7 +591,7 @@ export class CandidatesComponent implements OnInit, OnDestroy {
   }
 
   // ============================================
-  // SELECTION
+  // SELECTION FUNCTIONS
   // ============================================
 
   toggleCandidateSelection(candidateId: string): void {
@@ -620,6 +625,10 @@ export class CandidatesComponent implements OnInit, OnDestroy {
     this.candidates.forEach((c) => (c.is_selected = false));
     this.showBatchActions = false;
   }
+
+  // ============================================
+  // ACTION FUNCTIONS
+  // ============================================
 
   shortlistSelected(): void {
     if (this.selectedJob === 'all') {
@@ -668,10 +677,6 @@ export class CandidatesComponent implements OnInit, OnDestroy {
         },
       });
   }
-
-  // ============================================
-  // CANDIDATE ACTIONS
-  // ============================================
 
   toggleShortlist(candidate: Candidate): void {
     if (this.selectedJob === 'all') {
@@ -735,7 +740,7 @@ export class CandidatesComponent implements OnInit, OnDestroy {
   }
 
   // ============================================
-  // UTILITY
+  // UTILITY FUNCTIONS
   // ============================================
 
   getFullImageUrl(
@@ -812,8 +817,16 @@ export class CandidatesComponent implements OnInit, OnDestroy {
     this.loadCandidates();
   }
 
+  toggleSidebar(): void {
+    // Implementation for sidebar toggle
+  }
+
+  closeSidebar(): void {
+    // Implementation for sidebar close
+  }
+
   // ============================================
-  // CHAT FUNCTIONS (Updated for mobile)
+  // CHAT FUNCTIONS
   // ============================================
 
   initializeChat(): void {
@@ -828,9 +841,6 @@ export class CandidatesComponent implements OnInit, OnDestroy {
   }
 
   toggleChat(): void {
-    if (this.isMobile) {
-      this.toggleMobileChat();
-    }
     this.isChatOpen = !this.isChatOpen;
   }
 
