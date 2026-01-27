@@ -1,4 +1,4 @@
-// src/app/employer/candidates/candidates.component.ts - WITH RATINGS INTEGRATION
+// src/app/employer/candidates/candidates.component.ts - FIXED VERSION
 
 import { Component, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
@@ -11,9 +11,9 @@ import {
   Candidate,
   JobPost,
   CandidatesQuery,
-  CandidateProfile, // ✅ NEW: Enhanced profile with ratings
-  RatingStats,      // ✅ NEW
-  Rating            // ✅ NEW
+  CandidateProfile,
+  RatingStats,
+  Rating
 } from '../../../../../services/candidates.service';
 import { environment } from '../../../../environments/environments';
 import {
@@ -84,7 +84,7 @@ export class CandidatesComponent implements OnInit, OnDestroy {
   showRatingModal = false;
   candidateToRate: any = null;
 
-  // ✅ NEW: Expose Math to template
+  // Expose Math to template
   Math = Math;
 
   constructor(
@@ -108,7 +108,7 @@ export class CandidatesComponent implements OnInit, OnDestroy {
   }
 
   // ============================================
-  // ✅ NEW: RATING HELPER METHODS
+  // RATING HELPER METHODS
   // ============================================
 
   /**
@@ -207,9 +207,12 @@ export class CandidatesComponent implements OnInit, OnDestroy {
 
   /**
    * Check if profile has skill ratings
+   * ✅ FIXED: Removed unnecessary optional chaining on non-nullable properties
    */
   hasSkillRatings(profile: CandidateProfile | null): boolean {
-    if (!profile?.rating_stats?.skill_ratings) return false;
+    if (!profile || !profile.rating_stats || !profile.rating_stats.skill_ratings) {
+      return false;
+    }
     
     const skills = profile.rating_stats.skill_ratings;
     return !!(
@@ -223,7 +226,7 @@ export class CandidatesComponent implements OnInit, OnDestroy {
 
   /**
    * Get rating distribution value safely
-   * Handles the index signature issue for rating_distribution
+   * ✅ FIXED: Removed unnecessary optional chaining
    */
   getRatingDistributionValue(
     distribution: { 1: number; 2: number; 3: number; 4: number; 5: number } | undefined,
@@ -287,6 +290,7 @@ export class CandidatesComponent implements OnInit, OnDestroy {
 
   /**
    * Toggle shortlist from modal
+   * ✅ FIXED: Removed unnecessary optional chaining
    */
   toggleShortlistFromModal(): void {
     if (
@@ -303,15 +307,14 @@ export class CandidatesComponent implements OnInit, OnDestroy {
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: (response) => {
-          if (response.success && this.currentProfileData?.application) {
-            this.currentProfileData.application.status = response.data
-              .is_shortlisted
+          if (response.success && this.currentProfileData && this.currentProfileData.application) {
+            this.currentProfileData.application.status = response.data.is_shortlisted
               ? 'shortlisted'
               : 'reviewed';
 
             // Update in candidates list
             const candidate = this.candidates.find(
-              (c) => c.id === this.currentProfileData?.user_id
+              (c) => c.id === this.currentProfileData!.user_id
             );
             if (candidate) {
               candidate.is_shortlisted = response.data.is_shortlisted;
@@ -430,7 +433,7 @@ export class CandidatesComponent implements OnInit, OnDestroy {
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: (response) => {
-          if (response.success && response.data?.trainings) {
+          if (response.success && response.data && response.data.trainings) {
             this.availableTrainings = response.data.trainings;
             console.log(
               `✅ Loaded ${this.availableTrainings.length} trainings`
@@ -818,11 +821,23 @@ export class CandidatesComponent implements OnInit, OnDestroy {
   }
 
   toggleSidebar(): void {
-    // Implementation for sidebar toggle
+    const sidebar = document.querySelector('.sidebar');
+    const overlay = document.querySelector('.sidebar-overlay');
+    const hamburger = document.querySelector('.hamburger');
+    
+    sidebar?.classList.toggle('open');
+    overlay?.classList.toggle('open');
+    hamburger?.classList.toggle('active');
   }
 
   closeSidebar(): void {
-    // Implementation for sidebar close
+    const sidebar = document.querySelector('.sidebar');
+    const overlay = document.querySelector('.sidebar-overlay');
+    const hamburger = document.querySelector('.hamburger');
+    
+    sidebar?.classList.remove('open');
+    overlay?.classList.remove('open');
+    hamburger?.classList.remove('active');
   }
 
   // ============================================

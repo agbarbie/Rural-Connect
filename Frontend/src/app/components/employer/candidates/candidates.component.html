@@ -1,4 +1,4 @@
-<!-- candidates.component.html - WITH RATINGS INTEGRATION -->
+<!-- candidates.component.html - COMPLETE FIXED VERSION -->
 
 <!-- Hamburger Menu Button -->
 <button class="hamburger" (click)="toggleSidebar()">
@@ -290,7 +290,7 @@
             <h3 class="candidate-name">{{ candidate.name }}</h3>
             <p class="candidate-title">{{ candidate.title }}</p>
 
-            <!-- ✅ NEW: Rating Display in Card -->
+            <!-- ✅ Rating Display in Card -->
             <div class="rating-info" *ngIf="hasRatings(candidate)">
               <div class="rating-stars-mini">
                 <ng-container
@@ -742,7 +742,7 @@
   </div>
 </div>
 
-<!-- ✅ ENHANCED Profile View Modal WITH RATINGS -->
+<!-- ✅ ENHANCED Profile View Modal WITH RATINGS - ALL FIXES APPLIED -->
 <div
   class="modal-overlay profile-modal-overlay"
   *ngIf="showProfileModal"
@@ -786,7 +786,7 @@
           <h2>{{ currentProfileData.name }}</h2>
           <p class="profile-title">{{ currentProfileData.title }}</p>
 
-          <!-- ✅ NEW: Rating Bar in Header -->
+          <!-- ✅ Rating Bar in Header -->
           <div
             class="rating-bar-header"
             *ngIf="
@@ -874,7 +874,7 @@
         <p class="bio-text">{{ currentProfileData.bio }}</p>
       </div>
 
-      <!-- ✅ NEW: RATINGS & REVIEWS SECTION -->
+      <!-- ✅ RATINGS & REVIEWS SECTION - ALL FIXES APPLIED -->
       <div
         class="profile-section ratings-section"
         *ngIf="
@@ -924,18 +924,17 @@
                       [style.width.%]="
                         getRatingPercentage(
                           getRatingDistributionValue(
-                            currentProfileData.rating_stats
-                              ?.rating_distribution,
+                            currentProfileData.rating_stats.rating_distribution,
                             r
                           ),
-                          currentProfileData.rating_stats?.total_ratings || 0
+                          currentProfileData.rating_stats.total_ratings || 0
                         )
                       "
                     ></div>
                   </div>
                   <span class="distribution-count">{{
                     getRatingDistributionValue(
-                      currentProfileData.rating_stats?.rating_distribution,
+                      currentProfileData.rating_stats.rating_distribution,
                       r
                     )
                   }}</span>
@@ -954,7 +953,7 @@
               <div
                 class="skill-rating-item"
                 *ngIf="
-                  (currentProfileData.rating_stats?.skill_ratings?.technical ??
+                  (currentProfileData.rating_stats.skill_ratings?.technical ??
                     0) > 0
                 "
               >
@@ -967,7 +966,7 @@
                       class="fas fa-star"
                       *ngIf="
                         i <=
-                        (currentProfileData.rating_stats?.skill_ratings
+                        (currentProfileData.rating_stats.skill_ratings
                           ?.technical ?? 0)
                       "
                     ></i>
@@ -975,7 +974,7 @@
                       class="far fa-star"
                       *ngIf="
                         i >
-                        (currentProfileData.rating_stats?.skill_ratings
+                        (currentProfileData.rating_stats.skill_ratings
                           ?.technical ?? 0)
                       "
                     ></i>
@@ -983,7 +982,7 @@
                 </div>
                 <span class="skill-value"
                   >{{
-                    currentProfileData.rating_stats?.skill_ratings?.technical
+                    currentProfileData.rating_stats.skill_ratings?.technical
                       | number: "1.1-1"
                   }}/5</span
                 >
@@ -992,7 +991,7 @@
               <div
                 class="skill-rating-item"
                 *ngIf="
-                  (currentProfileData.rating_stats?.skill_ratings
+                  (currentProfileData.rating_stats.skill_ratings
                     ?.communication ?? 0) > 0
                 "
               >
@@ -1005,7 +1004,7 @@
                       class="fas fa-star"
                       *ngIf="
                         i <=
-                        (currentProfileData.rating_stats?.skill_ratings
+                        (currentProfileData.rating_stats.skill_ratings
                           ?.communication ?? 0)
                       "
                     ></i>
@@ -1013,7 +1012,7 @@
                       class="far fa-star"
                       *ngIf="
                         i >
-                        (currentProfileData.rating_stats?.skill_ratings
+                        (currentProfileData.rating_stats.skill_ratings
                           ?.communication ?? 0)
                       "
                     ></i>
@@ -1021,7 +1020,7 @@
                 </div>
                 <span class="skill-value"
                   >{{
-                    currentProfileData.rating_stats?.skill_ratings
+                    currentProfileData.rating_stats.skill_ratings
                       ?.communication | number: "1.1-1"
                   }}/5</span
                 >
@@ -1030,7 +1029,7 @@
               <div
                 class="skill-rating-item"
                 *ngIf="
-                  (currentProfileData.rating_stats?.skill_ratings
+                  (currentProfileData.rating_stats.skill_ratings
                     ?.professionalism ?? 0) > 0
                 "
               >
@@ -1043,7 +1042,7 @@
                       class="fas fa-star"
                       *ngIf="
                         i <=
-                        (currentProfileData.rating_stats?.skill_ratings
+                        (currentProfileData.rating_stats.skill_ratings
                           ?.professionalism ?? 0)
                       "
                     ></i>
@@ -1051,7 +1050,7 @@
                       class="far fa-star"
                       *ngIf="
                         i >
-                        (currentProfileData.rating_stats?.skill_ratings
+                        (currentProfileData.rating_stats.skill_ratings
                           ?.professionalism ?? 0)
                       "
                     ></i>
@@ -1059,7 +1058,7 @@
                 </div>
                 <span class="skill-value"
                   >{{
-                    currentProfileData.rating_stats?.skill_ratings
+                    currentProfileData.rating_stats.skill_ratings
                       ?.professionalism | number: "1.1-1"
                   }}/5</span
                 >
@@ -1068,7 +1067,7 @@
               <div
                 class="skill-rating-item"
                 *ngIf="
-                  (currentProfileData.rating_stats?.skill_ratings?.quality ??
+                  (currentProfileData.rating_stats.skill_ratings?.quality ??
                     0) > 0
                 "
               >
@@ -1081,7 +1080,7 @@
                       class="fas fa-star"
                       *ngIf="
                         i <=
-                        (currentProfileData.rating_stats?.skill_ratings
+                        (currentProfileData.rating_stats.skill_ratings
                           ?.quality ?? 0)
                       "
                     ></i>
@@ -1089,7 +1088,7 @@
                       class="far fa-star"
                       *ngIf="
                         i >
-                        (currentProfileData.rating_stats?.skill_ratings
+                        (currentProfileData.rating_stats.skill_ratings
                           ?.quality ?? 0)
                       "
                     ></i>
@@ -1097,7 +1096,7 @@
                 </div>
                 <span class="skill-value"
                   >{{
-                    currentProfileData.rating_stats?.skill_ratings?.quality
+                    currentProfileData.rating_stats.skill_ratings?.quality
                       | number: "1.1-1"
                   }}/5</span
                 >
@@ -1106,7 +1105,7 @@
               <div
                 class="skill-rating-item"
                 *ngIf="
-                  (currentProfileData.rating_stats?.skill_ratings?.timeliness ??
+                  (currentProfileData.rating_stats.skill_ratings?.timeliness ??
                     0) > 0
                 "
               >
@@ -1119,7 +1118,7 @@
                       class="fas fa-star"
                       *ngIf="
                         i <=
-                        (currentProfileData.rating_stats?.skill_ratings
+                        (currentProfileData.rating_stats.skill_ratings
                           ?.timeliness ?? 0)
                       "
                     ></i>
@@ -1127,7 +1126,7 @@
                       class="far fa-star"
                       *ngIf="
                         i >
-                        (currentProfileData.rating_stats?.skill_ratings
+                        (currentProfileData.rating_stats.skill_ratings
                           ?.timeliness ?? 0)
                       "
                     ></i>
@@ -1135,7 +1134,7 @@
                 </div>
                 <span class="skill-value"
                   >{{
-                    currentProfileData.rating_stats?.skill_ratings?.timeliness
+                    currentProfileData.rating_stats.skill_ratings?.timeliness
                       | number: "1.1-1"
                   }}/5</span
                 >
@@ -1313,38 +1312,38 @@
       <div class="profile-section" *ngIf="currentProfileData.preferences">
         <h4><i class="fas fa-list-check"></i> Job Preferences</h4>
         <div class="preferences-grid">
-          <div
-            class="pref-item"
-            *ngIf="currentProfileData.preferences.job_types?.length"
-          >
-            <strong>Job Types:</strong>
-            <span>{{
-              currentProfileData.preferences.job_types.join(", ")
-            }}</span>
+            <div
+              class="pref-item"
+              *ngIf="currentProfileData.preferences.job_types.length"
+            >
+              <strong>Job Types:</strong>
+              <span>{{
+                currentProfileData.preferences.job_types.join(", ")
+              }}</span>
+            </div>
+            <div
+              class="pref-item"
+              *ngIf="currentProfileData.preferences.locations.length"
+            >
+              <strong>Preferred Locations:</strong>
+              <span>{{
+                currentProfileData.preferences.locations.join(", ")
+              }}</span>
+            </div>
+            <div
+              class="pref-item"
+              *ngIf="
+                currentProfileData.preferences.salary_min ||
+                currentProfileData.preferences.salary_max
+              "
+            >
+              <strong>Salary Range:</strong>
+              <span>
+                Ksh{{ currentProfileData.preferences.salary_min | number }} -
+                Ksh{{ currentProfileData.preferences.salary_max | number }}
+              </span>
+            </div>
           </div>
-          <div
-            class="pref-item"
-            *ngIf="currentProfileData.preferences.locations?.length"
-          >
-            <strong>Preferred Locations:</strong>
-            <span>{{
-              currentProfileData.preferences.locations.join(", ")
-            }}</span>
-          </div>
-          <div
-            class="pref-item"
-            *ngIf="
-              currentProfileData.preferences.salary_min ||
-              currentProfileData.preferences.salary_max
-            "
-          >
-            <strong>Salary Range:</strong>
-            <span>
-              Ksh{{ currentProfileData.preferences.salary_min | number }} -
-              Ksh{{ currentProfileData.preferences.salary_max | number }}
-            </span>
-          </div>
-        </div>
       </div>
 
       <!-- Social Links -->
