@@ -149,28 +149,37 @@ body {
   padding: 1rem;
 }
 
+/* ==================== JOB VACANCIES - IMPROVED MOBILE RESPONSIVE ==================== */
 .job-vacancies {
   background: url('https://media.licdn.com/dms/image/v2/D4E12AQFwjnlaeVS3YQ/article-cover_image-shrink_600_2000/article-cover_image-shrink_600_2000/0/1721310704848?e=2147483647&v=beta&t=b-qw8eTvMKKnG2X5PQJPDrGNjLCKT9nEeVVsRF1S018') 
     no-repeat center center;
   background-size: cover;
-  background-attachment: fixed;
-  background-position: center;
-  padding: clamp(60px, 10vw, 120px) 0;
+  background-position: center center;
+  padding: clamp(80px, 12vw, 120px) 0 clamp(60px, 10vw, 100px);
   position: relative;
   color: #fff;
   text-align: center;
-  min-height: 80vh;
+  min-height: 85vh;
   display: flex;
   align-items: center;
-  animation: zoomBackground 6s ease-in-out infinite alternate;
+  width: 100%;
+  overflow: hidden;
 }
 
-@keyframes zoomBackground {
-  0% {
-    background-size: 100%;
+/* Desktop animation */
+@media (min-width: 769px) {
+  .job-vacancies {
+    background-attachment: fixed;
+    animation: zoomBackground 6s ease-in-out infinite alternate;
   }
-  100% {
-    background-size: 110%;
+
+  @keyframes zoomBackground {
+    0% {
+      background-size: 100%;
+    }
+    100% {
+      background-size: 110%;
+    }
   }
 }
 
@@ -181,7 +190,7 @@ body {
   left: 0;
   width: 100%;
   height: 100%;
-  background: linear-gradient(135deg, rgba(34, 197, 94, 0.2), rgba(0, 0, 0, 0.3));
+  background: linear-gradient(135deg, rgba(34, 197, 94, 0.25), rgba(0, 0, 0, 0.4));
   z-index: 1;
 }
 
@@ -189,7 +198,7 @@ body {
   position: relative;
   z-index: 2;
   width: 100%;
-  max-width: 800px;
+  max-width: 900px;
   margin: 0 auto;
   padding: 0 20px;
 }
@@ -199,20 +208,24 @@ body {
   font-weight: 800;
   margin-bottom: 1.5rem;
   line-height: 1.2;
-  text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+  text-shadow: 0 3px 6px rgba(0,0,0,0.6);
+  word-wrap: break-word;
 }
 
 .job-vacancies .highlight {
   color: #22c55e;
-  text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+  text-shadow: 0 3px 6px rgba(0,0,0,0.6);
 }
 
 .job-vacancies p {
   font-size: clamp(1rem, 2.5vw, 1.25rem);
   color: rgba(255,255,255,0.95);
   margin-bottom: 2.5rem;
-  line-height: 1.6;
-  text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+  line-height: 1.7;
+  text-shadow: 0 2px 4px rgba(0,0,0,0.6);
+  max-width: 800px;
+  margin-left: auto;
+  margin-right: auto;
 }
 
 .vacancies-links {
@@ -228,46 +241,50 @@ body {
   color: white;
   border: none;
   padding: clamp(0.75rem, 2vw, 1rem) clamp(1.5rem, 4vw, 2.5rem);
-  border-radius: 8px;
-  font-weight: 600;
+  border-radius: 10px;
+  font-weight: 700;
   font-size: clamp(0.9rem, 2vw, 1.1rem);
   transition: all 0.3s ease;
-  box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-  min-height: 44px;
+  box-shadow: 0 6px 16px rgba(0,0,0,0.2);
+  min-height: 48px;
   display: inline-flex;
   align-items: center;
   gap: 0.5rem;
   cursor: pointer;
+  text-decoration: none;
 }
 
 .vacancies-content .btn-link {
   background-color: #22c55e;
   color: white;
-  border: none;
-  padding: clamp(0.5rem, 1.5vw, 0.75rem) clamp(1rem, 3vw, 1.5rem);
-  border-radius: 6px;
-  font-weight: 600;
-  font-size: clamp(0.85rem, 2vw, 1.1rem);
+  border: 2px solid transparent;
+  padding: clamp(0.625rem, 1.5vw, 0.875rem) clamp(1.25rem, 3vw, 1.75rem);
+  border-radius: 10px;
+  font-weight: 700;
+  font-size: clamp(0.875rem, 2vw, 1rem);
   cursor: pointer;
   transition: all 0.3s ease;
   text-decoration: none;
-  display: inline-block;
-  min-height: 44px;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
+  min-height: 48px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
 }
 
 .vacancies-content .btn-link:hover {
   background-color: white;
   color: #22c55e;
   text-decoration: none;
-  border: 1px solid #22c55e;
+  border: 2px solid #22c55e;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(0,0,0,0.2);
 }
 
 .job-vacancies .btn-primary:hover {
   background: #16a34a;
   transform: translateY(-3px);
-  box-shadow: 0 6px 12px rgba(0,0,0,0.15);
+  box-shadow: 0 8px 20px rgba(0,0,0,0.25);
 }
 
 .powerful-features {
@@ -1474,10 +1491,14 @@ body {
   gap: 1rem;
 }
 
+/* ==================== RESPONSIVE BREAKPOINTS ==================== */
+
 @media (max-width: 1024px) {
   .job-vacancies {
     background-attachment: scroll;
-    min-height: 70vh;
+    min-height: 75vh;
+    background-position: center center;
+    padding: clamp(70px, 10vw, 100px) 0 clamp(50px, 8vw, 80px);
   }
 
   .hero-content {
@@ -1566,15 +1587,46 @@ body {
     padding: 0 15px;
   }
 
+  /* ==================== JOB VACANCIES MOBILE FIX ==================== */
   .job-vacancies {
-    min-height: 60vh;
-    padding: 60px 0;
+    min-height: 70vh;
+    padding: 80px 0 60px;
     background-size: cover;
-    background-position: center top;
+    background-position: center center;
+    background-attachment: scroll;
+    animation: none; /* Disable animation on mobile */
   }
 
   .job-vacancies::before {
-    background: linear-gradient(135deg, rgba(34, 197, 94, 0.3), rgba(0, 0, 0, 0.4));
+    background: linear-gradient(135deg, rgba(34, 197, 94, 0.35), rgba(0, 0, 0, 0.5));
+  }
+
+  .vacancies-content {
+    padding: 0 15px;
+  }
+
+  .job-vacancies h1 {
+    font-size: clamp(1.75rem, 6vw, 2.5rem);
+    margin-bottom: 1.25rem;
+  }
+
+  .job-vacancies p {
+    font-size: clamp(0.95rem, 3vw, 1.125rem);
+    margin-bottom: 2rem;
+    padding: 0 10px;
+  }
+
+  .vacancies-links {
+    flex-direction: column;
+    align-items: center;
+    gap: 1rem;
+  }
+
+  .job-vacancies .btn-primary,
+  .vacancies-content .btn-link {
+    width: 100%;
+    max-width: 320px;
+    justify-content: center;
   }
 
   .desktop-nav {
@@ -1681,18 +1733,6 @@ body {
   .skill-btn {
     max-width: none;
   }
-
-  .vacancies-links {
-    flex-direction: column;
-    align-items: center;
-    gap: 1rem;
-  }
-
-  .job-vacancies .btn-primary,
-  .vacancies-content .btn-link {
-    width: 100%;
-    max-width: 300px;
-  }
 }
 
 @media (max-width: 480px) {
@@ -1708,14 +1748,41 @@ body {
     font-size: 1.2rem;
   }
 
+  /* ==================== JOB VACANCIES SMALL MOBILE FIX ==================== */
   .job-vacancies {
-    min-height: 50vh;
-    padding: 40px 0;
-    background-position: center;
+    min-height: 60vh;
+    padding: 70px 0 50px;
+    background-position: center center;
+    background-size: cover;
   }
 
   .job-vacancies::before {
-    background: linear-gradient(135deg, rgba(34, 197, 94, 0.4), rgba(0, 0, 0, 0.5));
+    background: linear-gradient(135deg, rgba(34, 197, 94, 0.4), rgba(0, 0, 0, 0.55));
+  }
+
+  .vacancies-content {
+    padding: 0 12px;
+  }
+
+  .job-vacancies h1 {
+    font-size: clamp(1.5rem, 7vw, 2rem);
+    line-height: 1.3;
+  }
+
+  .job-vacancies p {
+    font-size: clamp(0.875rem, 3.5vw, 1rem);
+    line-height: 1.6;
+    padding: 0 5px;
+  }
+
+  .job-vacancies .btn-primary {
+    font-size: 0.9rem;
+    padding: 0.75rem 1.5rem;
+  }
+
+  .vacancies-content .btn-link {
+    font-size: 0.875rem;
+    padding: 0.625rem 1.25rem;
   }
 
   .hero-text h1 {
@@ -1795,5 +1862,56 @@ body {
 
   .social-links {
     justify-content: center;
+  }
+}
+
+/* ==================== EXTRA SMALL DEVICES ==================== */
+@media (max-width: 360px) {
+  .job-vacancies {
+    min-height: 55vh;
+    padding: 65px 0 45px;
+  }
+
+  .job-vacancies h1 {
+    font-size: 1.375rem;
+  }
+
+  .job-vacancies p {
+    font-size: 0.8125rem;
+  }
+
+  .job-vacancies .btn-primary {
+    font-size: 0.85rem;
+    padding: 0.625rem 1.25rem;
+  }
+
+  .vacancies-content .btn-link {
+    font-size: 0.8125rem;
+    padding: 0.5rem 1rem;
+  }
+}
+
+/* ==================== LANDSCAPE MODE OPTIMIZATION ==================== */
+@media (max-width: 768px) and (orientation: landscape) {
+  .job-vacancies {
+    min-height: 100vh;
+    padding: 60px 0 40px;
+  }
+
+  .vacancies-content {
+    max-width: 80%;
+  }
+}
+
+/* ==================== ACCESSIBILITY & PERFORMANCE ==================== */
+@media (prefers-reduced-motion: reduce) {
+  .job-vacancies {
+    animation: none !important;
+  }
+  
+  * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
   }
 }
