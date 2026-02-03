@@ -61,63 +61,63 @@ export class LandingComponent implements OnInit {
 
   candidates: Candidate[] = [
     {
-      name: 'Anjali Sharma',
+      name: 'Wanjiku Kamau',
       role: 'Data Analyst',
       experience: '3 Years',
-      location: 'Rajasthan, India',
+      location: 'Nairobi, Kenya',
       skills: ['Python', 'Excel', 'SQL'],
-      image: 'https://live-production.wcms.abc-cdn.net.au/d4f3618bcdb80ac73fd219fced7809f3?impolicy=wcms_crop_resize&cropH=2813&cropW=5000&xPos=0&yPos=210&width=862&height=485',
+      image: 'https://ui-avatars.com/api/?name=Wanjiku+Kamau&background=22c55e&color=fff&size=150&bold=true',
       matchScore: 95
     },
     {
-      name: 'Ravi Kumar',
+      name: 'Kipchoge Mwangi',
       role: 'Digital Marketer',
       experience: '2 Years',
-      location: 'Punjab, India',
+      location: 'Kisumu, Kenya',
       skills: ['SEO', 'Social Media', 'Content'],
-      image: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&h=150&fit=crop&crop=face',
+      image: 'https://ui-avatars.com/api/?name=Kipchoge+Mwangi&background=3b82f6&color=fff&size=150&bold=true',
       matchScore: 92
     },
     {
-      name: 'Priya Patel',
+      name: 'Akinyi Odhiambo',
       role: 'Web Developer',
       experience: '4 Years',
-      location: 'Gujarat, India',
+      location: 'Mombasa, Kenya',
       skills: ['React', 'Node.js', 'MongoDB'],
-      image: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=150&h=150&fit=crop&crop=face',
+      image: 'https://ui-avatars.com/api/?name=Akinyi+Odhiambo&background=f97316&color=fff&size=150&bold=true',
       matchScore: 88
     },
     {
-      name: 'Arjun Singh',
+      name: 'Barasa Wekesa',
       role: 'Content Writer',
       experience: '1 Year',
-      location: 'Uttar Pradesh, India',
+      location: 'Eldoret, Kenya',
       skills: ['Writing', 'Research', 'SEO'],
-      image: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&h=150&fit=crop&crop=face',
+      image: 'https://ui-avatars.com/api/?name=Barasa+Wekesa&background=8b5cf6&color=fff&size=150&bold=true',
       matchScore: 85
     }
   ];
 
   stories: Story[] = [
     {
-      name: 'Anjali Devi',
+      name: 'Njeri Ndungu',
       role: 'Data Entry Specialist',
-      content: 'Thanks to RuralConnect, I found a remote data entry job from my village in Rajasthan. The AI matching system guided me perfectly, and I now earn ₹25,000 monthly while staying close to my family.',
-      avatar: 'https://images.unsplash.com/photo-1494790108755-2616b332c7ff?w=50&h=50&fit=crop&crop=face',
+      content: 'Thanks to Digital Skilling App, I found a remote data entry job from my village in Nyeri. The AI matching system guided me perfectly, and I now earn Ksh 25,000 monthly while staying close to my family.',
+      avatar: 'https://ui-avatars.com/api/?name=Njeri+Ndungu&background=22c55e&color=fff&size=50&bold=true',
       rating: 5
     },
     {
-      name: 'Ravi Jha',
-      role: 'HR Manager, TechCorp',
-      content: 'RuralConnect\'s AI-powered matching helped us find skilled workers 3x faster than traditional methods. The secure payment system and interview scheduling made our hiring process seamless.',
-      avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=50&h=50&fit=crop&crop=face',
+      name: 'Otieno Ouma',
+      role: 'HR Manager, TechCorp Kenya',
+      content: 'Digital Skilling App\'s AI-powered matching helped us find skilled workers 3x faster than traditional methods. The secure payment system and interview scheduling made our hiring process seamless.',
+      avatar: 'https://ui-avatars.com/api/?name=Otieno+Ouma&background=3b82f6&color=fff&size=50&bold=true',
       rating: 5
     },
     {
-      name: 'Isha Kumari',
+      name: 'Chebet Korir',
       role: 'Digital Marketing Assistant',
-      content: 'The free training programs helped me transition from farming to digital marketing. I completed 3 certifications and now manage social media for 5 small businesses remotely.',
-      avatar: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=50&h=50&fit=crop&crop=face',
+      content: 'The free training programs helped me transition from farming to digital marketing. I completed 3 certifications and now manage social media for 5 small businesses remotely from Nakuru.',
+      avatar: 'https://ui-avatars.com/api/?name=Chebet+Korir&background=f97316&color=fff&size=50&bold=true',
       rating: 5
     }
   ];
@@ -128,7 +128,7 @@ export class LandingComponent implements OnInit {
       title: 'Remote Data Entry Specialist',
       company: 'DataCorp Solutions',
       location: 'Remote',
-      salary: '₹15,000 - ₹25,000',
+      salary: 'Ksh 15,000 - Ksh 25,000',
       type: 'Full-time',
       skills: ['Excel', 'Data Entry', 'Attention to Detail'],
       matchScore: 94,
@@ -141,7 +141,7 @@ export class LandingComponent implements OnInit {
       title: 'Digital Marketing Assistant',
       company: 'GrowthHub',
       location: 'Remote',
-      salary: '₹20,000 - ₹35,000',
+      salary: 'Ksh 20,000 - Ksh 35,000',
       type: 'Part-time',
       skills: ['Social Media', 'Content Creation', 'Analytics'],
       matchScore: 89,
@@ -154,9 +154,9 @@ export class LandingComponent implements OnInit {
       title: 'Customer Support Representative',
       company: 'TechSupport Inc',
       location: 'Remote',
-      salary: '₹18,000 - ₹28,000',
+      salary: 'Ksh 18,000 - Ksh 28,000',
       type: 'Full-time',
-      skills: ['Communication', 'Problem Solving', 'Hindi & English'],
+      skills: ['Communication', 'Problem Solving', 'Swahili & English'],
       matchScore: 91,
       posted: '3 days ago',
       logo: 'TS',
