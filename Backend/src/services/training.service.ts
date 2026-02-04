@@ -201,9 +201,13 @@ async createTraining(data: CreateTrainingRequest, employerId: string): Promise<T
     if (epRow.rows.length === 0) throw new Error('Employer profile not found for this user');
     const employerProfileId = epRow.rows[0].id;
 
-    // FIXED: Map training_start_date → start_date and training_end_date → end_date
-    const startDate = data.training_start_date || data.start_date || null;
-    const endDate = data.training_end_date || data.end_date || null;
+    // ✅ FIXED: Properly handle both field name variations
+    const startDate = data.start_date || data.training_start_date || null;
+    const endDate = data.end_date || data.training_end_date || null;
+
+    // ✅ FIXED: Ensure sessions and outcomes are arrays
+    const sessions = Array.isArray(data.sessions) ? data.sessions : [];
+    const outcomes = Array.isArray(data.outcomes) ? data.outcomes : [];
 
     // -- insert training --
     const tResult = await client.query(
@@ -226,33 +230,40 @@ async createTraining(data: CreateTrainingRequest, employerId: string): Promise<T
         employerProfileId, 
         data.provider_name?.trim(), 
         data.has_certificate ?? false,
-        data.eligibility_requirements ?? null,  // ← Parameter $12
-        data.application_deadline ?? null,      // ← Parameter $13
-        data.thumbnail_url ?? null,             // ← Parameter $14
-        data.location ?? null,                  // ← Parameter $15
-        startDate,                              // ← Parameter $16 (FIXED)
-        endDate,                                // ← Parameter $17 (FIXED)
-        data.max_participants ?? null,          // ← Parameter $18
+        data.eligibility_requirements ?? null,
+        data.application_deadline ?? null,
+        data.thumbnail_url ?? null,
+        data.location ?? null,
+        startDate,  // ✅ Uses mapped value
+        endDate,    // ✅ Uses mapped value
+        data.max_participants ?? null,
       ]
     );
     const trainingId = tResult.rows[0].id;
 
     // -- insert sessions --
-    if (data.sessions && data.sessions.length > 0) {
-      for (let i = 0; i < data.sessions.length; i++) {
-        const s = data.sessions[i];
+    if (sessions.length > 0) {
+      for (let i = 0; i < sessions.length; i++) {
+        const s = sessions[i];
         await client.query(
           `INSERT INTO training_sessions (training_id, title, description, scheduled_at, duration_minutes, meeting_url, order_index, created_at, updated_at)
            VALUES ($1,$2,$3,$4,$5,$6,$7,NOW(),NOW())`,
-          [trainingId, s.title?.trim(), s.description?.trim() ?? null,
-           s.scheduled_at, s.duration_minutes, s.meeting_url?.trim(), s.order_index ?? i + 1]
+          [
+            trainingId, 
+            s.title?.trim(), 
+            s.description?.trim() ?? null,
+            s.scheduled_at, 
+            s.duration_minutes, 
+            s.meeting_url?.trim(), 
+            s.order_index ?? i + 1
+          ]
         );
       }
     }
 
     // -- insert outcomes --
-    if (data.outcomes && data.outcomes.length > 0) {
-      for (const o of data.outcomes) {
+    if (outcomes.length > 0) {
+      for (const o of outcomes) {
         await client.query(
           `INSERT INTO training_outcomes (training_id, outcome_text, order_index) VALUES ($1,$2,$3)`,
           [trainingId, o.outcome_text?.trim(), o.order_index]

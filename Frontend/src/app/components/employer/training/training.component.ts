@@ -853,10 +853,10 @@ export class TrainingComponent implements OnInit, OnDestroy {
     });
   }
 
-  private performSave(thumbnailUrl: string): void {
+ private performSave(thumbnailUrl: string): void {
   console.log('🚀 performSave called with thumbnail:', thumbnailUrl);
   
-  const baseData: UpdateTrainingRequest = {
+  const baseData: CreateTrainingRequest = {
     title: this.newTraining.title.trim(),
     description: this.newTraining.description.trim(),
     category: this.newTraining.category,
@@ -872,17 +872,17 @@ export class TrainingComponent implements OnInit, OnDestroy {
     eligibility_requirements: undefined,
     application_deadline: this.newTraining.application_deadline || undefined,
     
-    // Use training_start_date and training_end_date to match UpdateTrainingRequest
+    // send only the properties defined by CreateTrainingRequest
     training_start_date: this.newTraining.training_start_date || undefined,
     training_end_date: this.newTraining.training_end_date || undefined,
     
     max_participants: this.newTraining.max_participants || undefined,
     
-    sessions: this.newTraining.sessions.map((s, index) => ({
+    sessions: (this.newTraining.sessions || []).map((s, index) => ({
       ...s,
       order_index: index
     })),
-    outcomes: this.newTraining.outcomes.map((o, index) => ({
+    outcomes: (this.newTraining.outcomes || []).map((o, index) => ({
       ...o,
       order_index: index
     }))
@@ -915,9 +915,8 @@ export class TrainingComponent implements OnInit, OnDestroy {
       });
   } else {
     console.log('➕ Creating new training');
-    const trainingData: CreateTrainingRequest = { ...baseData } as CreateTrainingRequest;
     
-    this.trainingService.createTraining(trainingData)
+    this.trainingService.createTraining(baseData)
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: (response) => {

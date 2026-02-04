@@ -260,8 +260,12 @@ export interface Training {
 // 7.  CREATE / UPDATE DTOs
 // ---------------------------------------------------------------------------
 export interface CreateTrainingRequest {
-  training_start_date: string | undefined;
-  training_end_date: string | undefined;
+  // Accept both naming conventions
+  training_start_date?: string;
+  training_end_date?: string;
+  start_date?: string;
+  end_date?: string;
+  
   title: string;
   description: string;
   category: string;
@@ -273,15 +277,11 @@ export interface CreateTrainingRequest {
   provider_name: string;
   has_certificate: boolean;
   eligibility_requirements?: string;
-  application_deadline?: string; // ISO string
+  application_deadline?: string;
   thumbnail_url?: string;
   location?: string;
-  start_date?: string;
-  end_date?: string;
   max_participants?: number;
-  /** Sessions to create together with the training */
   sessions: CreateSessionRequest[];
-  /** Learning outcomes to attach */
   outcomes: CreateTrainingOutcomeRequest[];
 }
 
