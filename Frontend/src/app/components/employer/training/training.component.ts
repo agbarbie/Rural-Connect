@@ -1,5 +1,5 @@
 // employer-training.component.ts - BOOTCAMP MODEL (Fixed Method Signatures)
-import { Component, OnInit, OnDestroy } from '@angular/core';
+import { Component, OnInit, OnDestroy, Inject, forwardRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
@@ -156,7 +156,7 @@ export class TrainingComponent implements OnInit, OnDestroy {
   selectedTrainingIds: Set<string> = new Set();
 
   constructor(
-    private trainingService: TrainingService,
+    @Inject(forwardRef(() => TrainingService)) private trainingService: TrainingService,
     private http: HttpClient,
     private datePipe: DatePipe
   ) {}
@@ -274,8 +274,8 @@ export class TrainingComponent implements OnInit, OnDestroy {
   // ============================================
   
   loadTrainings(): void {
-    // ✅ FIXED: getMyTrainings expects (params, employerId?) - removed employerId parameter
-    this.trainingService.getMyTrainings(this.searchParams)
+    // ✅ FIXED: getMyTrainings expects (params, employerId) - include employerId as second argument
+    this.trainingService.getMyTrainings(this.searchParams, this.employerId)
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: (response) => {

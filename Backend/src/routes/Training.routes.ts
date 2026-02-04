@@ -230,6 +230,20 @@ export function createTrainingRoutes(db: Pool): Router {
     bind(trainingController.markCompletion)
   );
 
+  // Session attendance management
+router.post(
+  '/:id/sessions/:sessionId/attendance',
+  authenticate,
+  authorize('employer'),
+  bind(trainingController.markSessionAttendance)
+);
+
+router.get(
+  '/:id/sessions/:sessionId/attendance',
+  authenticate,
+  authorize('employer'),
+  bind(trainingController.getSessionAttendance)
+);
   // ==========================================================================
   // EMPLOYER ROUTES - Certificate Issuance
   // ==========================================================================

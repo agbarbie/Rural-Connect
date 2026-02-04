@@ -1,6 +1,6 @@
 // src/app/employer/candidates/candidates.component.ts - FIXED VERSION
 
-import { Component, OnInit, OnDestroy } from '@angular/core';
+import { Component, OnInit, OnDestroy, Inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
@@ -90,7 +90,7 @@ export class CandidatesComponent implements OnInit, OnDestroy {
   constructor(
     private candidatesService: CandidatesService,
     private geminiService: GeminiChatService,
-    private trainingService: TrainingService,
+    @Inject(TrainingService) private trainingService: TrainingService,
     private ratingService: RatingService,
     private router: Router
   ) {}

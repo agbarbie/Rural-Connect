@@ -514,6 +514,148 @@ export class TrainingService {
     };
   }
 
+  // In TrainingService class
+
+/**
+ * Mark attendance for a training session
+ */
+async markSessionAttendance(
+  sessionId: string,
+  enrollmentIds: string[],
+  attendanceData: { enrollment_id: string; attended: boolean; notes?: string }[],
+  employerId: string
+): Promise<any> {
+  const client = await this.db.connect();
+  try {
+    await client.query('BEGIN');
+
+    // Verify employer owns this training
+    const session = await client.query(
+      `SELECT ts.*, t.provider_id 
+       FROM training_sessions ts
+       JOIN trainings t ON ts.training_id = t.id
+       WHERE ts.id = $1`,
+      [sessionId]
+    );
+
+    if (session.rows.length === 0) throw new Error('Session not found');
+
+    const epRow = await client.query('SELECT id FROM employers WHERE user_id = $1', [employerId]);
+    const epId = epRow.rows.length > 0 ? epRow.rows[0].id : null;
+
+    if (session.rows[0].provider_id !== employerId && session.rows[0].provider_id !== epId) {
+      throw new Error('Unauthorized');
+    }
+
+    // Mark attendance for each enrollment
+    for (const record of attendanceData) {
+      // Get user_id from enrollment
+      const enr = await client.query(
+        'SELECT user_id FROM training_enrollments WHERE id = $1',
+        [record.enrollment_id]
+      );
+
+      if (enr.rows.length > 0) {
+        await client.query(
+          `INSERT INTO session_attendance (session_id, enrollment_id, user_id, attended, notes, attendance_marked_at)
+           VALUES ($1, $2, $3, $4, $5, NOW())
+           ON CONFLICT (session_id, enrollment_id)
+           DO UPDATE SET attended = $4, notes = $5, attendance_marked_at = NOW()`,
+          [sessionId, record.enrollment_id, enr.rows[0].user_id, record.attended, record.notes || null]
+        );
+      }
+    }
+
+    // Recalculate attendance rates for affected enrollments
+    for (const record of attendanceData) {
+      await this.updateEnrollmentAttendanceRate(record.enrollment_id, client);
+    }
+
+    await client.query('COMMIT');
+
+    return { success: true, message: 'Attendance marked successfully' };
+  } catch (err: any) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+/**
+ * Calculate and update enrollment attendance rate
+ */
+private async updateEnrollmentAttendanceRate(enrollmentId: string, client: any): Promise<void> {
+  const result = await client.query(
+    `SELECT 
+       COUNT(*) as total_sessions,
+       COUNT(*) FILTER (WHERE attended = true) as attended_sessions
+     FROM session_attendance
+     WHERE enrollment_id = $1`,
+    [enrollmentId]
+  );
+
+  const total = parseInt(result.rows[0].total_sessions);
+  const attended = parseInt(result.rows[0].attended_sessions);
+  const rate = total > 0 ? Math.round((attended / total) * 100) : 0;
+
+  await client.query(
+    'UPDATE training_enrollments SET attendance_rate = $1 WHERE id = $2',
+    [rate, enrollmentId]
+  );
+}
+
+/**
+ * Get session attendance for a training
+ */
+async getSessionAttendance(sessionId: string, employerId: string): Promise<any> {
+  const epRow = await this.db.query('SELECT id FROM employers WHERE user_id = $1', [employerId]);
+  const epId = epRow.rows.length > 0 ? epRow.rows[0].id : null;
+
+  // Verify ownership
+  const session = await this.db.query(
+    `SELECT ts.*, t.provider_id 
+     FROM training_sessions ts
+     JOIN trainings t ON ts.training_id = t.id
+     WHERE ts.id = $1 AND (t.provider_id = $2 OR t.provider_id = $3)`,
+    [sessionId, employerId, epId ?? '']
+  );
+
+  if (session.rows.length === 0) return null;
+
+  // Get all enrollments for this training
+  const result = await this.db.query(
+    `SELECT 
+       e.id as enrollment_id,
+       e.user_id,
+       u.first_name,
+       u.last_name,
+       u.email,
+       COALESCE(sa.attended, false) as attended,
+       sa.notes,
+       sa.attendance_marked_at
+     FROM training_enrollments e
+     JOIN users u ON e.user_id = u.id
+     LEFT JOIN session_attendance sa ON sa.enrollment_id = e.id AND sa.session_id = $1
+     WHERE e.training_id = $2 AND e.status = 'enrolled'
+     ORDER BY u.last_name, u.first_name`,
+    [sessionId, session.rows[0].training_id]
+  );
+
+  return {
+    session: session.rows[0],
+    attendance: result.rows.map(r => ({
+      enrollment_id: r.enrollment_id,
+      user_id: r.user_id,
+      user_name: `${r.first_name} ${r.last_name}`,
+      email: r.email,
+      attended: r.attended,
+      notes: r.notes,
+      marked_at: r.attendance_marked_at,
+    })),
+  };
+}
+
   /** Employer's own trainings */
   async getAllTrainings(params: TrainingSearchParams, employerId?: string): Promise<TrainingListResponse> {
     const { page = 1, limit = 10, sort_by = 'created_at', sort_order = 'desc', filters = {} } = params;

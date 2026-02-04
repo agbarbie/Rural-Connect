@@ -5,21 +5,34 @@
 // 1.  TRAINING SESSION  (a single live meeting inside a training program)
 // ---------------------------------------------------------------------------
 export interface TrainingSession {
-  id: string;
-  training_id: string;
+  id?: string;
+  training_id?: string;
   /** Human-readable title, e.g. "Week 1 – Foundations" */
   title: string;
   description?: string;
-  /** ISO date-time when the session starts */
-  scheduled_at: Date;
+  /** ISO date-time string when the session starts */
+  scheduled_at: string;
   /** Duration in minutes */
   duration_minutes: number;
   /** Link to the live meeting room (Zoom / Google Meet / etc.) */
-  meeting_url: string;
+  meeting_url?: string;
+  meeting_password?: string;
   /** 1-based ordering within the training */
   order_index: number;
-  created_at: Date;
-  updated_at: Date;
+  is_completed?: boolean;
+  attendance_count?: number;
+  created_at?: Date;
+  updated_at?: Date;
+}
+
+export interface SessionAttendance {
+  id?: string;
+  session_id: string;
+  enrollment_id: string;
+  user_id: string;
+  attended: boolean;
+  attendance_marked_at?: Date;
+  notes?: string;
 }
 
 export interface CreateSessionRequest {
@@ -27,7 +40,7 @@ export interface CreateSessionRequest {
   description?: string;
   scheduled_at: string; // ISO string from the client
   duration_minutes: number;
-  meeting_url: string;
+  meeting_url?: string;
   order_index: number;
 }
 
@@ -85,17 +98,25 @@ export interface TrainingEnrollment {
   id: string;
   training_id: string;
   user_id: string;
-  /** Links back to the application that was shortlisted */
-  application_id: string;
+  application_id?: string;
   status: EnrollmentStatus;
   enrolled_at: Date;
-  /** Set by the employer when the training period ends */
   completed_at?: Date;
-  /** Employer marks true/false after evaluating attendance & tasks */
+
+  // Evaluation criteria (as per system design)
+  attendance_rate: number; // Percentage
+  participation_score: number; // 0-100
+  tasks_completed: number;
+  tasks_total: number;
+
+  // Completion
   completion_marked: boolean;
+
+  // Certificate
   certificate_issued: boolean;
   certificate_url?: string;
   certificate_issued_at?: Date;
+
   created_at: Date;
   updated_at: Date;
 
@@ -113,6 +134,10 @@ export interface TrainingEnrollment {
 export interface MarkCompletionRequest {
   /** true = completed successfully; false = not completed */
   completed: boolean;
+  attendance_rate?: number;
+  participation_score?: number;
+  tasks_completed?: number;
+  tasks_total?: number;
   /** Optional employer notes on the trainee's performance */
   employer_notes?: string;
 }
@@ -167,10 +192,10 @@ export interface SubmitReviewRequest {
 // ---------------------------------------------------------------------------
 // 6.  TRAINING  (the core training-post entity)
 // ---------------------------------------------------------------------------
-export type TrainingStatus = 'draft' | 'published' | 'applications_closed' | 'in_progress' | 'completed' | 'suspended';
+export type TrainingStatus = 'draft' | 'published' | 'applications_closed' | 'in_progress' | 'completed';
 export type TrainingLevel  = 'Beginner' | 'Intermediate' | 'Advanced';
 export type TrainingCostType = 'Free' | 'Paid';
-export type TrainingMode    = 'Online' | 'Hybrid' | 'Offline';
+export type TrainingMode    = 'Online' | 'Offline';
 
 export interface Training {
   id: string;
@@ -185,38 +210,50 @@ export interface Training {
   mode: TrainingMode;
   provider_id: string;
   provider_name: string;
-  /** Eligibility criteria shown on the post */
-  eligibility_requirements?: string;
-  /** ISO date-time – after this, no new applications are accepted */
-  application_deadline?: Date;
-  /** When live training sessions begin */
-  start_date?: Date;
-  /** When live training sessions end */
-  end_date?: Date;
-  max_participants?: number;
-  /** Count of currently enrolled (shortlisted) trainees */
-  current_participants: number;
   has_certificate: boolean;
-  thumbnail_url?: string;
-  location?: string; // relevant for Offline / Hybrid
+
+  // Training content
+  training_objectives?: string;
+  skills_to_acquire?: string[];
+  eligibility_requirements?: string;
+
+  // Application
+  application_deadline?: Date;
+  application_url?: string;
+
+  // Training schedule
+  start_date?: Date;
+  end_date?: Date;
+
+  // Capacity
+  max_participants?: number;
+  current_participants: number;
+
+  // Status
   status: TrainingStatus;
+
+  // Metadata
   rating: number;
   total_students: number;
+  thumbnail_url?: string;
+  location?: string;
   created_at: Date;
   updated_at: Date;
 
-  // ---------- populated / computed ----------
+  // Relations
   sessions?: TrainingSession[];
   outcomes?: TrainingOutcome[];
-  reviews?: TrainingReview[];
 
-  /** Current user's application (populated for job-seekers) */
-  my_application?: TrainingApplication | null;
-  /** Current user's enrollment (populated for enrolled trainees) */
-  my_enrollment?: TrainingEnrollment | null;
-  /** Convenience flags set from the above */
+  // User-specific data (populated for job seekers)
   has_applied?: boolean;
+  application_status?: ApplicationStatus;
   is_enrolled?: boolean;
+  enrollment_id?: string;
+  attendance_rate?: number;
+  participation_score?: number;
+  certificate_issued?: boolean;
+  certificate_url?: string;
+  certificate_code?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -414,3 +451,13 @@ export interface PaginatedApiResponse<T> extends ApiResponse<T> {
 // ---------------------------------------------------------------------------
 export type JobseekerTrainingStatus = 'available' | 'applied' | 'enrolled' | 'completed' | 'dropped';
 export type ProgressMilestone = 25 | 50 | 75 | 100;
+
+// ---------------------------------------------------------------------------
+// 14. ATTENDANCE RECORD (system design addition)
+// ---------------------------------------------------------------------------
+export interface AttendanceRecord {
+  session_id: string;
+  enrollment_id: string;
+  attended: boolean;
+  notes?: string;
+}

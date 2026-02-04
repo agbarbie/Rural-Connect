@@ -4,7 +4,7 @@ import cors from "cors";
 import authRoutes from "./routes/auth.routes";
 import jobRoutes from "./routes/jobs.routes";
 import { createTrainingRoutes } from "./routes/Training.routes";
-import { createNotificationRoutes } from "./routes/notification.routes"; // ✅ ADD THIS
+import { createNotificationRoutes } from "./routes/notification.routes";
 import cvBuilderRoutes from "./routes/cv-builder.routes";
 import portfolioRoutes from "./routes/portfolio.routes";
 import profileRoutes from "./routes/profile.routes";
@@ -133,17 +133,16 @@ pool
         "Please run the database migration script to ensure all tables exist"
       );
 
-      // List expected tables for BOOTCAMP MODEL
       const expectedTables = [
         "users",
         "jobs",
         "job_applications",
         "trainings",
-        "training_sessions", // NEW: Live training sessions
-        "training_applications", // NEW: Training applications
+        "training_sessions",
+        "training_applications",
         "training_outcomes",
         "training_enrollments",
-        "certificate_verifications", // NEW: Certificate verification
+        "certificate_verifications",
         "training_reviews",
         "cvs",
         "portfolio_settings",
@@ -191,7 +190,6 @@ const corsOptions = {
   optionsSuccessStatus: 200,
 };
 
-// Add FRONTEND_URL from environment if it exists
 if (process.env.FRONTEND_URL && !corsOptions.origin.includes(process.env.FRONTEND_URL)) {
   corsOptions.origin.push(process.env.FRONTEND_URL);
 }
@@ -274,7 +272,8 @@ console.log("Registering routes:");
 console.log("- Auth routes: /api/auth/*");
 console.log("- Job routes: /api/jobs/*");
 console.log("- Training routes (BOOTCAMP MODEL): /api/trainings/*");
-console.log("- Notification routes: /api/notifications/*"); // ✅ ADD THIS
+console.log("  ↳ attendance:   /:id/sessions/:sessionId/attendance  (POST/GET)");
+console.log("- Notification routes: /api/notifications/*");
 console.log("- CV Builder routes: /api/cv/*");
 console.log("- Portfolio routes: /api/portfolio/*");
 console.log("- Profile routes: /api/profile/*");
@@ -287,7 +286,7 @@ console.log("- Rating routes: /api/ratings/*");
 app.use("/api/auth", authRoutes);
 app.use("/api/jobs", jobRoutes);
 app.use("/api/trainings", createTrainingRoutes(pool));
-app.use("/api/notifications", createNotificationRoutes(pool)); // ✅ ADD THIS LINE
+app.use("/api/notifications", createNotificationRoutes(pool));
 app.use("/api/cv", cvBuilderRoutes);
 app.use("/api/portfolio", portfolioRoutes);
 app.use("/api/profile", profileRoutes);
@@ -306,7 +305,7 @@ app.get("/", (req: Request, res: Response) => {
       auth: "/api/auth",
       jobs: "/api/jobs",
       trainings: "/api/trainings",
-      notifications: "/api/notifications", // ✅ ADD THIS
+      notifications: "/api/notifications",
       cv: "/api/cv",
       portfolio: "/api/portfolio",
       profile: "/api/profile",
@@ -432,6 +431,9 @@ app.get("/api", (req: Request, res: Response) => {
           "POST /api/trainings/:trainingId/enrollments/:enrollmentId/certificate - Issue certificate",
           "GET /api/trainings/stats/overview - Get training stats",
           "GET /api/trainings/:id/analytics - Get training analytics",
+          // ──────────────── NEW ATTENDANCE ENDPOINTS ────────────────
+          "POST   /api/trainings/:id/sessions/:sessionId/attendance - Mark attendance for session",
+          "GET    /api/trainings/:id/sessions/:sessionId/attendance - Get attendance for session",
         ],
         features: [
           "Application-based enrollment (no self-enrollment)",
@@ -441,6 +443,7 @@ app.get("/api", (req: Request, res: Response) => {
           "Digital certificate issuance",
           "Certificate verification with unique codes",
           "Training reviews and ratings",
+          "Session attendance tracking",
           "Advanced analytics and statistics",
         ],
         workflow: [
@@ -449,12 +452,12 @@ app.get("/api", (req: Request, res: Response) => {
           "3. Employer reviews and shortlists applicants",
           "4. Shortlisted applicants auto-enrolled",
           "5. Live training sessions conducted",
-          "6. Employer marks completion status",
-          "7. Certificates issued to successful trainees",
-          "8. Certificates verifiable via unique code",
+          "6. Employer marks attendance per session",
+          "7. Employer marks completion status",
+          "8. Certificates issued to successful trainees",
+          "9. Certificates verifiable via unique code",
         ],
       },
-      // ✅ ADD THIS SECTION
       notifications: {
         base: "/api/notifications",
         routes: [
@@ -563,7 +566,7 @@ app.get("/api", (req: Request, res: Response) => {
         jobseeker:
           "Apply for trainings, enroll after shortlisting, complete trainings, receive certificates",
         employer:
-          "Create trainings, review applications, shortlist trainees, mark completion, issue certificates",
+          "Create trainings, review applications, shortlist trainees, mark completion, issue certificates, mark attendance",
         admin:
           "Full system access including user management and platform administration",
       },
@@ -581,7 +584,7 @@ app.all("*", (req: Request, res: Response) => {
       "/api/auth/*",
       "/api/jobs/*",
       "/api/trainings/*",
-      "/api/notifications/*", // ✅ ADD THIS
+      "/api/notifications/*",
       "/api/cv/*",
       "/api/portfolio/*",
       "/api/profile/*",
@@ -608,7 +611,6 @@ app.use((error: any, req: Request, res: Response, next: NextFunction): void => {
     timestamp: new Date().toISOString(),
   });
 
-  // Database connection errors
   if (error.code && error.code.startsWith("28")) {
     res.status(500).json({
       success: false,
@@ -618,7 +620,6 @@ app.use((error: any, req: Request, res: Response, next: NextFunction): void => {
     return;
   }
 
-  // JWT errors
   if (error.name === "JsonWebTokenError") {
     res.status(401).json({
       success: false,
@@ -637,7 +638,6 @@ app.use((error: any, req: Request, res: Response, next: NextFunction): void => {
     return;
   }
 
-  // Validation errors
   if (error.name === "ValidationError") {
     res.status(400).json({
       success: false,
@@ -648,7 +648,6 @@ app.use((error: any, req: Request, res: Response, next: NextFunction): void => {
     return;
   }
 
-  // Database constraint errors
   if (error.code === "23505") {
     res.status(409).json({
       success: false,
@@ -669,7 +668,6 @@ app.use((error: any, req: Request, res: Response, next: NextFunction): void => {
     return;
   }
 
-  // Default error response
   res.status(error.status || 500).json({
     success: false,
     message: error.message || "Internal server error",
@@ -679,7 +677,6 @@ app.use((error: any, req: Request, res: Response, next: NextFunction): void => {
       stack: error.stack,
     }),
   });
-  return;
 });
 
 // Graceful shutdown
@@ -699,11 +696,9 @@ const gracefulShutdown = async (signal: string) => {
   }
 };
 
-// Handle process termination
 process.on("SIGINT", () => gracefulShutdown("SIGINT"));
 process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
 
-// Handle uncaught exceptions
 process.on("uncaughtException", (error) => {
   console.error("Uncaught Exception:", error);
   process.exit(1);
@@ -726,7 +721,7 @@ app.listen(PORT, () => {
   console.log(` • Authentication: http://localhost:${PORT}/api/auth`);
   console.log(` • Jobs: http://localhost:${PORT}/api/jobs`);
   console.log(` • Training (BOOTCAMP): http://localhost:${PORT}/api/trainings`);
-  console.log(` • Notifications: http://localhost:${PORT}/api/notifications`); // ✅ ADD THIS
+  console.log(` • Notifications: http://localhost:${PORT}/api/notifications`);
   console.log(` • CV Builder: http://localhost:${PORT}/api/cv`);
   console.log(` • Portfolio: http://localhost:${PORT}/api/portfolio`);
   console.log(` • Profile: http://localhost:${PORT}/api/profile`);
@@ -739,13 +734,13 @@ app.listen(PORT, () => {
     ` • Jobseekers: CV building, portfolio, job applications, training applications`
   );
   console.log(
-    ` • Employers: Job postings, training creation, applicant shortlisting, completion marking, certificate issuance`
+    ` • Employers: Job postings, training creation, applicant shortlisting, attendance marking, completion marking, certificate issuance`
   );
   console.log(
     ` • Admins: User management, platform administration, activity monitoring`
   );
   console.log(
-    ` • Training: Application-based bootcamp model with live sessions and certificates`
+    ` • Training: Application-based bootcamp model with live sessions, attendance & certificates`
   );
   console.log(
     ` • Portfolio: Public/private portfolios with analytics and PDF export`

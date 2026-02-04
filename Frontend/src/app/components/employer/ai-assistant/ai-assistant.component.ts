@@ -1,5 +1,5 @@
 // ai-assistant.component.ts - COMPLETE WITH MOBILE SIDEBAR TOGGLE
-import { Component, OnInit, OnDestroy } from '@angular/core';
+import { Component, OnInit, OnDestroy, Inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
@@ -132,7 +132,7 @@ export class AiAssistantComponent implements OnInit, OnDestroy {
 
   constructor(
     private candidatesService: CandidatesService,
-    private trainingService: TrainingService,
+    @Inject(TrainingService) private trainingService: TrainingService,
     private geminiService: GeminiChatService,
     private router: Router
   ) {}

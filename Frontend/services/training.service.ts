@@ -1,4 +1,4 @@
-// training.service.ts - BOOTCAMP MODEL (Fixed Notification Endpoints)
+// training.service.ts - BOOTCAMP MODEL (Updated with Attendance & Evaluation)
 import { Injectable } from '@angular/core';
 import { HttpClient, HttpHeaders, HttpParams } from '@angular/common/http';
 import { Observable, BehaviorSubject, throwError, of } from 'rxjs';
@@ -6,24 +6,35 @@ import { catchError, tap, map } from 'rxjs/operators';
 import { environment } from '../src/environments/environment.prod';
 
 // ============================================
-// BOOTCAMP MODEL INTERFACES
+// UPDATED INTERFACES
 // ============================================
 
-// Training Session Interface (replaces TrainingVideo)
 export interface TrainingSession {
   id?: string;
   training_id?: string;
   title: string;
   description?: string;
-  scheduled_at: string; // ISO date string
+  scheduled_at: string;
   duration_minutes: number;
   meeting_url?: string;
+  meeting_password?: string;
   order_index: number;
   is_completed?: boolean;
+  attendance_count?: number;
   created_at?: Date;
+  updated_at?: Date;
 }
 
-// Training Outcome Interface
+export interface SessionAttendance {
+  enrollment_id: string;
+  user_id: string;
+  user_name: string;
+  email: string;
+  attended: boolean;
+  notes?: string;
+  marked_at?: Date;
+}
+
 export interface TrainingOutcome {
   id?: string;
   training_id?: string;
@@ -32,7 +43,6 @@ export interface TrainingOutcome {
   created_at?: Date;
 }
 
-// Training Application Interface
 export interface TrainingApplication {
   id?: string;
   training_id?: string;
@@ -45,7 +55,6 @@ export interface TrainingApplication {
   user_email?: string;
 }
 
-// Main Training Interface (BOOTCAMP MODEL)
 export interface Training {
   id: string;
   title: string;
@@ -63,6 +72,12 @@ export interface Training {
   total_students: number;
   thumbnail_url?: string;
   location?: string;
+  
+  // NEW FIELDS
+  application_url?: string;
+  training_objectives?: string;
+  skills_to_acquire?: string[];
+  eligibility_requirements?: string;
   
   // Bootcamp-specific fields
   application_deadline?: Date;
@@ -85,10 +100,40 @@ export interface Training {
   certificate_url?: string;
   certificate_code?: string;
   
+  // NEW EVALUATION FIELDS
+  attendance_rate?: number;
+  participation_score?: number;
+  tasks_completed?: number;
+  tasks_total?: number;
+  
   // Relations
   sessions?: TrainingSession[];
   outcomes?: TrainingOutcome[];
   session_count?: number;
+}
+
+export interface TrainingEnrollment {
+  id: string;
+  training_id: string;
+  user_id: string;
+  application_id?: string;
+  status: 'enrolled' | 'completed' | 'not_completed' | 'dropped';
+  enrolled_at: Date;
+  completed_at?: Date;
+  
+  // NEW EVALUATION CRITERIA
+  attendance_rate: number;
+  participation_score: number;
+  tasks_completed: number;
+  tasks_total: number;
+  
+  completion_marked: boolean;
+  certificate_issued: boolean;
+  certificate_url?: string;
+  certificate_issued_at?: Date;
+  
+  created_at: Date;
+  updated_at: Date;
 }
 
 export interface CreateTrainingRequest {
@@ -104,6 +149,10 @@ export interface CreateTrainingRequest {
   has_certificate: boolean;
   thumbnail_url?: string;
   location?: string;
+  application_url?: string;
+  training_objectives?: string;
+  skills_to_acquire?: string[];
+  eligibility_requirements?: string;
   application_deadline?: string;
   training_start_date?: string;
   training_end_date?: string;
@@ -169,7 +218,7 @@ export interface TrainingSearchParams {
 export class TrainingService {
   private readonly API_BASE = environment.apiUrl;
   private readonly TRAINING_ENDPOINT = `${this.API_BASE}/trainings`;
-  private readonly NOTIFICATION_ENDPOINT = `${this.API_BASE}/notifications`; // ✅ FIXED
+  private readonly NOTIFICATION_ENDPOINT = `${this.API_BASE}/notifications`;
   
   private trainingsSubject = new BehaviorSubject<Training[]>([]);
   private loadingSubject = new BehaviorSubject<boolean>(false);
@@ -265,7 +314,11 @@ export class TrainingService {
       session_count: training.session_count || processedSessions.length,
       applied: training.applied || false,
       enrolled: training.enrolled || false,
-      progress: training.progress || 0
+      progress: training.progress || 0,
+      attendance_rate: training.attendance_rate || 0,
+      participation_score: training.participation_score || 0,
+      tasks_completed: training.tasks_completed || 0,
+      tasks_total: training.tasks_total || 0
     };
   }
 
@@ -273,7 +326,7 @@ export class TrainingService {
   // EMPLOYER: TRAINING CRUD
   // ============================================
 
-  getMyTrainings(params: TrainingSearchParams = {}, employerId?: string): Observable<PaginatedResponse<{ trainings: Training[] }>> {
+  getMyTrainings(params: TrainingSearchParams = {}, employerId: string): Observable<PaginatedResponse<{ trainings: Training[] }>> {
     this.loadingSubject.next(true);
     
     const enhancedParams = {
@@ -467,6 +520,55 @@ export class TrainingService {
   }
 
   // ============================================
+  // NEW: ATTENDANCE TRACKING
+  // ============================================
+
+  /**
+   * Mark attendance for a session
+   */
+  markSessionAttendance(
+    trainingId: string,
+    sessionId: string,
+    attendance: { enrollment_id: string; attended: boolean; notes?: string }[]
+  ): Observable<ApiResponse<any>> {
+    return this.http.post<ApiResponse<any>>(
+      `${this.TRAINING_ENDPOINT}/${trainingId}/sessions/${sessionId}/attendance`,
+      { attendance },
+      { headers: this.getAuthHeaders() }
+    ).pipe(catchError(this.handleError.bind(this)));
+  }
+
+  /**
+   * Get attendance for a session
+   */
+  getSessionAttendance(trainingId: string, sessionId: string): Observable<ApiResponse<any>> {
+    return this.http.get<ApiResponse<any>>(
+      `${this.TRAINING_ENDPOINT}/${trainingId}/sessions/${sessionId}/attendance`,
+      { headers: this.getAuthHeaders() }
+    ).pipe(catchError(this.handleError.bind(this)));
+  }
+
+  /**
+   * Update enrollment evaluation criteria
+   */
+  updateEnrollmentEvaluation(
+    trainingId: string,
+    enrollmentId: string,
+    data: {
+      attendance_rate?: number;
+      participation_score?: number;
+      tasks_completed?: number;
+      tasks_total?: number;
+    }
+  ): Observable<ApiResponse<any>> {
+    return this.http.patch<ApiResponse<any>>(
+      `${this.TRAINING_ENDPOINT}/${trainingId}/enrollments/${enrollmentId}/evaluation`,
+      data,
+      { headers: this.getAuthHeaders() }
+    ).pipe(catchError(this.handleError.bind(this)));
+  }
+
+  // ============================================
   // EMPLOYER: CERTIFICATE ISSUANCE
   // ============================================
 
@@ -581,37 +683,26 @@ export class TrainingService {
   }
 
   // ============================================
-  // NOTIFICATIONS - ✅ FIXED ENDPOINTS
+  // NOTIFICATIONS
   // ============================================
 
-  /**
-   * Get user's notifications
-   * ✅ FIXED: Uses /api/notifications instead of /api/trainings/notifications/list
-   */
   getNotifications(params: { page?: number; limit?: number; read?: boolean } = {}): Observable<ApiResponse<any>> {
     const httpParams = this.buildParams(params);
     
     return this.http.get<ApiResponse<any>>(
-      this.NOTIFICATION_ENDPOINT,  // ✅ Uses /api/notifications
+      this.NOTIFICATION_ENDPOINT,
       { headers: this.getAuthHeaders(), params: httpParams }
     ).pipe(catchError(this.handleError.bind(this)));
   }
 
-  /**
-   * Mark notification as read
-   * ✅ FIXED: Uses /api/notifications/:id/read
-   */
   markNotificationRead(notificationId: string): Observable<ApiResponse<void>> {
     return this.http.patch<ApiResponse<void>>(
-      `${this.NOTIFICATION_ENDPOINT}/${notificationId}/read`,  // ✅ Uses /api/notifications/:id/read
+      `${this.NOTIFICATION_ENDPOINT}/${notificationId}/read`,
       {},
       { headers: this.getAuthHeaders() }
     ).pipe(catchError(this.handleError.bind(this)));
   }
 
-  /**
-   * Legacy method for backward compatibility
-   */
   getEnrollmentNotifications(params: any = {}): Observable<ApiResponse<any>> {
     return this.getNotifications(params);
   }

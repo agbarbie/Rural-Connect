@@ -1,5 +1,5 @@
 // jobseeker-training.component.ts - BOOTCAMP MODEL (Application & Live Sessions) - FIXED
-import { Component, OnInit, OnDestroy } from '@angular/core';
+import { Component, OnInit, OnDestroy, Inject, forwardRef } from '@angular/core';
 import { CommonModule, DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Subject, interval } from 'rxjs';
@@ -80,7 +80,7 @@ export class TrainingComponent implements OnInit, OnDestroy {
   userId: string = '';
   
   constructor(
-    private trainingService: TrainingService,
+    @Inject(forwardRef(() => TrainingService)) private trainingService: TrainingService,
     private authService: AuthService,
     private datePipe: DatePipe
   ) {}

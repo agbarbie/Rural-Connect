@@ -623,6 +623,67 @@ export class TrainingController {
   }
 
   /**
+ * POST /api/trainings/:id/sessions/:sessionId/attendance
+ * Mark attendance for a session
+ */
+async markSessionAttendance(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const { id: trainingId, sessionId } = req.params;
+    const employerId = req.user?.id;
+
+    if (!employerId) {
+      res.status(401).json({ success: false, message: 'Unauthorized' });
+      return;
+    }
+
+    const { attendance } = req.body; // Array of { enrollment_id, attended, notes }
+
+    if (!Array.isArray(attendance)) {
+      res.status(400).json({ success: false, message: 'Attendance data must be an array' });
+      return;
+    }
+
+    const result = await this.trainingService.markSessionAttendance(
+      sessionId,
+      attendance.map((a: any) => a.enrollment_id),
+      attendance,
+      employerId
+    );
+
+    res.json(result);
+  } catch (error: any) {
+    next(error);
+  }
+}
+
+/**
+ * GET /api/trainings/:id/sessions/:sessionId/attendance
+ * Get attendance for a session
+ */
+async getSessionAttendance(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const { sessionId } = req.params;
+    const employerId = req.user?.id;
+
+    if (!employerId) {
+      res.status(401).json({ success: false, message: 'Unauthorized' });
+      return;
+    }
+
+    const result = await this.trainingService.getSessionAttendance(sessionId, employerId);
+
+    if (!result) {
+      res.status(404).json({ success: false, message: 'Session not found or unauthorized' });
+      return;
+    }
+
+    res.json({ success: true, data: result });
+  } catch (error: any) {
+    next(error);
+  }
+}
+
+  /**
    * PATCH /api/notifications/:id/read
    * Mark a notification as read
    */
