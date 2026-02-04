@@ -3,7 +3,8 @@ import express, { Request, Response, NextFunction } from "express";
 import cors from "cors";
 import authRoutes from "./routes/auth.routes";
 import jobRoutes from "./routes/jobs.routes";
-import trainingRoutes from "./routes/Training.routes";
+import { createTrainingRoutes } from "./routes/Training.routes";
+import { createNotificationRoutes } from "./routes/notification.routes"; // ✅ ADD THIS
 import cvBuilderRoutes from "./routes/cv-builder.routes";
 import portfolioRoutes from "./routes/portfolio.routes";
 import profileRoutes from "./routes/profile.routes";
@@ -63,12 +64,27 @@ pool
       await client.query("SELECT 1 FROM job_applications LIMIT 1");
       console.log("✓ Job applications table accessible");
 
-      // Test training-related tables
+      // Test training-related tables (BOOTCAMP MODEL)
       await client.query("SELECT 1 FROM trainings LIMIT 1");
       console.log("✓ Trainings table accessible");
 
+      await client.query("SELECT 1 FROM training_sessions LIMIT 1");
+      console.log("✓ Training sessions table accessible");
+
+      await client.query("SELECT 1 FROM training_applications LIMIT 1");
+      console.log("✓ Training applications table accessible");
+
       await client.query("SELECT 1 FROM training_enrollments LIMIT 1");
       console.log("✓ Training enrollments table accessible");
+
+      await client.query("SELECT 1 FROM certificate_verifications LIMIT 1");
+      console.log("✓ Certificate verifications table accessible");
+
+      await client.query("SELECT 1 FROM training_reviews LIMIT 1");
+      console.log("✓ Training reviews table accessible");
+
+      await client.query("SELECT 1 FROM training_outcomes LIMIT 1");
+      console.log("✓ Training outcomes table accessible");
 
       // Test portfolio-related tables
       await client.query("SELECT 1 FROM portfolio_settings LIMIT 1");
@@ -93,7 +109,7 @@ pool
       await client.query("SELECT 1 FROM ratings LIMIT 1");
       console.log("✓ Ratings table accessible");
 
-      // NEW: Test activity logs table
+      // Test activity logs table
       try {
         await client.query("SELECT 1 FROM activity_logs LIMIT 1");
         console.log("✓ Activity logs table accessible");
@@ -102,22 +118,32 @@ pool
           "⚠ Activity logs table not found - run migration script for admin features"
         );
       }
+
+      // Test CV table
+      try {
+        await client.query("SELECT 1 FROM cvs LIMIT 1");
+        console.log("✓ CVs table accessible");
+      } catch (cvError) {
+        console.warn("⚠ CVs table not found - may need migration");
+      }
+
     } catch (tableError: any) {
       console.warn("Database tables might need migration:", tableError.message);
       console.warn(
         "Please run the database migration script to ensure all tables exist"
       );
 
-      // List expected tables
+      // List expected tables for BOOTCAMP MODEL
       const expectedTables = [
         "users",
         "jobs",
         "job_applications",
         "trainings",
-        "training_videos",
+        "training_sessions", // NEW: Live training sessions
+        "training_applications", // NEW: Training applications
         "training_outcomes",
         "training_enrollments",
-        "training_video_progress",
+        "certificate_verifications", // NEW: Certificate verification
         "training_reviews",
         "cvs",
         "portfolio_settings",
@@ -126,9 +152,13 @@ pool
         "shortlisted_candidates",
         "job_invitations",
         "notifications",
-        "activity_logs", // NEW
+        "ratings",
+        "activity_logs",
       ];
       console.warn("Expected tables:", expectedTables.join(", "));
+      console.warn("\n⚠️ OLD TABLES REMOVED (video-based model):");
+      console.warn("- training_videos (REMOVED)");
+      console.warn("- training_video_progress (REMOVED)");
     }
 
     client.release();
@@ -233,48 +263,57 @@ app.use(
   "/uploads/certificates",
   express.static(path.join(__dirname, "../uploads/certificates"))
 );
+app.use(
+  "/uploads/training-thumbnails",
+  express.static(path.join(__dirname, "../uploads/training-thumbnails"))
+);
 app.use("/uploads", express.static(path.join(__dirname, "../uploads")));
 
 // Debug route registration
 console.log("Registering routes:");
 console.log("- Auth routes: /api/auth/*");
 console.log("- Job routes: /api/jobs/*");
-console.log("- Training routes: /api/trainings/*");
+console.log("- Training routes (BOOTCAMP MODEL): /api/trainings/*");
+console.log("- Notification routes: /api/notifications/*"); // ✅ ADD THIS
 console.log("- CV Builder routes: /api/cv/*");
 console.log("- Portfolio routes: /api/portfolio/*");
 console.log("- Profile routes: /api/profile/*");
 console.log("- Gemini AI routes: /api/gemini/*");
 console.log("- Employer candidates routes: /api/employer/*");
-console.log("- Admin user management routes: /api/admin/users/*"); // NEW
+console.log("- Admin user management routes: /api/admin/users/*");
 console.log("- Rating routes: /api/ratings/*");
+
 // API Routes
 app.use("/api/auth", authRoutes);
 app.use("/api/jobs", jobRoutes);
-app.use("/api/trainings", trainingRoutes);
+app.use("/api/trainings", createTrainingRoutes(pool));
+app.use("/api/notifications", createNotificationRoutes(pool)); // ✅ ADD THIS LINE
 app.use("/api/cv", cvBuilderRoutes);
 app.use("/api/portfolio", portfolioRoutes);
 app.use("/api/profile", profileRoutes);
 app.use("/api/gemini", geminiRoutes);
 app.use("/api/employer", candidatesRoutes);
-app.use("/api/admin/users", userManagementRoutes); // NEW: Admin user management routes
+app.use("/api/admin/users", userManagementRoutes);
 app.use("/api/ratings", ratingRoutes);
 
 // Root route
 app.get("/", (req: Request, res: Response) => {
   res.status(200).json({
     success: true,
-    message: "Job Portal API Server",
-    version: "1.0.0",
+    message: "Job Portal API Server - BOOTCAMP TRAINING MODEL",
+    version: "2.0.0",
     endpoints: {
       auth: "/api/auth",
       jobs: "/api/jobs",
       trainings: "/api/trainings",
+      notifications: "/api/notifications", // ✅ ADD THIS
       cv: "/api/cv",
       portfolio: "/api/portfolio",
       profile: "/api/profile",
       gemini: "/api/gemini",
       employer: "/api/employer",
-      admin_users: "/api/admin/users", // NEW
+      admin_users: "/api/admin/users",
+      ratings: "/api/ratings",
       health: "/health",
       database_health: "/health/db",
     },
@@ -326,8 +365,8 @@ app.get("/health/db", async (req: Request, res: Response) => {
 app.get("/api", (req: Request, res: Response) => {
   res.status(200).json({
     success: true,
-    message: "Job Portal API Documentation",
-    version: "1.0.0",
+    message: "Job Portal API Documentation - BOOTCAMP TRAINING MODEL",
+    version: "2.0.0",
     endpoints: {
       authentication: {
         base: "/api/auth",
@@ -365,29 +404,65 @@ app.get("/api", (req: Request, res: Response) => {
       },
       trainings: {
         base: "/api/trainings",
+        model: "BOOTCAMP - Application-based with live sessions",
         public_routes: [
-          "GET /api/trainings - Get all trainings (with optional auth)",
-          "GET /api/trainings/categories - Get training categories",
-          "GET /api/trainings/:id - Get training by ID (with optional auth)",
+          "GET /api/trainings - Browse all published trainings",
+          "GET /api/trainings/:id - Get training details",
+          "GET /api/trainings/categories/list - Get training categories",
+          "GET /api/trainings/popular/list - Get popular trainings",
+          "GET /api/trainings/:id/reviews - Get training reviews",
+          "GET /api/trainings/certificates/verify/:code - Verify certificate",
         ],
         jobseeker_routes: [
-          "GET /api/trainings/jobseeker/available - Get available trainings for jobseekers",
-          "GET /api/trainings/jobseeker/enrolled - Get enrolled trainings",
-          "GET /api/trainings/jobseeker/stats - Get jobseeker training statistics",
-          "GET /api/trainings/jobseeker/recommendations - Get recommended trainings",
-          "POST /api/trainings/:trainingId/enroll - Enroll in a training",
-          "DELETE /api/trainings/:trainingId/enroll - Unenroll from a training",
-          "GET /api/trainings/:trainingId/progress - Get training progress",
-          "PUT /api/trainings/:trainingId/progress - Update training progress",
-          "POST /api/trainings/:trainingId/review - Submit training review",
+          "POST /api/trainings/:id/apply - Apply for training",
+          "GET /api/trainings/enrolled/list - Get enrolled trainings",
+          "POST /api/trainings/:id/reviews - Submit review",
+          "GET /api/trainings/jobseeker/stats - Get training statistics",
+          "GET /api/trainings/recommended/list - Get recommended trainings",
         ],
         employer_routes: [
-          "GET /api/trainings/stats/overview - Get training statistics overview",
           "POST /api/trainings - Create new training",
           "PUT /api/trainings/:id - Update training",
           "DELETE /api/trainings/:id - Delete training",
-          "POST /api/trainings/:id/publish - Publish training",
+          "PATCH /api/trainings/:id/status - Update training status",
+          "GET /api/trainings/:id/applications - Get applications",
+          "POST /api/trainings/:trainingId/applications/:applicationId/shortlist - Shortlist/reject applicant",
+          "GET /api/trainings/:id/enrollments - Get enrollments",
+          "PUT /api/trainings/:trainingId/enrollments/:enrollmentId/completion - Mark completion",
+          "POST /api/trainings/:trainingId/enrollments/:enrollmentId/certificate - Issue certificate",
+          "GET /api/trainings/stats/overview - Get training stats",
+          "GET /api/trainings/:id/analytics - Get training analytics",
         ],
+        features: [
+          "Application-based enrollment (no self-enrollment)",
+          "Employer shortlisting and selection",
+          "Live training sessions (Zoom/Google Meet)",
+          "Employer-marked completion",
+          "Digital certificate issuance",
+          "Certificate verification with unique codes",
+          "Training reviews and ratings",
+          "Advanced analytics and statistics",
+        ],
+        workflow: [
+          "1. Employer posts training opportunity",
+          "2. Jobseekers apply with motivation",
+          "3. Employer reviews and shortlists applicants",
+          "4. Shortlisted applicants auto-enrolled",
+          "5. Live training sessions conducted",
+          "6. Employer marks completion status",
+          "7. Certificates issued to successful trainees",
+          "8. Certificates verifiable via unique code",
+        ],
+      },
+      // ✅ ADD THIS SECTION
+      notifications: {
+        base: "/api/notifications",
+        routes: [
+          "GET /api/notifications - Get user notifications (supports ?read=false)",
+          "PATCH /api/notifications/:id/read - Mark notification as read",
+        ],
+        authentication: "Required - All authenticated users",
+        description: "Unified notification system for training updates, applications, certificates, and more",
       },
       cv_builder: {
         base: "/api/cv",
@@ -420,14 +495,6 @@ app.get("/api", (req: Request, res: Response) => {
           "GET /api/portfolio/public/:identifier - Get public portfolio by user ID or email",
         ],
         authentication: "Required for protected routes - Jobseeker role only",
-        features: [
-          "Public portfolio viewing with privacy controls",
-          "View tracking and analytics",
-          "Customizable themes and settings",
-          "Testimonials management",
-          "SEO optimization",
-          "PDF export functionality",
-        ],
       },
       profile: {
         base: "/api/profile",
@@ -454,77 +521,37 @@ app.get("/api", (req: Request, res: Response) => {
           "POST /api/gemini/feedback - Submit feedback on AI recommendations",
         ],
         authentication: "Required - Jobseeker role only",
-        features: [
-          "AI-powered career recommendations",
-          "Personalized job matching",
-          "Skill gap analysis",
-          "Career path guidance",
-          "Conversational AI assistant",
-          "What-if skill simulation",
-        ],
       },
       employer: {
         base: "/api/employer",
         routes: [
-          "GET /api/employer/candidates - Get all candidates (applicants) for employer's jobs",
-          "GET /api/employer/job-posts - Get employer's job posts with application counts",
-          "GET /api/employer/candidates/:userId - Get candidate full profile",
-          "POST /api/employer/candidates/:userId/shortlist - Shortlist/Unshortlist a candidate",
-          "POST /api/employer/candidates/:userId/invite - Send invite to candidate",
+          "GET /api/employer/candidates - Get all candidates",
+          "GET /api/employer/job-posts - Get job posts with stats",
+          "GET /api/employer/candidates/:userId - Get candidate profile",
+          "POST /api/employer/candidates/:userId/shortlist - Shortlist candidate",
+          "POST /api/employer/candidates/:userId/invite - Send invite",
         ],
         authentication: "Required - Employer role only",
-        features: [
-          "Candidate filtering and sorting by match score, location, experience",
-          "Batch shortlisting and bulk invitations",
-          "Application status management",
-          "AI-powered candidate insights",
-        ],
       },
-      // NEW: Admin user management endpoints
       admin_users: {
         base: "/api/admin/users",
         routes: [
-          "GET /api/admin/users - Get all users with filtering and pagination",
+          "GET /api/admin/users - Get all users",
           "GET /api/admin/users/stats - Get user statistics",
           "GET /api/admin/users/export - Export users as CSV",
           "GET /api/admin/users/:id - Get user details",
-          "PUT /api/admin/users/:id - Update user information",
-          "POST /api/admin/users/:id/action - Perform action on user (activate, suspend, verify, etc.)",
-          "POST /api/admin/users/bulk-action - Perform bulk action on multiple users",
+          "PUT /api/admin/users/:id - Update user",
+          "POST /api/admin/users/:id/action - Perform action on user",
+          "POST /api/admin/users/bulk-action - Bulk action",
           "DELETE /api/admin/users/:id/permanent - Permanently delete user",
         ],
         authentication: "Required - Admin role only",
-        features: [
-          "User listing with advanced filtering (role, status, verification)",
-          "Search by name or email",
-          "Pagination support",
-          "User statistics dashboard",
-          "Single and bulk user actions",
-          "Activity logging and audit trail",
-          "CSV export functionality",
-          "User status management (activate, suspend, verify)",
-          "Permanent deletion with confirmation",
-        ],
-        query_params: {
-          search: "string - Search by name or email",
-          role: "string - Filter by role (Admin, Employer, Jobseeker)",
-          status:
-            "string - Filter by status (Active, Inactive, Suspended, Pending)",
-          verification:
-            "string - Filter by verification status (Verified, Pending, Rejected)",
-          page: "number - Page number (default: 1)",
-          limit: "number - Items per page (default: 10)",
-          sortBy: "string - Sort field (default: created_at)",
-          sortOrder: "string - Sort order (asc, desc)",
-        },
-        actions: [
-          "activate - Activate user account",
-          "deactivate - Deactivate user account",
-          "suspend - Suspend user account",
-          "unsuspend - Remove suspension",
-          "verify - Verify user account",
-          "reject - Reject user verification",
-          "delete - Soft delete user (mark as deleted)",
+      },
+      ratings: {
+        base: "/api/ratings",
+        routes: [
+          "POST /api/ratings - Submit rating",
+          "GET /api/ratings/:entityType/:entityId - Get ratings",
         ],
       },
     },
@@ -534,17 +561,17 @@ app.get("/api", (req: Request, res: Response) => {
       note: "Include JWT token for protected routes",
       user_types: {
         jobseeker:
-          "Can manage CV, portfolio, enroll in trainings, apply for jobs, use AI assistant",
+          "Apply for trainings, enroll after shortlisting, complete trainings, receive certificates",
         employer:
-          "Can create jobs and trainings, manage applications and candidates",
+          "Create trainings, review applications, shortlist trainees, mark completion, issue certificates",
         admin:
-          "Full system access including user management, platform administration",
+          "Full system access including user management and platform administration",
       },
     },
   });
 });
 
-// 404 handler - Updated to app.all for Express v5 compatibility
+// 404 handler
 app.all("*", (req: Request, res: Response) => {
   console.log(`404 - Route not found: ${req.method} ${req.originalUrl}`);
   res.status(404).json({
@@ -554,12 +581,14 @@ app.all("*", (req: Request, res: Response) => {
       "/api/auth/*",
       "/api/jobs/*",
       "/api/trainings/*",
+      "/api/notifications/*", // ✅ ADD THIS
       "/api/cv/*",
       "/api/portfolio/*",
       "/api/profile/*",
       "/api/gemini/*",
       "/api/employer/*",
-      "/api/admin/users/*", // NEW
+      "/api/admin/users/*",
+      "/api/ratings/*",
       "/health",
       "/health/db",
       "/api",
@@ -621,7 +650,6 @@ app.use((error: any, req: Request, res: Response, next: NextFunction): void => {
 
   // Database constraint errors
   if (error.code === "23505") {
-    // Unique constraint violation
     res.status(409).json({
       success: false,
       message: "Resource already exists",
@@ -632,7 +660,6 @@ app.use((error: any, req: Request, res: Response, next: NextFunction): void => {
   }
 
   if (error.code === "23503") {
-    // Foreign key constraint violation
     res.status(400).json({
       success: false,
       message: "Invalid reference",
@@ -698,25 +725,28 @@ app.listen(PORT, () => {
   console.log(`\n📋 Available Endpoints:`);
   console.log(` • Authentication: http://localhost:${PORT}/api/auth`);
   console.log(` • Jobs: http://localhost:${PORT}/api/jobs`);
-  console.log(` • Training: http://localhost:${PORT}/api/trainings`);
+  console.log(` • Training (BOOTCAMP): http://localhost:${PORT}/api/trainings`);
+  console.log(` • Notifications: http://localhost:${PORT}/api/notifications`); // ✅ ADD THIS
   console.log(` • CV Builder: http://localhost:${PORT}/api/cv`);
   console.log(` • Portfolio: http://localhost:${PORT}/api/portfolio`);
   console.log(` • Profile: http://localhost:${PORT}/api/profile`);
   console.log(` • Gemini AI: http://localhost:${PORT}/api/gemini`);
   console.log(` • Employer Candidates: http://localhost:${PORT}/api/employer`);
-  console.log(
-    ` • Admin User Management: http://localhost:${PORT}/api/admin/users`
-  ); // NEW
+  console.log(` • Admin User Management: http://localhost:${PORT}/api/admin/users`);
+  console.log(` • Ratings: http://localhost:${PORT}/api/ratings`);
   console.log(`\n🎓 Features:`);
   console.log(
-    ` • Jobseekers: CV building, portfolio management, job applications, training enrollment`
+    ` • Jobseekers: CV building, portfolio, job applications, training applications`
   );
   console.log(
-    ` • Employers: Job postings, training creation, applicant management, candidate shortlisting`
+    ` • Employers: Job postings, training creation, applicant shortlisting, completion marking, certificate issuance`
   );
   console.log(
     ` • Admins: User management, platform administration, activity monitoring`
-  ); // NEW
+  );
+  console.log(
+    ` • Training: Application-based bootcamp model with live sessions and certificates`
+  );
   console.log(
     ` • Portfolio: Public/private portfolios with analytics and PDF export`
   );
@@ -725,6 +755,9 @@ app.listen(PORT, () => {
   );
   console.log(
     `\n🔐 Remember to include 'Authorization: Bearer <token>' header for protected routes`
+  );
+  console.log(
+    `\n⚠️  IMPORTANT: Run the bootcamp migration script to update database tables`
   );
 });
 

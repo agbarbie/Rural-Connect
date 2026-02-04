@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { UserManagementController } from '../controllers/user.management.controller';
-import { authenticateToken } from '../middleware/auth.middleware';
+import { authenticate } from '../middleware/auth.middleware';
 import { 
   requireAdmin, 
   logAdminAction, 
@@ -13,7 +13,7 @@ const router = Router();
 const userManagementController = new UserManagementController();
 
 // Apply authentication and admin requirement to all routes
-router.use(authenticateToken);
+router.use(authenticate);
 router.use(requireAdmin);
 router.use(logAdminAction); // Log all admin actions
 

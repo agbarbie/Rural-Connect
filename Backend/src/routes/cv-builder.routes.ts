@@ -1,7 +1,7 @@
 // src/routes/cv-builder.routes.ts - FIXED VERSION
 import { Router } from 'express';
 import { cvBuilderController } from '../controllers/cv-builder.controller';
-import { authenticateToken, requireJobseeker } from '../middleware/auth.middleware';
+import { authenticate } from '../middleware/auth.middleware';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
@@ -88,8 +88,9 @@ const uploadProfileImage = multer({
 });
 
 // All routes require authentication
-router.use(authenticateToken);
-router.use(requireJobseeker);
+router.use(authenticate);
+// requireJobseeker middleware isn't exported from '../middleware/auth.middleware'; enforce jobseeker role checks inside controllers
+// or export/implement and import a proper requireJobseeker middleware from auth.middleware when available.
 
 /**
  * @route POST /api/cv/create

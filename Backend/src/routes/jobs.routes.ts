@@ -3,16 +3,10 @@ import { Router } from 'express';
 import { PostJobsController } from '../controllers/postjobs.controller';
 import { JobseekerJobController } from '../controllers/Jobseeker job.controller';
 import { JobNotificationController } from '../controllers/job-notification.controller';
-import {
-   authenticateToken,
-   requireEmployer,
-   requireJobseeker,
-   AuthenticatedRequest,
-   authenticate
-} from '../middleware/auth.middleware';
+import { authenticate, AuthenticatedRequest } from '../middleware/auth.middleware';
+import { authorize, requireEmployer, requireJobseeker } from '../middleware/role.middleware';
 import { JobNotificationService } from '../services/job-notification.service';
 import pool from '../db/db.config';
-import { authorize } from '../middleware/role.middleware';
 
 const router = Router();
 
@@ -24,30 +18,30 @@ const jobNotificationController = new JobNotificationController();
 // ===================================================================
 // NOTIFICATION ROUTES (Both Employer and Jobseeker)
 // ===================================================================
-router.get('/notifications', authenticateToken, jobNotificationController.getNotifications);
-router.get('/notifications/unread-count', authenticateToken, jobNotificationController.getUnreadCount);
-router.put('/notifications/:notificationId/read', authenticateToken, jobNotificationController.markNotificationRead);
-router.put('/notifications/mark-all-read', authenticateToken, jobNotificationController.markAllNotificationsRead);
-router.delete('/notifications/:notificationId', authenticateToken, jobNotificationController.deleteNotification);
+router.get('/notifications', authenticate, jobNotificationController.getNotifications);
+router.get('/notifications/unread-count', authenticate, jobNotificationController.getUnreadCount);
+router.put('/notifications/:notificationId/read', authenticate, jobNotificationController.markNotificationRead);
+router.put('/notifications/mark-all-read', authenticate, jobNotificationController.markAllNotificationsRead);
+router.delete('/notifications/:notificationId', authenticate, jobNotificationController.deleteNotification);
 
 // ===================================================================
 // IMPORTANT: /stats route MUST be before any :jobId routes
 // ===================================================================
-router.get('/stats', authenticateToken, requireEmployer, postJobsController.getJobStats.bind(postJobsController));
+router.get('/stats', authenticate, requireEmployer, postJobsController.getJobStats.bind(postJobsController));
 
 // ===================================================================
 // JOB CREATION
 // ===================================================================
-router.post('/', authenticateToken, requireEmployer, postJobsController.createJob.bind(postJobsController));
+router.post('/', authenticate, requireEmployer, postJobsController.createJob.bind(postJobsController));
 
 // ===================================================================
 // EMPLOYER ROUTES
 // ===================================================================
-router.get('/my-jobs', authenticateToken, requireEmployer, postJobsController.getMyJobs.bind(postJobsController));
+router.get('/my-jobs', authenticate, requireEmployer, postJobsController.getMyJobs.bind(postJobsController));
 
 router.post(
   '/employer/applications/:applicationId/status',
-  authenticateToken,
+  authenticate,
   requireEmployer,
   postJobsController.updateApplicationStatus.bind(postJobsController)
 );
@@ -55,16 +49,16 @@ router.post(
 // ===================================================================
 // JOBSEEKER ROUTES - CRITICAL FIX: WITHDRAW BEFORE OTHER :jobId ROUTES
 // ===================================================================
-router.get('/jobseeker/recommended', authenticateToken, requireJobseeker, jobseekerJobController.getRecommendedJobs);
-router.post('/jobseeker/bookmark/:jobId', authenticateToken, requireJobseeker, jobseekerJobController.saveJob);
-router.delete('/jobseeker/bookmark/:jobId', authenticateToken, requireJobseeker, jobseekerJobController.unsaveJob);
-router.get('/jobseeker/bookmarked', authenticateToken, requireJobseeker, jobseekerJobController.getSavedJobs);
-router.post('/jobseeker/apply/:jobId', authenticateToken, requireJobseeker, jobseekerJobController.applyToJob);
+router.get('/jobseeker/recommended', authenticate, requireJobseeker, jobseekerJobController.getRecommendedJobs);
+router.post('/jobseeker/bookmark/:jobId', authenticate, requireJobseeker, jobseekerJobController.saveJob);
+router.delete('/jobseeker/bookmark/:jobId', authenticate, requireJobseeker, jobseekerJobController.unsaveJob);
+router.get('/jobseeker/bookmarked', authenticate, requireJobseeker, jobseekerJobController.getSavedJobs);
+router.post('/jobseeker/apply/:jobId', authenticate, requireJobseeker, jobseekerJobController.applyToJob);
 
 // 🔥 CRITICAL FIX: This must be BEFORE the generic :jobId routes
 router.delete(
   '/jobseeker/withdraw/:jobId',
-  authenticateToken,
+  authenticate,
   requireJobseeker,
   async (req: AuthenticatedRequest, res: any, next: any) => {
     try {
@@ -105,23 +99,23 @@ router.delete(
   }
 );
 
-router.get('/jobseeker/applications', authenticateToken, requireJobseeker, jobseekerJobController.getAppliedJobs);
-router.get('/jobseeker/application-status/:jobId', authenticateToken, requireJobseeker, jobseekerJobController.getApplicationStatus);
-router.put('/jobseeker/application/:applicationId', authenticateToken, requireJobseeker, jobseekerJobController.updateApplication);
-router.patch('/jobseeker/application/:applicationId/withdraw', authenticateToken, requireJobseeker, jobseekerJobController.withdrawApplication);
-router.get('/jobseeker/stats', authenticateToken, requireJobseeker, jobseekerJobController.getJobseekerStats);
+router.get('/jobseeker/applications', authenticate, requireJobseeker, jobseekerJobController.getAppliedJobs);
+router.get('/jobseeker/application-status/:jobId', authenticate, requireJobseeker, jobseekerJobController.getApplicationStatus);
+router.put('/jobseeker/application/:applicationId', authenticate, requireJobseeker, jobseekerJobController.updateApplication);
+router.patch('/jobseeker/application/:applicationId/withdraw', authenticate, requireJobseeker, jobseekerJobController.withdrawApplication);
+router.get('/jobseeker/stats', authenticate, requireJobseeker, jobseekerJobController.getJobseekerStats);
 
 // ===================================================================
 // EMPLOYER JOB MANAGEMENT (Must be after /stats)
 // ===================================================================
-router.get('/employer/:jobId', authenticateToken, requireEmployer, postJobsController.getJobById.bind(postJobsController));
-router.put('/employer/:jobId', authenticateToken, requireEmployer, postJobsController.updateJob.bind(postJobsController));
-router.delete('/employer/:jobId', authenticateToken, requireEmployer, postJobsController.deleteJob.bind(postJobsController));
-router.get('/employer/:jobId/views', authenticateToken, requireEmployer, postJobsController.getJobViews.bind(postJobsController));
-router.get('/employer/:jobId/applications', authenticateToken, requireEmployer, postJobsController.getJobApplications.bind(postJobsController));
-router.patch('/employer/:jobId/toggle-status', authenticateToken, requireEmployer, postJobsController.toggleJobStatus.bind(postJobsController));
-router.patch('/employer/:jobId/mark-filled', authenticateToken, requireEmployer, postJobsController.markJobAsFilled.bind(postJobsController));
-router.post('/employer/:jobId/duplicate', authenticateToken, requireEmployer, postJobsController.duplicateJob.bind(postJobsController));
+router.get('/employer/:jobId', authenticate, requireEmployer, postJobsController.getJobById.bind(postJobsController));
+router.put('/employer/:jobId', authenticate, requireEmployer, postJobsController.updateJob.bind(postJobsController));
+router.delete('/employer/:jobId', authenticate, requireEmployer, postJobsController.deleteJob.bind(postJobsController));
+router.get('/employer/:jobId/views', authenticate, requireEmployer, postJobsController.getJobViews.bind(postJobsController));
+router.get('/employer/:jobId/applications', authenticate, requireEmployer, postJobsController.getJobApplications.bind(postJobsController));
+router.patch('/employer/:jobId/toggle-status', authenticate, requireEmployer, postJobsController.toggleJobStatus.bind(postJobsController));
+router.patch('/employer/:jobId/mark-filled', authenticate, requireEmployer, postJobsController.markJobAsFilled.bind(postJobsController));
+router.post('/employer/:jobId/duplicate', authenticate, requireEmployer, postJobsController.duplicateJob.bind(postJobsController));
 
 // ===================================================================
 // PUBLIC ROUTES (MUST BE LAST)

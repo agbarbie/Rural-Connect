@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { RatingController } from "../controllers/rating.controller";
-import { authenticateToken } from "../middleware/auth.middleware";
+import { authenticate } from "../middleware/auth.middleware";
 import { requireRole } from "../middleware/role.middleware";
 
 const router = Router();
@@ -8,12 +8,12 @@ const ratingController = new RatingController();
 
 router.post(
   "/",
-  authenticateToken,
+  authenticate,
   requireRole("employer"),
   ratingController.createRating.bind(ratingController),
 );
 
-router.put('/:ratingId', authenticateToken, requireRole('employer'), 
+router.put('/:ratingId', authenticate, requireRole('employer'), 
   ratingController.updateRating.bind(ratingController));
 
 router.get(

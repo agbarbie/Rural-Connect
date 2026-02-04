@@ -1,20 +1,19 @@
-import { Component, OnInit, OnDestroy, ViewChild, ElementRef } from '@angular/core';
-import { CommonModule, DatePipe, DecimalPipe } from '@angular/common';
+// jobseeker-training.component.ts - BOOTCAMP MODEL (Application & Live Sessions) - FIXED
+import { Component, OnInit, OnDestroy } from '@angular/core';
+import { CommonModule, DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
-import { Subject, interval, takeUntil } from 'rxjs';
+import { Subject, interval } from 'rxjs';
+import { takeUntil } from 'rxjs/operators';
 import {
   TrainingService,
   Training,
-  TrainingVideo,
-  TrainingSearchParams,
-  PaginatedResponse
+  TrainingSession,
+  TrainingSearchParams
 } from '../../../../../services/training.service';
 import { AuthService } from '../../../../../services/auth.service';
 import { SidebarComponent } from '../../shared/sidebar/sidebar.component';
 
 interface FilterOptions {
-  duration: string[];
   level: string[];
   cost: string[];
   mode: string[];
@@ -25,26 +24,23 @@ interface FilterOptions {
   selector: 'app-training',
   templateUrl: './training.component.html',
   imports: [CommonModule, FormsModule, SidebarComponent],
-  styleUrls: ['./training.component.css']
+  styleUrls: ['./training.component.css'],
+  providers: [DatePipe]
 })
 export class TrainingComponent implements OnInit, OnDestroy {
-  @ViewChild('videoPlayer', { static: false }) videoPlayer!: ElementRef<HTMLIFrameElement>;
-  
-  // Make Math accessible in template
   Math = Math;
   
   private destroy$ = new Subject<void>();
-  private progressInterval: any;
-  private videoStartTime: number = 0;
   private lastNotificationCheck: Date = new Date();
   
+  // Training data
   trainings: Training[] = [];
   filteredTrainings: Training[] = [];
   selectedCategory: string = 'all';
   searchQuery: string = '';
   
+  // Filters
   filters: FilterOptions = {
-    duration: [],
     level: [],
     cost: [],
     mode: [],
@@ -59,17 +55,15 @@ export class TrainingComponent implements OnInit, OnDestroy {
   // Loading and error states
   loading: boolean = false;
   error: string | null = null;
-  showVideoLoading: boolean = false;
   
-  // Video player state
-  showVideoPlayer: boolean = false;
-  currentVideo: TrainingVideo | null = null;
-  currentVideoIndex: number = -1;
-  safeVideoUrl: SafeResourceUrl | null = null;
+  // Application modal
+  showApplicationModal: boolean = false;
+  motivationLetter: string = '';
+  applyingTrainingId: string | null = null;
   
-  // Progress tracking
-  videoWatchTime: number = 0;
-  lastProgressUpdate: number = 0;
+  // Enrolled trainings view
+  showEnrolledOnly: boolean = false;
+  enrolledTrainings: Training[] = [];
   
   // Notifications
   notifications: any[] = [];
@@ -82,23 +76,20 @@ export class TrainingComponent implements OnInit, OnDestroy {
   pageSize: number = 12;
   totalCount: number = 0;
   
-  // Wishlist management
-  private wishlistSet: Set<string> = new Set();
-  
   // User ID
   userId: string = '';
   
   constructor(
     private trainingService: TrainingService,
-    private sanitizer: DomSanitizer,
-    private authService: AuthService
+    private authService: AuthService,
+    private datePipe: DatePipe
   ) {}
 
   ngOnInit(): void {
     this.userId = this.authService.getUserId() || '';
     
     if (!this.userId) {
-      console.error('No user ID found');
+      console.error('❌ No user ID found');
       alert('Please log in to view trainings');
       return;
     }
@@ -114,7 +105,11 @@ export class TrainingComponent implements OnInit, OnDestroy {
       .pipe(takeUntil(this.destroy$))
       .subscribe(() => {
         console.log('🔄 Auto-refreshing trainings...');
-        this.loadTrainings();
+        if (this.showEnrolledOnly) {
+          this.loadEnrolledTrainings();
+        } else {
+          this.loadTrainings();
+        }
       });
     
     // Auto-refresh notifications every 15 seconds
@@ -134,13 +129,12 @@ export class TrainingComponent implements OnInit, OnDestroy {
   }
 
   ngOnDestroy(): void {
-    this.stopProgressTracking();
     this.destroy$.next();
     this.destroy$.complete();
   }
 
   // ============================================
-  // SIDEBAR TOGGLE METHODS (Fixed)
+  // SIDEBAR TOGGLE METHODS
   // ============================================
   
   toggleSidebar(): void {
@@ -170,8 +164,7 @@ export class TrainingComponent implements OnInit, OnDestroy {
   formatDate(date: any): string {
     if (!date) return 'N/A';
     try {
-      const d = new Date(date);
-      return d.toLocaleString();
+      return this.datePipe.transform(date, 'medium') || 'N/A';
     } catch {
       return 'Invalid date';
     }
@@ -197,16 +190,12 @@ export class TrainingComponent implements OnInit, OnDestroy {
   getNotificationIcon(type: string): string {
     const iconMap: Record<string, string> = {
       'certificate_issued': 'fa-certificate',
-      'new_training': 'fa-plus-circle',
-      'training_updated': 'fa-edit',
-      'training_deleted': 'fa-trash-alt',
-      'training_suspended': 'fa-pause-circle',
-      'training_published': 'fa-rocket',
-      'video_added': 'fa-video',
-      'content_updated': 'fa-sync-alt',
-      'training_completed': 'fa-check-circle',
-      'enrollment_confirmed': 'fa-user-check',
-      'new_enrollment': 'fa-user-plus'
+      'application_accepted': 'fa-check-circle',
+      'application_rejected': 'fa-times-circle',
+      'training_starting_soon': 'fa-clock',
+      'session_reminder': 'fa-calendar-alt',
+      'training_completed': 'fa-graduation-cap',
+      'shortlisted': 'fa-user-check'
     };
     
     return iconMap[type] || 'fa-bell';
@@ -215,15 +204,12 @@ export class TrainingComponent implements OnInit, OnDestroy {
   getNotificationIconClass(type: string): string {
     const classMap: Record<string, string> = {
       'certificate_issued': 'certificate',
-      'new_training': 'new-training',
-      'training_updated': 'training-updated',
-      'training_deleted': 'training-deleted',
-      'training_suspended': 'training-suspended',
-      'training_published': 'new-training',
-      'video_added': 'video-added',
-      'content_updated': 'training-updated',
+      'application_accepted': 'success',
+      'application_rejected': 'error',
+      'training_starting_soon': 'warning',
+      'session_reminder': 'info',
       'training_completed': 'certificate',
-      'enrollment_confirmed': 'new-training'
+      'shortlisted': 'success'
     };
    
     return classMap[type] || 'default';
@@ -232,16 +218,12 @@ export class TrainingComponent implements OnInit, OnDestroy {
   getNotificationTitle(type: string): string {
     const titleMap: Record<string, string> = {
       'certificate_issued': '🎓 Certificate Ready',
-      'new_training': '🎓 New Training Available',
-      'training_updated': '✏️ Training Updated',
-      'training_deleted': '🗑️ Training Removed',
-      'training_suspended': '⏸️ Training Suspended',
-      'training_published': '📢 Training Published',
-      'video_added': '📹 New Video Added',
-      'content_updated': '📝 Content Updated',
+      'application_accepted': '✅ Application Accepted',
+      'application_rejected': '❌ Application Not Accepted',
+      'training_starting_soon': '⏰ Training Starting Soon',
+      'session_reminder': '📅 Session Reminder',
       'training_completed': '🎉 Training Completed',
-      'enrollment_confirmed': '✅ Enrollment Confirmed',
-      'new_enrollment': '👤 New Enrollment'
+      'shortlisted': '✨ You\'ve Been Shortlisted!'
     };
     
     return titleMap[type] || 'Training Update';
@@ -250,62 +232,29 @@ export class TrainingComponent implements OnInit, OnDestroy {
   handleNotificationClick(notification: any): void {
     console.log('🔔 Notification clicked:', notification);
     
-    // Mark as read
     if (!notification.read) {
       this.markNotificationAsRead(notification.id);
     }
     
     switch (notification.type) {
       case 'certificate_issued':
-        console.log('📜 Certificate notification metadata:', notification.metadata);
-        
-        let enrollmentId = null;
-        
-        if (notification.related_id) {
-          enrollmentId = notification.related_id;
-          console.log('✅ Using related_id:', enrollmentId);
-        }
-        else if (notification.metadata?.enrollment_id) {
-          enrollmentId = notification.metadata.enrollment_id;
-          console.log('✅ Using metadata.enrollment_id:', enrollmentId);
-        }
-        else if (notification.metadata?.certificate_id) {
-          enrollmentId = notification.metadata.certificate_id;
-          console.log('✅ Using metadata.certificate_id:', enrollmentId);
-        }
-
+        const enrollmentId = notification.related_id || notification.metadata?.enrollment_id;
         if (enrollmentId) {
           const trainingTitle = notification.metadata?.training_title || 'Training';
-          
           if (confirm(`Download certificate for "${trainingTitle}"?`)) {
             this.downloadCertificate(enrollmentId, trainingTitle);
           }
-          
           this.showNotifications = false;
-        } else {
-          console.error('❌ No enrollment_id found in notification:', notification);
-          alert(
-            'Certificate download information is missing. ' +
-            'Please refresh the page or contact support.'
-          );
         }
         break;
       
-      case 'enrollment_confirmed':
-      case 'new_training':
-      case 'training_updated':
-      case 'video_added':
-      case 'content_updated':
+      case 'application_accepted':
+      case 'shortlisted':
+      case 'training_starting_soon':
+      case 'session_reminder':
         if (notification.metadata?.training_id) {
           this.viewTrainingFromNotification(notification.metadata.training_id);
         }
-        break;
-      
-      case 'training_deleted':
-      case 'training_suspended':
-        alert(notification.message);
-        this.showNotifications = false;
-        this.loadTrainings();
         break;
       
       default:
@@ -324,10 +273,12 @@ export class TrainingComponent implements OnInit, OnDestroy {
       this.viewTrainingDetail(training);
       this.showNotifications = false;
     } else {
-      this.trainingService.getTrainingWithDetailsForJobseeker(trainingId, this.userId)
+      this.loading = true;
+      this.trainingService.getTrainingDetails(trainingId)
         .pipe(takeUntil(this.destroy$))
         .subscribe({
           next: (response) => {
+            this.loading = false;
             if (response && response.success && response.data) {
               this.viewTrainingDetail(response.data);
               this.showNotifications = false;
@@ -336,6 +287,7 @@ export class TrainingComponent implements OnInit, OnDestroy {
             }
           },
           error: (error) => {
+            this.loading = false;
             console.error('❌ Error loading training:', error);
             alert('Unable to load training. It may have been removed.');
           }
@@ -346,12 +298,13 @@ export class TrainingComponent implements OnInit, OnDestroy {
   viewAllNotifications(): void {
     console.log('📋 Viewing all notifications');
    
-    this.trainingService.getNotifications(this.userId, { read: undefined })
+    // ✅ FIXED: Service expects only params object, not userId and userType
+    this.trainingService.getNotifications({ read: undefined })
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: (response) => {
           if (response.success && response.data) {
-            this.notifications = response.data.notifications || [];
+            this.notifications = response.data.notifications || response.data || [];
             console.log('✅ All notifications loaded:', this.notifications.length);
           }
         },
@@ -370,7 +323,8 @@ export class TrainingComponent implements OnInit, OnDestroy {
       this.unreadNotificationCount = Math.max(0, this.unreadNotificationCount - 1);
     }
     
-    this.trainingService.markNotificationRead(notificationId, this.userId)
+    // ✅ FIXED: Service expects only notificationId, not userId
+    this.trainingService.markNotificationRead(notificationId)
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: () => {
@@ -389,12 +343,13 @@ export class TrainingComponent implements OnInit, OnDestroy {
   loadNotifications(): void {
     console.log('🔔 Loading notifications for jobseeker:', this.userId);
     
-    this.trainingService.getNotifications(this.userId, { read: false }, 'jobseeker')
+    // ✅ FIXED: Service expects only params object, not userId and userType
+    this.trainingService.getNotifications({ read: false })
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: (response) => {
           if (response.success && response.data) {
-            this.notifications = response.data.notifications || [];
+            this.notifications = response.data.notifications || response.data || [];
             this.unreadNotificationCount = this.notifications.filter(n => !n.read).length;
             
             console.log('✅ Jobseeker notifications loaded:', {
@@ -429,10 +384,10 @@ export class TrainingComponent implements OnInit, OnDestroy {
 
       const importantTypes = [
         'certificate_issued',
-        'enrollment_confirmed',
-        'training_deleted',
-        'training_suspended',
-        'video_added'
+        'application_accepted',
+        'shortlisted',
+        'training_starting_soon',
+        'session_reminder'
       ];
 
       const importantNotifications = newNotifications.filter(n =>
@@ -481,235 +436,6 @@ export class TrainingComponent implements OnInit, OnDestroy {
   }
 
   // ============================================
-  // VIDEO PLAYER METHODS
-  // ============================================
-  
-  playVideo(video: TrainingVideo, index: number): void {
-    console.log('🎥 Playing video:', video);
-    
-    if (!video.video_url) {
-      console.error('❌ No video URL found');
-      alert('Video URL is missing');
-      return;
-    }
-
-    if (!this.isVideoAccessible(video)) {
-      alert('This video is not available in preview. Please enroll in the training to access all videos.');
-      return;
-    }
-
-    if (this.currentVideo) {
-      this.saveVideoProgress(false);
-    }
-
-    this.currentVideo = video;
-    this.currentVideoIndex = index;
-    this.videoWatchTime = 0;
-    this.videoStartTime = Date.now();
-    
-    const embedUrl = this.trainingService.getVideoEmbedUrl(video.video_url);
-    console.log('📺 Embed URL:', embedUrl);
-    
-    this.safeVideoUrl = this.sanitizer.bypassSecurityTrustResourceUrl(embedUrl);
-    this.showVideoPlayer = true;
-    
-    this.startProgressTracking();
-  }
-
-  closeVideoPlayer(): void {
-    if (this.currentVideo) {
-      this.saveVideoProgress(false);
-    }
-    
-    this.stopProgressTracking();
-    this.showVideoPlayer = false;
-    this.currentVideo = null;
-    this.currentVideoIndex = -1;
-    this.safeVideoUrl = null;
-    this.videoWatchTime = 0;
-  }
-
-  playNextVideo(): void {
-    if (!this.selectedTraining?.videos) return;
-    
-    const nextIndex = this.currentVideoIndex + 1;
-    if (nextIndex < this.selectedTraining.videos.length) {
-      const nextVideo = this.selectedTraining.videos[nextIndex];
-      if (this.isVideoAccessible(nextVideo)) {
-        this.playVideo(nextVideo, nextIndex);
-      } else {
-        alert('Next video requires enrollment');
-      }
-    }
-  }
-
-  playPreviousVideo(): void {
-    if (!this.selectedTraining?.videos) return;
-    
-    const prevIndex = this.currentVideoIndex - 1;
-    if (prevIndex >= 0) {
-      const prevVideo = this.selectedTraining.videos[prevIndex];
-      this.playVideo(prevVideo, prevIndex);
-    }
-  }
-
-  isVideoAccessible(video: TrainingVideo): boolean {
-    if (!this.selectedTraining) return false;
-    return this.trainingService.isVideoAccessible(video, this.selectedTraining);
-  }
-
-  getVideoStatusBadge(video: TrainingVideo): string {
-    if (video.completed) return '✓ Completed';
-    if (video.is_preview) return '🔓 Preview';
-    if (!this.selectedTraining?.enrolled) return '🔒 Locked';
-    return '';
-  }
-
-  // ============================================
-  // PROGRESS TRACKING
-  // ============================================
-  
-  startProgressTracking(): void {
-    this.progressInterval = setInterval(() => {
-      this.updateWatchTime();
-    }, 10000);
-  }
-
-  stopProgressTracking(): void {
-    if (this.progressInterval) {
-      clearInterval(this.progressInterval);
-      this.progressInterval = null;
-    }
-  }
-
-  updateWatchTime(): void {
-    if (!this.currentVideo) return;
-    
-    const now = Date.now();
-    const elapsed = Math.floor((now - this.videoStartTime) / 1000);
-    this.videoWatchTime = elapsed;
-    
-    if (elapsed - this.lastProgressUpdate >= 30) {
-      this.saveVideoProgress(false);
-      this.lastProgressUpdate = elapsed;
-    }
-  }
-
-  markVideoComplete(): void {
-    if (!this.currentVideo) return;
-    
-    this.saveVideoProgress(true);
-    alert('Video marked as complete!');
-    
-    if (this.currentVideoIndex < (this.selectedTraining?.videos?.length || 0) - 1) {
-      setTimeout(() => {
-        this.playNextVideo();
-      }, 1000);
-    } else {
-      alert('🎉 Congratulations! You have completed all videos in this training!');
-    }
-  }
-
-  saveVideoProgress(isCompleted: boolean): void {
-    if (!this.selectedTraining || !this.currentVideo) {
-      console.warn('⚠️ Cannot save progress: missing training or video');
-      return;
-    }
-
-    if (!this.currentVideo.id) {
-      console.error('❌ Video ID is missing');
-      alert('Cannot save progress: Video ID is missing');
-      return;
-    }
-
-    console.log('💾 Saving video progress:', {
-      trainingId: this.selectedTraining.id,
-      trainingTitle: this.selectedTraining.title,
-      videoId: this.currentVideo.id,
-      videoTitle: this.currentVideo.title,
-      watchTime: this.videoWatchTime,
-      completed: isCompleted,
-      userId: this.userId
-    });
-
-    this.trainingService.updateVideoProgress(
-      this.selectedTraining.id,
-      this.currentVideo.id,
-      this.videoWatchTime,
-      isCompleted,
-      this.userId
-    ).pipe(takeUntil(this.destroy$))
-      .subscribe({
-        next: (response) => {
-          console.log('✅ Progress saved successfully:', response);
-
-          if (response.success && response.data) {
-            if (this.selectedTraining) {
-              this.selectedTraining.progress = response.data.overall_progress || 0;
-
-              const trainingInList = this.trainings.find(t => t.id === this.selectedTraining!.id);
-              if (trainingInList) {
-                trainingInList.progress = response.data.overall_progress || 0;
-              }
-
-              console.log('📊 Updated progress:', {
-                overall: response.data.overall_progress,
-                completed: response.data.training_completed
-              });
-            }
-
-            if (isCompleted && this.currentVideo) {
-              this.currentVideo.completed = true;
-              
-              if (this.selectedTraining?.videos) {
-                const videoInList = this.selectedTraining.videos.find(v => v.id === this.currentVideo!.id);
-                if (videoInList) {
-                  videoInList.completed = true;
-                }
-              }
-              console.log('✓ Video marked as completed in UI');
-            }
-
-            if (response.data.training_completed) {
-              setTimeout(() => {
-                alert('🎉 Congratulations! You completed the training!');
-
-                if (response.data.certificate_issued) {
-                  alert('🎓 Your certificate is ready for download!');
-                  this.loadNotifications();
-
-                  if (this.selectedTraining) {
-                    this.viewTrainingDetail(this.selectedTraining);
-                  }
-                }
-              }, 500);
-            } else if (isCompleted) {
-              console.log('✓ Video completion saved');
-            }
-          }
-        },
-        error: (error) => {
-          console.error('❌ Error saving progress:', error);
-          
-          let errorMessage = 'Failed to save progress.';
-          
-          if (error.status === 404) {
-            errorMessage += ' Training or video not found.';
-          } else if (error.status === 401) {
-            errorMessage += ' Please log in again.';
-          } else if (error.status === 403) {
-            errorMessage += ' You must be enrolled to save progress.';
-          } else if (error.error?.message) {
-            errorMessage += ` ${error.error.message}`;
-          }
-
-          errorMessage += ' Progress will resume from here next time.';
-          alert(errorMessage);
-        }
-      });
-  }
-
-  // ============================================
   // CERTIFICATE DOWNLOAD
   // ============================================
   
@@ -753,11 +479,11 @@ export class TrainingComponent implements OnInit, OnDestroy {
         let errorMessage = 'Failed to download certificate. ';
         
         if (error.status === 404) {
-          errorMessage += 'Certificate file not found on server.';
+          errorMessage += 'Certificate not found.';
         } else if (error.status === 401) {
           errorMessage += 'You are not authorized. Please log in again.';
         } else if (error.status === 403) {
-          errorMessage += 'Access denied. This certificate may not belong to you.';
+          errorMessage += 'Access denied.';
         } else {
           errorMessage += 'Please try again or contact support.';
         }
@@ -767,108 +493,46 @@ export class TrainingComponent implements OnInit, OnDestroy {
     });
   }
 
-  downloadCertificateFromList(training: Training): void {
-    console.log('📥 List download - enrollment_id:', training.enrollment_id);
-    
+  downloadCertificateFromCard(training: Training): void {
     if (!training.enrollment_id) {
-      console.error('❌ No enrollment_id in training object');
-      alert('Certificate information missing. Please refresh the page.');
-      this.loadTrainings(this.currentPage);
+      alert('Enrollment ID is missing. Please contact support.');
       return;
     }
-    
     this.downloadCertificate(training.enrollment_id, training.title);
   }
 
-  handleCertificateDownloadClick(training: Training): void {
-    console.log('🖱️ Download button clicked:', {
-      id: training?.id,
-      title: training?.title,
-      enrolled: training?.enrolled,
-      progress: training?.progress,
-      certificateIssued: training?.certificate_issued,
-      enrollmentId: training?.enrollment_id
-    });
-
-    if (this.canDownloadCertificate(training)) {
-      this.downloadCertificate(training.enrollment_id!, training.title || 'Training');
-      return;
-    }
-
-    if (!training.enrollment_id && training.certificate_issued) {
-      console.warn('⚠️ enrollment_id missing but certificate issued, refreshing...');
-      this.refreshTrainingDetails();
-      return;
-    }
-
-    const statusMsg = this.getCertificateStatusMessage(training);
-    console.log('ℹ️ Cannot download:', statusMsg);
-    alert(statusMsg);
-  }
-
   canDownloadCertificate(training: Training): boolean {
-    const canDownload = !!(
+    return !!(
       training.enrolled && 
-      training.progress === 100 && 
+      training.status === 'completed' &&
       training.certificate_issued &&
       training.enrollment_id
     );
-    
-    console.log('🔍 Can download check:', {
-      trainingId: training.id,
-      enrolled: training.enrolled,
-      progress: training.progress,
-      certificateIssued: training.certificate_issued,
-      hasEnrollmentId: !!training.enrollment_id,
-      result: canDownload
-    });
-    
-    return canDownload;
-  }
-
-  refreshTrainingDetails(): void {
-    if (!this.selectedTraining?.id) {
-      console.warn('⚠️ No selected training to refresh');
-      return;
-    }
-    
-    this.loading = true;
-    
-    this.trainingService.getTrainingWithDetailsForJobseeker(this.selectedTraining.id, this.userId)
-      .pipe(takeUntil(this.destroy$))
-      .subscribe({
-        next: (response) => {
-          this.loading = false;
-          if (response.success && response.data) {
-            this.selectedTraining = response.data;
-            console.log('✅ Refreshed enrollment_id:', this.selectedTraining.enrollment_id);
-            
-            if (this.selectedTraining.certificate_issued) {
-              alert('Certificate is ready! Click download again.');
-            }
-          }
-        },
-        error: (error) => {
-          this.loading = false;
-          console.error('❌ Error refreshing training:', error);
-          alert('Failed to refresh training details. Please reload the page.');
-        }
-      });
   }
 
   getCertificateStatusMessage(training: Training): string {
     if (!training.enrolled) {
-      return 'Please enroll in this training to earn a certificate';
+      return 'Apply for this training to earn a certificate';
     }
     
-    const progress = training.progress ?? 0;
-    
-    if (progress < 100) {
-      return `Complete all videos (${progress}% done) to earn your certificate`;
+    if (training.application_status === 'pending') {
+      return 'Application pending review';
     }
     
-    if (progress === 100 && !training.certificate_issued) {
-      return 'Training completed! Certificate is being generated...';
+    if (training.application_status === 'rejected') {
+      return 'Application not accepted';
+    }
+    
+    if (training.application_status === 'shortlisted') {
+      return 'You have been shortlisted! Training will start soon.';
+    }
+    
+    if (training.status === 'in_progress') {
+      return 'Training in progress';
+    }
+    
+    if (training.status === 'completed' && !training.certificate_issued) {
+      return 'Certificate is being prepared by the provider';
     }
     
     if (training.certificate_issued && training.enrollment_id) {
@@ -876,47 +540,6 @@ export class TrainingComponent implements OnInit, OnDestroy {
     }
     
     return 'Certificate status unknown. Please refresh the page.';
-  }
-
-  checkAndDownloadCertificate(enrollmentId: string, trainingTitle: string): void {
-    console.log('🔍 Checking certificate availability...');
-    
-    this.loading = true;
-    
-    this.trainingService.checkCertificateAvailability(enrollmentId)
-      .pipe(takeUntil(this.destroy$))
-      .subscribe({
-        next: (response) => {
-          this.loading = false;
-          
-          if (response.success && response.data?.available) {
-            console.log('✅ Certificate is available');
-            this.downloadCertificate(enrollmentId, trainingTitle);
-          } else {
-            const reason = response.data?.reason || 'Certificate is not yet available';
-            console.warn('⚠️ Certificate not available:', reason);
-            alert(`Certificate not available: ${reason}`);
-          }
-        },
-        error: (error) => {
-          this.loading = false;
-          console.error('❌ Error checking certificate:', error);
-          
-          console.log('Attempting download anyway...');
-          this.downloadCertificate(enrollmentId, trainingTitle);
-        }
-      });
-  }
-
-  previewCertificate(enrollmentId: string): void {
-    console.log('👁️ Previewing certificate:', enrollmentId);
-    
-    if (!enrollmentId) {
-      alert('Cannot preview: Enrollment information missing');
-      return;
-    }
-    
-    this.trainingService.openCertificateInNewTab(enrollmentId);
   }
 
   // ============================================
@@ -928,16 +551,8 @@ export class TrainingComponent implements OnInit, OnDestroy {
       console.warn('❌ Missing required fields:', training.id);
       return false;
     }
-    if (training.status !== 'published') {
+    if (training.status !== 'published' && training.status !== 'applications_closed') {
       console.warn('❌ Not published:', training.title);
-      return false;
-    }
-    if (!training.provider_id) {
-      console.warn('❌ Invalid provider_id:', training.title);
-      return false;
-    }
-    if (training.duration_hours <= 0) {
-      console.warn('❌ Invalid duration:', training.title);
       return false;
     }
     return true;
@@ -997,6 +612,46 @@ export class TrainingComponent implements OnInit, OnDestroy {
       });
   }
 
+  loadEnrolledTrainings(): void {
+    this.loading = true;
+    this.error = null;
+    
+    console.log('📚 Loading enrolled trainings for user:', this.userId);
+
+    this.trainingService.getEnrolledTrainings({ page: 1, limit: 100 })
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (response) => {
+          console.log('📦 Enrolled trainings response:', response);
+          
+          if (response.success && response.data) {
+            this.enrolledTrainings = response.data.trainings || [];
+            this.filteredTrainings = [...this.enrolledTrainings];
+            
+            console.log('✅ Loaded enrolled trainings:', this.enrolledTrainings.length);
+          }
+          this.loading = false;
+        },
+        error: (error) => {
+          console.error('❌ Error loading enrolled trainings:', error);
+          this.error = 'Failed to load your enrolled trainings. Please try again.';
+          this.loading = false;
+          this.enrolledTrainings = [];
+          this.filteredTrainings = [];
+        }
+      });
+  }
+
+  toggleEnrolledView(): void {
+    this.showEnrolledOnly = !this.showEnrolledOnly;
+    
+    if (this.showEnrolledOnly) {
+      this.loadEnrolledTrainings();
+    } else {
+      this.loadTrainings(this.currentPage);
+    }
+  }
+
   loadCategories(): void {
     this.trainingService.getTrainingCategories()
       .pipe(takeUntil(this.destroy$))
@@ -1009,19 +664,22 @@ export class TrainingComponent implements OnInit, OnDestroy {
         },
         error: (error) => {
           console.error('❌ Error loading categories:', error);
-          this.categories = ['Data Science', 'Frontend Development', 'Marketing', 'Cloud Computing', 'Design'];
+          this.categories = [
+            'Technology', 'Business', 'Design', 'Marketing',
+            'Personal Development', 'Health & Safety', 'Finance',
+            'Communication', 'Leadership', 'Project Management'
+          ];
         }
       });
   }
 
   viewTrainingDetail(training: Training): void {
     this.loading = true;
-    this.showVideoLoading = true;
     this.error = null;
     
     console.log('🔍 Fetching full details for training:', training.id);
     
-    this.trainingService.getTrainingWithDetailsForJobseeker(training.id, this.userId)
+    this.trainingService.getTrainingDetails(training.id)
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: (response) => {
@@ -1031,9 +689,10 @@ export class TrainingComponent implements OnInit, OnDestroy {
               this.selectedTraining = response.data;
               console.log('✅ Training loaded:', {
                 title: this.selectedTraining.title,
-                videos: this.selectedTraining.videos?.length || 0,
-                progress: this.selectedTraining.progress,
+                sessions: this.selectedTraining.sessions?.length || 0,
                 enrolled: this.selectedTraining.enrolled,
+                applied: this.selectedTraining.applied,
+                applicationStatus: this.selectedTraining.application_status,
                 certificateIssued: this.selectedTraining.certificate_issued,
                 enrollmentId: this.selectedTraining.enrollment_id
               });
@@ -1046,13 +705,11 @@ export class TrainingComponent implements OnInit, OnDestroy {
             this.error = 'Failed to load training details.';
           }
           this.loading = false;
-          this.showVideoLoading = false;
         },
         error: (error) => {
           console.error('❌ Error loading training details:', error);
           this.error = 'Failed to load training details. Please try again.';
           this.loading = false;
-          this.showVideoLoading = false;
         }
       });
   }
@@ -1060,76 +717,144 @@ export class TrainingComponent implements OnInit, OnDestroy {
   closeTrainingDetail(): void {
     this.showTrainingDetail = false;
     this.selectedTraining = null;
-    this.showVideoLoading = false;
-    this.closeVideoPlayer();
   }
 
-  enrollInTraining(training: Training): void {
-    console.log('📝 Enrolling in training:', training.id);
+  refreshTrainingDetails(): void {
+    if (this.selectedTraining) {
+      this.viewTrainingDetail(this.selectedTraining);
+    }
+  }
+
+  // ============================================
+  // APPLICATION PROCESS
+  // ============================================
+  
+  openApplicationModal(training: Training): void {
+    if (!training || !training.id) {
+      alert('Training information is missing');
+      return;
+    }
     
-    this.trainingService.enrollInTraining(training.id)
+    // Check if already applied
+    if (training.applied) {
+      alert(`You have already applied for this training. Status: ${training.application_status || 'Pending'}`);
+      return;
+    }
+    
+    // Check if already enrolled
+    if (training.enrolled) {
+      alert('You are already enrolled in this training');
+      return;
+    }
+    
+    // Check if application deadline has passed
+    if (training.application_deadline) {
+      const deadline = new Date(training.application_deadline);
+      if (new Date() > deadline) {
+        alert('Application deadline has passed');
+        return;
+      }
+    }
+    
+    // Check if max participants reached
+    if (training.max_participants && training.current_participants >= training.max_participants) {
+      alert('This training has reached maximum capacity');
+      return;
+    }
+    
+    this.selectedTraining = training;
+    this.applyingTrainingId = training.id;
+    this.motivationLetter = '';
+    this.showApplicationModal = true;
+  }
+
+  closeApplicationModal(): void {
+    this.showApplicationModal = false;
+    this.selectedTraining = null;
+    this.applyingTrainingId = null;
+    this.motivationLetter = '';
+  }
+
+  submitApplication(): void {
+    if (!this.applyingTrainingId) {
+      alert('No training selected');
+      return;
+    }
+
+    if (!this.motivationLetter.trim()) {
+      alert('Please provide a motivation letter explaining why you want to join this training');
+      return;
+    }
+
+    if (this.motivationLetter.trim().length < 50) {
+      alert('Motivation letter must be at least 50 characters long');
+      return;
+    }
+
+    console.log('📝 Submitting application for training:', this.applyingTrainingId);
+    
+    this.loading = true;
+    this.trainingService.applyForTraining(this.applyingTrainingId, this.motivationLetter)
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: (response: any) => {
+          this.loading = false;
           if (response.success) {
-            training.enrolled = true;
-            if (this.selectedTraining && this.selectedTraining.id === training.id) {
-              this.selectedTraining.enrolled = true;
-            }
-            console.log('✅ Successfully enrolled in:', training.title);
-            alert('Successfully enrolled in the training!');
+            console.log('✅ Application submitted successfully');
+            alert('Application submitted successfully! You will be notified about the shortlisting process.');
             
-            this.viewTrainingDetail(training);
+            // Update training in list
+            const training = this.trainings.find(t => t.id === this.applyingTrainingId);
+            if (training) {
+              training.applied = true;
+              training.application_status = 'pending';
+            }
+            
+            this.closeApplicationModal();
+            
+            if (this.showEnrolledOnly) {
+              this.loadEnrolledTrainings();
+            } else {
+              this.loadTrainings(this.currentPage);
+            }
           }
         },
         error: (error: any) => {
-          console.error('❌ Error enrolling in training:', error);
-          this.error = 'Failed to enroll in training. Please try again.';
+          this.loading = false;
+          console.error('❌ Error submitting application:', error);
+          this.error = error.message || 'Failed to submit application. Please try again.';
+          alert('Failed to submit application. Please try again.');
         }
       });
   }
 
-  startTraining(training: Training): void {
-    console.log('▶️ Starting training:', training.title);
-    this.viewTrainingDetail(training);
-  }
-
-  // ============================================
-  // WISHLIST MANAGEMENT
-  // ============================================
-  
-  addToWishlist(trainingId: string): void {
-    this.wishlistSet.add(trainingId);
-    console.log('Added to wishlist:', trainingId);
-  }
-  
-  removeFromWishlist(trainingId: string): void {
-    this.wishlistSet.delete(trainingId);
-    console.log('Removed from wishlist:', trainingId);
-  }
-  
-  isInWishlist(trainingId: string): boolean {
-    return this.wishlistSet.has(trainingId);
-  }
-
-  toggleWishlist(trainingId: string): void {
-    if (this.isInWishlist(trainingId)) {
-      this.removeFromWishlist(trainingId);
-    } else {
-      this.addToWishlist(trainingId);
+  getApplicationStatusBadge(training: Training): string {
+    if (!training.applied) return '';
+    
+    switch (training.application_status) {
+      case 'pending':
+        return 'Application Pending Review';
+      case 'shortlisted':
+        return 'Shortlisted - Awaiting Training Start';
+      case 'rejected':
+        return 'Application Not Accepted';
+      default:
+        return 'Application Status Unknown';
     }
   }
 
-  shareTraining(training: Training): void {
-    if (navigator.share) {
-      navigator.share({
-        title: training.title,
-        text: `Check out this training: ${training.description?.substring(0, 100)}...`,
-        url: window.location.origin + `/trainings/${training.id}`
-      }).catch(err => console.error('Share failed:', err));
-    } else {
-      navigator.clipboard.writeText(window.location.origin + `/trainings/${training.id}`);
-      alert(`Link copied to clipboard: ${training.title}`);
+  getApplicationStatusClass(training: Training): string {
+    if (!training.applied) return '';
+    
+    switch (training.application_status) {
+      case 'pending':
+        return 'status-pending';
+      case 'shortlisted':
+        return 'status-shortlisted';
+      case 'rejected':
+        return 'status-rejected';
+      default:
+        return '';
     }
   }
 
@@ -1140,13 +865,21 @@ export class TrainingComponent implements OnInit, OnDestroy {
   filterByCategory(category: string): void {
     this.selectedCategory = category;
     this.currentPage = 1;
-    this.loadTrainings(1);
+    if (this.showEnrolledOnly) {
+      this.loadEnrolledTrainings();
+    } else {
+      this.loadTrainings(1);
+    }
   }
 
   onSearchChange(): void {
     setTimeout(() => {
       this.currentPage = 1;
-      this.loadTrainings(1);
+      if (this.showEnrolledOnly) {
+        this.loadEnrolledTrainings();
+      } else {
+        this.loadTrainings(1);
+      }
     }, 500);
   }
 
@@ -1156,11 +889,11 @@ export class TrainingComponent implements OnInit, OnDestroy {
 
   onFilterChange(): void {
     this.currentPage = 1;
-    this.loadTrainings(1);
-  }
-
-  applyFilters(): void {
-    this.loadTrainings(this.currentPage);
+    if (this.showEnrolledOnly) {
+      this.loadEnrolledTrainings();
+    } else {
+      this.loadTrainings(1);
+    }
   }
 
   onFilterCheckboxChange(filterType: keyof FilterOptions, value: string, event: any): void {
@@ -1177,7 +910,6 @@ export class TrainingComponent implements OnInit, OnDestroy {
 
   clearAllFilters(): void {
     this.filters = {
-      duration: [],
       level: [],
       cost: [],
       mode: [],
@@ -1186,32 +918,19 @@ export class TrainingComponent implements OnInit, OnDestroy {
     this.selectedCategory = 'all';
     this.searchQuery = '';
     this.currentPage = 1;
-    this.loadTrainings(1);
+    if (this.showEnrolledOnly) {
+      this.loadEnrolledTrainings();
+    } else {
+      this.loadTrainings(1);
+    }
   }
 
   // ============================================
   // UTILITY METHODS
   // ============================================
   
-  getDurationText(duration_hours: number): string {
-    if (duration_hours < 10) return 'Short Course';
-    if (duration_hours <= 40) return 'Medium Course';
-    return 'Comprehensive Course';
-  }
-
-  getProgressWidth(progress: number): string {
-    return `${progress}%`;
-  }
-
   formatDuration(duration_hours: number): string {
     return this.trainingService.formatDuration(duration_hours);
-  }
-
-  formatDurationMinutes(minutes: number): string {
-    if (minutes < 60) return `${minutes} min`;
-    const hours = Math.floor(minutes / 60);
-    const mins = minutes % 60;
-    return `${hours}h ${mins}m`;
   }
 
   formatPrice(training: Training): string {
@@ -1222,17 +941,48 @@ export class TrainingComponent implements OnInit, OnDestroy {
     return training.enrolled || false;
   }
 
-  getTrainingProgress(training: Training): number {
-    return training.progress || 0;
+  hasApplied(training: Training): boolean {
+    return training.applied || false;
   }
 
-  getVideosRemaining(training: any): number {
-    if (!training || !training.videos) return 0;
+  canApply(training: Training): boolean {
+    // Cannot apply if already applied or enrolled
+    if (training.applied || training.enrolled) return false;
     
-    const totalVideos = training.videos.length;
-    const completedVideos = training.videos.filter((v: any) => v.completed).length;
+    // Cannot apply if status is not 'published'
+    if (training.status !== 'published') return false;
     
-    return totalVideos - completedVideos;
+    // Check application deadline
+    if (training.application_deadline) {
+      const deadline = new Date(training.application_deadline);
+      if (new Date() > deadline) return false;
+    }
+    
+    // Check max participants
+    if (training.max_participants && training.current_participants >= training.max_participants) {
+      return false;
+    }
+    
+    return true;
+  }
+
+  isApplicationDeadlinePassed(training: Training): boolean {
+    if (!training.application_deadline) return false;
+    const deadline = new Date(training.application_deadline);
+    return new Date() > deadline;
+  }
+
+  getSessionsCount(training: Training): number {
+    return training.sessions?.length || training.session_count || 0;
+  }
+
+  getDaysUntilDeadline(training: Training): number {
+    if (!training.application_deadline) return 0;
+    const deadline = new Date(training.application_deadline);
+    const now = new Date();
+    const diffTime = deadline.getTime() - now.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    return diffDays > 0 ? diffDays : 0;
   }
 
   // ============================================
@@ -1241,7 +991,11 @@ export class TrainingComponent implements OnInit, OnDestroy {
   
   goToPage(page: number): void {
     if (page >= 1 && page <= this.totalPages && page !== this.currentPage) {
-      this.loadTrainings(page);
+      if (this.showEnrolledOnly) {
+        this.loadEnrolledTrainings();
+      } else {
+        this.loadTrainings(page);
+      }
     }
   }
 
@@ -1269,10 +1023,10 @@ export class TrainingComponent implements OnInit, OnDestroy {
   }
 
   refreshTrainings(): void {
-    this.loadTrainings(this.currentPage);
-  }
-
-  getVideoEmbedUrl(videoUrl: string): string {
-    return this.trainingService.getVideoEmbedUrl(videoUrl);
+    if (this.showEnrolledOnly) {
+      this.loadEnrolledTrainings();
+    } else {
+      this.loadTrainings(this.currentPage);
+    }
   }
 }

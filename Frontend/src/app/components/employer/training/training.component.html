@@ -1,3 +1,5 @@
+<!-- employer-training.component.html - BOOTCAMP MODEL -->
+
 <!-- Hamburger Menu Button -->
 <button class="hamburger" (click)="toggleSidebar()">
   <i class="fas fa-bars"></i>
@@ -5,6 +7,7 @@
 
 <!-- Sidebar Overlay -->
 <div class="sidebar-overlay" (click)="closeSidebar()"></div>
+
 <div class="training-container">
   <!-- Sidebar -->
   <app-sidebar [userType]="'employer'"></app-sidebar>
@@ -18,11 +21,11 @@
           <i class="fas fa-chalkboard-teacher"></i>
           Training Management
         </h1>
-        <p class="page-description">Manage and track your training programs</p>
+        <p class="page-description">Manage your bootcamp-style training programs</p>
       </div>
       <button class="btn-primary" (click)="toggleAddForm()" [disabled]="isLoading">
         <i class="fas fa-plus"></i>
-        {{ editingTrainingId ? 'Edit Training' : 'Add New Training' }}
+        {{ editingTrainingId ? 'Edit Training' : 'Create New Training' }}
       </button>
     </div>
 
@@ -72,79 +75,70 @@
             </div>
             <div class="notification-content">
               <p class="notification-message">
-             <strong>{{ getJobseekerDisplayName(notification) }}</strong>
-             <span *ngIf="notification.notification_type === 'new'"> just enrolled in </span>
-             <span *ngIf="notification.notification_type === 'completed'"> completed </span>
-             <span *ngIf="notification.notification_type === 'in_progress'"> is learning </span>
-             <strong>"{{ notification.training_title }}"</strong>
-             <span class="email-fallback" *ngIf="notification.email && !notification.first_name && !notification.last_name">
-               ({{ notification.email }})
-             </span>
+                <strong>{{ getJobseekerDisplayName(notification) }}</strong>
+                <span *ngIf="notification.notification_type === 'new'"> just enrolled in </span>
+                <span *ngIf="notification.notification_type === 'completed'"> completed </span>
+                <span *ngIf="notification.notification_type === 'in_progress'"> is learning </span>
+                <strong>"{{ notification.training_title }}"</strong>
               </p>
               <div class="notification-meta">
-             <span class="notification-time">{{ notification.enrolled_at | date:'short' }}</span>
-             <span class="notification-progress" *ngIf="notification.progress_percentage">
-               Progress: {{ notification.progress_percentage }}%
-             </span>
+                <span class="notification-time">{{ notification.enrolled_at | date:'short' }}</span>
+                <span class="notification-progress" *ngIf="notification.progress_percentage">
+                  Progress: {{ notification.progress_percentage }}%
+                </span>
               </div>
             </div>
 
             <div class="notification-actions">
-              <!-- Issue Certificate button for completed trainings -->
               <button
-              *ngIf="notification.notification_type === 'completed' && !notification.certificate_issued"
-              class="btn-issue-cert"
-              (click)="issueCertificateFromNotification(notification); $event.stopPropagation()"
-              title="Issue Certificate">
-              <i class="fas fa-certificate"></i>
-              Issue Certificate
+                *ngIf="canIssueCertificate(notification)"
+                class="btn-issue-cert"
+                (click)="issueCertificateFromNotification(notification); $event.stopPropagation()"
+                title="Issue Certificate">
+                <i class="fas fa-certificate"></i>
+                Issue Certificate
               </button>
               
-              <!-- Existing certificate badge -->
               <span *ngIf="notification.certificate_issued" class="certificate-badge">
-              <i class="fas fa-check-circle"></i> Issued
+                <i class="fas fa-check-circle"></i> Issued
               </span>
 
-              <!-- ✅ NEW: Download button for issued certificates -->
               <button
-              *ngIf="notification.certificate_issued"
-              class="btn-download-cert"
-              (click)="downloadEmployerCertificate(notification.enrollment_id); $event.stopPropagation()"
-              title="Download Certificate PDF">
-              <i class="fas fa-download"></i>
-              Download PDF
+                *ngIf="notification.certificate_issued"
+                class="btn-download-cert"
+                (click)="downloadEmployerCertificate(notification.enrollment_id); $event.stopPropagation()"
+                title="Download Certificate PDF">
+                <i class="fas fa-download"></i>
+                Download
               </button>
               
-              <!-- View Profile button -->
               <button class="btn-view-profile" (click)="viewStudentProfile(notification); $event.stopPropagation()">
-              <i class="fas fa-user"></i> Profile
+                <i class="fas fa-user"></i> Profile
               </button>
             </div>
           </div>
+
           <div class="notification-footer" *ngIf="enrollmentNotifications.length > 0">
             <div class="footer-actions">
               <button class="btn-secondary" (click)="markAllEnrollmentNotificationsRead(); $event.stopPropagation()">
-                <i class="fas fa-check"></i>
-                Mark all as read
+                <i class="fas fa-check"></i> Mark all read
               </button>
 
               <button 
                 class="btn-secondary" 
                 *ngIf="hasMoreEnrollmentNotifications" 
                 (click)="loadMoreEnrollmentNotifications(); $event.stopPropagation()">
-                <i class="fas fa-chevron-down"></i>
-                Load more
+                <i class="fas fa-chevron-down"></i> Load more
               </button>
 
               <button 
                 class="btn-secondary btn-danger" 
-                (click)="confirmClearEnrollmentNotifications(); $event.stopPropagation()"
-                title="Clear notifications">
-                <i class="fas fa-trash-alt"></i>
-                Clear
+                (click)="confirmClearEnrollmentNotifications(); $event.stopPropagation()">
+                <i class="fas fa-trash-alt"></i> Clear
               </button>
             </div>
           </div>
+
           <div class="no-notifications" *ngIf="enrollmentNotifications.length === 0">
             <i class="fas fa-inbox"></i>
             <p>No enrollment updates</p>
@@ -177,9 +171,11 @@
         
         <select (change)="onFilterChange('status', $any($event.target).value)" class="filter-select">
           <option value="">All Status</option>
-          <option value="published">Published</option>
+          <option value="published">Open for Applications</option>
           <option value="draft">Draft</option>
-          <option value="suspended">Suspended</option>
+          <option value="applications_closed">Applications Closed</option>
+          <option value="in_progress">In Progress</option>
+          <option value="completed">Completed</option>
         </select>
       </div>
     </div>
@@ -188,7 +184,7 @@
     <div class="add-training-form" *ngIf="showAddForm">
       <div class="form-card">
         <div class="form-header">
-          <h3><i class="fas fa-plus-circle"></i> {{ editingTrainingId ? 'Edit Training' : 'Add New Training' }}</h3>
+          <h3><i class="fas fa-plus-circle"></i> {{ editingTrainingId ? 'Edit Training' : 'Create New Training' }}</h3>
           <button class="btn-close" (click)="toggleAddForm()">
             <i class="fas fa-times"></i>
           </button>
@@ -207,7 +203,7 @@
                   id="title" 
                   [(ngModel)]="newTraining.title" 
                   name="title"
-                  placeholder="Enter training title"
+                  placeholder="e.g., Full-Stack Web Development Bootcamp"
                   required>
               </div>
               <div class="form-group">
@@ -228,8 +224,8 @@
                 id="description" 
                 [(ngModel)]="newTraining.description" 
                 name="description"
-                rows="3"
-                placeholder="Enter training description"
+                rows="4"
+                placeholder="Describe what participants will learn and achieve in this training program..."
                 required></textarea>
             </div>
 
@@ -245,16 +241,17 @@
                 </select>
               </div>
               <div class="form-group">
-                <label for="duration">Duration (hours) *</label>
+                <label for="duration">Total Duration (hours) *</label>
                 <input 
                   type="number" 
                   id="duration" 
                   [(ngModel)]="newTraining.duration_hours" 
                   name="duration"
-                  min="0.5"
-                  step="0.5"
-                  placeholder="e.g., 2"
+                  min="10"
+                  step="1"
+                  placeholder="e.g., 40 (for a 40-hour program)"
                   required>
+                <small>Total training time across all sessions</small>
               </div>
             </div>
 
@@ -267,8 +264,8 @@
                   name="mode"
                   (change)="onModeChange()"
                   required>
-                  <option value="Online">Online</option>
-                  <option value="Offline">Offline</option>
+                  <option value="Online">Online (via Zoom/Meet)</option>
+                  <option value="Offline">Offline (Physical Location)</option>
                 </select>
               </div>
               <div class="form-group">
@@ -304,91 +301,122 @@
                   id="location"
                   [(ngModel)]="newTraining.location" 
                   name="location"
-                  placeholder="Training venue">
+                  placeholder="Training venue address">
               </div>
             </div>
 
-            <div class="form-row">
-              <div class="form-group">
-                <label for="startDate">Start Date</label>
-                <input 
-                  type="date" 
-                  id="startDate"
-                  [(ngModel)]="newTraining.start_date" 
-                  name="startDate">
-              </div>
-              <div class="form-group">
-                <label for="endDate">End Date</label>
-                <input 
-                  type="date" 
-                  id="endDate"
-                  [(ngModel)]="newTraining.end_date" 
-                  name="endDate">
-              </div>
+            <div class="form-group">
+              <label for="thumbnail">Thumbnail Image</label>
+              <input 
+                type="file" 
+                id="thumbnail"
+                accept="image/*"
+                (change)="onThumbnailSelected($event)">
+              <img *ngIf="thumbnailPreview" [src]="thumbnailPreview" class="img-thumbnail mt-2" style="max-height: 100px; width: 100%;">
+              <button type="button" *ngIf="thumbnailPreview" class="btn btn-sm btn-secondary mt-1" (click)="removeThumbnail()">Remove</button>
             </div>
+          </div>
 
+          <!-- Training Schedule -->
+          <div class="form-section">
+            <h4>Training Schedule</h4>
+            
             <div class="form-row">
               <div class="form-group">
-                <label for="maxParticipants">Max Participants</label>
+                <label for="applicationDeadline">Application Deadline *</label>
+                <input 
+                  type="date" 
+                  id="applicationDeadline"
+                  [(ngModel)]="newTraining.application_deadline" 
+                  name="applicationDeadline"
+                  required>
+                <small>Last date for participants to apply</small>
+              </div>
+              <div class="form-group">
+                <label for="maxParticipants">Max Participants *</label>
                 <input 
                   type="number" 
                   id="maxParticipants"
                   [(ngModel)]="newTraining.max_participants" 
                   name="maxParticipants"
-                  min="0"
-                  placeholder="Unlimited if empty">
+                  min="1"
+                  placeholder="e.g., 30"
+                  required>
+                <small>Maximum number of trainees</small>
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label for="startDate">Training Start Date *</label>
+                <input 
+                  type="date" 
+                  id="startDate"
+                  [(ngModel)]="newTraining.training_start_date" 
+                  name="startDate"
+                  required>
+                <small>When training sessions begin</small>
               </div>
               <div class="form-group">
-                <label for="thumbnail">Thumbnail Image</label>
+                <label for="endDate">Training End Date *</label>
                 <input 
-                  type="file" 
-                  id="thumbnail"
-                  accept="image/*"
-                  (change)="onThumbnailSelected($event)">
-                <img *ngIf="thumbnailPreview" [src]="thumbnailPreview" class="img-thumbnail mt-2" style="max-height: 100px; width: 100%;">
-                <button *ngIf="thumbnailPreview" class="btn btn-sm btn-secondary mt-1" (click)="removeThumbnail()">Remove</button>
+                  type="date" 
+                  id="endDate"
+                  [(ngModel)]="newTraining.training_end_date" 
+                  name="endDate"
+                  required>
+                <small>When training concludes</small>
               </div>
             </div>
           </div>
 
-          <!-- Training Videos -->
+          <!-- Training Sessions -->
           <div class="form-section">
             <div class="section-header">
-              <h4>Training Videos ({{ newTraining.videos.length }})</h4>
-              <!-- ✅ FIXED: Call openVideoFormForNewTraining() for new training creation -->
+              <h4>Live Training Sessions ({{ newTraining.sessions.length }})</h4>
               <button 
                 type="button" 
                 class="btn-secondary btn-small" 
-                (click)="openVideoFormForNewTraining()">
+                (click)="openSessionFormForNewTraining()">
                 <i class="fas fa-plus"></i>
-                Add Video
+                Add Session
               </button>
             </div>
             
-            <!-- Video List -->
-            <div class="video-list" *ngIf="newTraining.videos.length > 0">
-              <div class="video-item" *ngFor="let video of newTraining.videos; let i = index">
-                <div class="video-info">
-                  <h5>{{ video.title }}</h5>
-                  <p>{{ video.description }}</p>
-                  <div class="video-meta">
-                    <span class="video-duration">{{ video.duration_minutes }} min</span>
-                    <span class="video-preview" *ngIf="video.is_preview">Preview</span>
+            <!-- Session List -->
+            <div class="session-list" *ngIf="newTraining.sessions.length > 0">
+              <div class="session-item" *ngFor="let session of newTraining.sessions; let i = index">
+                <div class="session-info">
+                  <h5>{{ session.title }}</h5>
+                  <p>{{ session.description }}</p>
+                  <div class="session-meta">
+                    <span class="session-date">
+                      <i class="fas fa-calendar"></i>
+                      {{ session.scheduled_at | date:'medium' }}
+                    </span>
+                    <span class="session-duration">
+                      <i class="fas fa-clock"></i>
+                      {{ session.duration_minutes }} min
+                    </span>
+                    <span class="session-meeting" *ngIf="session.meeting_url">
+                      <i class="fas fa-video"></i>
+                      Meeting link provided
+                    </span>
                   </div>
                 </div>
                 <button 
                   type="button" 
                   class="btn-delete btn-small" 
-                  (click)="removeVideo(i)">
+                  (click)="removeSession(i)">
                   <i class="fas fa-trash"></i>
                 </button>
               </div>
             </div>
             
-            <!-- No Videos Message -->
-            <div class="no-videos" *ngIf="newTraining.videos.length === 0">
-              <i class="fas fa-video-slash"></i>
-              <p>No videos added yet. Add videos to your training program.</p>
+            <!-- No Sessions Message -->
+            <div class="no-sessions" *ngIf="newTraining.sessions.length === 0">
+              <i class="fas fa-calendar-times"></i>
+              <p>No sessions scheduled yet. Add live training sessions to your program.</p>
             </div>
           </div>
 
@@ -421,7 +449,7 @@
             <!-- No Outcomes Message -->
             <div class="no-outcomes" *ngIf="newTraining.outcomes.length === 0">
               <i class="fas fa-lightbulb"></i>
-              <p>No learning outcomes added yet. Define what students will learn.</p>
+              <p>No learning outcomes added yet. Define what participants will achieve.</p>
             </div>
           </div>
 
@@ -466,8 +494,8 @@
     <div class="training-grid" *ngIf="!showAddForm">
       <div class="training-card" *ngFor="let training of trainings">
         <div class="card-header">
-          <div class="video-icon">
-            <i class="fas fa-play-circle"></i>
+          <div class="session-icon">
+            <i class="fas fa-calendar-alt"></i>
           </div>
           <div class="training-status" [ngClass]="training.status">
             {{ getStatusText(training.status) }}
@@ -475,51 +503,51 @@
           <h3>{{ training.title }}</h3>
           <span class="enrollment-count">
             <i class="fas fa-users"></i>
-            {{ training.total_students || 0 }} enrolled
+            {{ training.current_participants || 0 }} / {{ training.max_participants || 0 }} enrolled
           </span>
         </div>
 
         <div class="card-content">
           <p class="training-description">{{ training.description }}</p>
           
-          <!-- Videos Section -->
-          <div class="videos-section">
+          <!-- Sessions Section -->
+          <div class="sessions-section">
             <div class="section-header">
               <h4>
-                <i class="fas fa-video"></i>
-                Videos ({{ training.videos?.length || training.video_count || 0 }})
+                <i class="fas fa-calendar-check"></i>
+                Sessions ({{ training.sessions?.length || training.session_count || 0 }})
               </h4>
-              <!-- ✅ FIXED: Call openVideoForm(training) for existing training -->
-              <button class="btn-add-video" (click)="openVideoForm(training)">
+              <button class="btn-add-session" (click)="openSessionForm(training)">
                 <i class="fas fa-plus"></i>
-                Add Video
+                Add Session
               </button>
             </div>
             
-            <div class="video-list" *ngIf="(training.videos?.length || 0) > 0">
-              <div class="video-item" *ngFor="let video of training.videos">
-                <div class="video-info">
-                  <span class="video-order">{{ video.order_index + 1 }}.</span>
-                  <div class="video-details">
-                    <h5>{{ video.title }}</h5>
-                    <span class="video-duration">{{ video.duration_minutes }} min</span>
-                    <span class="video-preview-badge" *ngIf="video.is_preview">Preview</span>
+            <div class="session-list" *ngIf="(training.sessions?.length || 0) > 0">
+              <div class="session-item" *ngFor="let session of training.sessions">
+                <div class="session-info">
+                  <span class="session-order">{{ session.order_index + 1 }}.</span>
+                  <div class="session-details">
+                    <h5>{{ session.title }}</h5>
+                    <span class="session-date">{{ session.scheduled_at | date:'short' }}</span>
+                    <span class="session-duration">{{ session.duration_minutes }} min</span>
+                    <span class="session-completed-badge" *ngIf="session.is_completed">✓ Completed</span>
                   </div>
                 </div>
-                <div class="video-actions">
-                  <button class="btn-edit" (click)="openVideoForm(training, video)">
+                <div class="session-actions">
+                  <button class="btn-edit" (click)="openSessionForm(training, session)">
                     <i class="fas fa-edit"></i>
                   </button>
-                  <button class="btn-delete" (click)="deleteVideo(training.id!, video.id!)">
+                  <button class="btn-delete" (click)="deleteSession(training.id!, session.id!)">
                     <i class="fas fa-trash"></i>
                   </button>
                 </div>
               </div>
             </div>
             
-            <div class="empty-videos" *ngIf="!training.videos || training.videos.length === 0">
-              <i class="fas fa-video-slash"></i>
-              <p>No videos yet. Add your first video!</p>
+            <div class="empty-sessions" *ngIf="!training.sessions || training.sessions.length === 0">
+              <i class="fas fa-calendar-times"></i>
+              <p>No sessions scheduled yet. Add your first session!</p>
             </div>
           </div>
           
@@ -541,6 +569,12 @@
               <span>Certificate</span>
             </div>
           </div>
+
+          <!-- Application Deadline Info -->
+          <div class="deadline-info" *ngIf="training.application_deadline">
+            <i class="fas fa-hourglass-half"></i>
+            <span>Applications close: {{ training.application_deadline | date:'medium' }}</span>
+          </div>
         </div>
 
         <div class="card-actions">
@@ -550,41 +584,51 @@
           </button>
           <button class="btn-edit-training" (click)="editTraining(training)">
             <i class="fas fa-edit"></i>
-            Edit Training
+            Edit
           </button>
           <div class="action-buttons">
-            <button 
-              class="btn-analytics" 
-              (click)="viewTrainingAnalytics(training)"
-              title="View Analytics">
-              <i class="fas fa-chart-bar"></i>
-            </button>
-            <button 
-              class="btn-enrollments" 
-              (click)="viewEnrollments(training)"
-              title="View Enrollments">
-              <i class="fas fa-users"></i>
-            </button>
+            <!-- Status Actions -->
             <button 
               *ngIf="training.status === 'draft'"
               class="btn-publish" 
               (click)="publishTraining(training)" 
               title="Publish Training">
-              <i class="fas fa-upload"></i>
+              <i class="fas fa-rocket"></i>
             </button>
             <button 
               *ngIf="training.status === 'published'"
-              class="btn-unpublish" 
-              (click)="unpublishTraining(training)" 
-              title="Unpublish Training">
-              <i class="fas fa-download"></i>
+              class="btn-applications" 
+              (click)="viewApplications(training)" 
+              title="View Applications">
+              <i class="fas fa-file-alt"></i>
             </button>
             <button 
               *ngIf="training.status === 'published'"
-              class="btn-suspend" 
-              (click)="suspendTraining(training)" 
-              title="Suspend Training">
-              <i class="fas fa-pause"></i>
+              class="btn-close-apps" 
+              (click)="closeApplications(training)" 
+              title="Close Applications">
+              <i class="fas fa-lock"></i>
+            </button>
+            <button 
+              *ngIf="training.status === 'applications_closed'"
+              class="btn-start" 
+              (click)="startTrainingProgram(training)" 
+              title="Start Training">
+              <i class="fas fa-play"></i>
+            </button>
+            <button 
+              *ngIf="training.status === 'in_progress'"
+              class="btn-enrollments" 
+              (click)="viewEnrollments(training)" 
+              title="View Enrollments">
+              <i class="fas fa-users"></i>
+            </button>
+            <button 
+              *ngIf="training.status === 'in_progress'"
+              class="btn-complete" 
+              (click)="completeTrainingProgram(training)" 
+              title="Complete Training">
+              <i class="fas fa-check-double"></i>
             </button>
             <button 
               class="btn-duplicate" 
@@ -606,10 +650,10 @@
       <div class="empty-state" *ngIf="trainings.length === 0 && !isLoading">
         <i class="fas fa-chalkboard-teacher"></i>
         <h3>No Training Programs Yet</h3>
-        <p>Create your first training program to get started</p>
+        <p>Create your first bootcamp-style training program to get started</p>
         <button class="btn-primary" (click)="toggleAddForm()">
           <i class="fas fa-plus"></i>
-          Add Your First Training
+          Create Your First Training
         </button>
       </div>
     </div>
@@ -647,17 +691,17 @@
       <div class="analytics-grid">
         <div class="analytics-card">
           <div class="card-icon total">
-            <i class="fas fa-video"></i>
+            <i class="fas fa-graduation-cap"></i>
           </div>
           <div class="card-data">
             <h4>{{ stats.total_trainings || 0 }}</h4>
-            <p>Total Trainings</p>
+            <p>Total Programs</p>
           </div>
         </div>
 
         <div class="analytics-card">
           <div class="card-icon active">
-            <i class="fas fa-play"></i>
+            <i class="fas fa-rocket"></i>
           </div>
           <div class="card-data">
             <h4>{{ stats.published_trainings || 0 }}</h4>
@@ -666,12 +710,22 @@
         </div>
 
         <div class="analytics-card">
-          <div class="card-icon draft">
-            <i class="fas fa-edit"></i>
+          <div class="card-icon applications">
+            <i class="fas fa-file-alt"></i>
           </div>
           <div class="card-data">
-            <h4>{{ stats.draft_trainings || 0 }}</h4>
-            <p>Drafts</p>
+            <h4>{{ stats.total_applications || 0 }}</h4>
+            <p>Total Applications</p>
+          </div>
+        </div>
+
+        <div class="analytics-card">
+          <div class="card-icon pending">
+            <i class="fas fa-hourglass-half"></i>
+          </div>
+          <div class="card-data">
+            <h4>{{ stats.pending_applications || 0 }}</h4>
+            <p>Pending Review</p>
           </div>
         </div>
 
@@ -688,6 +742,16 @@
         <div class="analytics-card">
           <div class="card-icon certificates">
             <i class="fas fa-certificate"></i>
+          </div>
+          <div class="card-data">
+            <h4>{{ stats.certificates_issued || 0 }}</h4>
+            <p>Certificates Issued</p>
+          </div>
+        </div>
+
+        <div class="analytics-card">
+          <div class="card-icon rating">
+            <i class="fas fa-star"></i>
           </div>
           <div class="card-data">
             <h4>{{ stats.avg_rating | number:'1.1-1' }}</h4>
@@ -707,262 +771,89 @@
       </div>
     </div>
 
-    <!-- Video Player Modal -->
-    <div class="video-modal" *ngIf="showVideoPlayer && selectedTraining">
-      <div class="modal-backdrop" (click)="closeVideoPlayer()"></div>
-      <div class="modal-content">
-        <div class="modal-header">
-          <h3>{{ selectedTraining.title }}</h3>
-          <button class="btn-close" (click)="closeVideoPlayer()">
-            <i class="fas fa-times"></i>
-          </button>
-        </div>
-        
-        <div class="modal-body">
-          <div class="training-details">
-            <p><strong>Description:</strong> {{ selectedTraining.description }}</p>
-            <p><strong>Duration:</strong> {{ formatDuration(selectedTraining.duration_hours) }}</p>
-            <p><strong>Level:</strong> {{ selectedTraining.level }}</p>
-            <p><strong>Category:</strong> {{ selectedTraining.category }}</p>
-            <p><strong>Students:</strong> {{ selectedTraining.total_students }}</p>
-            <p *ngIf="selectedTraining.has_certificate">
-              <i class="fas fa-certificate text-success"></i>
-              <strong>Certificate will be issued upon completion</strong>
-            </p>
-          </div>
-
-          <!-- Training Videos -->
-          <div class="videos-section" *ngIf="selectedTraining && selectedTraining.videos && selectedTraining.videos.length > 0">
-            <h4>Course Content</h4>
-            <div class="video-list-modal">
-              <div class="video-item-modal" *ngFor="let video of selectedTraining.videos">
-                <div class="video-thumbnail">
-                  <i class="fas fa-play"></i>
-                </div>
-                <div class="video-details">
-                  <h5>{{ video.title }}</h5>
-                  <p>{{ video.description }}</p>
-                  <span class="video-duration">{{ video.duration_minutes }} minutes</span>
-                  <span class="video-preview-badge" *ngIf="video.is_preview">Preview</span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Learning Outcomes -->
-          <div class="outcomes-section" *ngIf="selectedTraining.outcomes && selectedTraining.outcomes.length > 0">
-            <h4>Learning Outcomes</h4>
-            <ul class="outcomes-list-modal">
-              <li *ngFor="let outcome of selectedTraining.outcomes">
-                {{ outcome.outcome_text }}
-              </li>
-            </ul>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Video Form Modal -->
-    <!-- ✅ FIXED: Form calls addVideo() which handles both creation and editing -->
-    <div class="modal-overlay" *ngIf="showVideoForm" (click)="showVideoForm = false">
+    <!-- Session Form Modal -->
+    <div class="modal-overlay" *ngIf="showSessionForm" (click)="showSessionForm = false">
       <div class="modal-content" (click)="$event.stopPropagation()">
         <div class="modal-header">
           <h3>
-            <i class="fas fa-video"></i>
-            {{ editingVideoId ? 'Edit Video' : 'Add New Video' }}
+            <i class="fas fa-calendar-plus"></i>
+            {{ editingSessionId ? 'Edit Session' : 'Add New Session' }}
           </h3>
-          <button class="close-btn" (click)="showVideoForm = false">
+          <button class="close-btn" (click)="showSessionForm = false">
             <i class="fas fa-times"></i>
           </button>
         </div>
         
         <div class="modal-body">
-          <!-- ✅ KEY FIX: Form submission calls addVideo() -->
-          <form (ngSubmit)="addVideo()">
+          <form (ngSubmit)="addSession()">
             <div class="form-group">
-              <label for="videoTitle">Video Title *</label>
+              <label for="sessionTitle">Session Title *</label>
               <input 
                 type="text" 
-                id="videoTitle"
-                [(ngModel)]="newVideo.title"
-                name="videoTitle"
-                placeholder="Enter video title"
+                id="sessionTitle"
+                [(ngModel)]="newSession.title"
+                name="sessionTitle"
+                placeholder="e.g., Introduction to HTML & CSS"
                 required>
             </div>
             
             <div class="form-group">
-              <label for="videoUrl">Video URL *</label>
-              <input 
-                type="url" 
-                id="videoUrl"
-                [(ngModel)]="newVideo.video_url"
-                name="videoUrl"
-                placeholder="https://youtube.com/watch?v=..."
-                required>
-              <small>Supports YouTube and Vimeo URLs</small>
+              <label for="sessionDescription">Description</label>
+              <textarea 
+                id="sessionDescription"
+                [(ngModel)]="newSession.description"
+                name="sessionDescription"
+                rows="3"
+                placeholder="What will be covered in this session?"></textarea>
             </div>
             
             <div class="form-row">
               <div class="form-group">
-                <label for="videoDuration">Duration (minutes) *</label>
+                <label for="sessionSchedule">Schedule *</label>
                 <input 
-                  type="number" 
-                  id="videoDuration"
-                  [(ngModel)]="newVideo.duration_minutes"
-                  name="videoDuration"
-                  min="1"
-                  placeholder="30"
+                  type="datetime-local" 
+                  id="sessionSchedule"
+                  [(ngModel)]="newSession.scheduled_at"
+                  name="sessionSchedule"
                   required>
               </div>
               
               <div class="form-group">
-                <label for="videoOrder">Order</label>
+                <label for="sessionDuration">Duration (minutes) *</label>
                 <input 
                   type="number" 
-                  id="videoOrder"
-                  [(ngModel)]="newVideo.order_index"
-                  name="videoOrder"
-                  min="0"
-                  placeholder="0">
+                  id="sessionDuration"
+                  [(ngModel)]="newSession.duration_minutes"
+                  name="sessionDuration"
+                  min="30"
+                  step="15"
+                  placeholder="120"
+                  required>
               </div>
             </div>
             
             <div class="form-group">
-              <label for="videoDescription">Description</label>
-              <textarea 
-                id="videoDescription"
-                [(ngModel)]="newVideo.description"
-                name="videoDescription"
-                rows="3"
-                placeholder="Brief description of video content"></textarea>
-            </div>
-            
-            <div class="form-group checkbox-group">
-              <label>
-                <input 
-                  type="checkbox" 
-                  [(ngModel)]="newVideo.is_preview"
-                  name="isPreview">
-                <span>Allow as preview (visible to non-enrolled students)</span>
-              </label>
+              <label for="meetingUrl">Meeting URL *</label>
+              <input 
+                type="url" 
+                id="meetingUrl"
+                [(ngModel)]="newSession.meeting_url"
+                name="meetingUrl"
+                placeholder="https://zoom.us/j/... or https://meet.google.com/..."
+                required>
+              <small>Zoom, Google Meet, or other video conferencing link</small>
             </div>
             
             <div class="form-actions">
-              <button type="button" class="btn-secondary" (click)="showVideoForm = false">
+              <button type="button" class="btn-secondary" (click)="showSessionForm = false">
                 Cancel
               </button>
               <button type="submit" class="btn-primary">
                 <i class="fas fa-save"></i>
-                {{ editingVideoId ? 'Update Video' : 'Add Video' }}
+                {{ editingSessionId ? 'Update Session' : 'Add Session' }}
               </button>
             </div>
           </form>
-        </div>
-      </div>
-    </div>
-
-    <!-- NEW: Training Details Modal -->
-    <div class="modal-overlay" *ngIf="showDetailsModal" (click)="closeDetailsModal()">
-      <div class="modal-content modal-lg" (click)="$event.stopPropagation()">
-        <div class="modal-header">
-          <h3>
-            <i class="fas fa-info-circle"></i>
-            {{ detailedTraining?.title }} - Training Details
-          </h3>
-          <button class="close-btn" (click)="closeDetailsModal()">
-            <i class="fas fa-times"></i>
-          </button>
-        </div>
-        
-        <div class="modal-body">
-          <div class="training-overview">
-            <div class="overview-section">
-              <h4>Overview</h4>
-              <p><strong>Description:</strong> {{ detailedTraining?.description }}</p>
-                <div class="overview-meta">
-                <span><i class="fas fa-tag"></i> {{ detailedTraining?.category }}</span>
-                <span><i class="fas fa-layer-group"></i> {{ detailedTraining?.level }}</span>
-                <span><i class="fas fa-clock"></i> {{ formatDuration(detailedTraining?.duration_hours ?? 0) }}</span>
-                <span><i class="fas fa-users"></i> {{ detailedTraining?.total_students }} enrolled</span>
-                <span><i class="fas fa-star"></i> {{ detailedTraining?.rating | number:'1.1-1' }}/5</span>
-              </div>
-            </div>
-            
-            <div class="overview-section">
-              <h4>Status & Actions</h4>
-              <div class="status-badge" [ngClass]="detailedTraining?.status">
-                {{ getStatusText(detailedTraining?.status ?? '') }}
-              </div>
-              <div class="status-actions">
-                <button *ngIf="detailedTraining?.status === 'draft'" class="btn-primary btn-small" (click)="publishTraining(detailedTraining!)">
-                  Publish Now
-                </button>
-                <button class="btn-warning btn-small" (click)="editTraining(detailedTraining!)">
-                  Edit Training
-                </button>
-                <button class="btn-info btn-small" (click)="viewTrainingAnalytics(detailedTraining!)">
-                  View Analytics
-                </button>
-              </div>
-            </div>
-          </div>
-
-          <!-- Videos -->
-          <div class="section" *ngIf="(detailedTraining?.videos || []).length > 0">
-            <h4>Course Videos ({{ (detailedTraining?.videos || []).length }})</h4>
-            <div class="video-grid">
-              <div class="video-card" *ngFor="let video of detailedTraining?.videos || []">
-                <div class="video-header">
-                  <span class="video-number">{{ video.order_index + 1 }}</span>
-                  <span class="video-duration">{{ video.duration_minutes }} min</span>
-                </div>
-                <h5>{{ video.title }}</h5>
-                <p>{{ video.description }}</p>
-                <div class="video-actions">
-                  <span class="badge badge-preview" *ngIf="video.is_preview">Preview</span>
-                  <button class="btn-edit-small" (click)="openVideoForm(detailedTraining!, video)">
-                    <i class="fas fa-edit"></i>
-                  </button>
-                  <button class="btn-delete-small" (click)="deleteVideo(detailedTraining!.id!, video.id!)">
-                    <i class="fas fa-trash"></i>
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Outcomes -->
-          <div class="section" *ngIf="(detailedTraining?.outcomes || []).length > 0">
-            <h4>Learning Outcomes</h4>
-            <ul class="outcomes-list">
-              <li *ngFor="let outcome of detailedTraining?.outcomes || []">
-                {{ outcome.outcome_text }}
-              </li>
-            </ul>
-          </div>
-
-          <!-- Enrollments & Reviews -->
-          <div class="section-grid">
-            <div class="section-card">
-              <h4>Enrollments</h4>
-              <p>{{ detailedTraining?.total_students }} total students</p>
-              <button class="btn-secondary btn-small" (click)="viewEnrollments(detailedTraining!)">
-                View All Enrollments
-              </button>
-            </div>
-            <div class="section-card">
-              <h4>Reviews</h4>
-              <p>{{ detailedTraining?.rating | number:'1.1-1' }} average rating</p>
-              <button class="btn-secondary btn-small" (click)="viewReviews(detailedTraining!)">
-                View Reviews
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <div class="modal-footer">
-          <button class="btn-secondary" (click)="closeDetailsModal()">Close</button>
-          <button class="btn-danger" (click)="deleteTraining(detailedTraining!.id!)">Delete Training</button>
         </div>
       </div>
     </div>
@@ -989,9 +880,9 @@
                 [(ngModel)]="newOutcome.outcome_text"
                 name="outcomeText"
                 rows="3"
-                placeholder="Students will be able to identify, analyze, and implement..."
+                placeholder="Participants will be able to..."
                 required></textarea>
-              <small>Describe what students will learn or achieve after completing this training.</small>
+              <small>Describe what participants will achieve after completing this training.</small>
             </div>
             
             <div class="form-actions">
@@ -1007,5 +898,208 @@
         </div>
       </div>
     </div>
+
+    <!-- Training Details Modal -->
+    <div class="modal-overlay" *ngIf="showDetailsModal" (click)="closeDetailsModal()">
+      <div class="modal-content modal-lg" (click)="$event.stopPropagation()">
+        <div class="modal-header">
+          <h3>
+            <i class="fas fa-info-circle"></i>
+            {{ detailedTraining?.title }}
+          </h3>
+          <button class="close-btn" (click)="closeDetailsModal()">
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+        
+        <div class="modal-body">
+          <div class="training-overview">
+            <div class="overview-section">
+              <h4>Overview</h4>
+              <p><strong>Description:</strong> {{ detailedTraining?.description }}</p>
+              <div class="overview-meta">
+                <span><i class="fas fa-tag"></i> {{ detailedTraining?.category }}</span>
+                <span><i class="fas fa-layer-group"></i> {{ detailedTraining?.level }}</span>
+                <span><i class="fas fa-clock"></i> {{ formatDuration(detailedTraining?.duration_hours ?? 0) }}</span>
+                <span><i class="fas fa-users"></i> {{ detailedTraining?.current_participants }} / {{ detailedTraining?.max_participants }} enrolled</span>
+                <span><i class="fas fa-star"></i> {{ detailedTraining?.rating | number:'1.1-1' }}/5</span>
+              </div>
+            </div>
+            
+            <div class="overview-section">
+              <h4>Status & Schedule</h4>
+              <div class="status-badge" [ngClass]="detailedTraining?.status">
+                {{ getStatusText(detailedTraining?.status ?? '') }}
+              </div>
+              <div class="schedule-info">
+                <p><strong>Application Deadline:</strong> {{ detailedTraining?.application_deadline | date:'medium' }}</p>
+                <p><strong>Training Period:</strong> {{ detailedTraining?.training_start_date | date:'mediumDate' }} - {{ detailedTraining?.training_end_date | date:'mediumDate' }}</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Sessions -->
+          <div class="section" *ngIf="(detailedTraining?.sessions || []).length > 0">
+            <h4>Training Sessions ({{ (detailedTraining?.sessions || []).length }})</h4>
+            <div class="session-grid">
+              <div class="session-card" *ngFor="let session of detailedTraining?.sessions || []">
+                <div class="session-header">
+                  <span class="session-number">{{ session.order_index + 1 }}</span>
+                  <span class="session-duration">{{ session.duration_minutes }} min</span>
+                </div>
+                <h5>{{ session.title }}</h5>
+                <p>{{ session.description }}</p>
+                <div class="session-details">
+                  <span class="session-date">
+                    <i class="fas fa-calendar"></i>
+                    {{ session.scheduled_at | date:'medium' }}
+                  </span>
+                  <span class="badge badge-completed" *ngIf="session.is_completed">✓ Completed</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Outcomes -->
+          <div class="section" *ngIf="(detailedTraining?.outcomes || []).length > 0">
+            <h4>Learning Outcomes</h4>
+            <ul class="outcomes-list">
+              <li *ngFor="let outcome of detailedTraining?.outcomes || []">
+                {{ outcome.outcome_text }}
+              </li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button class="btn-secondary" (click)="closeDetailsModal()">Close</button>
+          <button class="btn-primary" (click)="editTraining(detailedTraining!)">
+            <i class="fas fa-edit"></i> Edit Training
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Applications Modal -->
+    <div class="modal-overlay" *ngIf="showApplicationsModal" (click)="closeApplicationsModal()">
+      <div class="modal-content modal-lg" (click)="$event.stopPropagation()">
+        <div class="modal-header">
+          <h3>
+            <i class="fas fa-file-alt"></i>
+            Applications for "{{ selectedTraining?.title }}"
+          </h3>
+          <button class="close-btn" (click)="closeApplicationsModal()">
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+        
+        <div class="modal-body">
+          <div class="applications-toolbar">
+            <button class="btn-primary" (click)="shortlistSelected()" [disabled]="selectedApplications.size === 0">
+              <i class="fas fa-check"></i>
+              Shortlist Selected ({{ selectedApplications.size }})
+            </button>
+            <button class="btn-danger" (click)="rejectSelected()" [disabled]="selectedApplications.size === 0">
+              <i class="fas fa-times"></i>
+              Reject Selected
+            </button>
+          </div>
+
+          <div class="applications-list">
+            <div class="application-item" *ngFor="let app of applications">
+              <input 
+                type="checkbox" 
+                [checked]="selectedApplications.has(app.id!)"
+                (change)="toggleApplicationSelection(app.id!)">
+              
+              <div class="applicant-info">
+                <h5>{{ app.user_name }}</h5>
+                <p class="applicant-email">{{ app.user_email }}</p>
+                <div class="application-status" [ngClass]="app.status">
+                  {{ app.status }}
+                </div>
+              </div>
+              
+              <div class="motivation-letter">
+                <h6>Motivation:</h6>
+                <p>{{ app.motivation_letter }}</p>
+              </div>
+              
+              <div class="application-date">
+                Applied: {{ app.applied_at | date:'short' }}
+              </div>
+            </div>
+
+            <div class="no-applications" *ngIf="applications.length === 0">
+              <i class="fas fa-inbox"></i>
+              <p>No applications yet</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button class="btn-secondary" (click)="closeApplicationsModal()">Close</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Enrollments Modal -->
+    <div class="modal-overlay" *ngIf="showEnrollmentsModal" (click)="closeEnrollmentsModal()">
+      <div class="modal-content modal-lg" (click)="$event.stopPropagation()">
+        <div class="modal-header">
+          <h3>
+            <i class="fas fa-users"></i>
+            Enrollments for "{{ selectedTraining?.title }}"
+          </h3>
+          <button class="close-btn" (click)="closeEnrollmentsModal()">
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+        
+        <div class="modal-body">
+          <div class="enrollments-list">
+            <div class="enrollment-item" *ngFor="let enrollment of enrollments">
+              <div class="trainee-info">
+                <h5>{{ enrollment.user_name }}</h5>
+                <p>{{ enrollment.user_email }}</p>
+              </div>
+              
+              <div class="completion-status">
+                <label class="checkbox-label">
+                  <input 
+                    type="checkbox" 
+                    [checked]="enrollment.completed"
+                    (change)="markCompletion(enrollment, !enrollment.completed)">
+                  <span>Completed Training</span>
+                </label>
+              </div>
+              
+              <div class="certificate-actions">
+                <button 
+                  class="btn-certificate"
+                  *ngIf="enrollment.completed && !enrollment.certificate_issued"
+                  (click)="issueCertificate(enrollment)">
+                  <i class="fas fa-certificate"></i>
+                  Issue Certificate
+                </button>
+                <span class="certificate-badge" *ngIf="enrollment.certificate_issued">
+                  <i class="fas fa-check-circle"></i> Certificate Issued
+                </span>
+              </div>
+            </div>
+
+            <div class="no-enrollments" *ngIf="enrollments.length === 0">
+              <i class="fas fa-user-slash"></i>
+              <p>No enrollments yet</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button class="btn-secondary" (click)="closeEnrollmentsModal()">Close</button>
+        </div>
+      </div>
+    </div>
+
   </div>
 </div>

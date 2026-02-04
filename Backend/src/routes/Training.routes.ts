@@ -1,257 +1,260 @@
+// routes/training.routes.ts
 import { Router } from 'express';
 import { TrainingController } from '../controllers/Training.controller';
 import { TrainingService } from '../services/training.service';
-import {
-  authenticateToken,
-  requireEmployer,
-  requireJobseeker,
-  AuthenticatedRequest
-} from '../middleware/auth.middleware';
-import db from '../db/db.config';
+import { authenticate } from '../middleware/auth.middleware';
+import { authorize } from '../middleware/role.middleware';
+import { 
+  validateTrainingData, 
+  validateApplicationData,
+  validateShortlistDecision,
+  validateCompletionMarking,
+  validateReviewData,
+  validateId,
+  validateMultipleIds
+} from '../middleware/validation.middleware';
+import { Pool } from 'pg';
 
-const router = Router();
+export function createTrainingRoutes(db: Pool): Router {
+  const router = Router();
+  const trainingService = new TrainingService(db);
+  const trainingController = new TrainingController(trainingService);
 
-const trainingService = new TrainingService(db);
-const trainingController = new TrainingController(trainingService);
+  // Bind methods to preserve 'this' context
+  const bind = (fn: Function) => fn.bind(trainingController);
 
-// Optional auth middleware for public routes that benefit from user context
-const optionalAuth = (req: AuthenticatedRequest, res: any, next: any) => {
-  const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1];
+  // ==========================================================================
+  // NOTIFICATION ROUTES - MUST BE FIRST to avoid conflicts with /:id
+  // ==========================================================================
 
-  if (!token) {
-    next();
-    return;
-  }
+  // Get user's notifications
+  router.get(
+    '/notifications',
+    authenticate,
+    bind(trainingController.getNotifications)
+  );
 
-  import('jsonwebtoken').then((jwt) => {
-    try {
-      const decoded = jwt.verify(token, process.env.JWT_SECRET!) as any;
-      req.user = {
-        id: decoded.id,
-        email: decoded.email,
-        user_type: decoded.user_type
-      };
-      next();
-    } catch (error) {
-      next();
-    }
-  });
-};
+  // Mark notification as read
+  router.patch(
+    '/notifications/:id/read',
+    authenticate,
+    validateId,
+    bind(trainingController.markNotificationRead)
+  );
 
-// ==============================================
-// PUBLIC ROUTES (No auth required)
-// ==============================================
-router.get('/categories', (req, res, next) => trainingController.getTrainingCategories(req, res, next));
-router.get('/popular', (req, res, next) => trainingController.getPopularTrainings(req, res, next));
-router.get('/recent', (req, res, next) => trainingController.getRecommendedTrainings(req, res, next));
-router.get('/browse', optionalAuth, (req, res, next) => {
-  req.query.status = 'published';
-  trainingController.getAllTrainings(req, res, next);
-});
+  // ==========================================================================
+  // SPECIFIC ROUTES - MUST COME BEFORE /:id
+  // ==========================================================================
 
-// ==============================================
-// CRITICAL: AUTHENTICATED ROUTES BEFORE WILDCARD
-// Apply authentication to all subsequent routes
-// ==============================================
-router.use(authenticateToken);
+  // List all categories
+  router.get(
+    '/categories/list',
+    bind(trainingController.getCategories)
+  );
 
-// ==============================================
-// JOBSEEKER ROUTES (BEFORE WILDCARD :id ROUTES)
-// ==============================================
-router.get('/jobseeker/available', requireJobseeker, (req, res, next) => {
-  req.query.status = 'published';
-  trainingController.getJobseekerTrainings(req, res, next);
-});
+  // Popular trainings
+  router.get(
+    '/popular/list',
+    bind(trainingController.getPopularTrainings)
+  );
 
-router.get('/jobseeker/enrolled', requireJobseeker, (req, res, next) =>
-  trainingController.getEnrolledTrainings(req, res, next)
-);
+  // Get recommended trainings (requires login)
+  router.get(
+    '/recommended/list',
+    authenticate,
+    bind(trainingController.getRecommendedTrainings)
+  );
 
-router.get('/jobseeker/stats', requireJobseeker, (req, res, next) =>
-  trainingController.getJobseekerTrainingStats(req, res, next)
-);
+  // Get enrolled trainings
+  router.get(
+    '/enrolled/list',
+    authenticate,
+    authorize('jobseeker'),
+    bind(trainingController.getEnrolledTrainings)
+  );
 
-router.get('/jobseeker/recommendations', requireJobseeker, (req, res, next) =>
-  trainingController.getRecommendedTrainings(req, res, next)
-);
+  // Get jobseeker stats
+  router.get(
+    '/jobseeker/stats',
+    authenticate,
+    authorize('jobseeker'),
+    bind(trainingController.getJobseekerStats)
+  );
 
-// ==============================================
-// EMPLOYER ROUTES (BEFORE WILDCARD :id ROUTES)
-// ==============================================
-router.get('/employer/my-trainings', requireEmployer, (req, res, next) =>
-  trainingController.getAllTrainings(req, res, next)
-);
+  // Get employer's overall training stats
+  router.get(
+    '/stats/overview',
+    authenticate,
+    authorize('employer'),
+    bind(trainingController.getTrainingStats)
+  );
 
-router.get('/employer/stats', requireEmployer, (req, res, next) =>
-  trainingController.getTrainingStats(req, res, next)
-);
+  // Certificate verification (public endpoint)
+  router.get(
+    '/certificates/verify/:code',
+    bind(trainingController.verifyCertificate)
+  );
 
-router.get('/stats/overview', requireEmployer, (req, res, next) =>
-  trainingController.getTrainingStats(req, res, next)
-);
+  // ==========================================================================
+  // PUBLIC ROUTES (no authentication required)
+  // ==========================================================================
 
-router.get('/employer/enrollment-notifications', requireEmployer, (req, res, next) => {
-  console.log('🔔 Route: GET /trainings/employer/enrollment-notifications');
-  trainingController.getEnrollmentNotifications(req, res, next);
-});
+  // Browse trainings (public view)
+  router.get(
+    '/',
+    bind(trainingController.getAllTrainings)
+  );
 
-// ==============================================
-// NOTIFICATIONS ROUTES (BEFORE WILDCARD)
-// ==============================================
-router.get('/notifications', (req, res, next) => {
-  console.log('🔔 Route: GET /trainings/notifications (JOBSEEKER)');
-  trainingController.getNotifications(req, res, next);
-});
+  // View single training detail - MUST COME AFTER ALL SPECIFIC ROUTES
+  router.get(
+    '/:id',
+    validateId,
+    bind(trainingController.getTrainingById)
+  );
 
-router.put('/notifications/:id/read', (req, res, next) => {
-  console.log('🔔 Route: PUT /trainings/notifications/:id/read');
-  trainingController.markNotificationRead(req, res, next);
-});
+  // Training reviews (public)
+  router.get(
+    '/:id/reviews',
+    validateId,
+    bind(trainingController.getTrainingReviews)
+  );
 
-// ==============================================
-// ENROLLMENT ROUTES (BEFORE WILDCARD)
-// ==============================================
-router.post('/enrollments/:enrollmentId/issue-certificate', requireEmployer, (req, res, next) => {
-  console.log('🎓 Route: POST /trainings/enrollments/:enrollmentId/issue-certificate');
-  trainingController.issueCertificate(req, res, next);
-});
+  // ==========================================================================
+  // JOBSEEKER ROUTES
+  // ==========================================================================
 
-// In Training.routes.ts - Updated certificate route (no middleware restriction)
-router.get('/enrollments/:enrollmentId/certificate', authenticateToken, (req, res, next) => {  // ✅ CHANGED: Only auth, no role middleware
-  console.log('🎓 Route: GET /trainings/enrollments/:enrollmentId/certificate');
-  trainingController.downloadCertificate(req, res, next);
-});
+  // Apply for a training
+  router.post(
+    '/:id/apply',
+    authenticate,
+    authorize('jobseeker'),
+    validateId,
+    validateApplicationData,
+    bind(trainingController.submitApplication)
+  );
 
-// ==============================================
-// TRAINING CRUD (EMPLOYER ONLY) - SPECIFIC ROUTES FIRST
-// ==============================================
-router.post('/', requireEmployer, (req, res, next) => {
-  const { title, description, category, level } = req.body;
-  if (!title || !description || !category || !level) {
-    res.status(400).json({
-      success: false,
-      message: 'Missing required fields: title, description, category, level'
-    });
-    return;
-  }
-  trainingController.createTraining(req, res, next);
-});
+  // Submit a review
+  router.post(
+    '/:id/reviews',
+    authenticate,
+    authorize('jobseeker'),
+    validateId,
+    validateReviewData,
+    bind(trainingController.submitReview)
+  );
 
-// ==============================================
-// GENERAL ROUTES WITH OPTIONAL AUTH
-// ==============================================
-router.get('/', optionalAuth, (req, res, next) => trainingController.getAllTrainings(req, res, next));
+  // ==========================================================================
+  // EMPLOYER ROUTES - Training Management
+  // ==========================================================================
 
-// ==============================================
-// WILDCARD :id ROUTES (MUST BE LAST)
-// ==============================================
+  // Create a new training
+  router.post(
+    '/',
+    authenticate,
+    authorize('employer'),
+    validateTrainingData,
+    bind(trainingController.createTraining)
+  );
 
-// Video routes for specific training
-router.post('/:trainingId/videos', requireEmployer, (req, res, next) => 
-  trainingController.addVideoToTraining(req, res, next)
-);
+  // Update training
+  router.put(
+    '/:id',
+    authenticate,
+    authorize('employer'),
+    validateId,
+    validateTrainingData,
+    bind(trainingController.updateTraining)
+  );
 
-router.put('/:trainingId/videos/:videoId', requireEmployer, (req: AuthenticatedRequest, res: any, next: any) => {
-  console.log('✏️ UPDATE video request:', {
-    trainingId: req.params.trainingId,
-    videoId: req.params.videoId,
-    userId: req.user?.id,
-    body: req.body
-  });
-  trainingController.updateVideoInTraining(req, res, next);
-});
+  // Delete training
+  router.delete(
+    '/:id',
+    authenticate,
+    authorize('employer'),
+    validateId,
+    bind(trainingController.deleteTraining)
+  );
 
-router.delete('/:trainingId/videos/:videoId', requireEmployer, (req: AuthenticatedRequest, res: any, next: any) => {
-  console.log('🗑️ DELETE video request:', {
-    trainingId: req.params.trainingId,
-    videoId: req.params.videoId,
-    userId: req.user?.id,
-    queryParams: req.query
-  });
-  trainingController.deleteVideoFromTraining(req, res, next);
-});
+  // Update training status (publish / suspend / close applications / etc.)
+  router.patch(
+    '/:id/status',
+    authenticate,
+    authorize('employer'),
+    validateId,
+    bind(trainingController.updateTrainingStatus)
+  );
 
-// Video progress (jobseeker) - MUST come before other video routes
-router.put('/:trainingId/videos/:videoId/progress', requireJobseeker, (req: AuthenticatedRequest, res: any, next: any) => {
-  console.log('🎥 Route: PUT /trainings/:trainingId/videos/:videoId/progress');
-  console.log('Request params:', req.params);
-  console.log('Request body:', req.body);
-  console.log('User ID:', req.user?.id);
-  trainingController.updateVideoProgress(req, res, next);
-});
+  // ==========================================================================
+  // EMPLOYER ROUTES - Application Management
+  // ==========================================================================
 
-// Enrollment operations
-router.post('/:trainingId/enroll', requireJobseeker, (req, res, next) =>
-  trainingController.enrollInTraining(req, res, next)
-);
+  // Get all applications for a training
+  router.get(
+    '/:id/applications',
+    authenticate,
+    authorize('employer'),
+    validateId,
+    bind(trainingController.getApplications)
+  );
 
-router.delete('/:trainingId/enroll', requireJobseeker, (req, res, next) =>
-  trainingController.unenrollFromTraining(req, res, next)
-);
+  // Shortlist or reject an application
+  router.post(
+    '/:trainingId/applications/:applicationId/shortlist',
+    authenticate,
+    authorize('employer'),
+    validateMultipleIds(['trainingId', 'applicationId']),
+    validateShortlistDecision,
+    bind(trainingController.shortlistApplicant)
+  );
 
-// Progress tracking
-router.get('/:trainingId/progress', requireJobseeker, (req, res, next) =>
-  trainingController.getTrainingProgress(req, res, next)
-);
+  // ==========================================================================
+  // EMPLOYER ROUTES - Enrollment & Completion Management
+  // ==========================================================================
 
-router.put('/:trainingId/progress', requireJobseeker, (req, res, next) =>
-  trainingController.updateTrainingProgress(req, res, next)
-);
+  // Get all enrollments for a training
+  router.get(
+    '/:id/enrollments',
+    authenticate,
+    authorize('employer'),
+    validateId,
+    bind(trainingController.getTrainingEnrollments)
+  );
 
-// Reviews
-router.post('/:trainingId/review', requireJobseeker, (req, res, next) =>
-  trainingController.submitTrainingReview(req, res, next)
-);
+  // Mark a trainee's completion status
+  router.put(
+    '/:trainingId/enrollments/:enrollmentId/completion',
+    authenticate,
+    authorize('employer'),
+    validateMultipleIds(['trainingId', 'enrollmentId']),
+    validateCompletionMarking,
+    bind(trainingController.markCompletion)
+  );
 
-// Training status management (employer)
-router.post('/:id/publish', requireEmployer, (req, res, next) =>
-  trainingController.publishTraining(req, res, next)
-);
+  // ==========================================================================
+  // EMPLOYER ROUTES - Certificate Issuance
+  // ==========================================================================
 
-router.post('/:id/unpublish', requireEmployer, (req, res, next) =>
-  trainingController.unpublishTraining(req, res, next)
-);
+  // Issue a certificate for a completed enrollment
+  router.post(
+    '/:trainingId/enrollments/:enrollmentId/certificate',
+    authenticate,
+    authorize('employer'),
+    validateMultipleIds(['trainingId', 'enrollmentId']),
+    bind(trainingController.issueCertificate)
+  );
 
-router.post('/:id/suspend', requireEmployer, (req, res, next) =>
-  trainingController.suspendTraining(req, res, next)
-);
+  // ==========================================================================
+  // EMPLOYER ROUTES - Analytics
+  // ==========================================================================
 
-// Analytics (employer)
-router.get('/:id/enrollments', requireEmployer, (req, res, next) =>
-  trainingController.getTrainingEnrollments(req, res, next)
-);
+  // Get analytics for a specific training
+  router.get(
+    '/:id/analytics',
+    authenticate,
+    authorize('employer'),
+    validateId,
+    bind(trainingController.getTrainingAnalytics)
+  );
 
-router.get('/:id/analytics', requireEmployer, (req, res, next) =>
-  trainingController.getTrainingAnalytics(req, res, next)
-);
-
-// Shared routes with optional auth
-router.get('/:id/reviews', optionalAuth, (req, res, next) => 
-  trainingController.getTrainingReviews(req, res, next)
-);
-
-router.get('/:id/videos', optionalAuth, (req, res, next) => 
-  trainingController.getTrainingVideos(req, res, next)
-);
-
-router.get('/:id/video-count', optionalAuth, (req, res, next) => 
-  trainingController.getTrainingVideoCount(req, res, next)
-);
-
-// CRUD operations (must be at the end)
-router.put('/:id', requireEmployer, (req, res, next) =>
-  trainingController.updateTraining(req, res, next)
-);
-
-router.delete('/:id', requireEmployer, (req, res, next) =>
-  trainingController.deleteTraining(req, res, next)
-);
-
-// GET by ID must be ABSOLUTE LAST
-router.get('/:id', optionalAuth, (req, res, next) => 
-  trainingController.getTrainingById(req, res, next)
-);
-
-console.log('✅ Training routes loaded with correct order (specific before wildcard)');
-export default router;
+  return router;
+}

@@ -6,7 +6,7 @@ import path from 'path';
 import fs from 'fs';
 import profileController from '../controllers/profile.controller';
 import profileViewsController from '../controllers/profile-views.controller';
-import { authenticateToken } from '../middleware/auth.middleware';
+import { authenticate } from '../middleware/auth.middleware';
 import { isJobseeker } from '../middleware/role.middleware';
 
 const router = Router();
@@ -60,7 +60,7 @@ const upload = multer({
  */
 router.get(
   '/',
-  authenticateToken,
+  authenticate,
   isJobseeker,
   profileController.getMyProfile.bind(profileController)
 );
@@ -72,7 +72,7 @@ router.get(
  */
 router.patch(
   '/',
-  authenticateToken,
+  authenticate,
   isJobseeker,
   profileController.updateMyProfile.bind(profileController)
 );
@@ -84,7 +84,7 @@ router.patch(
  */
 router.post(
   '/upload-image',
-  authenticateToken,
+  authenticate,
   isJobseeker,
   upload.single('image'),
   profileController.uploadProfileImage.bind(profileController)
@@ -97,7 +97,7 @@ router.post(
  */
 router.get(
   '/completion',
-  authenticateToken,
+  authenticate,
   isJobseeker,
   profileController.getProfileCompletion.bind(profileController)
 );
@@ -113,7 +113,7 @@ router.get(
  */
 router.post(
   '/view',
-  authenticateToken,
+  authenticate,
   profileViewsController.trackProfileView.bind(profileViewsController)
 );
 
@@ -124,7 +124,7 @@ router.post(
  */
 router.get(
   '/viewers',
-  authenticateToken,
+  authenticate,
   isJobseeker,
   profileViewsController.getProfileViewers.bind(profileViewsController)
 );
@@ -136,7 +136,7 @@ router.get(
  */
 router.get(
   '/view-count',
-  authenticateToken,
+  authenticate,
   isJobseeker,
   profileViewsController.getProfileViewCount.bind(profileViewsController)
 );
@@ -152,7 +152,7 @@ router.get(
  */
 router.post(
   '/share',
-  authenticateToken,
+  authenticate,
   isJobseeker,
   profileController.shareProfile.bind(profileController)
 );
@@ -168,8 +168,8 @@ router.get(
 );
 
 // Legacy endpoints for backward compatibility
-router.get('/cv/:cvId', authenticateToken, isJobseeker, profileController.getProfileByCVId.bind(profileController));
-router.put('/picture', authenticateToken, isJobseeker, profileController.updateProfilePicture.bind(profileController));
+router.get('/cv/:cvId', authenticate, isJobseeker, profileController.getProfileByCVId.bind(profileController));
+router.put('/picture', authenticate, isJobseeker, profileController.updateProfilePicture.bind(profileController));
 
 console.log('✅ Profile routes registered with profile views tracking');
 

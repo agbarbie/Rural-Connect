@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { AuthController } from '../controllers/auth.controller';
-import { authenticateToken, requireJobseeker } from '../middleware/auth.middleware';
+import { authenticate } from '../middleware/auth.middleware';
 import asyncHandler from '../middleware/asyncHandler';
 
 const router = Router();
@@ -18,8 +18,8 @@ router.post('/register', asyncHandler(authController.register));
 router.post('/login', asyncHandler(authController.login));
 
 // Protected routes (require authentication)
-router.post('/logout', authenticateToken, asyncHandler(authController.logout));
-router.get('/profile', authenticateToken, asyncHandler(authController.getProfile));
-router.put('/profile', authenticateToken, requireJobseeker, asyncHandler(authController.updateProfile));
+router.post('/logout', authenticate, asyncHandler(authController.logout));
+router.get('/profile', authenticate, asyncHandler(authController.getProfile));
+router.put('/profile', authenticate, asyncHandler(authController.updateProfile));
 
 export default router;

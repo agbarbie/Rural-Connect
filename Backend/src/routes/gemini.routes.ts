@@ -1,6 +1,6 @@
 // src/routes/gemini.routes.ts - COMPLETE FIXED VERSION
 import { Router, Request, Response } from 'express';
-import { authenticateToken } from '../middleware/auth.middleware';
+import { authenticate } from '../middleware/auth.middleware';
 import geminiService from '../services/gemini.service';
 
 const router = Router();
@@ -18,7 +18,7 @@ interface AuthRequest extends Request {
  * @desc    Get initial career recommendations
  * @access  Private
  */
-router.get('/recommendations', authenticateToken, async (req: AuthRequest, res: Response) => {
+router.get('/recommendations', authenticate, async (req: AuthRequest, res: Response) => {
   try {
     if (!req.user) {
       return res.status(401).json({
@@ -46,7 +46,7 @@ router.get('/recommendations', authenticateToken, async (req: AuthRequest, res: 
  * @desc    Send a chat message to Gemini AI (JOBSEEKER)
  * @access  Private
  */
-router.post('/chat', authenticateToken, async (req: AuthRequest, res: Response) => {
+router.post('/chat', authenticate, async (req: AuthRequest, res: Response) => {
   try {
     if (!req.user) {
       return res.status(401).json({
@@ -87,7 +87,7 @@ router.post('/chat', authenticateToken, async (req: AuthRequest, res: Response) 
  * @desc    Employer-specific chat for candidate analysis
  * @access  Private (Employer only)
  */
-router.post('/employer-chat', authenticateToken, async (req: AuthRequest, res: Response) => {
+router.post('/employer-chat', authenticate, async (req: AuthRequest, res: Response) => {
   try {
     if (!req.user) {
       return res.status(401).json({
@@ -148,7 +148,7 @@ router.post('/employer-chat', authenticateToken, async (req: AuthRequest, res: R
  * @desc    Get job recommendations with optional filters
  * @access  Private
  */
-router.get('/jobs', authenticateToken, async (req: AuthRequest, res: Response) => {
+router.get('/jobs', authenticate, async (req: AuthRequest, res: Response) => {
   try {
     if (!req.user) {
       return res.status(401).json({
@@ -191,7 +191,7 @@ router.get('/jobs', authenticateToken, async (req: AuthRequest, res: Response) =
  * @desc    Get skill gap analysis
  * @access  Private
  */
-router.get('/skill-gaps', authenticateToken, async (req: AuthRequest, res: Response) => {
+router.get('/skill-gaps', authenticate, async (req: AuthRequest, res: Response) => {
   try {
     if (!req.user) {
       return res.status(401).json({
@@ -224,7 +224,7 @@ router.get('/skill-gaps', authenticateToken, async (req: AuthRequest, res: Respo
  * @desc    Get career path recommendations
  * @access  Private
  */
-router.get('/career-path', authenticateToken, async (req: AuthRequest, res: Response) => {
+router.get('/career-path', authenticate, async (req: AuthRequest, res: Response) => {
   try {
     if (!req.user) {
       return res.status(401).json({
@@ -257,7 +257,7 @@ router.get('/career-path', authenticateToken, async (req: AuthRequest, res: Resp
  * @desc    Simulate adding a skill to see potential impact
  * @access  Private
  */
-router.post('/simulate-skill', authenticateToken, async (req: AuthRequest, res: Response) => {
+router.post('/simulate-skill', authenticate, async (req: AuthRequest, res: Response) => {
   try {
     if (!req.user) {
       return res.status(401).json({
@@ -299,7 +299,7 @@ router.post('/simulate-skill', authenticateToken, async (req: AuthRequest, res: 
  * @desc    Submit feedback on AI recommendations
  * @access  Private
  */
-router.post('/feedback', authenticateToken, async (req: AuthRequest, res: Response) => {
+router.post('/feedback', authenticate, async (req: AuthRequest, res: Response) => {
   try {
     if (!req.user) {
       return res.status(401).json({

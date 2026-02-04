@@ -2,7 +2,7 @@
 
 import { Router } from 'express';
 import { CandidatesController } from '../controllers/candidates.controller';
-import { authenticateToken } from '../middleware/auth.middleware';
+import { authenticate } from '../middleware/auth.middleware';
 import { requireRole } from '../middleware/role.middleware';
 
 const router = Router();
@@ -11,7 +11,7 @@ const candidatesController = new CandidatesController();
 /**
  * All routes require authentication and employer role
  */
-router.use(authenticateToken);
+router.use(authenticate);
 router.use(requireRole('employer'));
 
 /**
