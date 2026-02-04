@@ -854,92 +854,93 @@ export class TrainingComponent implements OnInit, OnDestroy {
   }
 
   private performSave(thumbnailUrl: string): void {
-    console.log('🚀 performSave called with thumbnail:', thumbnailUrl);
+  console.log('🚀 performSave called with thumbnail:', thumbnailUrl);
+  
+  const baseData: UpdateTrainingRequest = {
+    title: this.newTraining.title.trim(),
+    description: this.newTraining.description.trim(),
+    category: this.newTraining.category,
+    level: this.newTraining.level,
+    duration_hours: this.newTraining.duration_hours,
+    cost_type: this.newTraining.cost_type,
+    price: this.newTraining.cost_type === 'Paid' ? this.newTraining.price : undefined,
+    mode: this.newTraining.mode,
+    provider_name: this.newTraining.provider_name.trim(),
+    has_certificate: this.newTraining.has_certificate,
+    thumbnail_url: thumbnailUrl || this.newTraining.thumbnail_url,
+    location: this.newTraining.location || undefined,
+    eligibility_requirements: undefined,
+    application_deadline: this.newTraining.application_deadline || undefined,
     
-    const baseData: UpdateTrainingRequest = {
-      title: this.newTraining.title.trim(),
-      description: this.newTraining.description.trim(),
-      category: this.newTraining.category,
-      level: this.newTraining.level,
-      duration_hours: this.newTraining.duration_hours,
-      cost_type: this.newTraining.cost_type,
-      price: this.newTraining.cost_type === 'Paid' ? this.newTraining.price : undefined,
-      mode: this.newTraining.mode,
-      provider_name: this.newTraining.provider_name.trim(),
-      has_certificate: this.newTraining.has_certificate,
-      thumbnail_url: thumbnailUrl || this.newTraining.thumbnail_url,
-      location: this.newTraining.location || undefined,
-      eligibility_requirements: undefined,
-      application_deadline: this.newTraining.application_deadline || undefined,
-      training_start_date: this.newTraining.training_start_date || undefined,
-      training_end_date: this.newTraining.training_end_date || undefined,
-      max_participants: this.newTraining.max_participants || undefined,
-      
-      sessions: this.newTraining.sessions.map((s, index) => ({
-        ...s,
-        order_index: index
-      })),
-      outcomes: this.newTraining.outcomes.map((o, index) => ({
-        ...o,
-        order_index: index
-      }))
-    };
+    // Use training_start_date and training_end_date to match UpdateTrainingRequest
+    training_start_date: this.newTraining.training_start_date || undefined,
+    training_end_date: this.newTraining.training_end_date || undefined,
+    
+    max_participants: this.newTraining.max_participants || undefined,
+    
+    sessions: this.newTraining.sessions.map((s, index) => ({
+      ...s,
+      order_index: index
+    })),
+    outcomes: this.newTraining.outcomes.map((o, index) => ({
+      ...o,
+      order_index: index
+    }))
+  };
 
-    console.log('📦 Training payload:', {
-      ...baseData,
-      sessionCount: baseData.sessions?.length || 0,
-      outcomeCount: baseData.outcomes?.length || 0
-    });
+  console.log('📦 Training payload:', {
+    ...baseData,
+    sessionCount: baseData.sessions?.length || 0,
+    outcomeCount: baseData.outcomes?.length || 0
+  });
 
-    if (this.editingTrainingId) {
-      console.log('🔄 Updating training:', this.editingTrainingId);
-      // ✅ FIXED: updateTraining expects (id, trainingData) - removed employerId parameter
-      this.trainingService.updateTraining(this.editingTrainingId, baseData)
-        .pipe(takeUntil(this.destroy$))
-        .subscribe({
-          next: (response) => {
-            if (response.success) {
-              console.log('✅ Training updated successfully');
-              this.cancelEdit();
-              this.loadTrainings();
-              this.loadStats();
-              alert('Training updated successfully!');
-            }
-          },
-          error: (error) => {
-            console.error('❌ Error updating training:', error);
-            this.error = 'Failed to update training. Please check your inputs and try again.';
+  if (this.editingTrainingId) {
+    console.log('🔄 Updating training:', this.editingTrainingId);
+    this.trainingService.updateTraining(this.editingTrainingId, baseData)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (response) => {
+          if (response.success) {
+            console.log('✅ Training updated successfully');
+            this.cancelEdit();
+            this.loadTrainings();
+            this.loadStats();
+            alert('Training updated successfully!');
           }
-        });
-    } else {
-      console.log('➕ Creating new training');
-      const trainingData: CreateTrainingRequest = { ...baseData } as CreateTrainingRequest;
-      
-      // ✅ FIXED: createTraining expects (trainingData) - removed employerId parameter
-      this.trainingService.createTraining(trainingData)
-        .pipe(takeUntil(this.destroy$))
-        .subscribe({
-          next: (response) => {
-            console.log('📥 Create training response:', response);
-            if (response.success) {
-              console.log('✅ Training created successfully:', response.data?.id);
-              this.showAddForm = false;
-              this.resetForm();
-              this.loadTrainings();
-              this.loadStats();
-              alert('Training created successfully with sessions and outcomes!');
-            } else {
-              throw new Error(response.message || 'Failed to create training');
-            }
-          },
-          error: (error) => {
-            console.error('❌ Error creating training:', error);
-            this.error = 'Failed to create training. Please check your inputs and try again.';
-            alert('Failed to create training: ' + (error.message || 'Unknown error'));
+        },
+        error: (error) => {
+          console.error('❌ Error updating training:', error);
+          this.error = 'Failed to update training. Please check your inputs and try again.';
+        }
+      });
+  } else {
+    console.log('➕ Creating new training');
+    const trainingData: CreateTrainingRequest = { ...baseData } as CreateTrainingRequest;
+    
+    this.trainingService.createTraining(trainingData)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (response) => {
+          console.log('📥 Create training response:', response);
+          if (response.success) {
+            console.log('✅ Training created successfully:', response.data?.id);
+            this.showAddForm = false;
+            this.resetForm();
+            this.loadTrainings();
+            this.loadStats();
+            alert('Training created successfully with sessions and outcomes!');
+          } else {
+            throw new Error(response.message || 'Failed to create training');
           }
-        });
-    }
+        },
+        error: (error) => {
+          console.error('❌ Error creating training:', error);
+          this.error = 'Failed to create training. Please check your inputs and try again.';
+          alert('Failed to create training: ' + (error.message || 'Unknown error'));
+        }
+      });
   }
+}
 
   cancelEdit(): void {
     this.showAddForm = false;

@@ -260,6 +260,8 @@ export interface Training {
 // 7.  CREATE / UPDATE DTOs
 // ---------------------------------------------------------------------------
 export interface CreateTrainingRequest {
+  training_start_date: string | undefined;
+  training_end_date: string | undefined;
   title: string;
   description: string;
   category: string;

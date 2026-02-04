@@ -183,85 +183,93 @@ export class TrainingService {
   // 2.  TRAINING CRUD
   // ==========================================================================
 
-  async createTraining(data: CreateTrainingRequest, employerId: string): Promise<Training> {
-    const client = await this.db.connect();
-    try {
-      await client.query('BEGIN');
+  // FIXED: createTraining method with proper field mapping
+// Replace the createTraining method in your training.service.ts (backend) with this:
 
-      // -- verify user exists and is an employer --
-      const userRow = await client.query('SELECT id, email, user_type FROM users WHERE id = $1', [employerId]);
-      if (userRow.rows.length === 0) throw new Error(`User ${employerId} does not exist`);
-      if (userRow.rows[0].user_type !== 'employer') throw new Error('Only employers can create trainings');
+async createTraining(data: CreateTrainingRequest, employerId: string): Promise<Training> {
+  const client = await this.db.connect();
+  try {
+    await client.query('BEGIN');
 
-      // -- resolve employer-profile ID (FK target) --
-      const epRow = await client.query('SELECT id FROM employers WHERE user_id = $1', [employerId]);
-      if (epRow.rows.length === 0) throw new Error('Employer profile not found for this user');
-      const employerProfileId = epRow.rows[0].id;
+    // -- verify user exists and is an employer --
+    const userRow = await client.query('SELECT id, email, user_type FROM users WHERE id = $1', [employerId]);
+    if (userRow.rows.length === 0) throw new Error(`User ${employerId} does not exist`);
+    if (userRow.rows[0].user_type !== 'employer') throw new Error('Only employers can create trainings');
 
-      // -- insert training --
-      const tResult = await client.query(
-  `INSERT INTO trainings (
-     title, description, category, level, duration_hours, cost_type, price, mode,
-     provider_id, provider_name, has_certificate, eligibility_requirements,
-     application_deadline, thumbnail_url, location, start_date, end_date,
-     max_participants, status, created_at, updated_at
-   ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,'draft',NOW(),NOW())
-   RETURNING *`,
-  [
-    data.title?.trim(), 
-    data.description?.trim(), 
-    data.category?.trim(), 
-    data.level,
-    data.duration_hours, 
-    data.cost_type, 
-    data.price ?? 0, 
-    data.mode,
-    employerProfileId, 
-    data.provider_name?.trim(), 
-    data.has_certificate ?? false,
-    data.eligibility_requirements ?? null,  // ← This is parameter $12
-    data.application_deadline ?? null,      // ← This is parameter $13
-    data.thumbnail_url ?? null,             // ← This is parameter $14
-    data.location ?? null,                  // ← This is parameter $15
-    data.start_date ?? null,                // ← This is parameter $16
-    data.end_date ?? null,                  // ← This is parameter $17
-    data.max_participants ?? null,          // ← This is parameter $18
-  ]
-);
-      const trainingId = tResult.rows[0].id;
+    // -- resolve employer-profile ID (FK target) --
+    const epRow = await client.query('SELECT id FROM employers WHERE user_id = $1', [employerId]);
+    if (epRow.rows.length === 0) throw new Error('Employer profile not found for this user');
+    const employerProfileId = epRow.rows[0].id;
 
-      // -- insert sessions --
-      if (data.sessions && data.sessions.length > 0) {
-        for (let i = 0; i < data.sessions.length; i++) {
-          const s = data.sessions[i];
-          await client.query(
-            `INSERT INTO training_sessions (training_id, title, description, scheduled_at, duration_minutes, meeting_url, order_index, created_at, updated_at)
-             VALUES ($1,$2,$3,$4,$5,$6,$7,NOW(),NOW())`,
-            [trainingId, s.title?.trim(), s.description?.trim() ?? null,
-             s.scheduled_at, s.duration_minutes, s.meeting_url?.trim(), s.order_index ?? i + 1]
-          );
-        }
+    // FIXED: Map training_start_date → start_date and training_end_date → end_date
+    const startDate = data.training_start_date || data.start_date || null;
+    const endDate = data.training_end_date || data.end_date || null;
+
+    // -- insert training --
+    const tResult = await client.query(
+      `INSERT INTO trainings (
+         title, description, category, level, duration_hours, cost_type, price, mode,
+         provider_id, provider_name, has_certificate, eligibility_requirements,
+         application_deadline, thumbnail_url, location, start_date, end_date,
+         max_participants, status, created_at, updated_at
+       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,'draft',NOW(),NOW())
+       RETURNING *`,
+      [
+        data.title?.trim(), 
+        data.description?.trim(), 
+        data.category?.trim(), 
+        data.level,
+        data.duration_hours, 
+        data.cost_type, 
+        data.price ?? 0, 
+        data.mode,
+        employerProfileId, 
+        data.provider_name?.trim(), 
+        data.has_certificate ?? false,
+        data.eligibility_requirements ?? null,  // ← Parameter $12
+        data.application_deadline ?? null,      // ← Parameter $13
+        data.thumbnail_url ?? null,             // ← Parameter $14
+        data.location ?? null,                  // ← Parameter $15
+        startDate,                              // ← Parameter $16 (FIXED)
+        endDate,                                // ← Parameter $17 (FIXED)
+        data.max_participants ?? null,          // ← Parameter $18
+      ]
+    );
+    const trainingId = tResult.rows[0].id;
+
+    // -- insert sessions --
+    if (data.sessions && data.sessions.length > 0) {
+      for (let i = 0; i < data.sessions.length; i++) {
+        const s = data.sessions[i];
+        await client.query(
+          `INSERT INTO training_sessions (training_id, title, description, scheduled_at, duration_minutes, meeting_url, order_index, created_at, updated_at)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,NOW(),NOW())`,
+          [trainingId, s.title?.trim(), s.description?.trim() ?? null,
+           s.scheduled_at, s.duration_minutes, s.meeting_url?.trim(), s.order_index ?? i + 1]
+        );
       }
-
-      // -- insert outcomes --
-      if (data.outcomes && data.outcomes.length > 0) {
-        for (const o of data.outcomes) {
-          await client.query(
-            `INSERT INTO training_outcomes (training_id, outcome_text, order_index) VALUES ($1,$2,$3)`,
-            [trainingId, o.outcome_text?.trim(), o.order_index]
-          );
-        }
-      }
-
-      await client.query('COMMIT');
-      return (await this.getTrainingById(trainingId)) as Training;
-    } catch (err: any) {
-      await client.query('ROLLBACK');
-      throw err;
-    } finally {
-      client.release();
     }
+
+    // -- insert outcomes --
+    if (data.outcomes && data.outcomes.length > 0) {
+      for (const o of data.outcomes) {
+        await client.query(
+          `INSERT INTO training_outcomes (training_id, outcome_text, order_index) VALUES ($1,$2,$3)`,
+          [trainingId, o.outcome_text?.trim(), o.order_index]
+        );
+      }
+    }
+
+    await client.query('COMMIT');
+    return (await this.getTrainingById(trainingId)) as Training;
+  } catch (err: any) {
+    await client.query('ROLLBACK');
+    console.error('❌ Error in createTraining:', err);
+    throw err;
+  } finally {
+    client.release();
   }
+}
 
   async updateTraining(id: string, data: UpdateTrainingRequest, employerId: string): Promise<Training | null> {
     const client = await this.db.connect();
