@@ -869,6 +869,7 @@ export class TrainingComponent implements OnInit, OnDestroy {
       has_certificate: this.newTraining.has_certificate,
       thumbnail_url: thumbnailUrl || this.newTraining.thumbnail_url,
       location: this.newTraining.location || undefined,
+      eligibility_requirements: undefined,
       application_deadline: this.newTraining.application_deadline || undefined,
       training_start_date: this.newTraining.training_start_date || undefined,
       training_end_date: this.newTraining.training_end_date || undefined,
