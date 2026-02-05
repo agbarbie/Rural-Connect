@@ -1021,27 +1021,63 @@ async getSessionAttendance(sessionId: string, employerId: string): Promise<any> 
   const { page = 1, limit = 10, sort_by = 'created_at', sort_order = 'desc', filters = {} } = params;
   const offset = (page - 1) * limit;
   const conds: string[] = [];
-  const qp: any[]       = [];
+  const qp: any[] = [];
   let pi = 1;
 
+  // ✅ CRITICAL FIX: When employerId is provided, ONLY show their trainings
   if (employerId) {
+    console.log('🔒 Fetching trainings for employer:', employerId);
+    
+    // Get employer profile ID
     const epRow = await this.db.query('SELECT id FROM employers WHERE user_id = $1', [employerId]);
+    
     if (epRow.rows.length > 0) {
-      conds.push(`(t.provider_id = $${pi++} OR t.provider_id = $${pi++})`);
-      qp.push(employerId, epRow.rows[0].id);
-    } else {
+      const employerProfileId = epRow.rows[0].id;
+      console.log('  → Employer profile ID:', employerProfileId);
+      
+      // ✅ FIXED: ONLY show trainings where provider_id matches THIS employer
       conds.push(`t.provider_id = $${pi++}`);
-      qp.push(employerId);
+      qp.push(employerProfileId);
+    } else {
+      // If no employer profile found, return empty result
+      console.warn('⚠️ No employer profile found for user:', employerId);
+      return {
+        success: true,
+        data: { trainings: [] },
+        pagination: {
+          current_page: page,
+          total_pages: 0,
+          page_size: limit,
+          total_count: 0,
+          has_next: false,
+          has_previous: false
+        },
+        filters_applied: filters
+      };
     }
   }
-  if (filters.category) { conds.push(`t.category = $${pi++}`); qp.push(filters.category); }
-  if (filters.search)   { conds.push(`(t.title ILIKE $${pi} OR t.description ILIKE $${pi})`); qp.push(`%${filters.search}%`); pi++; }
+
+  // Apply other filters
+  if (filters.category) {
+    conds.push(`t.category = $${pi++}`);
+    qp.push(filters.category);
+  }
+  
+  if (filters.search) {
+    conds.push(`(t.title ILIKE $${pi} OR t.description ILIKE $${pi})`);
+    qp.push(`%${filters.search}%`);
+    pi++;
+  }
+
+  if (filters.status) {
+    conds.push(`t.status = $${pi++}`);
+    qp.push(filters.status);
+  }
 
   const where = conds.length ? `WHERE ${conds.join(' AND ')}` : '';
 
   qp.push(limit, offset);
   
-  // ✅ FIXED: Use subqueries instead of LEFT JOIN LATERAL to avoid table dependency issues
   const result = await this.db.query(
     `SELECT t.*,
             (SELECT COUNT(*) FROM training_applications WHERE training_id = t.id) AS application_count,
@@ -1053,30 +1089,32 @@ async getSessionAttendance(sessionId: string, employerId: string): Promise<any> 
     qp
   );
   
-  const rows  = result.rows;
+  const rows = result.rows;
   const total = rows.length > 0 ? parseInt(rows[0].total_count) : 0;
 
+  console.log(`✅ Found ${total} training(s) for employer ${employerId || 'all'}`);
+
   return {
-  success: true,
-  data: {
-    trainings: rows.map(r => ({
-      ...this.mapTrainingFromDb(r),
-      has_applied: false,
-      is_enrolled: false,
-      application_count: parseInt(r.application_count || 0),
-      enrollment_count:  parseInt(r.enrollment_count || 0),
-    })),
-  },
-  pagination: { 
-    current_page: page, 
-    total_pages: Math.ceil(total / limit), 
-    page_size: limit, 
-    total_count: total, 
-    has_next: page * limit < total, 
-    has_previous: page > 1 
-  },
-  filters_applied: filters,
-};
+    success: true,
+    data: {
+      trainings: rows.map(r => ({
+        ...this.mapTrainingFromDb(r),
+        has_applied: false,
+        is_enrolled: false,
+        application_count: parseInt(r.application_count || 0),
+        enrollment_count: parseInt(r.enrollment_count || 0),
+      })),
+    },
+    pagination: {
+      current_page: page,
+      total_pages: Math.ceil(total / limit),
+      page_size: limit,
+      total_count: total,
+      has_next: page * limit < total,
+      has_previous: page > 1
+    },
+    filters_applied: filters,
+  };
 }
 
   /** Trainings the job-seeker has enrolled in */

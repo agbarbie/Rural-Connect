@@ -1,14 +1,13 @@
-// middleware/validation.middleware.ts
+// middleware/validation.middleware.ts - FIXED VERSION
 import { Request, Response, NextFunction } from 'express';
 import { AuthenticatedRequest } from './auth.middleware';
 
-// Validation for creating a training (bootcamp model)
-// Validation for creating a training (bootcamp model)
+// Validation for creating/updating a training (bootcamp model)
 export const validateTrainingData = (req: AuthenticatedRequest, res: Response, next: NextFunction): void => {
   const { 
     title, description, category, level, duration_hours, cost_type, mode, 
-    provider_name, sessions, outcomes, eligibility_requirements, 
-    application_deadline, max_participants 
+    provider_name, sessions, outcomes, 
+    application_deadline, start_date, end_date, max_participants 
   } = req.body;
   
   const errors: string[] = [];
@@ -19,11 +18,10 @@ export const validateTrainingData = (req: AuthenticatedRequest, res: Response, n
     method: req.method,
     isCreating,
     isUpdating,
-    hasSessions: !!sessions,
-    sessionCount: Array.isArray(sessions) ? sessions.length : 0
+    body: JSON.stringify(req.body, null, 2)
   });
 
-  // Basic fields validation (only required for creation)
+  // ✅ FIXED: Basic fields validation (required for creation, optional for update)
   if (isCreating) {
     if (!title || title.trim().length < 3) {
       errors.push('Title must be at least 3 characters long');
@@ -55,6 +53,19 @@ export const validateTrainingData = (req: AuthenticatedRequest, res: Response, n
 
     if (!provider_name || provider_name.trim().length < 2) {
       errors.push('Provider name is required');
+    }
+
+    // ✅ FIXED: Require application_deadline, start_date, end_date for creation
+    if (!application_deadline) {
+      errors.push('Application deadline is required');
+    }
+
+    if (!start_date) {
+      errors.push('Training start date is required');
+    }
+
+    if (!end_date) {
+      errors.push('Training end date is required');
     }
   } else if (isUpdating) {
     // For updates, only validate if fields are provided
@@ -91,7 +102,7 @@ export const validateTrainingData = (req: AuthenticatedRequest, res: Response, n
     }
   }
 
-  // Conditional field validation (applies to both create and update)
+  // ✅ Conditional field validation (applies to both create and update)
   if (cost_type === 'Paid' && (!req.body.price || req.body.price <= 0)) {
     errors.push('Price is required for paid trainings');
   }
@@ -100,12 +111,45 @@ export const validateTrainingData = (req: AuthenticatedRequest, res: Response, n
     errors.push('Location is required for offline/hybrid trainings');
   }
 
-  // Validate sessions (ONLY required for creation, optional for updates)
+  // ✅ FIXED: Validate date sequence if dates are provided
+  if (application_deadline && start_date) {
+    const deadlineDate = new Date(application_deadline);
+    const startDateObj = new Date(start_date);
+    
+    if (isNaN(deadlineDate.getTime())) {
+      errors.push('Invalid application deadline format');
+    }
+    
+    if (isNaN(startDateObj.getTime())) {
+      errors.push('Invalid start date format');
+    }
+    
+    if (!isNaN(deadlineDate.getTime()) && !isNaN(startDateObj.getTime())) {
+      if (deadlineDate >= startDateObj) {
+        errors.push('Application deadline must be before training start date');
+      }
+    }
+  }
+
+  if (start_date && end_date) {
+    const startDateObj = new Date(start_date);
+    const endDateObj = new Date(end_date);
+    
+    if (isNaN(endDateObj.getTime())) {
+      errors.push('Invalid end date format');
+    }
+    
+    if (!isNaN(startDateObj.getTime()) && !isNaN(endDateObj.getTime())) {
+      if (startDateObj >= endDateObj) {
+        errors.push('Training end date must be after start date');
+      }
+    }
+  }
+
+  // ✅ FIXED: Sessions validation - NOT required for creation, but if provided must be valid
   if (sessions !== undefined && sessions !== null) {
     if (!Array.isArray(sessions)) {
       errors.push('Sessions must be an array');
-    } else if (isCreating && sessions.length === 0) {
-      errors.push('At least one training session is required for new trainings');
     } else if (sessions.length > 0) {
       sessions.forEach((session: any, index: number) => {
         if (!session.title || session.title.trim().length < 3) {
@@ -118,10 +162,6 @@ export const validateTrainingData = (req: AuthenticatedRequest, res: Response, n
           if (isNaN(sessionDate.getTime())) {
             errors.push(`Session ${index + 1}: Invalid date format`);
           }
-          // Only check past dates for new sessions, not updates
-          if (isCreating && sessionDate < new Date()) {
-            errors.push(`Session ${index + 1}: Cannot schedule sessions in the past`);
-          }
         }
         if (!session.duration_minutes || session.duration_minutes < 15) {
           errors.push(`Session ${index + 1}: Duration must be at least 15 minutes`);
@@ -131,12 +171,9 @@ export const validateTrainingData = (req: AuthenticatedRequest, res: Response, n
         }
       });
     }
-  } else if (isCreating) {
-    // Sessions are required for creation
-    errors.push('At least one training session is required');
   }
 
-  // Validate outcomes (optional but if provided, must be valid)
+  // ✅ Validate outcomes (optional but if provided, must be valid)
   if (outcomes && Array.isArray(outcomes)) {
     outcomes.forEach((outcome: any, index: number) => {
       if (!outcome.outcome_text || outcome.outcome_text.trim().length < 5) {
@@ -145,31 +182,14 @@ export const validateTrainingData = (req: AuthenticatedRequest, res: Response, n
     });
   }
 
-  // Validate application deadline (if provided, must be before start_date)
-  if (application_deadline) {
-    const deadlineDate = new Date(application_deadline);
-    if (isNaN(deadlineDate.getTime())) {
-      errors.push('Invalid application deadline format');
-    } else if (isCreating && deadlineDate < new Date()) {
-      errors.push('Application deadline cannot be in the past');
-    }
-    
-    if (req.body.start_date) {
-      const startDate = new Date(req.body.start_date);
-      if (deadlineDate >= startDate) {
-        errors.push('Application deadline must be before training start date');
-      }
-    }
-  }
-
-  // Validate max_participants (if provided)
+  // ✅ Validate max_participants (if provided)
   if (max_participants !== undefined && max_participants !== null) {
     if (max_participants < 1 || max_participants > 10000) {
       errors.push('Max participants must be between 1 and 10000');
     }
   }
 
-  // Validate user authentication
+  // ✅ Validate user authentication
   if (!req.user?.id) {
     errors.push('User authentication required');
   }
@@ -196,19 +216,16 @@ export const validateTrainingData = (req: AuthenticatedRequest, res: Response, n
 function isValidUrl(urlString: string): boolean {
   try {
     const url = new URL(urlString);
-    // Accept http, https protocols
     return ['http:', 'https:'].includes(url.protocol);
   } catch {
     return false;
   }
 }
 
-
-// NEW: Validate application submission
+// Validate application submission
 export const validateApplicationData = (req: AuthenticatedRequest, res: Response, next: NextFunction): void => {
   const errors: string[] = [];
 
-  // Motivation is optional but if provided should be meaningful
   if (req.body.motivation && req.body.motivation.trim().length < 10) {
     errors.push('Motivation letter must be at least 10 characters if provided');
   }
@@ -233,7 +250,7 @@ export const validateApplicationData = (req: AuthenticatedRequest, res: Response
   next();
 };
 
-// NEW: Validate shortlisting decision
+// Validate shortlisting decision
 export const validateShortlistDecision = (req: AuthenticatedRequest, res: Response, next: NextFunction): void => {
   const { decision, employer_notes } = req.body;
   const errors: string[] = [];
@@ -266,7 +283,7 @@ export const validateShortlistDecision = (req: AuthenticatedRequest, res: Respon
   next();
 };
 
-// NEW: Validate completion marking
+// Validate completion marking
 export const validateCompletionMarking = (req: AuthenticatedRequest, res: Response, next: NextFunction): void => {
   const { completed, employer_notes } = req.body;
   const errors: string[] = [];
@@ -340,7 +357,6 @@ export const validateReviewData = (req: AuthenticatedRequest, res: Response, nex
 export const validateId = (req: Request, res: Response, next: NextFunction): void => {
   const { id } = req.params;
   
-  // Simple UUID validation
   const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
   
   if (!uuidRegex.test(id)) {
@@ -354,7 +370,7 @@ export const validateId = (req: Request, res: Response, next: NextFunction): voi
   next();
 };
 
-// Validate multiple IDs (for routes with multiple params)
+// Validate multiple IDs
 export const validateMultipleIds = (paramNames: string[]) => {
   return (req: Request, res: Response, next: NextFunction): void => {
     const errors: string[] = [];
