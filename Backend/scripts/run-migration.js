@@ -230,8 +230,11 @@ async function runMigration() {
 console.log('🔧 Checking trainings table for missing columns...');
 
 const trainingColumnsToAdd = [
-  { name: 'eligibility_requirements', type: 'TEXT', default: null },
-  { name: 'application_url', type: 'TEXT', default: null }
+  { name: 'eligibility_requirements', type: 'TEXT' },
+  { name: 'application_url', type: 'TEXT' },
+  { name: 'application_deadline', type: 'TIMESTAMP' },
+  { name: 'start_date', type: 'TIMESTAMP' },
+  { name: 'end_date', type: 'TIMESTAMP' }
 ];
 
 for (const col of trainingColumnsToAdd) {
@@ -242,8 +245,7 @@ for (const col of trainingColumnsToAdd) {
   `, [col.name]);
 
   if (exists.rows.length === 0) {
-    const defaultClause = col.default !== undefined ? `DEFAULT ${col.default}` : '';
-    await client.query(`ALTER TABLE trainings ADD COLUMN ${col.name} ${col.type} ${defaultClause};`);
+    await client.query(`ALTER TABLE trainings ADD COLUMN ${col.name} ${col.type};`);
     console.log(`  ✓ Added column to trainings: ${col.name}`);
   } else {
     console.log(`  ✓ Column already exists: ${col.name}`);

@@ -2,6 +2,18 @@
 DROP TABLE IF EXISTS training_video_progress CASCADE;
 DROP TABLE IF EXISTS training_videos CASCADE;
 
+-- Drop old video-based tables (if they exist)
+DROP TABLE IF EXISTS training_video_progress CASCADE;
+DROP TABLE IF EXISTS training_videos CASCADE;
+
+-- Add missing columns to trainings table
+ALTER TABLE trainings 
+ADD COLUMN IF NOT EXISTS eligibility_requirements TEXT,
+ADD COLUMN IF NOT EXISTS application_url TEXT,
+ADD COLUMN IF NOT EXISTS application_deadline TIMESTAMP,
+ADD COLUMN IF NOT EXISTS start_date TIMESTAMP,
+ADD COLUMN IF NOT EXISTS end_date TIMESTAMP;
+
 -- Create training_sessions table
 CREATE TABLE IF NOT EXISTS training_sessions (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
