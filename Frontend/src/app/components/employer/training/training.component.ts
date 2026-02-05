@@ -409,33 +409,36 @@ export class TrainingComponent implements OnInit, OnDestroy {
   // ============================================
   
   loadNotifications(): void {
-    // ✅ FIXED: getNotifications expects (params?) - removed employerId and role parameters
-    this.trainingService.getNotifications({ read: false })
-      .pipe(takeUntil(this.destroy$))
-      .subscribe({
-        next: (response) => {
-          console.log('📢 Enrollment notifications:', response.data?.length || 0);
+  console.log('🔔 Loading employer notifications');
+  
+  // ✅ FIX: Remove employerId and userType parameters
+  this.trainingService.getNotifications({ read: false })
+    .pipe(takeUntil(this.destroy$))
+    .subscribe({
+      next: (response) => {
+        console.log('📢 Enrollment notifications:', response.data?.length || 0);
+        
+        if (response.success && response.data) {
+          this.enrollmentNotifications = (response.data.notifications || response.data).map((n: any) => ({
+            ...n,
+            display_name: n.jobseeker_name || `${n.first_name || ''} ${n.last_name || ''}`.trim() || 
+                          (n.email ? n.email.split('@')[0].replace(/[_.-]/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase()) : 'Anonymous User')
+          }));
           
-          if (response.success && response.data) {
-            this.enrollmentNotifications = (response.data.notifications || response.data).map((n: any) => ({
-              ...n,
-              display_name: n.jobseeker_name || `${n.first_name || ''} ${n.last_name || ''}`.trim() || 
-                            (n.email ? n.email.split('@')[0].replace(/[_.-]/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase()) : 'Anonymous User')
-            }));
-            
-            this.unreadNotificationCount = this.enrollmentNotifications.filter(
-              (n: any) => !n.is_read && n.notification_type === 'new'
-            ).length;
-          } else {
-            this.enrollmentNotifications = [];
-            this.unreadNotificationCount = 0;
-          }
-        },
-        error: (error) => {
-          console.error('❌ Error loading notifications:', error);
+          this.unreadNotificationCount = this.enrollmentNotifications.filter(
+            (n: any) => !n.is_read && n.notification_type === 'new'
+          ).length;
+        } else {
+          this.enrollmentNotifications = [];
+          this.unreadNotificationCount = 0;
         }
-      });
-  }
+      },
+      error: (error) => {
+        console.error('❌ Error loading notifications:', error);
+      }
+    });
+}
+
 
   toggleNotifications(): void {
     this.showNotifications = !this.showNotifications;
@@ -474,31 +477,31 @@ export class TrainingComponent implements OnInit, OnDestroy {
   }
 
   issueCertificateFromNotification(notification: any): void {
-    if (!notification.enrollment_id) {
-      alert('No enrollment ID available');
-      return;
-    }
-
-    if (confirm(`Issue certificate to ${this.getJobseekerDisplayName(notification)} for "${notification.training_title}"?`)) {
-      // ✅ FIXED: issueCertificate expects (trainingId, enrollmentId) - removed employerId parameter
-      this.trainingService.issueCertificate(notification.training_id, notification.enrollment_id)
-        .pipe(takeUntil(this.destroy$))
-        .subscribe({
-          next: (response) => {
-            if (response.success) {
-              alert('Certificate issued successfully! Trainee notified.');
-              notification.certificate_issued = true;
-              this.unreadNotificationCount = Math.max(0, this.unreadNotificationCount - 1);
-              this.loadNotifications();
-            }
-          },
-          error: (error) => {
-            console.error('Error issuing certificate:', error);
-            alert('Failed to issue certificate: ' + (error.message || 'Try again'));
-          }
-        });
-    }
+  if (!notification.enrollment_id) {
+    alert('No enrollment ID available');
+    return;
   }
+
+  if (confirm(`Issue certificate to ${this.getJobseekerDisplayName(notification)} for "${notification.training_title}"?`)) {
+    // ✅ FIX: Remove employerId parameter
+    this.trainingService.issueCertificate(notification.training_id, notification.enrollment_id)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (response) => {
+          if (response.success) {
+            alert('Certificate issued successfully! Trainee notified.');
+            notification.certificate_issued = true;
+            this.unreadNotificationCount = Math.max(0, this.unreadNotificationCount - 1);
+            this.loadNotifications();
+          }
+        },
+        error: (error) => {
+          console.error('Error issuing certificate:', error);
+          alert('Failed to issue certificate: ' + (error.message || 'Try again'));
+        }
+      });
+  }
+}
 
   downloadEmployerCertificate(enrollmentId: string): void {
     if (!enrollmentId) {
@@ -542,37 +545,42 @@ export class TrainingComponent implements OnInit, OnDestroy {
     this.unreadNotificationCount = 0;
   }
 
-  loadMoreEnrollmentNotifications(): void {
-    if (this.loadingNotifications) return;
+ loadMoreEnrollmentNotifications(): void {
+  if (this.loadingNotifications) return;
 
-    this.loadingNotifications = true;
-    this.notificationsPage += 1;
+  this.loadingNotifications = true;
+  this.notificationsPage += 1;
 
-    // ✅ FIXED: getNotifications expects (params?) - removed employerId and role parameters
-    this.trainingService.getNotifications({ read: undefined })
-      .pipe(takeUntil(this.destroy$))
-      .subscribe({
-        next: (response: any) => {
-          const newItems = response?.data?.notifications || response?.data || [];
-          if (!Array.isArray(newItems) || newItems.length === 0) {
-            this.hasMoreEnrollmentNotifications = false;
-          } else {
-            const mapped = newItems.map((n: any) => ({
-              ...n,
-              display_name: n.jobseeker_name || `${n.first_name || ''} ${n.last_name || ''}`.trim() ||
-                            (n.email ? n.email.split('@')[0].replace(/[_.-]/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase()) : 'Anonymous User')
-            }));
-            this.enrollmentNotifications = [...this.enrollmentNotifications, ...mapped];
-            this.hasMoreEnrollmentNotifications = newItems.length === this.notificationsLimit;
-          }
-          this.loadingNotifications = false;
-        },
-        error: (err: any) => {
-          console.error('Error loading more notifications:', err);
-          this.loadingNotifications = false;
+  // ✅ FIX: Remove employerId and userType parameters
+  this.trainingService.getNotifications({ 
+    page: this.notificationsPage,
+    limit: this.notificationsLimit,
+    read: undefined 
+  })
+    .pipe(takeUntil(this.destroy$))
+    .subscribe({
+      next: (response: any) => {
+        const newItems = response?.data?.notifications || response?.data || [];
+        if (!Array.isArray(newItems) || newItems.length === 0) {
+          this.hasMoreEnrollmentNotifications = false;
+        } else {
+          const mapped = newItems.map((n: any) => ({
+            ...n,
+            display_name: n.jobseeker_name || `${n.first_name || ''} ${n.last_name || ''}`.trim() ||
+                          (n.email ? n.email.split('@')[0].replace(/[_.-]/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase()) : 'Anonymous User')
+          }));
+          this.enrollmentNotifications = [...this.enrollmentNotifications, ...mapped];
+          this.hasMoreEnrollmentNotifications = newItems.length === this.notificationsLimit;
         }
-      });
-  }
+        this.loadingNotifications = false;
+      },
+      error: (err: any) => {
+        console.error('Error loading more notifications:', err);
+        this.loadingNotifications = false;
+      }
+    });
+}
+
 
   confirmClearEnrollmentNotifications(): void {
     if (!confirm('Are you sure you want to clear all enrollment notifications?')) return;
@@ -694,34 +702,34 @@ export class TrainingComponent implements OnInit, OnDestroy {
   }
 
   addSession(): void {
-    console.log('📅 addSession called');
+  console.log('📅 addSession called');
 
-    if (!this.newSession.title || !this.newSession.scheduled_at) {
-      alert('Please fill in session title and schedule');
-      return;
-    }
-
-    if (!this.selectedTraining && !this.editingTrainingId) {
-      console.log('📅 Adding session to NEW training form array');
-      
-      this.newTraining.sessions.push({ 
-        ...this.newSession,
-        order_index: this.newTraining.sessions.length 
-      });
-      
-      console.log('✅ Session added to form array. Total sessions:', this.newTraining.sessions.length);
-      this.toggleSessionForm();
-      return;
-    }
-
-    if (this.selectedTraining) {
-      console.log('📅 Adding session to EXISTING training via API');
-      this.saveSession();
-      return;
-    }
-
-    alert('Cannot add session: Please save the training first.');
+  if (!this.newSession.title || !this.newSession.scheduled_at) {
+    alert('Please fill in session title and schedule');
+    return;
   }
+
+  // ✅ FIX: Add to form array if creating/editing training
+  if (!this.selectedTraining || this.editingTrainingId) {
+    console.log('📅 Adding session to form array');
+    
+    this.newTraining.sessions.push({ 
+      ...this.newSession,
+      order_index: this.newTraining.sessions.length 
+    });
+    
+    console.log('✅ Session added. Total sessions:', this.newTraining.sessions.length);
+    this.toggleSessionForm();
+    return;
+  }
+
+  // If we have a selected training that's already saved, show info message
+  if (this.selectedTraining && this.selectedTraining.id) {
+    alert('To add sessions to an existing training, please edit the training and add sessions there.');
+    this.toggleSessionForm();
+    return;
+  }
+}
 
   removeSession(index: number): void {
     this.newTraining.sessions.splice(index, 1);
@@ -731,24 +739,30 @@ export class TrainingComponent implements OnInit, OnDestroy {
   }
 
   openSessionForm(training?: Training, session?: TrainingSession): void {
-    if (training) {
-      this.selectedTraining = training;
-      
-      if (session) {
-        this.editingSessionId = session.id || null;
-        this.newSession = { ...session };
-      } else {
-        this.resetSessionForm();
-        this.newSession.order_index = training.sessions?.length || 0;
-      }
-    } else {
-      this.selectedTraining = null;
-      this.resetSessionForm();
-      this.newSession.order_index = this.newTraining.sessions.length;
-    }
-   
-    this.showSessionForm = true;
+  // ✅ FIX: When opening from existing training card, guide user to edit mode
+  if (training && training.id && !this.editingTrainingId) {
+    alert('To add or edit sessions, please first click "Edit" on the training card.');
+    return;
   }
+  
+  if (training) {
+    this.selectedTraining = training;
+    
+    if (session) {
+      this.editingSessionId = session.id || null;
+      this.newSession = { ...session };
+    } else {
+      this.resetSessionForm();
+      this.newSession.order_index = training.sessions?.length || 0;
+    }
+  } else {
+    this.selectedTraining = null;
+    this.resetSessionForm();
+    this.newSession.order_index = this.newTraining.sessions.length;
+  }
+ 
+  this.showSessionForm = true;
+}
 
   saveSession(): void {
     if (!this.selectedTraining) {
@@ -879,9 +893,9 @@ export class TrainingComponent implements OnInit, OnDestroy {
     eligibility_requirements: undefined,
     application_deadline: this.newTraining.application_deadline || undefined,
     
-    // send only the properties defined by CreateTrainingRequest
-    training_start_date: this.newTraining.training_start_date || undefined,
-    training_end_date: this.newTraining.training_end_date || undefined,
+    // ✅ CRITICAL FIX: Backend expects start_date and end_date (not training_start_date/training_end_date)
+    start_date: this.newTraining.training_start_date || undefined,
+    end_date: this.newTraining.training_end_date || undefined,
     
     max_participants: this.newTraining.max_participants || undefined,
     
@@ -947,6 +961,7 @@ export class TrainingComponent implements OnInit, OnDestroy {
       });
   }
 }
+
 
   cancelEdit(): void {
     this.showAddForm = false;
