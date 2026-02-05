@@ -274,38 +274,45 @@ export class TrainingComponent implements OnInit, OnDestroy {
   // ============================================
   
   loadTrainings(): void {
-    // ✅ FIXED: getMyTrainings expects (params, employerId) - include employerId as second argument
-    this.trainingService.getMyTrainings(this.searchParams, this.employerId)
-      .pipe(takeUntil(this.destroy$))
-      .subscribe({
-        next: (response) => {
-          console.log('Raw response:', response);
-         
-          if (response.success) {
-            if (response.data && Array.isArray(response.data.trainings)) {
-              this.trainings = response.data.trainings;
-            } else if (Array.isArray(response.data)) {
-              this.trainings = response.data;
-            } else {
-              console.warn('Unexpected response structure:', response);
-              this.trainings = [];
-            }
-           
-            if (response.pagination) {
-              this.totalPages = response.pagination.total_pages;
-              this.currentPage = response.pagination.current_page;
-            }
+  console.log('🔄 Loading trainings for employer:', this.employerId);
+  
+  this.trainingService.getMyTrainings(this.searchParams, this.employerId)
+    .pipe(takeUntil(this.destroy$))
+    .subscribe({
+      next: (response) => {
+        console.log('📥 Component received response:', response);
+       
+        if (response.success) {
+          if (response.data && Array.isArray(response.data.trainings)) {
+            this.trainings = response.data.trainings;
+            console.log('✅ Trainings set from response.data.trainings:', this.trainings.length);
+          } else if (Array.isArray(response.data)) {
+            this.trainings = response.data;
+            console.log('✅ Trainings set from response.data:', this.trainings.length);
           } else {
+            console.warn('⚠️ Unexpected response structure:', response);
             this.trainings = [];
           }
-        },
-        error: (error) => {
-          console.error('Error loading trainings:', error);
-          this.error = 'Failed to load trainings. Please try again.';
+         
+          if (response.pagination) {
+            this.totalPages = response.pagination.total_pages;
+            this.currentPage = response.pagination.current_page;
+            console.log('📄 Pagination:', this.currentPage, '/', this.totalPages);
+          }
+        } else {
+          console.warn('⚠️ Response success is false');
           this.trainings = [];
         }
-      });
-  }
+        
+        console.log('📊 Final trainings array:', this.trainings);
+      },
+      error: (error) => {
+        console.error('❌ Error loading trainings:', error);
+        this.error = 'Failed to load trainings. Please try again.';
+        this.trainings = [];
+      }
+    });
+}
 
   loadStats(): void {
     this.calculateLocalStats();

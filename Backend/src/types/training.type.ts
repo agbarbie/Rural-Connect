@@ -355,7 +355,11 @@ export interface TrainingWithContext extends Training {
 }
 
 export interface TrainingListResponse {
-  trainings: TrainingWithContext[];
+  success?: boolean;  // Add this
+  data?: {            // Add this wrapper
+    trainings: TrainingWithContext[];
+  };
+  trainings?: TrainingWithContext[];  // Keep this for backward compatibility
   pagination: {
     current_page: number;
     total_pages: number;

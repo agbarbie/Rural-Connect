@@ -817,6 +817,8 @@ async getSessionAttendance(sessionId: string, employerId: string): Promise<any> 
   const total = rows.length > 0 ? parseInt(rows[0].total_count) : 0;
 
   return {
+  success: true,
+  data: {
     trainings: rows.map(r => ({
       ...this.mapTrainingFromDb(r),
       has_applied: false,
@@ -824,16 +826,17 @@ async getSessionAttendance(sessionId: string, employerId: string): Promise<any> 
       application_count: parseInt(r.application_count || 0),
       enrollment_count:  parseInt(r.enrollment_count || 0),
     })),
-    pagination: { 
-      current_page: page, 
-      total_pages: Math.ceil(total / limit), 
-      page_size: limit, 
-      total_count: total, 
-      has_next: page * limit < total, 
-      has_previous: page > 1 
-    },
-    filters_applied: filters,
-  };
+  },
+  pagination: { 
+    current_page: page, 
+    total_pages: Math.ceil(total / limit), 
+    page_size: limit, 
+    total_count: total, 
+    has_next: page * limit < total, 
+    has_previous: page > 1 
+  },
+  filters_applied: filters,
+};
 }
 
   /** Trainings the job-seeker has enrolled in */
