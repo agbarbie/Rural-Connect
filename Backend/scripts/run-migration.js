@@ -98,7 +98,7 @@ async function runMigration() {
       console.log('  ✓ Created trainings table');
     }
 
-    // STEP 2: Ensure users table exists
+    // STEP 2: Ensure users table exists and has primary key
     const usersExists = await client.query(`
       SELECT EXISTS (
         SELECT FROM information_schema.tables 
@@ -106,7 +106,45 @@ async function runMigration() {
       );
     `);
 
-    if (!usersExists.rows[0].exists) {
+    if (usersExists.rows[0].exists) {
+      console.log('✓ Users table exists');
+      
+      // Check if it has a primary key
+      const usersPK = await client.query(`
+        SELECT constraint_name
+        FROM information_schema.table_constraints
+        WHERE table_name = 'users' AND constraint_type = 'PRIMARY KEY';
+      `);
+
+      if (usersPK.rows.length === 0) {
+        console.log('⚠️  Users table missing primary key - adding it...');
+        
+        // Check if id column exists
+        const hasId = await client.query(`
+          SELECT column_name
+          FROM information_schema.columns
+          WHERE table_name = 'users' AND column_name = 'id';
+        `);
+
+        if (hasId.rows.length === 0) {
+          // Add id column
+          await client.query(`
+            ALTER TABLE users 
+            ADD COLUMN id UUID DEFAULT gen_random_uuid();
+          `);
+          console.log('  ✓ Added id column');
+        }
+
+        // Add primary key constraint
+        await client.query(`
+          ALTER TABLE users 
+          ADD CONSTRAINT users_pkey PRIMARY KEY (id);
+        `);
+        console.log('  ✓ Added primary key constraint');
+      } else {
+        console.log('✓ Users table has primary key');
+      }
+    } else {
       console.log('⚠️  Users table does not exist - creating it...');
       await client.query(`
         CREATE TABLE users (
@@ -121,7 +159,7 @@ async function runMigration() {
       console.log('  ✓ Created users table');
     }
 
-    // STEP 3: Ensure training_enrollments exists
+    // STEP 3: Ensure training_enrollments exists and has primary key
     const enrollExists = await client.query(`
       SELECT EXISTS (
         SELECT FROM information_schema.tables 
@@ -129,7 +167,45 @@ async function runMigration() {
       );
     `);
 
-    if (!enrollExists.rows[0].exists) {
+    if (enrollExists.rows[0].exists) {
+      console.log('✓ Training_enrollments table exists');
+      
+      // Check if it has a primary key
+      const enrollPK = await client.query(`
+        SELECT constraint_name
+        FROM information_schema.table_constraints
+        WHERE table_name = 'training_enrollments' AND constraint_type = 'PRIMARY KEY';
+      `);
+
+      if (enrollPK.rows.length === 0) {
+        console.log('⚠️  Training_enrollments table missing primary key - adding it...');
+        
+        // Check if id column exists
+        const hasId = await client.query(`
+          SELECT column_name
+          FROM information_schema.columns
+          WHERE table_name = 'training_enrollments' AND column_name = 'id';
+        `);
+
+        if (hasId.rows.length === 0) {
+          // Add id column
+          await client.query(`
+            ALTER TABLE training_enrollments 
+            ADD COLUMN id UUID DEFAULT gen_random_uuid();
+          `);
+          console.log('  ✓ Added id column');
+        }
+
+        // Add primary key constraint
+        await client.query(`
+          ALTER TABLE training_enrollments 
+          ADD CONSTRAINT training_enrollments_pkey PRIMARY KEY (id);
+        `);
+        console.log('  ✓ Added primary key constraint');
+      } else {
+        console.log('✓ Training_enrollments table has primary key');
+      }
+    } else {
       console.log('⚠️  Training_enrollments table does not exist - creating it...');
       await client.query(`
         CREATE TABLE training_enrollments (
@@ -295,9 +371,9 @@ async function runMigration() {
       SELECT table_name 
       FROM information_schema.tables 
       WHERE table_schema = 'public' 
-        AND (table_name LIKE 'training%'
+        AND table_name LIKE 'training%'
         OR table_name = 'session_attendance'
-        OR table_name = 'certificate_verifications')
+        OR table_name = 'certificate_verifications'
       ORDER BY table_name
     `);
     
