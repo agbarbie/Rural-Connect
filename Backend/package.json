@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "nodemon src/server.ts",
     "build": "tsc",
+    "migrate": "node scripts/run-migration.js",
     "start": "node dist/server.js",
     "clean": "rimraf dist",
     "build:clean": "npm run clean && npm run build",
