@@ -41,6 +41,7 @@ export interface CreateSessionRequest {
   scheduled_at: string; // ISO string from the client
   duration_minutes: number;
   meeting_url?: string;
+  meeting_password?: string;
   order_index: number;
 }
 
@@ -146,11 +147,11 @@ export interface MarkCompletionRequest {
 // 4.  TRAINING OUTCOME  (learning objective listed on the training post)
 // ---------------------------------------------------------------------------
 export interface TrainingOutcome {
-  id: string;
-  training_id: string;
+  id?: string;
+  training_id?: string;
   outcome_text: string;
   order_index: number;
-  created_at: Date;
+  created_at?: Date;
 }
 
 export interface CreateTrainingOutcomeRequest {
@@ -221,7 +222,7 @@ export interface Training {
   application_deadline?: Date;
   application_url?: string;
 
-  // Training schedule
+  // ✅ FIXED: Use consistent date field names (database uses start_date/end_date)
   start_date?: Date;
   end_date?: Date;
 
@@ -243,29 +244,29 @@ export interface Training {
   // Relations
   sessions?: TrainingSession[];
   outcomes?: TrainingOutcome[];
+  session_count?: number;
 
   // User-specific data (populated for job seekers)
   has_applied?: boolean;
+  applied?: boolean;
   application_status?: ApplicationStatus;
   is_enrolled?: boolean;
+  enrolled?: boolean;
   enrollment_id?: string;
   attendance_rate?: number;
   participation_score?: number;
   certificate_issued?: boolean;
   certificate_url?: string;
   certificate_code?: string;
+  progress?: number;
+  tasks_completed?: number;
+  tasks_total?: number;
 }
 
 // ---------------------------------------------------------------------------
 // 7.  CREATE / UPDATE DTOs
 // ---------------------------------------------------------------------------
 export interface CreateTrainingRequest {
-  // Accept both naming conventions
-  training_start_date?: string;
-  training_end_date?: string;
-  start_date?: string;
-  end_date?: string;
-  
   title: string;
   description: string;
   category: string;
@@ -278,6 +279,14 @@ export interface CreateTrainingRequest {
   has_certificate: boolean;
   eligibility_requirements?: string;
   application_deadline?: string;
+  
+  // ✅ FIXED: Accept both naming conventions (for backward compatibility)
+  // Backend will normalize to start_date/end_date
+  training_start_date?: string;
+  training_end_date?: string;
+  start_date?: string;
+  end_date?: string;
+  
   thumbnail_url?: string;
   location?: string;
   max_participants?: number;
@@ -286,8 +295,6 @@ export interface CreateTrainingRequest {
 }
 
 export interface UpdateTrainingRequest {
-  training_start_date: string | undefined;
-  training_end_date: string | undefined;
   title?: string;
   description?: string;
   category?: string;
@@ -300,10 +307,16 @@ export interface UpdateTrainingRequest {
   has_certificate?: boolean;
   eligibility_requirements?: string;
   application_deadline?: string;
-  thumbnail_url?: string;
-  location?: string;
+  
+  // ✅ FIXED: Accept both naming conventions (for backward compatibility)
+  // Backend will normalize to start_date/end_date
+  training_start_date?: string;
+  training_end_date?: string;
   start_date?: string;
   end_date?: string;
+  
+  thumbnail_url?: string;
+  location?: string;
   max_participants?: number;
   status?: TrainingStatus;
   /** When provided the existing sessions are replaced wholesale */
@@ -344,11 +357,15 @@ export interface TrainingSearchParams {
   sort_by?: 'created_at' | 'title' | 'rating' | 'total_students' | 'start_date';
   sort_order?: 'asc' | 'desc';
   filters?: JobseekerTrainingFilters;
+  include_sessions?: boolean;
+  include_outcomes?: boolean;
 }
 
 export interface TrainingWithContext extends Training {
   has_applied: boolean;
+  applied: boolean;
   is_enrolled: boolean;
+  enrolled: boolean;
   application_status?: ApplicationStatus;
   enrollment_status?: EnrollmentStatus;
   applied_at?: Date;
@@ -357,11 +374,11 @@ export interface TrainingWithContext extends Training {
 }
 
 export interface TrainingListResponse {
-  success?: boolean;  // Add this
-  data?: {            // Add this wrapper
+  success?: boolean;
+  data?: {
     trainings: TrainingWithContext[];
   };
-  trainings?: TrainingWithContext[];  // Keep this for backward compatibility
+  trainings?: TrainingWithContext[];
   pagination: {
     current_page: number;
     total_pages: number;
@@ -380,15 +397,17 @@ export interface TrainingStatsResponse {
   total_trainings: number;
   published_trainings: number;
   draft_trainings: number;
-  suspended_trainings: number;
+  suspended_trainings?: number;
   total_applications: number;
+  pending_applications?: number;
   total_enrollments: number;
   total_completions: number;
   total_revenue: number;
   avg_rating: number;
   completion_rate: number;
-  categories_breakdown: { category: string; count: number }[];
-  monthly_enrollments: { month: string; count: number }[];
+  certificates_issued?: number;
+  categories_breakdown?: { category: string; count: number }[];
+  monthly_enrollments?: { month: string; count: number }[];
 }
 
 export interface JobseekerTrainingStats {
@@ -396,8 +415,8 @@ export interface JobseekerTrainingStats {
   total_enrolled: number;
   completed_count: number;
   certificates_earned: number;
-  total_spent: number;
-  monthly_activity: { month: Date; count: number }[];
+  total_spent?: number;
+  monthly_activity?: { month: Date; count: number }[];
 }
 
 // ---------------------------------------------------------------------------
@@ -428,7 +447,7 @@ export type NotificationType =
   | 'application_submitted'
   | 'application_shortlisted'
   | 'application_rejected'
-  | 'training_completed_mark'   // employer has marked a trainee
+  | 'training_completed_mark'
   | 'certificate_issued'
   | 'new_enrollment';
 
@@ -440,7 +459,7 @@ export interface ApiResponse<T> {
   data?: T;
   message?: string;
   errors?: string[];
-  meta?: { timestamp: Date; request_id: string };
+  meta?: { timestamp?: Date; request_id?: string };
 }
 
 export interface PaginatedApiResponse<T> extends ApiResponse<T> {

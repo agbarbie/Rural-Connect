@@ -1,4 +1,4 @@
-<!-- employer-training.component.html - BOOTCAMP MODEL -->
+<!-- employer-training.component.html - BOOTCAMP MODEL (corrected dates) -->
 
 <!-- Hamburger Menu Button -->
 <button class="hamburger" (click)="toggleSidebar()">
@@ -68,8 +68,8 @@
         
         <div class="notification-list">
           <div class="notification-item" 
-            *ngFor="let notification of enrollmentNotifications"
-            [class]="'notification-' + notification.notification_type">
+               *ngFor="let notification of enrollmentNotifications"
+               [class]="'notification-' + notification.notification_type">
             <div class="notification-icon" [style.color]="getNotificationColor(notification.notification_type)">
               <i class="fas" [ngClass]="getNotificationIcon(notification.notification_type)"></i>
             </div>
@@ -323,36 +323,11 @@
             
             <div class="form-row">
               <div class="form-group">
-                <label for="applicationDeadline">Application Deadline *</label>
-                <input 
-                  type="date" 
-                  id="applicationDeadline"
-                  [(ngModel)]="newTraining.application_deadline" 
-                  name="applicationDeadline"
-                  required>
-                <small>Last date for participants to apply</small>
-              </div>
-              <div class="form-group">
-                <label for="maxParticipants">Max Participants *</label>
-                <input 
-                  type="number" 
-                  id="maxParticipants"
-                  [(ngModel)]="newTraining.max_participants" 
-                  name="maxParticipants"
-                  min="1"
-                  placeholder="e.g., 30"
-                  required>
-                <small>Maximum number of trainees</small>
-              </div>
-            </div>
-
-            <div class="form-row">
-              <div class="form-group">
                 <label for="startDate">Training Start Date *</label>
                 <input 
                   type="date" 
                   id="startDate"
-                  [(ngModel)]="newTraining.training_start_date" 
+                  [(ngModel)]="newTraining.start_date" 
                   name="startDate"
                   required>
                 <small>When training sessions begin</small>
@@ -362,7 +337,7 @@
                 <input 
                   type="date" 
                   id="endDate"
-                  [(ngModel)]="newTraining.training_end_date" 
+                  [(ngModel)]="newTraining.end_date" 
                   name="endDate"
                   required>
                 <small>When training concludes</small>
@@ -383,7 +358,6 @@
               </button>
             </div>
             
-            <!-- Session List -->
             <div class="session-list" *ngIf="newTraining.sessions.length > 0">
               <div class="session-item" *ngFor="let session of newTraining.sessions; let i = index">
                 <div class="session-info">
@@ -413,7 +387,6 @@
               </div>
             </div>
             
-            <!-- No Sessions Message -->
             <div class="no-sessions" *ngIf="newTraining.sessions.length === 0">
               <i class="fas fa-calendar-times"></i>
               <p>No sessions scheduled yet. Add live training sessions to your program.</p>
@@ -433,7 +406,6 @@
               </button>
             </div>
             
-            <!-- Outcomes List -->
             <div class="outcomes-list" *ngIf="newTraining.outcomes.length > 0">
               <div class="outcome-item" *ngFor="let outcome of newTraining.outcomes; let i = index">
                 <span class="outcome-text">{{ outcome.outcome_text }}</span>
@@ -446,7 +418,6 @@
               </div>
             </div>
             
-            <!-- No Outcomes Message -->
             <div class="no-outcomes" *ngIf="newTraining.outcomes.length === 0">
               <i class="fas fa-lightbulb"></i>
               <p>No learning outcomes added yet. Define what participants will achieve.</p>
@@ -933,7 +904,10 @@
               </div>
               <div class="schedule-info">
                 <p><strong>Application Deadline:</strong> {{ detailedTraining?.application_deadline | date:'medium' }}</p>
-                <p><strong>Training Period:</strong> {{ detailedTraining?.training_start_date | date:'mediumDate' }} - {{ detailedTraining?.training_end_date | date:'mediumDate' }}</p>
+                <p><strong>Training Period:</strong> 
+                  {{ detailedTraining?.start_date | date:'mediumDate' }} — 
+                  {{ detailedTraining?.end_date | date:'mediumDate' }}
+                </p>
               </div>
             </div>
           </div>

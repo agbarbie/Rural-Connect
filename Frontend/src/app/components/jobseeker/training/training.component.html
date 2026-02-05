@@ -1,4 +1,4 @@
-<!-- jobseeker-training.component.html - BOOTCAMP MODEL -->
+<!-- jobseeker-training.component.html - BOOTCAMP MODEL (CORRECTED) -->
 
 <!-- Hamburger Menu Button (Mobile Only) -->
 <button class="hamburger" (click)="toggleSidebar()">
@@ -479,20 +479,23 @@
 
       <div class="training-sections">
         <!-- Training Schedule -->
-        <div class="section" *ngIf="selectedTraining.application_deadline || selectedTraining.training_start_date">
+        <!-- ✅ FIXED: Changed training_start_date to start_date -->
+        <div class="section" *ngIf="selectedTraining.application_deadline || selectedTraining.start_date">
           <h3><i class="fas fa-calendar"></i> Training Schedule</h3>
           <div class="schedule-info">
             <div class="schedule-item" *ngIf="selectedTraining.application_deadline">
               <strong>Application Deadline:</strong>
               <span>{{ formatDate(selectedTraining.application_deadline) }}</span>
             </div>
-            <div class="schedule-item" *ngIf="selectedTraining.training_start_date">
+            <!-- ✅ FIXED: Changed training_start_date to start_date -->
+            <div class="schedule-item" *ngIf="selectedTraining.start_date">
               <strong>Training Start:</strong>
-              <span>{{ formatDate(selectedTraining.training_start_date) }}</span>
+              <span>{{ formatDate(selectedTraining.start_date) }}</span>
             </div>
-            <div class="schedule-item" *ngIf="selectedTraining.training_end_date">
+            <!-- ✅ FIXED: Changed training_end_date to end_date -->
+            <div class="schedule-item" *ngIf="selectedTraining.end_date">
               <strong>Training End:</strong>
-              <span>{{ formatDate(selectedTraining.training_end_date) }}</span>
+              <span>{{ formatDate(selectedTraining.end_date) }}</span>
             </div>
           </div>
         </div>

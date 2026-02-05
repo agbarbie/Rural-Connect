@@ -19,6 +19,8 @@ import {
 import { SidebarComponent } from '../../shared/sidebar/sidebar.component';
 import { DatePipe } from '@angular/common';
 
+// employer-training.component.ts - UPDATED NewTraining interface
+
 interface NewTraining {
   title: string;
   description: string;
@@ -33,8 +35,11 @@ interface NewTraining {
   thumbnail_url: string;
   location: string;
   application_deadline: string;
-  training_start_date: string;
-  training_end_date: string;
+  
+  // ✅ FIXED: Use start_date/end_date consistently
+  start_date: string;
+  end_date: string;
+  
   max_participants: number;
   sessions: TrainingSession[];
   outcomes: TrainingOutcome[];
@@ -86,26 +91,28 @@ export class TrainingComponent implements OnInit, OnDestroy {
   currentPage: number = 1;
 
   // Form data
-  newTraining: NewTraining = {
-    title: '',
-    description: '',
-    category: 'Technology',
-    level: 'Beginner',
-    duration_hours: 40,
-    cost_type: 'Free',
-    price: 0,
-    mode: 'Online',
-    provider_name: this.employerName,
-    has_certificate: true,
-    thumbnail_url: '',
-    location: '',
-    application_deadline: '',
-    training_start_date: '',
-    training_end_date: '',
-    max_participants: 30,
-    sessions: [],
-    outcomes: []
-  };
+  // In your component class, update newTraining initialization:
+
+newTraining: NewTraining = {
+  title: '',
+  description: '',
+  category: 'Technology',
+  level: 'Beginner',
+  duration_hours: 40,
+  cost_type: 'Free',
+  price: 0,
+  mode: 'Online',
+  provider_name: this.employerName,
+  has_certificate: true,
+  thumbnail_url: '',
+  location: '',
+  application_deadline: '',
+  start_date: '',  // ✅ FIXED: Changed from training_start_date
+  end_date: '',    // ✅ FIXED: Changed from training_end_date
+  max_participants: 30,
+  sessions: [],
+  outcomes: []
+};
 
   // Categories
   categories: string[] = [
@@ -659,31 +666,31 @@ export class TrainingComponent implements OnInit, OnDestroy {
   }
 
   resetForm(): void {
-    this.newTraining = {
-      title: '',
-      description: '',
-      category: 'Technology',
-      level: 'Beginner',
-      duration_hours: 40,
-      cost_type: 'Free',
-      price: 0,
-      mode: 'Online',
-      provider_name: this.employerName,
-      has_certificate: true,
-      thumbnail_url: '',
-      location: '',
-      application_deadline: '',
-      training_start_date: '',
-      training_end_date: '',
-      max_participants: 30,
-      sessions: [],
-      outcomes: []
-    };
-    this.editingTrainingId = null;
-    this.thumbnailPreview = null;
-    this.thumbnailFile = null;
-    this.error = null;
-  }
+  this.newTraining = {
+    title: '',
+    description: '',
+    category: 'Technology',
+    level: 'Beginner',
+    duration_hours: 40,
+    cost_type: 'Free',
+    price: 0,
+    mode: 'Online',
+    provider_name: this.employerName,
+    has_certificate: true,
+    thumbnail_url: '',
+    location: '',
+    application_deadline: '',
+    start_date: '',  // ✅ FIXED
+    end_date: '',    // ✅ FIXED
+    max_participants: 30,
+    sessions: [],
+    outcomes: []
+  };
+  this.editingTrainingId = null;
+  this.thumbnailPreview = null;
+  this.thumbnailFile = null;
+  this.error = null;
+}
 
   onThumbnailSelected(event: any): void {
     const file = event.target.files[0];
@@ -944,11 +951,13 @@ private performSave(thumbnailUrl: string): void {
     location: this.newTraining.location || undefined,
     eligibility_requirements: undefined,
     application_deadline: this.newTraining.application_deadline || undefined,
-    start_date: this.newTraining.training_start_date || undefined,
-    end_date: this.newTraining.training_end_date || undefined,
+    
+    // ✅ FIXED: Send as start_date/end_date
+    start_date: this.newTraining.start_date || undefined,
+    end_date: this.newTraining.end_date || undefined,
+    
     max_participants: this.newTraining.max_participants || undefined,
     
-    // ✅ CRITICAL: Always include sessions and outcomes (even if empty)
     sessions: (this.newTraining.sessions || []).map((s, index) => ({
       title: s.title,
       description: s.description,
@@ -973,21 +982,12 @@ private performSave(thumbnailUrl: string): void {
   if (this.editingTrainingId) {
     console.log('🔄 Updating training:', this.editingTrainingId);
     
-    // ✅ Log what we're sending
-    console.log('📤 Update payload sessions:', baseData.sessions?.length);
-    console.log('📤 Update payload outcomes:', baseData.outcomes?.length);
-    
     this.trainingService.updateTraining(this.editingTrainingId, baseData)
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: (response) => {
           if (response.success) {
             console.log('✅ Training updated successfully');
-            console.log('📥 Updated training data:', {
-              sessions: response.data?.sessions?.length || 0,
-              outcomes: response.data?.outcomes?.length || 0
-            });
-            
             this.cancelEdit();
             this.loadTrainings();
             this.loadStats();
@@ -1001,7 +1001,26 @@ private performSave(thumbnailUrl: string): void {
         }
       });
   } else {
-    // ... create logic stays the same ...
+    console.log('➕ Creating new training');
+    
+    this.trainingService.createTraining(baseData)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (response) => {
+          if (response.success) {
+            console.log('✅ Training created successfully');
+            this.toggleAddForm();
+            this.resetForm();
+            this.loadStats();
+            alert('Training created successfully!');
+          }
+        },
+        error: (error) => {
+          console.error('❌ Error creating training:', error);
+          this.error = 'Failed to create training: ' + (error.message || 'Unknown error');
+          alert('Failed to create training: ' + (error.message || 'Unknown error'));
+        }
+      });
   }
 }
 
@@ -1036,7 +1055,6 @@ editTraining(training: Training): void {
           
           this.editingTrainingId = fullTraining.id;
           
-          // Map sessions with all required fields
           const mappedSessions: TrainingSession[] = (fullTraining.sessions || []).map((s: any, index: number) => ({
             id: s.id,
             training_id: s.training_id,
@@ -1053,7 +1071,6 @@ editTraining(training: Training): void {
             updated_at: s.updated_at
           }));
           
-          // Map outcomes
           const mappedOutcomes: TrainingOutcome[] = (fullTraining.outcomes || []).map((o: any, index: number) => ({
             id: o.id,
             training_id: o.training_id,
@@ -1062,10 +1079,7 @@ editTraining(training: Training): void {
             created_at: o.created_at
           }));
           
-          // ✅ FIXED: Handle both field name variations for dates
-          const startDate = fullTraining.start_date || fullTraining.training_start_date;
-          const endDate = fullTraining.end_date || fullTraining.training_end_date;
-          
+          // ✅ FIXED: Use start_date/end_date consistently
           this.newTraining = {
             title: fullTraining.title,
             description: fullTraining.description,
@@ -1082,11 +1096,11 @@ editTraining(training: Training): void {
             application_deadline: fullTraining.application_deadline 
               ? this.datePipe.transform(fullTraining.application_deadline, 'yyyy-MM-dd') || '' 
               : '',
-            training_start_date: startDate
-              ? this.datePipe.transform(startDate, 'yyyy-MM-dd') || '' 
+            start_date: fullTraining.start_date
+              ? this.datePipe.transform(fullTraining.start_date, 'yyyy-MM-dd') || '' 
               : '',
-            training_end_date: endDate
-              ? this.datePipe.transform(endDate, 'yyyy-MM-dd') || '' 
+            end_date: fullTraining.end_date
+              ? this.datePipe.transform(fullTraining.end_date, 'yyyy-MM-dd') || '' 
               : '',
             max_participants: fullTraining.max_participants || 30,
             sessions: mappedSessions,
@@ -1528,8 +1542,8 @@ private formatDateTimeLocal(dateString: string): string {
       this.newTraining.duration_hours > 0 &&
       this.newTraining.provider_name &&
       this.newTraining.application_deadline &&
-      this.newTraining.training_start_date &&
-      this.newTraining.training_end_date
+      this.newTraining.start_date &&
+      this.newTraining.end_date
     );
    
     if (this.newTraining.cost_type === 'Paid' && this.newTraining.price <= 0) {
@@ -1541,8 +1555,8 @@ private formatDateTimeLocal(dateString: string): string {
     }
    
     const appDeadline = new Date(this.newTraining.application_deadline);
-    const startDate = new Date(this.newTraining.training_start_date);
-    const endDate = new Date(this.newTraining.training_end_date);
+    const startDate = new Date(this.newTraining.start_date);
+    const endDate = new Date(this.newTraining.end_date);
     
     if (appDeadline >= startDate) {
       return false;
@@ -1556,43 +1570,43 @@ private formatDateTimeLocal(dateString: string): string {
   }
 
   getValidationErrors(): string[] {
-    const errors: string[] = [];
-   
-    if (!this.newTraining.title) errors.push('Title is required');
-    if (!this.newTraining.description) errors.push('Description is required');
-    if (!this.newTraining.category) errors.push('Category is required');
-    if (!this.newTraining.provider_name) errors.push('Provider name is required');
-    if (this.newTraining.duration_hours <= 0) errors.push('Duration must be greater than 0');
-    if (!this.newTraining.application_deadline) errors.push('Application deadline is required');
-    if (!this.newTraining.training_start_date) errors.push('Training start date is required');
-    if (!this.newTraining.training_end_date) errors.push('Training end date is required');
-   
-    if (this.newTraining.cost_type === 'Paid' && this.newTraining.price <= 0) {
-      errors.push('Price must be greater than 0 for paid trainings');
-    }
-   
-    if (this.newTraining.mode === 'Offline' && !this.newTraining.location?.trim()) {
-      errors.push('Location is required for offline trainings');
-    }
-   
-    if (this.newTraining.application_deadline && this.newTraining.training_start_date) {
-      const appDeadline = new Date(this.newTraining.application_deadline);
-      const startDate = new Date(this.newTraining.training_start_date);
-      if (appDeadline >= startDate) {
-        errors.push('Application deadline must be before training start date');
-      }
-    }
-    
-    if (this.newTraining.training_start_date && this.newTraining.training_end_date) {
-      const startDate = new Date(this.newTraining.training_start_date);
-      const endDate = new Date(this.newTraining.training_end_date);
-      if (startDate >= endDate) {
-        errors.push('Training end date must be after start date');
-      }
-    }
-   
-    return errors;
+  const errors: string[] = [];
+  
+  if (!this.newTraining.title) errors.push('Title is required');
+  if (!this.newTraining.description) errors.push('Description is required');
+  if (!this.newTraining.category) errors.push('Category is required');
+  if (!this.newTraining.provider_name) errors.push('Provider name is required');
+  if (this.newTraining.duration_hours <= 0) errors.push('Duration must be greater than 0');
+  if (!this.newTraining.application_deadline) errors.push('Application deadline is required');
+  if (!this.newTraining.start_date) errors.push('Training start date is required');  // ✅ FIXED
+  if (!this.newTraining.end_date) errors.push('Training end date is required');      // ✅ FIXED
+  
+  if (this.newTraining.cost_type === 'Paid' && this.newTraining.price <= 0) {
+    errors.push('Price must be greater than 0 for paid trainings');
   }
+  
+  if (this.newTraining.mode === 'Offline' && !this.newTraining.location?.trim()) {
+    errors.push('Location is required for offline trainings');
+  }
+  
+  if (this.newTraining.application_deadline && this.newTraining.start_date) {
+    const appDeadline = new Date(this.newTraining.application_deadline);
+    const startDate = new Date(this.newTraining.start_date);
+    if (appDeadline >= startDate) {
+      errors.push('Application deadline must be before training start date');
+    }
+  }
+  
+  if (this.newTraining.start_date && this.newTraining.end_date) {
+    const startDate = new Date(this.newTraining.start_date);
+    const endDate = new Date(this.newTraining.end_date);
+    if (startDate >= endDate) {
+      errors.push('Training end date must be after start date');
+    }
+  }
+  
+  return errors;
+}
 
   // ============================================
   // UTILITY METHODS

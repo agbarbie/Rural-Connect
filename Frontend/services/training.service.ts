@@ -1,11 +1,13 @@
-// training.service.ts - BOOTCAMP MODEL (FIXED METHOD SIGNATURES)
+// training.service.ts - BOOTCAMP MODEL (FIXED with consistent types)
 import { Injectable } from '@angular/core';
 import { HttpClient, HttpHeaders, HttpParams } from '@angular/common/http';
 import { Observable, BehaviorSubject, throwError, of } from 'rxjs';
 import { catchError, tap, map } from 'rxjs/operators';
 import { environment } from '../src/environments/environment.prod';
 
-// ... (keep all existing interfaces - TrainingSession, TrainingOutcome, etc.)
+// ============================================
+// INTERFACES (matching backend types)
+// ============================================
 
 export interface TrainingSession {
   id?: string;
@@ -32,22 +34,27 @@ export interface TrainingOutcome {
 }
 
 export interface TrainingApplication {
+user_name: any;
+user_email: any;
+motivation_letter: any;
   id?: string;
   training_id?: string;
   user_id?: string;
-  motivation_letter?: string;
+  motivation?: string;
   status: 'pending' | 'shortlisted' | 'rejected';
   applied_at?: Date;
   reviewed_at?: Date;
-  user_name?: string;
-  user_email?: string;
+  employer_notes?: string;
+  user?: {
+    id: string;
+    first_name: string;
+    last_name: string;
+    email: string;
+    profile_image?: string;
+  };
 }
 
 export interface Training {
-  start_date: Date | undefined;
-  end_date: Date | undefined;
-  has_applied: any;
-  is_enrolled: any;
   id: string;
   title: string;
   description: string;
@@ -69,16 +76,28 @@ export interface Training {
   skills_to_acquire?: string[];
   eligibility_requirements?: string;
   application_deadline?: Date;
-  training_start_date?: Date;
-  training_end_date?: Date;
+  
+  // ✅ FIXED: Use consistent date field names
+  start_date?: Date;
+  end_date?: Date;
+  
   max_participants?: number;
   current_participants: number;
   status: 'draft' | 'published' | 'applications_closed' | 'in_progress' | 'completed';
   created_at: Date;
   updated_at: Date;
+  
+  // Relations
+  sessions?: TrainingSession[];
+  outcomes?: TrainingOutcome[];
+  session_count?: number;
+  
+  // User-specific flags
   applied?: boolean;
+  has_applied?: boolean;
   application_status?: 'pending' | 'shortlisted' | 'rejected';
   enrolled?: boolean;
+  is_enrolled?: boolean;
   enrollment_id?: string;
   progress?: number;
   certificate_issued?: boolean;
@@ -88,9 +107,6 @@ export interface Training {
   participation_score?: number;
   tasks_completed?: number;
   tasks_total?: number;
-  sessions?: TrainingSession[];
-  outcomes?: TrainingOutcome[];
-  session_count?: number;
 }
 
 export interface CreateTrainingRequest {
@@ -111,8 +127,11 @@ export interface CreateTrainingRequest {
   skills_to_acquire?: string[];
   eligibility_requirements?: string;
   application_deadline?: string;
-  start_date?: string;  // ✅ FIXED: Use start_date/end_date (not training_start_date/training_end_date)
+  
+  // ✅ FIXED: Send as start_date/end_date (what backend expects)
+  start_date?: string;
   end_date?: string;
+  
   max_participants?: number;
   sessions: TrainingSession[];
   outcomes: TrainingOutcome[];
@@ -202,30 +221,29 @@ export class TrainingService {
   }
 
   private handleError(error: any): Observable<never> {
-  console.error('❌ Service error:', error);
-  let errorMessage = 'An unexpected error occurred';
-  
-  if (error.error?.message) {
-    errorMessage = error.error.message;
-  } else if (error.error?.errors) {
-    // Handle validation errors array
-    errorMessage = Array.isArray(error.error.errors) 
-      ? error.error.errors.join(', ') 
-      : JSON.stringify(error.error.errors);
-  } else if (error.message) {
-    errorMessage = error.message;
+    console.error('❌ Service error:', error);
+    let errorMessage = 'An unexpected error occurred';
+    
+    if (error.error?.message) {
+      errorMessage = error.error.message;
+    } else if (error.error?.errors) {
+      errorMessage = Array.isArray(error.error.errors) 
+        ? error.error.errors.join(', ') 
+        : JSON.stringify(error.error.errors);
+    } else if (error.message) {
+      errorMessage = error.message;
+    }
+    
+    console.error('📝 Detailed error:', {
+      message: errorMessage,
+      status: error.status,
+      body: error.error,
+      headers: error.headers
+    });
+    
+    this.errorSubject.next(errorMessage);
+    return throwError(() => new Error(errorMessage));
   }
-  
-  console.error('📝 Detailed error:', {
-    message: errorMessage,
-    status: error.status,
-    body: error.error,
-    headers: error.headers
-  });
-  
-  this.errorSubject.next(errorMessage);
-  return throwError(() => new Error(errorMessage));
-}
 
   private buildParams(params: TrainingSearchParams | Record<string, any>): HttpParams {
     let httpParams = new HttpParams();
@@ -282,7 +300,9 @@ export class TrainingService {
       outcomes: processedOutcomes.length > 0 ? processedOutcomes : undefined,
       session_count: training.session_count || processedSessions.length,
       applied: training.applied || false,
+      has_applied: training.has_applied || training.applied || false,
       enrolled: training.enrolled || false,
+      is_enrolled: training.is_enrolled || training.enrolled || false,
       progress: training.progress || 0,
       attendance_rate: training.attendance_rate || 0,
       participation_score: training.participation_score || 0,
@@ -415,195 +435,26 @@ export class TrainingService {
     );
   }
 
-  // ... (keep all other CRUD methods unchanged)
+  deleteTraining(id: string): Observable<ApiResponse<void>> {
+    this.loadingSubject.next(true);
 
-  // ============================================
-  // ✅ FIXED: NOTIFICATION METHODS
-  // ============================================
-
-  /**
-   * Get notifications for current user
-   * @param params - Optional filter params (read status, pagination)
-   */
-  getNotifications(params: { page?: number; limit?: number; read?: boolean } = {}): Observable<ApiResponse<any>> {
-  const httpParams = this.buildParams(params);
-  
-  return this.http.get<any>(  // Use 'any' to handle different response formats
-    this.NOTIFICATION_ENDPOINT,
-    { headers: this.getAuthHeaders(), params: httpParams }
-  ).pipe(
-    map(response => {
-      console.log('📥 Raw notification response:', response);
-      
-      // Handle different response formats
-      let notifications: any[] = [];
-      
-      // Format 1: { success: true, data: { notifications: [...] } }
-      if (response?.success && response?.data?.notifications) {
-        notifications = response.data.notifications;
-      }
-      // Format 2: { success: true, data: [...] }
-      else if (response?.success && Array.isArray(response?.data)) {
-        notifications = response.data;
-      }
-      // Format 3: { notifications: [...] }
-      else if (response?.notifications) {
-        notifications = response.notifications;
-      }
-      // Format 4: Direct array
-      else if (Array.isArray(response)) {
-        notifications = response;
-      }
-      
-      console.log('✅ Parsed notifications:', notifications.length);
-      
-      return {
-        success: true,
-        data: {
-          notifications: notifications
+    return this.http.delete<ApiResponse<void>>(
+      `${this.TRAINING_ENDPOINT}/${id}`,
+      { headers: this.getAuthHeaders() }
+    ).pipe(
+      tap(response => {
+        if (response.success) {
+          const currentTrainings = this.trainingsSubject.value;
+          this.trainingsSubject.next(currentTrainings.filter(t => t.id !== id));
         }
-      };
-    }),
-    catchError(error => {
-      console.error('❌ Notification error:', error);
-      return of({
-        success: false,
-        data: { notifications: [] },
-        message: error.message || 'Failed to load notifications'
-      });
-    })
-  );
-}
-
-  /**
-   * Mark notification as read
-   * @param notificationId - ID of notification to mark as read
-   */
-  markNotificationRead(notificationId: string): Observable<ApiResponse<void>> {
-    return this.http.patch<ApiResponse<void>>(
-      `${this.NOTIFICATION_ENDPOINT}/${notificationId}/read`,
-      {},
-      { headers: this.getAuthHeaders() }
-    ).pipe(catchError(this.handleError.bind(this)));
+        this.loadingSubject.next(false);
+      }),
+      catchError(error => {
+        this.loadingSubject.next(false);
+        return this.handleError(error);
+      })
+    );
   }
-
-  // ============================================
-  // ✅ FIXED: APPLICATION METHODS
-  // ============================================
-
-  /**
-   * Apply for a training
-   * @param trainingId - ID of training to apply for
-   * @param motivationLetter - Optional motivation letter
-   */
-  applyForTraining(trainingId: string, motivationLetter?: string): Observable<ApiResponse<any>> {
-    return this.http.post<ApiResponse<any>>(
-      `${this.TRAINING_ENDPOINT}/${trainingId}/apply`,
-      { motivation: motivationLetter },
-      { headers: this.getAuthHeaders() }
-    ).pipe(catchError(this.handleError.bind(this)));
-  }
-
-  /**
-   * Get applications for a training (employer only)
-   * @param trainingId - ID of training
-   * @param params - Optional filter params
-   */
-  getApplications(trainingId: string, params: any = {}): Observable<ApiResponse<TrainingApplication[]>> {
-    const httpParams = this.buildParams(params);
-    
-    return this.http.get<ApiResponse<TrainingApplication[]>>(
-      `${this.TRAINING_ENDPOINT}/${trainingId}/applications`,
-      { headers: this.getAuthHeaders(), params: httpParams }
-    ).pipe(catchError(this.handleError.bind(this)));
-  }
-
-  /**
-   * Shortlist or reject an applicant (employer only)
-   * @param trainingId - ID of training
-   * @param applicationId - ID of application
-   * @param decision - 'shortlisted' or 'rejected'
-   * @param employer_notes - Optional notes
-   */
-  shortlistApplicant(
-    trainingId: string, 
-    applicationId: string, 
-    decision: 'shortlisted' | 'rejected', 
-    employer_notes?: string
-  ): Observable<ApiResponse<any>> {
-    return this.http.post<ApiResponse<any>>(
-      `${this.TRAINING_ENDPOINT}/${trainingId}/applications/${applicationId}/shortlist`,
-      { decision, employer_notes },
-      { headers: this.getAuthHeaders() }
-    ).pipe(catchError(this.handleError.bind(this)));
-  }
-
-  // ============================================
-  // ✅ FIXED: ENROLLMENT & COMPLETION METHODS
-  // ============================================
-
-  /**
-   * Get enrollments for a training (employer only)
-   * @param trainingId - ID of training
-   * @param params - Optional filter params
-   */
-  getTrainingEnrollments(trainingId: string, params: any = {}): Observable<ApiResponse<any>> {
-    const httpParams = this.buildParams(params);
-    
-    return this.http.get<ApiResponse<any>>(
-      `${this.TRAINING_ENDPOINT}/${trainingId}/enrollments`,
-      { headers: this.getAuthHeaders(), params: httpParams }
-    ).pipe(catchError(this.handleError.bind(this)));
-  }
-
-  /**
-   * Mark trainee completion status (employer only)
-   * @param trainingId - ID of training
-   * @param enrollmentId - ID of enrollment
-   * @param completed - Whether trainee completed the training
-   * @param employer_notes - Optional notes
-   */
-  markCompletion(
-    trainingId: string, 
-    enrollmentId: string, 
-    completed: boolean, 
-    employer_notes?: string
-  ): Observable<ApiResponse<any>> {
-    return this.http.put<ApiResponse<any>>(
-      `${this.TRAINING_ENDPOINT}/${trainingId}/enrollments/${enrollmentId}/completion`,
-      { completed, employer_notes },
-      { headers: this.getAuthHeaders() }
-    ).pipe(catchError(this.handleError.bind(this)));
-  }
-
-  /**
-   * Issue certificate for completed enrollment (employer only)
-   * @param trainingId - ID of training
-   * @param enrollmentId - ID of enrollment
-   */
-  issueCertificate(trainingId: string, enrollmentId: string): Observable<ApiResponse<any>> {
-    return this.http.post<ApiResponse<any>>(
-      `${this.TRAINING_ENDPOINT}/${trainingId}/enrollments/${enrollmentId}/certificate`,
-      {},
-      { headers: this.getAuthHeaders() }
-    ).pipe(catchError(this.handleError.bind(this)));
-  }
-
-  // ============================================
-  // ✅ FIXED: STATS METHODS
-  // ============================================
-
-  /**
-   * Get training statistics for employer
-   */
-  getTrainingStats(): Observable<ApiResponse<TrainingStats>> {
-    return this.http.get<ApiResponse<TrainingStats>>(
-      `${this.TRAINING_ENDPOINT}/stats/overview`,
-      { headers: this.getAuthHeaders() }
-    ).pipe(catchError(this.handleError.bind(this)));
-  }
-
-  // ... (keep all other methods - getTrainingDetails, downloadCertificate, etc.)
 
   getTrainingDetails(trainingId: string): Observable<ApiResponse<Training>> {
     const params = new HttpParams()
@@ -623,6 +474,143 @@ export class TrainingService {
       catchError(this.handleError.bind(this))
     );
   }
+
+  // ============================================
+  // NOTIFICATION METHODS
+  // ============================================
+
+  getNotifications(params: { page?: number; limit?: number; read?: boolean } = {}): Observable<ApiResponse<any>> {
+    const httpParams = this.buildParams(params);
+    
+    return this.http.get<any>(
+      this.NOTIFICATION_ENDPOINT,
+      { headers: this.getAuthHeaders(), params: httpParams }
+    ).pipe(
+      map(response => {
+        console.log('📥 Raw notification response:', response);
+        
+        let notifications: any[] = [];
+        
+        if (response?.success && response?.data?.notifications) {
+          notifications = response.data.notifications;
+        } else if (response?.success && Array.isArray(response?.data)) {
+          notifications = response.data;
+        } else if (response?.notifications) {
+          notifications = response.notifications;
+        } else if (Array.isArray(response)) {
+          notifications = response;
+        }
+        
+        console.log('✅ Parsed notifications:', notifications.length);
+        
+        return {
+          success: true,
+          data: {
+            notifications: notifications
+          }
+        };
+      }),
+      catchError(error => {
+        console.error('❌ Notification error:', error);
+        return of({
+          success: false,
+          data: { notifications: [] },
+          message: error.message || 'Failed to load notifications'
+        });
+      })
+    );
+  }
+
+  markNotificationRead(notificationId: string): Observable<ApiResponse<void>> {
+    return this.http.patch<ApiResponse<void>>(
+      `${this.NOTIFICATION_ENDPOINT}/${notificationId}/read`,
+      {},
+      { headers: this.getAuthHeaders() }
+    ).pipe(catchError(this.handleError.bind(this)));
+  }
+
+  // ============================================
+  // APPLICATION METHODS
+  // ============================================
+
+  applyForTraining(trainingId: string, motivationLetter?: string): Observable<ApiResponse<any>> {
+    return this.http.post<ApiResponse<any>>(
+      `${this.TRAINING_ENDPOINT}/${trainingId}/apply`,
+      { motivation: motivationLetter },
+      { headers: this.getAuthHeaders() }
+    ).pipe(catchError(this.handleError.bind(this)));
+  }
+
+  getApplications(trainingId: string, params: any = {}): Observable<ApiResponse<TrainingApplication[]>> {
+    const httpParams = this.buildParams(params);
+    
+    return this.http.get<ApiResponse<TrainingApplication[]>>(
+      `${this.TRAINING_ENDPOINT}/${trainingId}/applications`,
+      { headers: this.getAuthHeaders(), params: httpParams }
+    ).pipe(catchError(this.handleError.bind(this)));
+  }
+
+  shortlistApplicant(
+    trainingId: string, 
+    applicationId: string, 
+    decision: 'shortlisted' | 'rejected', 
+    employer_notes?: string
+  ): Observable<ApiResponse<any>> {
+    return this.http.post<ApiResponse<any>>(
+      `${this.TRAINING_ENDPOINT}/${trainingId}/applications/${applicationId}/shortlist`,
+      { decision, employer_notes },
+      { headers: this.getAuthHeaders() }
+    ).pipe(catchError(this.handleError.bind(this)));
+  }
+
+  // ============================================
+  // ENROLLMENT & COMPLETION METHODS
+  // ============================================
+
+  getTrainingEnrollments(trainingId: string, params: any = {}): Observable<ApiResponse<any>> {
+    const httpParams = this.buildParams(params);
+    
+    return this.http.get<ApiResponse<any>>(
+      `${this.TRAINING_ENDPOINT}/${trainingId}/enrollments`,
+      { headers: this.getAuthHeaders(), params: httpParams }
+    ).pipe(catchError(this.handleError.bind(this)));
+  }
+
+  markCompletion(
+    trainingId: string, 
+    enrollmentId: string, 
+    completed: boolean, 
+    employer_notes?: string
+  ): Observable<ApiResponse<any>> {
+    return this.http.put<ApiResponse<any>>(
+      `${this.TRAINING_ENDPOINT}/${trainingId}/enrollments/${enrollmentId}/completion`,
+      { completed, employer_notes },
+      { headers: this.getAuthHeaders() }
+    ).pipe(catchError(this.handleError.bind(this)));
+  }
+
+  issueCertificate(trainingId: string, enrollmentId: string): Observable<ApiResponse<any>> {
+    return this.http.post<ApiResponse<any>>(
+      `${this.TRAINING_ENDPOINT}/${trainingId}/enrollments/${enrollmentId}/certificate`,
+      {},
+      { headers: this.getAuthHeaders() }
+    ).pipe(catchError(this.handleError.bind(this)));
+  }
+
+  // ============================================
+  // STATS METHODS
+  // ============================================
+
+  getTrainingStats(): Observable<ApiResponse<TrainingStats>> {
+    return this.http.get<ApiResponse<TrainingStats>>(
+      `${this.TRAINING_ENDPOINT}/stats/overview`,
+      { headers: this.getAuthHeaders() }
+    ).pipe(catchError(this.handleError.bind(this)));
+  }
+
+  // ============================================
+  // JOBSEEKER METHODS
+  // ============================================
 
   getJobseekerTrainings(params: TrainingSearchParams = {}): Observable<PaginatedResponse<{ trainings: Training[] }>> {
     this.loadingSubject.next(true);
@@ -685,7 +673,10 @@ export class TrainingService {
     ).pipe(catchError(this.handleError.bind(this)));
   }
 
-  // Status management methods
+  // ============================================
+  // STATUS MANAGEMENT
+  // ============================================
+
   publishTraining(id: string): Observable<ApiResponse<Training>> {
     return this.updateTrainingStatus(id, 'published');
   }
@@ -722,30 +713,28 @@ export class TrainingService {
     );
   }
 
-  deleteTraining(id: string): Observable<ApiResponse<void>> {
-    this.loadingSubject.next(true);
-
-    return this.http.delete<ApiResponse<void>>(
-      `${this.TRAINING_ENDPOINT}/${id}`,
-      { headers: this.getAuthHeaders() }
-    ).pipe(
-      tap(response => {
-        if (response.success) {
-          const currentTrainings = this.trainingsSubject.value;
-          this.trainingsSubject.next(currentTrainings.filter(t => t.id !== id));
-        }
-        this.loadingSubject.next(false);
-      }),
-      catchError(error => {
-        this.loadingSubject.next(false);
-        return this.handleError(error);
-      })
-    );
-  }
+  // ============================================
+  // UTILITY METHODS
+  // ============================================
 
   getTrainingCategories(): Observable<ApiResponse<any[]>> {
     return this.http.get<ApiResponse<any[]>>(
       `${this.TRAINING_ENDPOINT}/categories/list`
+    ).pipe(catchError(this.handleError.bind(this)));
+  }
+
+  getTrainingAnalytics(id: string, timeRange: string = '30days'): Observable<ApiResponse<any>> {
+    const params = new HttpParams().set('time_range', timeRange);
+    
+    return this.http.get<ApiResponse<any>>(
+      `${this.TRAINING_ENDPOINT}/${id}/analytics`,
+      { headers: this.getAuthHeaders(), params }
+    ).pipe(catchError(this.handleError.bind(this)));
+  }
+
+  verifyCertificate(code: string): Observable<ApiResponse<any>> {
+    return this.http.get<ApiResponse<any>>(
+      `${this.API_BASE}/certificates/verify/${code}`
     ).pipe(catchError(this.handleError.bind(this)));
   }
 
@@ -773,20 +762,5 @@ export class TrainingService {
       case 'completed': return 'gray';
       default: return 'gray';
     }
-  }
-
-  getTrainingAnalytics(id: string, timeRange: string = '30days'): Observable<ApiResponse<any>> {
-    const params = new HttpParams().set('time_range', timeRange);
-    
-    return this.http.get<ApiResponse<any>>(
-      `${this.TRAINING_ENDPOINT}/${id}/analytics`,
-      { headers: this.getAuthHeaders(), params }
-    ).pipe(catchError(this.handleError.bind(this)));
-  }
-
-  verifyCertificate(code: string): Observable<ApiResponse<any>> {
-    return this.http.get<ApiResponse<any>>(
-      `${this.API_BASE}/certificates/verify/${code}`
-    ).pipe(catchError(this.handleError.bind(this)));
   }
 }
