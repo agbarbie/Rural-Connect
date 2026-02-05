@@ -286,6 +286,8 @@ export interface CreateTrainingRequest {
 }
 
 export interface UpdateTrainingRequest {
+  training_start_date: string | undefined;
+  training_end_date: string | undefined;
   title?: string;
   description?: string;
   category?: string;

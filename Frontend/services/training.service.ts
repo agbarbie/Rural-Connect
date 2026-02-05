@@ -44,6 +44,8 @@ export interface TrainingApplication {
 }
 
 export interface Training {
+  start_date: Date | undefined;
+  end_date: Date | undefined;
   has_applied: any;
   is_enrolled: any;
   id: string;

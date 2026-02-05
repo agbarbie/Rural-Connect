@@ -90,6 +90,58 @@ export class TrainingService {
       const relatedId: string | null =
         metadata?.enrollment_id ?? metadata?.training_id ?? metadata?.application_id ?? null;
 
+      // Ensure metadata object exists and clone so we can enrich safely
+      const meta: Record<string, any> = { ...(metadata || {}) };
+
+      // If caller already included a name, keep it. Otherwise try to resolve a meaningful name.
+      const hasName =
+        Boolean(meta.applicant_name) || Boolean(meta.jobseeker_name) || Boolean(meta.user_name) || Boolean(meta.name);
+
+      if (!hasName) {
+        try {
+          // Determine which user id to look up (prefer explicit user_id, then application -> enrollment)
+          let lookupUserId: string | null = meta.user_id ?? null;
+
+          if (!lookupUserId && meta.application_id) {
+            const appRes = await this.db.query('SELECT user_id FROM training_applications WHERE id = $1', [meta.application_id]);
+            if (appRes.rows.length > 0) lookupUserId = appRes.rows[0].user_id;
+          }
+
+          if (!lookupUserId && meta.enrollment_id) {
+            const enrRes = await this.db.query('SELECT user_id FROM training_enrollments WHERE id = $1', [meta.enrollment_id]);
+            if (enrRes.rows.length > 0) lookupUserId = enrRes.rows[0].user_id;
+          }
+
+          // If we found a user id to look up, fetch name/email and build a friendly name
+          if (lookupUserId) {
+            const uRes = await this.db.query('SELECT first_name, last_name, email FROM users WHERE id = $1', [lookupUserId]);
+            if (uRes.rows.length > 0) {
+              const u = uRes.rows[0];
+              const builtName = `${u.first_name || ''} ${u.last_name || ''}`.trim()
+                || (u.email ? u.email.split('@')[0].replace(/[_.-]/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase()) : null)
+                || 'User';
+              // Populate several name fields for caller convenience / backward compatibility
+              meta.applicant_name = meta.applicant_name ?? builtName;
+              meta.jobseeker_name = meta.jobseeker_name ?? builtName;
+              meta.user_name = meta.user_name ?? builtName;
+              meta.user_id = meta.user_id ?? lookupUserId;
+            }
+          } else {
+            // As a last resort, try to attach recipient (notification owner) name
+            const rRes = await this.db.query('SELECT first_name, last_name, email FROM users WHERE id = $1', [userId]);
+            if (rRes.rows.length > 0) {
+              const r = rRes.rows[0];
+              const recName = `${r.first_name || ''} ${r.last_name || ''}`.trim()
+                || (r.email ? r.email.split('@')[0].replace(/[_.-]/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase()) : 'User');
+              meta.recipient_name = meta.recipient_name ?? recName;
+            }
+          }
+        } catch (innerErr: any) {
+          // Non-fatal: if enrichment fails, proceed with provided metadata
+          console.error('⚠️ createNotification metadata enrichment failed:', innerErr.message);
+        }
+      }
+
       const tableExists = await this.db.query(`
         SELECT EXISTS (
           SELECT FROM information_schema.tables
@@ -101,7 +153,7 @@ export class TrainingService {
       await this.db.query(
         `INSERT INTO notifications (user_id, type, title, message, metadata, related_id, created_at, read)
          VALUES ($1, $2, $3, $4, $5, $6::UUID, CURRENT_TIMESTAMP, false)`,
-        [userId, type, title, message, JSON.stringify(metadata), relatedId]
+        [userId, type, title, message, JSON.stringify(meta), relatedId]
       );
     } catch (err: any) {
       // Notifications are non-critical – log and continue
@@ -182,7 +234,9 @@ export class TrainingService {
   }
 
   // ---------- Read notifications ----------
-  async getNotifications(
+  // services/training.service.ts - FIXED getNotifications method
+
+async getNotifications(
   userId: string,
   params: { page?: number; limit?: number; read?: boolean | string }
 ): Promise<any> {
@@ -200,14 +254,26 @@ export class TrainingService {
 
   qp.push(limit, offset);
   
-  // ✅ JOIN with users table to get user details
+  // ✅ IMPROVED: Join with both training_applications AND training_enrollments to get user details
   const result = await this.db.query(
     `SELECT 
        n.id, n.user_id, n.type, n.title, n.message, n.metadata, n.read, n.created_at,
-       u.first_name, u.last_name, u.email,
+       -- Try to get user details from applications first
+       app_user.first_name as app_first_name, 
+       app_user.last_name as app_last_name, 
+       app_user.email as app_email,
+       -- Then try enrollments
+       enr_user.first_name as enr_first_name,
+       enr_user.last_name as enr_last_name,
+       enr_user.email as enr_email,
        COUNT(*) OVER() as total_count
      FROM notifications n
-     LEFT JOIN users u ON u.id = (n.metadata->>'user_id')::uuid
+     -- Join to get applicant details via training_applications
+     LEFT JOIN training_applications ta ON ta.id::text = (n.metadata->>'application_id')::text
+     LEFT JOIN users app_user ON app_user.id = ta.user_id
+     -- Join to get trainee details via training_enrollments  
+     LEFT JOIN training_enrollments te ON te.id::text = (n.metadata->>'enrollment_id')::text
+     LEFT JOIN users enr_user ON enr_user.id = te.user_id
      ${where}
      ORDER BY n.created_at DESC
      LIMIT $${idx++} OFFSET $${idx++}`,
@@ -220,22 +286,51 @@ export class TrainingService {
     notifications: result.rows.map(r => {
       const metadata = typeof r.metadata === 'string' ? JSON.parse(r.metadata) : r.metadata;
       
-      // Build jobseeker name from metadata or joined user data
-      let jobseekerName = metadata.applicant_name || '';
-      if (!jobseekerName && (r.first_name || r.last_name)) {
-        jobseekerName = `${r.first_name || ''} ${r.last_name || ''}`.trim();
+      // ✅ IMPROVED: Build jobseeker name with better fallback logic
+      let jobseekerName = '';
+      
+      // Priority 1: Use metadata.applicant_name if available
+      if (metadata.applicant_name) {
+        jobseekerName = metadata.applicant_name;
       }
-      if (!jobseekerName && r.email) {
-        jobseekerName = r.email.split('@')[0].replace(/[_.-]/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase());
+      // Priority 2: Use application user details
+      else if (r.app_first_name || r.app_last_name) {
+        jobseekerName = `${r.app_first_name || ''} ${r.app_last_name || ''}`.trim();
+      }
+      // Priority 3: Use enrollment user details
+      else if (r.enr_first_name || r.enr_last_name) {
+        jobseekerName = `${r.enr_first_name || ''} ${r.enr_last_name || ''}`.trim();
+      }
+      // Priority 4: Extract from email (application)
+      else if (r.app_email) {
+        jobseekerName = r.app_email.split('@')[0]
+          .replace(/[_.-]/g, ' ')
+          .replace(/\b\w/g, (l: string) => l.toUpperCase());
+      }
+      // Priority 5: Extract from email (enrollment)
+      else if (r.enr_email) {
+        jobseekerName = r.enr_email.split('@')[0]
+          .replace(/[_.-]/g, ' ')
+          .replace(/\b\w/g, (l: string) => l.toUpperCase());
+      }
+      // Priority 6: Use metadata.user_id to look up (if we have it stored)
+      else if (metadata.user_id) {
+        // This is a fallback - name should have been captured earlier
+        jobseekerName = 'User';
+      }
+      // Final fallback
+      else {
+        jobseekerName = 'Anonymous User';
       }
       
       return {
         ...r,
         metadata,
-        jobseeker_name: jobseekerName || 'Anonymous User',
-        first_name: r.first_name,
-        last_name: r.last_name,
-        email: r.email
+        jobseeker_name: jobseekerName,
+        // Include raw data for frontend debugging
+        first_name: r.app_first_name || r.enr_first_name,
+        last_name: r.app_last_name || r.enr_last_name,
+        email: r.app_email || r.enr_email
       };
     }),
     pagination: { 
@@ -245,6 +340,7 @@ export class TrainingService {
     },
   };
 }
+
 
   async markNotificationRead(notificationId: string, userId: string): Promise<void> {
     await this.db.query(
@@ -399,69 +495,160 @@ async createTraining(data: CreateTrainingRequest, employerId: string): Promise<T
   }
 }
 
-  async updateTraining(id: string, data: UpdateTrainingRequest, employerId: string): Promise<Training | null> {
-    const client = await this.db.connect();
-    try {
-      await client.query('BEGIN');
+  // services/training.service.ts - FIXED updateTraining
 
-      const epRow = await client.query('SELECT id FROM employers WHERE user_id = $1', [employerId]);
-      if (epRow.rows.length === 0) { await client.query('ROLLBACK'); return null; }
-      const employerProfileId = epRow.rows[0].id;
+async updateTraining(id: string, data: UpdateTrainingRequest, employerId: string): Promise<Training | null> {
+  const client = await this.db.connect();
+  try {
+    await client.query('BEGIN');
 
-      // ownership check
-      const own = await client.query(
-        'SELECT id, title, status FROM trainings WHERE id = $1 AND provider_id = $2',
-        [id, employerProfileId]
+    const epRow = await client.query('SELECT id FROM employers WHERE user_id = $1', [employerId]);
+    if (epRow.rows.length === 0) { 
+      await client.query('ROLLBACK'); 
+      return null; 
+    }
+    const employerProfileId = epRow.rows[0].id;
+
+    // Ownership check
+    const own = await client.query(
+      'SELECT id, title, status FROM trainings WHERE id = $1 AND provider_id = $2',
+      [id, employerProfileId]
+    );
+    if (own.rows.length === 0) { 
+      await client.query('ROLLBACK'); 
+      return null; 
+    }
+    const oldTitle  = own.rows[0].title;
+    const oldStatus = own.rows[0].status;
+
+    console.log('🔄 Updating training:', {
+      id,
+      hasSessions: !!data.sessions,
+      hasOutcomes: !!data.outcomes,
+      sessionCount: Array.isArray(data.sessions) ? data.sessions.length : 0,
+      outcomeCount: Array.isArray(data.outcomes) ? data.outcomes.length : 0
+    });
+
+    // ✅ FIXED: Handle date fields properly
+    const startDate = data.start_date || data.training_start_date || null;
+    const endDate = data.end_date || data.training_end_date || null;
+
+    // Dynamic SET for main training fields
+    const sets: string[] = [];
+    const vals: any[] = [];
+    let pi = 1;
+    
+    // ✅ Skip sessions and outcomes - handle separately
+    const skip = ['sessions', 'outcomes', 'training_start_date', 'training_end_date'];
+    
+    for (const [key, value] of Object.entries(data)) {
+      if (value === undefined || skip.includes(key)) continue;
+      sets.push(`${key} = $${pi++}`);
+      vals.push(value);
+    }
+
+    // ✅ Add date fields if provided
+    if (startDate !== null && startDate !== undefined) {
+      sets.push(`start_date = $${pi++}`);
+      vals.push(startDate);
+    }
+    if (endDate !== null && endDate !== undefined) {
+      sets.push(`end_date = $${pi++}`);
+      vals.push(endDate);
+    }
+
+    // Always update updated_at
+    sets.push('updated_at = CURRENT_TIMESTAMP');
+    vals.push(id);
+
+    // Update training metadata
+    if (sets.length > 1) { // More than just updated_at
+      await client.query(
+        `UPDATE trainings SET ${sets.join(', ')} WHERE id = $${pi}`, 
+        vals
       );
-      if (own.rows.length === 0) { await client.query('ROLLBACK'); return null; }
-      const oldTitle  = own.rows[0].title;
-      const oldStatus = own.rows[0].status;
+      console.log('✅ Training metadata updated');
+    }
 
-      // dynamic SET
-      const sets: string[] = [];
-      const vals: any[] = [];
-      let pi = 1;
-      const skip = ['sessions', 'outcomes'];
-      for (const [key, value] of Object.entries(data)) {
-        if (value === undefined || skip.includes(key)) continue;
-        sets.push(`${key} = $${pi++}`);
-        vals.push(value);
-      }
-      if (sets.length === 0) { await client.query('ROLLBACK'); return null; }
-      sets.push('updated_at = CURRENT_TIMESTAMP');
-      vals.push(id);
-
-      await client.query(`UPDATE trainings SET ${sets.join(', ')} WHERE id = $${pi}`, vals);
-
-      // replace sessions wholesale if provided
-      if (data.sessions && Array.isArray(data.sessions)) {
-        await client.query('DELETE FROM training_sessions WHERE training_id = $1', [id]);
+    // ✅ FIXED: Replace sessions if provided (even if empty array)
+    if (data.sessions !== undefined) {
+      console.log(`🗑️ Deleting existing sessions for training ${id}`);
+      await client.query('DELETE FROM training_sessions WHERE training_id = $1', [id]);
+      
+      if (Array.isArray(data.sessions) && data.sessions.length > 0) {
+        console.log(`➕ Inserting ${data.sessions.length} sessions`);
         for (let i = 0; i < data.sessions.length; i++) {
           const s = data.sessions[i];
           await client.query(
-            `INSERT INTO training_sessions (training_id, title, description, scheduled_at, duration_minutes, meeting_url, order_index, created_at, updated_at)
-             VALUES ($1,$2,$3,$4,$5,$6,$7,NOW(),NOW())`,
-            [id, s.title?.trim(), (s as any).description?.trim() ?? null,
-             (s as any).scheduled_at, (s as any).duration_minutes, (s as any).meeting_url?.trim(), s.order_index ?? i + 1]
+            `INSERT INTO training_sessions (
+              training_id, title, description, scheduled_at, duration_minutes, 
+              meeting_url, meeting_password, order_index, created_at, updated_at
+            )
+            VALUES ($1,$2,$3,$4,$5,$6,$7,$8,NOW(),NOW())`,
+            [
+              id, 
+              s.title?.trim(), 
+              s.description?.trim() || null,
+              s.scheduled_at, 
+              s.duration_minutes, 
+              s.meeting_url?.trim() || null,
+              (s as any).meeting_password?.trim() || null,
+              s.order_index ?? i
+            ]
           );
         }
+        console.log('✅ Sessions inserted');
       }
-
-      await client.query('COMMIT');
-
-      // notify enrolled trainees if training was already published
-      if (oldStatus === 'published' || oldStatus === 'in_progress') {
-        this.notifyEnrolledTrainees(id, 'training_updated', `Training "${oldTitle}" has been updated`, { training_id: id });
-      }
-
-      return (await this.getTrainingById(id)) as Training;
-    } catch (err: any) {
-      await client.query('ROLLBACK');
-      throw err;
-    } finally {
-      client.release();
     }
+
+    // ✅ FIXED: Replace outcomes if provided (even if empty array)
+    if (data.outcomes !== undefined) {
+      console.log(`🗑️ Deleting existing outcomes for training ${id}`);
+      await client.query('DELETE FROM training_outcomes WHERE training_id = $1', [id]);
+      
+      if (Array.isArray(data.outcomes) && data.outcomes.length > 0) {
+        console.log(`➕ Inserting ${data.outcomes.length} outcomes`);
+        for (let i = 0; i < data.outcomes.length; i++) {
+          const o = data.outcomes[i];
+          await client.query(
+            `INSERT INTO training_outcomes (training_id, outcome_text, order_index) 
+             VALUES ($1,$2,$3)`,
+            [id, o.outcome_text?.trim(), o.order_index ?? i]
+          );
+        }
+        console.log('✅ Outcomes inserted');
+      }
+    }
+
+    await client.query('COMMIT');
+
+    // Notify enrolled trainees if training was already published
+    if (oldStatus === 'published' || oldStatus === 'in_progress') {
+      this.notifyEnrolledTrainees(
+        id, 
+        'training_updated', 
+        `Training "${oldTitle}" has been updated`, 
+        { training_id: id }
+      );
+    }
+
+    // ✅ Fetch complete training with sessions and outcomes
+    const updatedTraining = await this.getTrainingById(id);
+    console.log('✅ Training update complete:', {
+      id,
+      sessions: updatedTraining?.sessions?.length || 0,
+      outcomes: updatedTraining?.outcomes?.length || 0
+    });
+
+    return updatedTraining as Training;
+  } catch (err: any) {
+    await client.query('ROLLBACK');
+    console.error('❌ Error updating training:', err);
+    throw err;
+  } finally {
+    client.release();
   }
+}
 
   async deleteTraining(id: string, employerId: string): Promise<boolean> {
     const client = await this.db.connect();
@@ -524,28 +711,49 @@ async createTraining(data: CreateTrainingRequest, employerId: string): Promise<T
   // 3.  TRAINING RETRIEVAL
   // ==========================================================================
 
-  async getTrainingById(id: string): Promise<any | null> {
-    const result = await this.db.query('SELECT * FROM trainings WHERE id = $1', [id]);
-    if (result.rows.length === 0) return null;
+  // services/training.service.ts - FIXED getTrainingById
 
-    const training = result.rows[0];
+async getTrainingById(id: string): Promise<any | null> {
+  const result = await this.db.query('SELECT * FROM trainings WHERE id = $1', [id]);
+  if (result.rows.length === 0) return null;
 
-    // attach sessions
-    const sessions = await this.db.query(
-      'SELECT * FROM training_sessions WHERE training_id = $1 ORDER BY order_index',
-      [id]
-    );
-    training.sessions = sessions.rows;
+  const training = result.rows[0];
 
-    // attach outcomes
-    const outcomes = await this.db.query(
-      'SELECT * FROM training_outcomes WHERE training_id = $1 ORDER BY order_index',
-      [id]
-    );
-    training.outcomes = outcomes.rows;
+  // ✅ FIXED: Always attach sessions (ordered by order_index)
+  const sessions = await this.db.query(
+    `SELECT 
+      id, training_id, title, description, scheduled_at, duration_minutes, 
+      meeting_url, meeting_password, order_index, is_completed, 
+      attendance_count, created_at, updated_at
+    FROM training_sessions 
+    WHERE training_id = $1 
+    ORDER BY order_index ASC, scheduled_at ASC`,
+    [id]
+  );
+  training.sessions = sessions.rows;
 
-    return training;
-  }
+  // ✅ FIXED: Always attach outcomes (ordered by order_index)
+  const outcomes = await this.db.query(
+    `SELECT 
+      id, training_id, outcome_text, order_index, created_at
+    FROM training_outcomes 
+    WHERE training_id = $1 
+    ORDER BY order_index ASC`,
+    [id]
+  );
+  training.outcomes = outcomes.rows;
+
+  // ✅ Add session count for convenience
+  training.session_count = training.sessions.length;
+
+  console.log('📦 Training loaded with:', {
+    id: training.id,
+    sessions: training.sessions.length,
+    outcomes: training.outcomes.length
+  });
+
+  return training;
+}
 
   /** Full detail view for a specific user (adds my_application / my_enrollment flags) */
   async getTrainingByIdForUser(id: string, userId: string, userType: string): Promise<any | null> {

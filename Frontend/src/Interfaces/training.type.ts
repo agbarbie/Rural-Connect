@@ -93,6 +93,8 @@ export interface Training {
   application_deadline?: Date;
   training_start_date?: Date;
   training_end_date?: Date;
+  start_date?: Date;               // ✅ ADD THIS
+  end_date?: Date;    
   max_participants?: number;
   current_participants: number;
   
