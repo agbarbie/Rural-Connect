@@ -224,6 +224,32 @@ async function runMigration() {
       console.log('  ✓ Created training_enrollments table');
     }
 
+    // Add this after STEP 3 (around line 130, after the training_enrollments check)
+
+// STEP 3.5: Add missing columns to trainings table
+console.log('🔧 Checking trainings table for missing columns...');
+
+const trainingColumnsToAdd = [
+  { name: 'eligibility_requirements', type: 'TEXT', default: null },
+  { name: 'application_url', type: 'TEXT', default: null }
+];
+
+for (const col of trainingColumnsToAdd) {
+  const exists = await client.query(`
+    SELECT column_name
+    FROM information_schema.columns
+    WHERE table_name = 'trainings' AND column_name = $1;
+  `, [col.name]);
+
+  if (exists.rows.length === 0) {
+    const defaultClause = col.default !== undefined ? `DEFAULT ${col.default}` : '';
+    await client.query(`ALTER TABLE trainings ADD COLUMN ${col.name} ${col.type} ${defaultClause};`);
+    console.log(`  ✓ Added column to trainings: ${col.name}`);
+  } else {
+    console.log(`  ✓ Column already exists: ${col.name}`);
+  }
+}
+
     // STEP 4: Drop old video tables
     console.log('🗑️  Dropping old video-based tables...');
     await client.query('DROP TABLE IF EXISTS training_video_progress CASCADE;');

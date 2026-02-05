@@ -278,34 +278,34 @@ async createTraining(data: CreateTrainingRequest, employerId: string): Promise<T
     // -- Insert training --
     console.log('  → Inserting training record...');
     const tResult = await client.query(
-  `INSERT INTO trainings (
-     title, description, category, level, duration_hours, cost_type, price, mode,
-     provider_id, provider_name, has_certificate,
-     application_deadline, thumbnail_url, location, start_date, end_date,
-     max_participants, status, created_at, updated_at
-   ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,'draft',NOW(),NOW())
-   RETURNING *`,
-  [
-    data.title?.trim(), 
-    data.description?.trim(), 
-    data.category?.trim(), 
-    data.level,
-    data.duration_hours, 
-    data.cost_type, 
-    data.price ?? 0, 
-    data.mode,
-    employerProfileId, 
-    data.provider_name?.trim(), 
-    data.has_certificate ?? false,
-    // REMOVED: data.eligibility_requirements ?? null,
-    data.application_deadline ?? null,
-    data.thumbnail_url ?? null,
-    data.location ?? null,
-    startDate,
-    endDate,
-    data.max_participants ?? null,
-  ]
-);
+      `INSERT INTO trainings (
+         title, description, category, level, duration_hours, cost_type, price, mode,
+         provider_id, provider_name, has_certificate, eligibility_requirements,
+         application_deadline, thumbnail_url, location, start_date, end_date,
+         max_participants, status, created_at, updated_at
+       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,'draft',NOW(),NOW())
+       RETURNING *`,
+      [
+        data.title?.trim(), 
+        data.description?.trim(), 
+        data.category?.trim(), 
+        data.level,
+        data.duration_hours, 
+        data.cost_type, 
+        data.price ?? 0, 
+        data.mode,
+        employerProfileId, 
+        data.provider_name?.trim(), 
+        data.has_certificate ?? false,
+        data.eligibility_requirements ?? null,
+        data.application_deadline ?? null,
+        data.thumbnail_url ?? null,
+        data.location ?? null,
+        startDate,
+        endDate,
+        data.max_participants ?? null,
+      ]
+    );
     
     const trainingId = tResult.rows[0].id;
     console.log('  ✓ Training created with ID:', trainingId);
