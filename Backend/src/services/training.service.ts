@@ -1205,62 +1205,108 @@ async getSessionAttendance(sessionId: string, employerId: string): Promise<any> 
 
   /** Employer issues a certificate for a *completed* enrollment */
   async issueCertificate(enrollmentId: string, employerId: string): Promise<any> {
-    // fetch enrollment
-    const enrRow = await this.db.query(
-      `SELECT e.*, t.title AS training_title, t.provider_id, t.has_certificate, t.duration_hours
-       FROM training_enrollments e
-       JOIN trainings t ON e.training_id = t.id
-       WHERE e.id = $1`,
-      [enrollmentId]
-    );
-    if (enrRow.rows.length === 0) throw new Error('Enrollment not found');
+  // fetch enrollment with user details
+  const enrRow = await this.db.query(
+    `SELECT e.*, 
+            t.title AS training_title, t.provider_id, t.has_certificate, t.duration_hours,
+            u.first_name, u.last_name, u.email
+     FROM training_enrollments e
+     JOIN trainings t ON e.training_id = t.id
+     JOIN users u ON e.user_id = u.id
+     WHERE e.id = $1`,
+    [enrollmentId]
+  );
+  
+  if (enrRow.rows.length === 0) throw new Error('Enrollment not found');
 
-    const enr = enrRow.rows[0];
+  const enr = enrRow.rows[0];
 
-    // ownership
-    const epRow = await this.db.query('SELECT id FROM employers WHERE user_id = $1', [employerId]);
-    const epId = epRow.rows.length > 0 ? epRow.rows[0].id : null;
-    if (enr.provider_id !== employerId && enr.provider_id !== epId) {
-      throw new Error('Unauthorized: You can only issue certificates for your own trainings');
-    }
-    if (!enr.has_certificate) throw new Error('This training does not provide certificates');
-    if (enr.status !== 'completed') throw new Error('Certificate can only be issued for completed enrollments');
-    if (enr.certificate_issued) {
-      return { success: true, message: 'Certificate already issued', certificate_url: enr.certificate_url, enrollment_id: enrollmentId };
-    }
-
-    // generate PDF
-    const cert = await this.generateCertificatePDF(enrollmentId, enr.user_id, enr.training_id, enr.training_title, enr.duration_hours);
-
-    // persist
-    await this.db.query(
-      `UPDATE training_enrollments SET certificate_issued = true, certificate_url = $1, certificate_issued_at = NOW() WHERE id = $2`,
-      [cert.certificate_url, enrollmentId]
-    );
-
-    // store verification record
-    await this.db.query(
-      `INSERT INTO certificate_verifications (enrollment_id, verification_code, certificate_url, issued_at)
-       VALUES ($1, $2, $3, NOW())
-       ON CONFLICT (enrollment_id) DO NOTHING`,
-      [enrollmentId, cert.verification_code, cert.certificate_url]
-    );
-
-    // notifications
-    const uRow = await this.db.query('SELECT first_name, last_name, email FROM users WHERE id = $1', [enr.user_id]);
-    const name = `${uRow.rows[0]?.first_name || ''} ${uRow.rows[0]?.last_name || ''}`.trim() || uRow.rows[0]?.email;
-
-    this.createNotification(enr.user_id, 'certificate_issued',
-      `🎉 Your certificate for "${enr.training_title}" is ready! Click to download.`,
-      { training_id: enr.training_id, enrollment_id: enrollmentId, certificate_url: cert.certificate_url }
-    );
-    this.createNotification(enr.provider_id, 'certificate_issued',
-      `Certificate issued to ${name} for "${enr.training_title}".`,
-      { training_id: enr.training_id, enrollment_id: enrollmentId, user_id: enr.user_id }
-    );
-
-    return { success: true, message: 'Certificate issued successfully', certificate_url: cert.certificate_url, verification_code: cert.verification_code, enrollment_id: enrollmentId };
+  // ownership check
+  const epRow = await this.db.query('SELECT id FROM employers WHERE user_id = $1', [employerId]);
+  const epId = epRow.rows.length > 0 ? epRow.rows[0].id : null;
+  
+  if (enr.provider_id !== employerId && enr.provider_id !== epId) {
+    throw new Error('Unauthorized: You can only issue certificates for your own trainings');
   }
+  
+  if (!enr.has_certificate) throw new Error('This training does not provide certificates');
+  if (enr.status !== 'completed') throw new Error('Certificate can only be issued for completed enrollments');
+  
+  if (enr.certificate_issued) {
+    return { 
+      success: true, 
+      message: 'Certificate already issued', 
+      certificate_url: enr.certificate_url, 
+      enrollment_id: enrollmentId 
+    };
+  }
+
+  // Build user name
+  const userName = `${enr.first_name || ''} ${enr.last_name || ''}`.trim() || 
+                   (enr.email ? enr.email.split('@')[0] : 'User');
+
+  // generate PDF
+  const cert = await this.generateCertificatePDF(
+    enrollmentId, 
+    enr.user_id, 
+    enr.training_id, 
+    enr.training_title, 
+    enr.duration_hours
+  );
+
+  // persist
+  await this.db.query(
+    `UPDATE training_enrollments 
+     SET certificate_issued = true, 
+         certificate_url = $1, 
+         certificate_issued_at = NOW() 
+     WHERE id = $2`,
+    [cert.certificate_url, enrollmentId]
+  );
+
+  // store verification record
+  await this.db.query(
+    `INSERT INTO certificate_verifications (enrollment_id, verification_code, certificate_url, issued_at)
+     VALUES ($1, $2, $3, NOW())
+     ON CONFLICT (enrollment_id) DO NOTHING`,
+    [enrollmentId, cert.verification_code, cert.certificate_url]
+  );
+
+  // notifications with full user details
+  this.createNotification(
+    enr.user_id, 
+    'certificate_issued',
+    `🎉 Your certificate for "${enr.training_title}" is ready! Click to download.`,
+    { 
+      training_id: enr.training_id, 
+      enrollment_id: enrollmentId, 
+      certificate_url: cert.certificate_url,
+      user_id: enr.user_id,
+      applicant_name: userName  // ✅ ADD THIS
+    }
+  );
+  
+  this.createNotification(
+    enr.provider_id, 
+    'certificate_issued',
+    `Certificate issued to ${userName} for "${enr.training_title}".`,
+    { 
+      training_id: enr.training_id, 
+      enrollment_id: enrollmentId, 
+      user_id: enr.user_id,
+      applicant_name: userName,  // ✅ ADD THIS
+      jobseeker_name: userName   // ✅ ADD THIS
+    }
+  );
+
+  return { 
+    success: true, 
+    message: 'Certificate issued successfully', 
+    certificate_url: cert.certificate_url, 
+    verification_code: cert.verification_code, 
+    enrollment_id: enrollmentId 
+  };
+}
 
   /** Verify a certificate by its verification code */
   async verifyCertificate(verificationCode: string): Promise<any> {

@@ -200,18 +200,30 @@ export class TrainingService {
   }
 
   private handleError(error: any): Observable<never> {
-    console.error('❌ Service error:', error);
-    let errorMessage = 'An unexpected error occurred';
-    
-    if (error.error?.message) {
-      errorMessage = error.error.message;
-    } else if (error.message) {
-      errorMessage = error.message;
-    }
-    
-    this.errorSubject.next(errorMessage);
-    return throwError(() => new Error(errorMessage));
+  console.error('❌ Service error:', error);
+  let errorMessage = 'An unexpected error occurred';
+  
+  if (error.error?.message) {
+    errorMessage = error.error.message;
+  } else if (error.error?.errors) {
+    // Handle validation errors array
+    errorMessage = Array.isArray(error.error.errors) 
+      ? error.error.errors.join(', ') 
+      : JSON.stringify(error.error.errors);
+  } else if (error.message) {
+    errorMessage = error.message;
   }
+  
+  console.error('📝 Detailed error:', {
+    message: errorMessage,
+    status: error.status,
+    body: error.error,
+    headers: error.headers
+  });
+  
+  this.errorSubject.next(errorMessage);
+  return throwError(() => new Error(errorMessage));
+}
 
   private buildParams(params: TrainingSearchParams | Record<string, any>): HttpParams {
     let httpParams = new HttpParams();
