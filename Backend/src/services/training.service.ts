@@ -521,118 +521,122 @@ async createTraining(data: CreateTrainingRequest, employerId: string): Promise<T
 
   /** Full detail view for a specific user (adds my_application / my_enrollment flags) */
   async getTrainingByIdForUser(id: string, userId: string, userType: string): Promise<any | null> {
-    const training = await this.getTrainingById(id);
-    if (!training) return null;
+  const training = await this.getTrainingById(id);
+  if (!training) return null;
 
-    // jobseekers only see published (or trainings they already applied/enrolled in)
-    if (userType === 'jobseeker') {
-      const hasRelation = await this.db.query(
-        `SELECT 1 FROM training_applications WHERE training_id = $1 AND user_id = $2
-         UNION
-         SELECT 1 FROM training_enrollments WHERE training_id = $1 AND user_id = $2`,
-        [id, userId]
-      );
-      if (training.status !== 'published' && training.status !== 'applications_closed' && training.status !== 'in_progress' && training.status !== 'completed' && hasRelation.rows.length === 0) {
-        return null;
-      }
-
-      // attach user's application
-      const appRow = await this.db.query(
-        'SELECT * FROM training_applications WHERE training_id = $1 AND user_id = $2 ORDER BY applied_at DESC LIMIT 1',
-        [id, userId]
-      );
-      training.my_application = appRow.rows[0] || null;
-      training.has_applied    = appRow.rows.length > 0;
-
-      // attach user's enrollment
-      const enrRow = await this.db.query(
-        'SELECT * FROM training_enrollments WHERE training_id = $1 AND user_id = $2 ORDER BY enrolled_at DESC LIMIT 1',
-        [id, userId]
-      );
-      training.my_enrollment = enrRow.rows[0] || null;
-      training.is_enrolled   = enrRow.rows.length > 0;
+  // jobseekers only see published (or trainings they already applied/enrolled in)
+  if (userType === 'jobseeker') {
+    const hasRelation = await this.db.query(
+      `SELECT 1 FROM training_applications WHERE training_id = $1 AND user_id = $2
+       UNION
+       SELECT 1 FROM training_enrollments WHERE training_id = $1 AND user_id = $2`,
+      [id, userId]
+    );
+    if (training.status !== 'published' && 
+        training.status !== 'applications_closed' && 
+        training.status !== 'in_progress' && 
+        training.status !== 'completed' && 
+        hasRelation.rows.length === 0) {
+      return null;
     }
 
-    // employers only see their own trainings
-    if (userType === 'employer') {
-      const epRow = await this.db.query('SELECT id FROM employers WHERE user_id = $1', [userId]);
-      const epId = epRow.rows.length > 0 ? epRow.rows[0].id : null;
-      if (training.provider_id !== userId && training.provider_id !== epId) return null;
-    }
+    // ✅ FIXED: attach user's application
+    const appRow = await this.db.query(
+      'SELECT * FROM training_applications WHERE training_id = $1 AND user_id = $2 ORDER BY applied_at DESC LIMIT 1',
+      [id, userId]
+    );
+    training.my_application = appRow.rows[0] || null;
+    training.has_applied = appRow.rows.length > 0;
+    training.applied = appRow.rows.length > 0; // ✅ ADD THIS
+    training.application_status = appRow.rows[0]?.status || null; // ✅ ADD THIS
 
-    return training;
+    // ✅ FIXED: attach user's enrollment
+    const enrRow = await this.db.query(
+      'SELECT * FROM training_enrollments WHERE training_id = $1 AND user_id = $2 ORDER BY enrolled_at DESC LIMIT 1',
+      [id, userId]
+    );
+    training.my_enrollment = enrRow.rows[0] || null;
+    training.is_enrolled = enrRow.rows.length > 0;
+    training.enrolled = enrRow.rows.length > 0; // ✅ ADD THIS
+    training.enrollment_id = enrRow.rows[0]?.id || null; // ✅ ADD THIS
   }
+
+  return training;
+}
 
   /** Paginated listing for job-seekers (published trainings only) */
   async getPublishedTrainingsForJobseeker(userId: string, params: TrainingSearchParams): Promise<TrainingListResponse> {
-    const { page = 1, limit = 10, sort_by = 'created_at', sort_order = 'desc', filters = {} } = params;
-    const offset = (page - 1) * limit;
+  const { page = 1, limit = 10, sort_by = 'created_at', sort_order = 'desc', filters = {} } = params;
+  const offset = (page - 1) * limit;
 
-    const conds: string[] = [
-      "t.status IN ('published','applications_closed','in_progress','completed')",
-      't.provider_id IS NOT NULL',
-      't.title IS NOT NULL',
-    ];
-    const qp: any[] = [];
-    let pi = 1;
+  const conds: string[] = [
+    "t.status IN ('published','applications_closed','in_progress','completed')",
+    't.provider_id IS NOT NULL',
+    't.title IS NOT NULL',
+  ];
+  const qp: any[] = [];
+  let pi = 1;
 
-    if (filters.category || params.category) {
-      conds.push(`t.category = $${pi++}`);
-      qp.push(filters.category || params.category);
-    }
-    if (params.level) { conds.push(`t.level = $${pi++}`); qp.push(params.level); }
-    if (params.cost_type) { conds.push(`t.cost_type = $${pi++}`); qp.push(params.cost_type); }
-    if (params.mode) { conds.push(`t.mode = $${pi++}`); qp.push(params.mode); }
-    if (params.search) {
-      conds.push(`(t.title ILIKE $${pi} OR t.description ILIKE $${pi})`);
-      qp.push(`%${params.search}%`); pi++;
-    }
-
-    const where = `WHERE ${conds.join(' AND ')}`;
-
-    // user context: LEFT JOIN on applications & enrollments
-    const userIdx = pi++;
-    qp.push(userId);
-    const limitIdx = pi++;  qp.push(limit);
-    const offIdx  = pi++;   qp.push(offset);
-
-    const query = `
-      SELECT
-        t.*,
-        CASE WHEN a.id IS NOT NULL THEN true ELSE false END AS has_applied,
-        a.status AS application_status,
-        a.applied_at,
-        CASE WHEN e.id IS NOT NULL THEN true ELSE false END AS is_enrolled,
-        e.status AS enrollment_status,
-        e.enrolled_at,
-        e.completed_at,
-        e.certificate_issued,
-        COUNT(*) OVER() AS total_count
-      FROM trainings t
-      LEFT JOIN training_applications a ON a.training_id = t.id AND a.user_id = $${userIdx}
-      LEFT JOIN training_enrollments  e ON e.training_id = t.id AND e.user_id = $${userIdx}
-      ${where}
-      ORDER BY t.${sort_by} ${sort_order.toUpperCase()}
-      LIMIT $${limitIdx} OFFSET $${offIdx}
-    `;
-
-    const result = await this.db.query(query, qp);
-    const rows  = result.rows;
-    const total = rows.length > 0 ? parseInt(rows[0].total_count) : 0;
-
-    return {
-      trainings: rows.map(r => this.mapTrainingWithContext(r)),
-      pagination: {
-        current_page: page,
-        total_pages: Math.ceil(total / limit),
-        page_size: limit,
-        total_count: total,
-        has_next: page * limit < total,
-        has_previous: page > 1,
-      },
-      filters_applied: filters,
-    };
+  if (filters.category || params.category) {
+    conds.push(`t.category = $${pi++}`);
+    qp.push(filters.category || params.category);
   }
+  if (params.level) { conds.push(`t.level = $${pi++}`); qp.push(params.level); }
+  if (params.cost_type) { conds.push(`t.cost_type = $${pi++}`); qp.push(params.cost_type); }
+  if (params.mode) { conds.push(`t.mode = $${pi++}`); qp.push(params.mode); }
+  if (params.search) {
+    conds.push(`(t.title ILIKE $${pi} OR t.description ILIKE $${pi})`);
+    qp.push(`%${params.search}%`); pi++;
+  }
+
+  const where = `WHERE ${conds.join(' AND ')}`;
+
+  // user context: LEFT JOIN on applications & enrollments
+  const userIdx = pi++;
+  qp.push(userId);
+  const limitIdx = pi++;  qp.push(limit);
+  const offIdx  = pi++;   qp.push(offset);
+
+  const query = `
+    SELECT
+      t.*,
+      CASE WHEN a.id IS NOT NULL THEN true ELSE false END AS has_applied,
+      CASE WHEN a.id IS NOT NULL THEN true ELSE false END AS applied, -- ✅ ADD THIS
+      a.status AS application_status,
+      a.applied_at,
+      CASE WHEN e.id IS NOT NULL THEN true ELSE false END AS is_enrolled,
+      CASE WHEN e.id IS NOT NULL THEN true ELSE false END AS enrolled, -- ✅ ADD THIS
+      e.status AS enrollment_status,
+      e.enrolled_at,
+      e.completed_at,
+      e.certificate_issued,
+      e.id AS enrollment_id, -- ✅ ADD THIS
+      COUNT(*) OVER() AS total_count
+    FROM trainings t
+    LEFT JOIN training_applications a ON a.training_id = t.id AND a.user_id = $${userIdx}
+    LEFT JOIN training_enrollments  e ON e.training_id = t.id AND e.user_id = $${userIdx}
+    ${where}
+    ORDER BY t.${sort_by} ${sort_order.toUpperCase()}
+    LIMIT $${limitIdx} OFFSET $${offIdx}
+  `;
+
+  const result = await this.db.query(query, qp);
+  const rows  = result.rows;
+  const total = rows.length > 0 ? parseInt(rows[0].total_count) : 0;
+
+  return {
+    trainings: rows.map(r => this.mapTrainingWithContext(r)),
+    pagination: {
+      current_page: page,
+      total_pages: Math.ceil(total / limit),
+      page_size: limit,
+      total_count: total,
+      has_next: page * limit < total,
+      has_previous: page > 1,
+    },
+    filters_applied: filters,
+  };
+}
 
   // In TrainingService class
 
@@ -1739,16 +1743,19 @@ async getSessionAttendance(sessionId: string, employerId: string): Promise<any> 
   }
 
   private mapTrainingWithContext(row: any): any {
-    return {
-      ...this.mapTrainingFromDb(row),
-      has_applied: row.has_applied === true || row.has_applied === 'true',
-      is_enrolled: row.is_enrolled === true || row.is_enrolled === 'true',
-      application_status: row.application_status || null,
-      enrollment_status:  row.enrollment_status  || null,
-      applied_at:  row.applied_at  || null,
-      enrolled_at: row.enrolled_at || null,
-      completed_at: row.completed_at || null,
-      certificate_issued: Boolean(row.certificate_issued),
-    };
-  }
+  return {
+    ...this.mapTrainingFromDb(row),
+    has_applied: row.has_applied === true || row.has_applied === 'true',
+    applied: row.applied === true || row.applied === 'true', // ✅ ADD THIS
+    is_enrolled: row.is_enrolled === true || row.is_enrolled === 'true',
+    enrolled: row.enrolled === true || row.enrolled === 'true', // ✅ ADD THIS
+    application_status: row.application_status || null,
+    enrollment_status:  row.enrollment_status  || null,
+    applied_at:  row.applied_at  || null,
+    enrolled_at: row.enrolled_at || null,
+    completed_at: row.completed_at || null,
+    certificate_issued: Boolean(row.certificate_issued),
+    enrollment_id: row.enrollment_id || null, // ✅ ADD THIS
+  };
+}
 }
