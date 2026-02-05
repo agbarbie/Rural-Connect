@@ -1,16 +1,22 @@
 const { Pool } = require('pg');
 const fs = require('fs');
 const path = require('path');
+require('dotenv').config(); // Load environment variables
 
-// Use Render's DATABASE_URL or individual DB env vars
+// Use individual DB env vars since you don't have DATABASE_URL
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
+  host: process.env.DB_HOST,
+  port: parseInt(process.env.DB_PORT || '5432'),
+  database: process.env.DB_NAME,
+  user: process.env.DB_USER,
+  password: process.env.DB_PASSWORD,
   ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
 });
 
 async function runMigration() {
   try {
     console.log('🔄 Starting bootcamp model migration...');
+    console.log(`📍 Connecting to database: ${process.env.DB_NAME} on ${process.env.DB_HOST}`);
     
     // Read the SQL file
     const sql = fs.readFileSync(
@@ -35,9 +41,11 @@ async function runMigration() {
     
     console.log('Available training tables:', result.rows.map(r => r.table_name));
     
+    await pool.end(); // Close the connection
     process.exit(0);
   } catch (error) {
     console.error('❌ Migration failed:', error);
+    await pool.end(); // Close the connection even on error
     process.exit(1);
   }
 }
