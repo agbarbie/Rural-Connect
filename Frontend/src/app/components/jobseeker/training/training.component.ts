@@ -341,37 +341,48 @@ export class TrainingComponent implements OnInit, OnDestroy {
   }
   
   loadNotifications(): void {
-    console.log('🔔 Loading notifications for jobseeker:', this.userId);
-    
-    // ✅ FIXED: Service expects only params object, not userId and userType
-    this.trainingService.getNotifications({ read: false })
-      .pipe(takeUntil(this.destroy$))
-      .subscribe({
-        next: (response) => {
-          if (response.success && response.data) {
-            this.notifications = response.data.notifications || response.data || [];
-            this.unreadNotificationCount = this.notifications.filter(n => !n.read).length;
-            
-            console.log('✅ Jobseeker notifications loaded:', {
-              total: this.notifications.length,
-              unread: this.unreadNotificationCount,
-              types: [...new Set(this.notifications.map(n => n.type))]
-            });
-            
-            this.checkForNewNotifications();
-          } else {
-            console.warn('⚠️ No notifications in response');
-            this.notifications = [];
-            this.unreadNotificationCount = 0;
+  console.log('🔔 Loading notifications for jobseeker');
+  
+  this.trainingService.getNotifications({ read: false })
+    .pipe(takeUntil(this.destroy$))
+    .subscribe({
+      next: (response) => {
+        console.log('📥 Notification response:', response);
+        
+        if (response.success && response.data) {
+          // ✅ FIX: Handle different response formats
+          let notificationsList: any[] = [];
+          
+          if (Array.isArray(response.data.notifications)) {
+            notificationsList = response.data.notifications;
+          } else if (Array.isArray(response.data)) {
+            notificationsList = response.data;
           }
-        },
-        error: (error) => {
-          console.error('❌ Error loading notifications:', error);
+          
+          this.notifications = notificationsList;
+          this.unreadNotificationCount = this.notifications.filter(n => !n.read).length;
+          
+          console.log('✅ Notifications loaded:', {
+            total: this.notifications.length,
+            unread: this.unreadNotificationCount,
+            notifications: this.notifications
+          });
+          
+          this.checkForNewNotifications();
+        } else {
+          console.warn('⚠️ No notifications in response');
           this.notifications = [];
           this.unreadNotificationCount = 0;
         }
-      });
-  }
+      },
+      error: (error) => {
+        console.error('❌ Error loading notifications:', error);
+        this.notifications = [];
+        this.unreadNotificationCount = 0;
+      }
+    });
+}
+
   
   private checkForNewNotifications(): void {
     const newNotifications = this.notifications.filter(n => {
@@ -559,58 +570,81 @@ export class TrainingComponent implements OnInit, OnDestroy {
   }
 
   loadTrainings(page: number = 1): void {
-    this.loading = true;
-    this.error = null;
-    
-    const searchParams: TrainingSearchParams = {
-      page: page,
-      limit: this.pageSize,
-      sort_by: 'created_at',
-      sort_order: 'desc',
-      status: 'published',
-      category: this.selectedCategory !== 'all' ? this.selectedCategory : undefined,
-      search: this.searchQuery.trim() || undefined,
-      level: this.filters.level.length > 0 ? this.filters.level[0] : undefined,
-      cost_type: this.filters.cost.length > 0 ? this.filters.cost[0] : undefined,
-      mode: this.filters.mode.length > 0 ? this.filters.mode[0] : undefined
-    };
+  this.loading = true;
+  this.error = null;
+  
+  const searchParams: TrainingSearchParams = {
+    page: page,
+    limit: this.pageSize,
+    sort_by: 'created_at',
+    sort_order: 'desc',
+    status: 'published',
+    category: this.selectedCategory !== 'all' ? this.selectedCategory : undefined,
+    search: this.searchQuery.trim() || undefined,
+    level: this.filters.level.length > 0 ? this.filters.level[0] : undefined,
+    cost_type: this.filters.cost.length > 0 ? this.filters.cost[0] : undefined,
+    mode: this.filters.mode.length > 0 ? this.filters.mode[0] : undefined
+  };
 
-    console.log('🔍 Loading trainings with params:', searchParams);
+  console.log('🔍 Loading trainings with params:', searchParams);
 
-    this.trainingService.getJobseekerTrainings(searchParams)
-      .pipe(takeUntil(this.destroy$))
-      .subscribe({
-        next: (response) => {
-          console.log('📦 Raw API response:', response);
+  this.trainingService.getJobseekerTrainings(searchParams)
+    .pipe(takeUntil(this.destroy$))
+    .subscribe({
+      next: (response) => {
+        console.log('📦 Raw API response:', response);
+        
+        if (response.success && response.data) {
+          const rawTrainings = response.data.trainings || [];
           
-          if (response.success && response.data) {
-            const rawTrainings = response.data.trainings || [];
-            const validTrainings = rawTrainings.filter((training: Training) =>
-              this.isValidTraining(training)
-            );
-            
-            this.trainings = validTrainings;
-            this.filteredTrainings = [...this.trainings];
-            
-            console.log('✅ Loaded trainings:', this.trainings.length);
-            
-            if (response.pagination) {
-              this.currentPage = response.pagination.current_page;
-              this.totalPages = response.pagination.total_pages;
-              this.totalCount = response.pagination.total_count;
-            }
+          // ✅ FIX: Process each training to detect application/enrollment status
+          const validTrainings = rawTrainings
+            .filter((training: Training) => this.isValidTraining(training))
+            .map((training: Training) => {
+              // Log application status for debugging
+              console.log(`Training ${training.title}:`, {
+                applied: training.applied,
+                has_applied: training.has_applied,
+                application_status: training.application_status,
+                enrolled: training.enrolled,
+                is_enrolled: training.is_enrolled
+              });
+              
+              // ✅ FIX: Normalize application status and ensure optional fields are undefined rather than null
+              return {
+                ...training,
+                applied: training.applied || training.has_applied || false,
+                enrolled: training.enrolled || training.is_enrolled || false,
+                application_status: training.application_status ?? undefined,
+                enrollment_id: training.enrollment_id ?? undefined,
+                certificate_issued: !!training.certificate_issued
+              } as Training;
+            });
+          
+          this.trainings = validTrainings;
+          this.filteredTrainings = [...this.trainings];
+          
+          console.log('✅ Loaded trainings:', this.trainings.length);
+          console.log('Applied trainings:', this.trainings.filter(t => t.applied).length);
+          
+          if (response.pagination) {
+            this.currentPage = response.pagination.current_page;
+            this.totalPages = response.pagination.total_pages;
+            this.totalCount = response.pagination.total_count;
           }
-          this.loading = false;
-        },
-        error: (error) => {
-          console.error('❌ Error loading trainings:', error);
-          this.error = 'Failed to load training programs. Please try again.';
-          this.loading = false;
-          this.trainings = [];
-          this.filteredTrainings = [];
         }
-      });
-  }
+        this.loading = false;
+      },
+      error: (error) => {
+        console.error('❌ Error loading trainings:', error);
+        this.error = 'Failed to load training programs. Please try again.';
+        this.loading = false;
+        this.trainings = [];
+        this.filteredTrainings = [];
+      }
+    });
+}
+
 
   loadEnrolledTrainings(): void {
     this.loading = true;
@@ -730,43 +764,53 @@ export class TrainingComponent implements OnInit, OnDestroy {
   // ============================================
   
   openApplicationModal(training: Training): void {
-    if (!training || !training.id) {
-      alert('Training information is missing');
-      return;
-    }
-    
-    // Check if already applied
-    if (training.applied) {
-      alert(`You have already applied for this training. Status: ${training.application_status || 'Pending'}`);
-      return;
-    }
-    
-    // Check if already enrolled
-    if (training.enrolled) {
-      alert('You are already enrolled in this training');
-      return;
-    }
-    
-    // Check if application deadline has passed
-    if (training.application_deadline) {
-      const deadline = new Date(training.application_deadline);
-      if (new Date() > deadline) {
-        alert('Application deadline has passed');
-        return;
-      }
-    }
-    
-    // Check if max participants reached
-    if (training.max_participants && training.current_participants >= training.max_participants) {
-      alert('This training has reached maximum capacity');
-      return;
-    }
-    
-    this.selectedTraining = training;
-    this.applyingTrainingId = training.id;
-    this.motivationLetter = '';
-    this.showApplicationModal = true;
+  if (!training || !training.id) {
+    alert('Training information is missing');
+    return;
   }
+  
+  // ✅ FIX: Check both applied and has_applied properties
+  const hasApplied = training.applied || training.has_applied;
+  
+  console.log('🔍 Application check:', {
+    trainingId: training.id,
+    title: training.title,
+    applied: training.applied,
+    has_applied: training.has_applied,
+    hasApplied: hasApplied,
+    application_status: training.application_status,
+    enrolled: training.enrolled
+  });
+  
+  if (hasApplied) {
+    const statusText = training.application_status || 'Pending';
+    alert(`You have already applied for this training.\n\nStatus: ${statusText}\n\nPlease wait for the employer's decision.`);
+    return;
+  }
+  
+  if (training.enrolled) {
+    alert('You are already enrolled in this training');
+    return;
+  }
+  
+  if (training.application_deadline) {
+    const deadline = new Date(training.application_deadline);
+    if (new Date() > deadline) {
+      alert('Application deadline has passed');
+      return;
+    }
+  }
+  
+  if (training.max_participants && training.current_participants >= training.max_participants) {
+    alert('This training has reached maximum capacity');
+    return;
+  }
+  
+  this.selectedTraining = training;
+  this.applyingTrainingId = training.id;
+  this.motivationLetter = '';
+  this.showApplicationModal = true;
+}
 
   closeApplicationModal(): void {
     this.showApplicationModal = false;
@@ -776,56 +820,88 @@ export class TrainingComponent implements OnInit, OnDestroy {
   }
 
   submitApplication(): void {
-    if (!this.applyingTrainingId) {
-      alert('No training selected');
-      return;
-    }
+  if (!this.applyingTrainingId) {
+    alert('No training selected');
+    return;
+  }
 
-    if (!this.motivationLetter.trim()) {
-      alert('Please provide a motivation letter explaining why you want to join this training');
-      return;
-    }
+  if (!this.motivationLetter.trim()) {
+    alert('Please provide a motivation letter explaining why you want to join this training');
+    return;
+  }
 
-    if (this.motivationLetter.trim().length < 50) {
-      alert('Motivation letter must be at least 50 characters long');
-      return;
-    }
+  if (this.motivationLetter.trim().length < 50) {
+    alert('Motivation letter must be at least 50 characters long');
+    return;
+  }
 
-    console.log('📝 Submitting application for training:', this.applyingTrainingId);
-    
-    this.loading = true;
-    this.trainingService.applyForTraining(this.applyingTrainingId, this.motivationLetter)
-      .pipe(takeUntil(this.destroy$))
-      .subscribe({
-        next: (response: any) => {
-          this.loading = false;
-          if (response.success) {
-            console.log('✅ Application submitted successfully');
-            alert('Application submitted successfully! You will be notified about the shortlisting process.');
+  console.log('📝 Submitting application for training:', this.applyingTrainingId);
+  
+  this.loading = true;
+  this.trainingService.applyForTraining(this.applyingTrainingId, this.motivationLetter)
+    .pipe(takeUntil(this.destroy$))
+    .subscribe({
+      next: (response: any) => {
+        this.loading = false;
+        console.log('✅ Application response:', response);
+        
+        if (response.success) {
+          console.log('✅ Application submitted successfully');
+          
+          // ✅ FIX: Update local state immediately
+          const training = this.trainings.find(t => t.id === this.applyingTrainingId);
+          if (training) {
+            training.applied = true;
+            training.has_applied = true;
+            training.application_status = 'pending';
+            console.log('✅ Updated training state:', {
+              id: training.id,
+              applied: training.applied,
+              has_applied: training.has_applied,
+              application_status: training.application_status
+            });
+          }
+          
+          alert('Application submitted successfully!\n\nYou will be notified about the shortlisting process.');
+          
+          this.closeApplicationModal();
+          
+          // ✅ FIX: Force refresh to get updated state from backend
+          setTimeout(() => {
+            this.loadTrainings(this.currentPage);
+            this.loadNotifications();
+          }, 500);
+        }
+      },
+      error: (error: any) => {
+        this.loading = false;
+        console.error('❌ Error submitting application:', error);
+        
+        // ✅ FIX: Better error message handling
+        let errorMessage = 'Failed to submit application.';
+        
+        if (error.message) {
+          if (error.message.includes('already applied')) {
+            errorMessage = 'You have already applied for this training. Please check your applications.';
             
-            // Update training in list
+            // Update local state if backend says already applied
             const training = this.trainings.find(t => t.id === this.applyingTrainingId);
             if (training) {
               training.applied = true;
+              training.has_applied = true;
               training.application_status = 'pending';
             }
             
             this.closeApplicationModal();
-            
-            if (this.showEnrolledOnly) {
-              this.loadEnrolledTrainings();
-            } else {
-              this.loadTrainings(this.currentPage);
-            }
+            this.loadTrainings(this.currentPage); // Refresh to sync state
+          } else {
+            errorMessage = error.message;
           }
-        },
-        error: (error: any) => {
-          this.loading = false;
-          console.error('❌ Error submitting application:', error);
-          this.error = error.message || 'Failed to submit application. Please try again.';
-          alert('Failed to submit application. Please try again.');
         }
-      });
+        
+        alert(errorMessage);
+      }
+    });
   }
 
   getApplicationStatusBadge(training: Training): string {
@@ -946,25 +1022,49 @@ export class TrainingComponent implements OnInit, OnDestroy {
   }
 
   canApply(training: Training): boolean {
-    // Cannot apply if already applied or enrolled
-    if (training.applied || training.enrolled) return false;
-    
-    // Cannot apply if status is not 'published'
-    if (training.status !== 'published') return false;
-    
-    // Check application deadline
-    if (training.application_deadline) {
-      const deadline = new Date(training.application_deadline);
-      if (new Date() > deadline) return false;
-    }
-    
-    // Check max participants
-    if (training.max_participants && training.current_participants >= training.max_participants) {
+  // ✅ FIX: Check both applied properties
+  const hasApplied = training.applied || training.has_applied;
+  
+  console.log('🔍 Can apply check:', {
+    trainingId: training.id,
+    applied: training.applied,
+    has_applied: training.has_applied,
+    hasApplied: hasApplied,
+    enrolled: training.enrolled,
+    status: training.status
+  });
+  
+  // Cannot apply if already applied or enrolled
+  if (hasApplied || training.enrolled) {
+    console.log('❌ Cannot apply: already applied or enrolled');
+    return false;
+  }
+  
+  // Cannot apply if status is not 'published'
+  if (training.status !== 'published') {
+    console.log('❌ Cannot apply: status is not published');
+    return false;
+  }
+  
+  // Check application deadline
+  if (training.application_deadline) {
+    const deadline = new Date(training.application_deadline);
+    if (new Date() > deadline) {
+      console.log('❌ Cannot apply: deadline passed');
       return false;
     }
-    
-    return true;
   }
+  
+  // Check max participants
+  if (training.max_participants && training.current_participants >= training.max_participants) {
+    console.log('❌ Cannot apply: training is full');
+    return false;
+  }
+  
+  console.log('✅ Can apply: all checks passed');
+  return true;
+}
+
 
   isApplicationDeadlinePassed(training: Training): boolean {
     if (!training.application_deadline) return false;

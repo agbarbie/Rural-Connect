@@ -44,6 +44,8 @@ export interface TrainingApplication {
 }
 
 export interface Training {
+  has_applied: any;
+  is_enrolled: any;
   id: string;
   title: string;
   description: string;
@@ -410,13 +412,54 @@ export class TrainingService {
    * @param params - Optional filter params (read status, pagination)
    */
   getNotifications(params: { page?: number; limit?: number; read?: boolean } = {}): Observable<ApiResponse<any>> {
-    const httpParams = this.buildParams(params);
-    
-    return this.http.get<ApiResponse<any>>(
-      this.NOTIFICATION_ENDPOINT,
-      { headers: this.getAuthHeaders(), params: httpParams }
-    ).pipe(catchError(this.handleError.bind(this)));
-  }
+  const httpParams = this.buildParams(params);
+  
+  return this.http.get<any>(  // Use 'any' to handle different response formats
+    this.NOTIFICATION_ENDPOINT,
+    { headers: this.getAuthHeaders(), params: httpParams }
+  ).pipe(
+    map(response => {
+      console.log('📥 Raw notification response:', response);
+      
+      // Handle different response formats
+      let notifications: any[] = [];
+      
+      // Format 1: { success: true, data: { notifications: [...] } }
+      if (response?.success && response?.data?.notifications) {
+        notifications = response.data.notifications;
+      }
+      // Format 2: { success: true, data: [...] }
+      else if (response?.success && Array.isArray(response?.data)) {
+        notifications = response.data;
+      }
+      // Format 3: { notifications: [...] }
+      else if (response?.notifications) {
+        notifications = response.notifications;
+      }
+      // Format 4: Direct array
+      else if (Array.isArray(response)) {
+        notifications = response;
+      }
+      
+      console.log('✅ Parsed notifications:', notifications.length);
+      
+      return {
+        success: true,
+        data: {
+          notifications: notifications
+        }
+      };
+    }),
+    catchError(error => {
+      console.error('❌ Notification error:', error);
+      return of({
+        success: false,
+        data: { notifications: [] },
+        message: error.message || 'Failed to load notifications'
+      });
+    })
+  );
+}
 
   /**
    * Mark notification as read
