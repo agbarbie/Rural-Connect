@@ -183,40 +183,68 @@ export class TrainingService {
 
   // ---------- Read notifications ----------
   async getNotifications(
-    userId: string,
-    params: { page?: number; limit?: number; read?: boolean | string }
-  ): Promise<any> {
-    const { page = 1, limit = 10, read } = params;
-    const offset = (page - 1) * limit;
+  userId: string,
+  params: { page?: number; limit?: number; read?: boolean | string }
+): Promise<any> {
+  const { page = 1, limit = 10, read } = params;
+  const offset = (page - 1) * limit;
 
-    let where = 'WHERE user_id = $1';
-    const qp: any[] = [userId];
-    let idx = 2;
+  let where = 'WHERE n.user_id = $1';
+  const qp: any[] = [userId];
+  let idx = 2;
 
-    if (read !== undefined) {
-      where += ` AND read = $${idx++}`;
-      qp.push(read === true || read === 'true');
-    }
-
-    qp.push(limit, offset);
-    const result = await this.db.query(
-      `SELECT id, user_id, type, title, message, metadata, read, created_at,
-              COUNT(*) OVER() as total_count
-       FROM notifications ${where}
-       ORDER BY created_at DESC
-       LIMIT $${idx++} OFFSET $${idx++}`,
-      qp
-    );
-
-    const totalCount = result.rows.length > 0 ? parseInt(result.rows[0].total_count) : 0;
-    return {
-      notifications: result.rows.map(r => ({
-        ...r,
-        metadata: typeof r.metadata === 'string' ? JSON.parse(r.metadata) : r.metadata,
-      })),
-      pagination: { current_page: page, total_pages: Math.ceil(totalCount / limit), total_count: totalCount },
-    };
+  if (read !== undefined) {
+    where += ` AND n.read = $${idx++}`;
+    qp.push(read === true || read === 'true');
   }
+
+  qp.push(limit, offset);
+  
+  // ✅ JOIN with users table to get user details
+  const result = await this.db.query(
+    `SELECT 
+       n.id, n.user_id, n.type, n.title, n.message, n.metadata, n.read, n.created_at,
+       u.first_name, u.last_name, u.email,
+       COUNT(*) OVER() as total_count
+     FROM notifications n
+     LEFT JOIN users u ON u.id = (n.metadata->>'user_id')::uuid
+     ${where}
+     ORDER BY n.created_at DESC
+     LIMIT $${idx++} OFFSET $${idx++}`,
+    qp
+  );
+
+  const totalCount = result.rows.length > 0 ? parseInt(result.rows[0].total_count) : 0;
+  
+  return {
+    notifications: result.rows.map(r => {
+      const metadata = typeof r.metadata === 'string' ? JSON.parse(r.metadata) : r.metadata;
+      
+      // Build jobseeker name from metadata or joined user data
+      let jobseekerName = metadata.applicant_name || '';
+      if (!jobseekerName && (r.first_name || r.last_name)) {
+        jobseekerName = `${r.first_name || ''} ${r.last_name || ''}`.trim();
+      }
+      if (!jobseekerName && r.email) {
+        jobseekerName = r.email.split('@')[0].replace(/[_.-]/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase());
+      }
+      
+      return {
+        ...r,
+        metadata,
+        jobseeker_name: jobseekerName || 'Anonymous User',
+        first_name: r.first_name,
+        last_name: r.last_name,
+        email: r.email
+      };
+    }),
+    pagination: { 
+      current_page: page, 
+      total_pages: Math.ceil(totalCount / limit), 
+      total_count: totalCount 
+    },
+  };
+}
 
   async markNotificationRead(notificationId: string, userId: string): Promise<void> {
     await this.db.query(

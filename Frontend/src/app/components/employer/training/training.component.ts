@@ -411,23 +411,73 @@ export class TrainingComponent implements OnInit, OnDestroy {
   loadNotifications(): void {
   console.log('🔔 Loading employer notifications');
   
-  // ✅ FIX: Remove employerId and userType parameters
   this.trainingService.getNotifications({ read: false })
     .pipe(takeUntil(this.destroy$))
     .subscribe({
       next: (response) => {
-        console.log('📢 Enrollment notifications:', response.data?.length || 0);
+        console.log('📢 Raw notification response:', response);
         
         if (response.success && response.data) {
-          this.enrollmentNotifications = (response.data.notifications || response.data).map((n: any) => ({
-            ...n,
-            display_name: n.jobseeker_name || `${n.first_name || ''} ${n.last_name || ''}`.trim() || 
-                          (n.email ? n.email.split('@')[0].replace(/[_.-]/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase()) : 'Anonymous User')
-          }));
+          const notifications = response.data.notifications || response.data || [];
+          
+          this.enrollmentNotifications = notifications.map((n: any) => {
+            // Extract user information from metadata or direct fields
+            const metadata = typeof n.metadata === 'string' ? JSON.parse(n.metadata) : (n.metadata || {});
+            
+            // Try multiple sources for the user name
+            let displayName = '';
+            
+            // Priority 1: Direct fields
+            if (n.jobseeker_name) {
+              displayName = n.jobseeker_name;
+            }
+            // Priority 2: Metadata applicant_name
+            else if (metadata.applicant_name) {
+              displayName = metadata.applicant_name;
+            }
+            // Priority 3: Metadata user details
+            else if (metadata.user_name) {
+              displayName = metadata.user_name;
+            }
+            // Priority 4: First/Last name combination
+            else if (n.first_name || n.last_name) {
+              displayName = `${n.first_name || ''} ${n.last_name || ''}`.trim();
+            }
+            // Priority 5: Email-based name
+            else if (n.email) {
+              displayName = n.email.split('@')[0]
+                .replace(/[_.-]/g, ' ')
+                .replace(/\b\w/g, (l: string) => l.toUpperCase());
+            }
+            // Fallback
+            else {
+              displayName = 'Anonymous User';
+            }
+            
+            console.log('📧 Notification user mapping:', {
+              notification_id: n.id,
+              type: n.type,
+              displayName,
+              metadata,
+              rawNotification: n
+            });
+            
+            return {
+              ...n,
+              display_name: displayName,
+              metadata: metadata
+            };
+          });
           
           this.unreadNotificationCount = this.enrollmentNotifications.filter(
-            (n: any) => !n.is_read && n.notification_type === 'new'
+            (n: any) => !n.is_read && (n.type === 'new_enrollment' || n.type === 'application_submitted')
           ).length;
+          
+          console.log('✅ Processed notifications:', {
+            total: this.enrollmentNotifications.length,
+            unread: this.unreadNotificationCount,
+            sample: this.enrollmentNotifications[0]
+          });
         } else {
           this.enrollmentNotifications = [];
           this.unreadNotificationCount = 0;
@@ -437,7 +487,7 @@ export class TrainingComponent implements OnInit, OnDestroy {
         console.error('❌ Error loading notifications:', error);
       }
     });
-}
+  }
 
 
   toggleNotifications(): void {
@@ -893,18 +943,22 @@ export class TrainingComponent implements OnInit, OnDestroy {
     eligibility_requirements: undefined,
     application_deadline: this.newTraining.application_deadline || undefined,
     
-    // ✅ CRITICAL FIX: Backend expects start_date and end_date (not training_start_date/training_end_date)
+    // ✅ FIX: Backend expects start_date and end_date (not training_start_date/training_end_date)
     start_date: this.newTraining.training_start_date || undefined,
     end_date: this.newTraining.training_end_date || undefined,
     
     max_participants: this.newTraining.max_participants || undefined,
     
     sessions: (this.newTraining.sessions || []).map((s, index) => ({
-      ...s,
+      title: s.title,
+      description: s.description,
+      scheduled_at: s.scheduled_at,
+      duration_minutes: s.duration_minutes,
+      meeting_url: s.meeting_url,
       order_index: index
     })),
     outcomes: (this.newTraining.outcomes || []).map((o, index) => ({
-      ...o,
+      outcome_text: o.outcome_text,
       order_index: index
     }))
   };
@@ -931,7 +985,8 @@ export class TrainingComponent implements OnInit, OnDestroy {
         },
         error: (error) => {
           console.error('❌ Error updating training:', error);
-          this.error = 'Failed to update training. Please check your inputs and try again.';
+          this.error = 'Failed to update training: ' + (error.message || 'Unknown error');
+          alert('Failed to update training: ' + (error.message || 'Unknown error'));
         }
       });
   } else {
@@ -955,7 +1010,7 @@ export class TrainingComponent implements OnInit, OnDestroy {
         },
         error: (error) => {
           console.error('❌ Error creating training:', error);
-          this.error = 'Failed to create training. Please check your inputs and try again.';
+          this.error = 'Failed to create training: ' + (error.message || 'Unknown error');
           alert('Failed to create training: ' + (error.message || 'Unknown error'));
         }
       });
