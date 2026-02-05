@@ -4,15 +4,15 @@
   "description": "Job Portal Backend API",
   "main": "dist/server.js",
   "scripts": {
-    "dev": "nodemon src/server.ts",
-    "build": "tsc",
-    "migrate": "node scripts/run-migration.js",
-    "start": "node dist/server.js",
-    "clean": "rimraf dist",
-    "build:clean": "npm run clean && npm run build",
-    "watch": "tsc --watch",
-    "serve": "npm run build && npm start"
-  },
+  "dev": "nodemon src/server.ts",
+  "build": "tsc",
+  "migrate": "node scripts/run-migration.js",
+  "start": "npm run migrate && node dist/server.js",
+  "clean": "rimraf dist",
+  "build:clean": "npm run clean && npm run build",
+  "watch": "tsc --watch",
+  "serve": "npm run build && npm start"
+},
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
     "@types/bcryptjs": "^2.4.2",
