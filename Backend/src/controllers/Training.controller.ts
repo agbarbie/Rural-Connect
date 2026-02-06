@@ -162,43 +162,55 @@ export class TrainingController {
     }
   }
 
-  /**
-   * GET /api/trainings
-   * List trainings (employer sees own trainings, jobseeker sees published trainings)
-   */
-  async getAllTrainings(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
-    try {
-      const userId = req.user?.id;
-      const userType = req.user?.user_type;
+// controllers/training.controller.ts
 
-      const params: TrainingSearchParams = {
-        page: parseInt(req.query.page as string) || 1,
-        limit: parseInt(req.query.limit as string) || 10,
-        sort_by: (req.query.sort_by as any) || 'created_at',
-        sort_order: (req.query.sort_order as 'asc' | 'desc') || 'desc',
-        search: req.query.search as string,
-        category: req.query.category as string,
-        level: req.query.level as string,
-        cost_type: req.query.cost_type as string,
-        mode: req.query.mode as string,
-        filters: req.query.filters ? JSON.parse(req.query.filters as string) : {},
-      };
+async getAllTrainings(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const userId = req.user?.id;
+    const userType = req.user?.user_type;
 
-      let result;
-      if (userType === 'jobseeker' && userId) {
-        result = await this.trainingService.getPublishedTrainingsForJobseeker(userId, params);
-      } else if (userType === 'employer' && userId) {
-        result = await this.trainingService.getAllTrainings(params, userId);
-      } else {
-        // guest or unauthenticated
-        result = await this.trainingService.getAllTrainings(params);
-      }
+    const params: TrainingSearchParams = {
+      page: parseInt(req.query.page as string) || 1,
+      limit: parseInt(req.query.limit as string) || 10,
+      sort_by: (req.query.sort_by as any) || 'created_at',
+      sort_order: (req.query.sort_order as 'asc' | 'desc') || 'desc',
+      search: req.query.search as string,
+      category: req.query.category as string,
+      level: req.query.level as string,
+      cost_type: req.query.cost_type as string,
+      mode: req.query.mode as string,
+      status: req.query.status as string,  // ✅ ADD THIS
+      filters: req.query.filters ? JSON.parse(req.query.filters as string) : {},
+    };
 
-      res.json({ success: true, ...result });
-    } catch (error: any) {
-      next(error);
+    let result;
+    
+    if (userType === 'jobseeker' && userId) {
+      // Jobseekers see all published trainings
+      result = await this.trainingService.getPublishedTrainingsForJobseeker(userId, params);
+    } else if (userType === 'employer' && userId) {
+      // ✅ CRITICAL FIX: Employers only see their own trainings
+      console.log('🔍 Fetching trainings for employer:', userId);
+      result = await this.trainingService.getAllTrainings(params, userId);
+      console.log('✅ Found trainings:', result.trainings.length);
+    } else {
+      // Guests see all published trainings (without user-specific data)
+      params.status = 'published';
+      result = await this.trainingService.getAllTrainings(params);
     }
+
+    res.json({ 
+  success: true, 
+  data: {
+    trainings: result.trainings
+  },
+  pagination: result.pagination 
+});
+  } catch (error: any) {
+    console.error('❌ Controller error:', error);
+    next(error);
   }
+}
 
   /**
    * GET /api/trainings/enrolled

@@ -15,6 +15,19 @@ import {
 import { join } from 'path';
 import crypto from 'crypto';
 
+interface PaginatedResult<T> {
+  trainings: T[];
+  pagination: {
+    current_page: number;
+    total_pages: number;
+    page_size: number;
+    total_count: number;
+    has_next: boolean;
+    has_previous: boolean;
+  };
+}
+
+
 // ---------------------------------------------------------------------------
 // Helper – generate a human-readable verification code
 // Format: CERT-XXXX-XXXX-XXXX  (hex, upper-cased)
@@ -1016,105 +1029,131 @@ async getSessionAttendance(sessionId: string, employerId: string): Promise<any> 
   };
 }
 
-  /** Employer's own trainings */
- async getAllTrainings(params: TrainingSearchParams, employerId?: string): Promise<TrainingListResponse> {
-  const { page = 1, limit = 10, sort_by = 'created_at', sort_order = 'desc', filters = {} } = params;
-  const offset = (page - 1) * limit;
-  const conds: string[] = [];
-  const qp: any[] = [];
-  let pi = 1;
+// services/training.service.ts - FIXED getAllTrainings method
 
-  // ✅ CRITICAL FIX: When employerId is provided, ONLY show their trainings
-  if (employerId) {
-    console.log('🔒 Fetching trainings for employer:', employerId);
-    
-    // Get employer profile ID
-    const epRow = await this.db.query('SELECT id FROM employers WHERE user_id = $1', [employerId]);
-    
-    if (epRow.rows.length > 0) {
-      const employerProfileId = epRow.rows[0].id;
-      console.log('  → Employer profile ID:', employerProfileId);
-      
-      // ✅ FIXED: ONLY show trainings where provider_id matches THIS employer
-      conds.push(`t.provider_id = $${pi++}`);
-      qp.push(employerProfileId);
-    } else {
-      // If no employer profile found, return empty result
-      console.warn('⚠️ No employer profile found for user:', employerId);
-      return {
-        success: true,
-        data: { trainings: [] },
-        pagination: {
-          current_page: page,
-          total_pages: 0,
-          page_size: limit,
-          total_count: 0,
-          has_next: false,
-          has_previous: false
-        },
-        filters_applied: filters
-      };
+//Update the getAllTrainings method
+async getAllTrainings(
+  params: TrainingSearchParams,
+  employerId?: string
+): Promise<PaginatedResult<any>> {
+  try {
+    const page = params.page || 1;
+    const limit = params.limit || 10;
+    const offset = (page - 1) * limit;
+    const sort_by = params.sort_by || 'created_at';
+    const sort_order = params.sort_order || 'desc';
+
+    // Build WHERE conditions
+    const conditions: string[] = [];
+    const values: any[] = [];
+    let paramCount = 1;
+
+    // ✅ CRITICAL FIX: Filter by employer if employerId is provided
+    if (employerId) {
+      conditions.push(`provider_id = $${paramCount}`);
+      values.push(employerId);
+      paramCount++;
     }
+
+    // Apply search filter
+    if (params.search) {
+      conditions.push(`(title ILIKE $${paramCount} OR description ILIKE $${paramCount})`);
+      values.push(`%${params.search}%`);
+      paramCount++;
+    }
+
+    // Apply category filter
+    if (params.category) {
+      conditions.push(`category = $${paramCount}`);
+      values.push(params.category);
+      paramCount++;
+    }
+
+    // Apply level filter
+    if (params.level) {
+      conditions.push(`level = $${paramCount}`);
+      values.push(params.level);
+      paramCount++;
+    }
+
+    // Apply status filter (if exists in params)
+    if ((params as any).status) {
+      conditions.push(`status = $${paramCount}`);
+      values.push((params as any).status);
+      paramCount++;
+    }
+
+    // Apply cost_type filter
+    if (params.cost_type) {
+      conditions.push(`cost_type = $${paramCount}`);
+      values.push(params.cost_type);
+      paramCount++;
+    }
+
+    // Apply mode filter
+    if (params.mode) {
+      conditions.push(`mode = $${paramCount}`);
+      values.push(params.mode);
+      paramCount++;
+    }
+
+    // Build WHERE clause
+    const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+
+    // Get total count
+    const countQuery = `SELECT COUNT(*) as count FROM trainings ${whereClause}`;
+    const countResult = await this.db.query(countQuery, values);
+    const totalCount = parseInt(countResult.rows[0]?.count || '0', 10);
+
+    // Get paginated results
+    const dataQuery = `
+      SELECT * FROM trainings
+      ${whereClause}
+      ORDER BY ${sort_by} ${sort_order.toUpperCase()}
+      LIMIT $${paramCount} OFFSET $${paramCount + 1}
+    `;
+    
+    const dataValues = [...values, limit, offset];
+    const dataResult = await this.db.query(dataQuery, dataValues);
+
+    // Load sessions and outcomes for each training
+    const trainingsWithRelations = await Promise.all(
+      dataResult.rows.map(async (training: any) => {
+        const [sessionsResult, outcomesResult] = await Promise.all([
+          this.db.query(
+            'SELECT * FROM training_sessions WHERE training_id = $1 ORDER BY order_index ASC',
+            [training.id]
+          ),
+          this.db.query(
+            'SELECT * FROM training_outcomes WHERE training_id = $1 ORDER BY order_index ASC',
+            [training.id]
+          )
+        ]);
+
+        return {
+          ...training,
+          sessions: sessionsResult.rows,
+          outcomes: outcomesResult.rows,
+          session_count: sessionsResult.rows.length
+        };
+      })
+    );
+
+    return {
+      trainings: trainingsWithRelations,
+      pagination: {
+        current_page: page,
+        total_pages: Math.ceil(totalCount / limit),
+        page_size: limit,
+        total_count: totalCount,
+        has_next: page < Math.ceil(totalCount / limit),
+        has_previous: page > 1
+      }
+    };
+  } catch (error) {
+    console.error('❌ Error fetching trainings:', error);
+    throw error;
   }
-
-  // Apply other filters
-  if (filters.category) {
-    conds.push(`t.category = $${pi++}`);
-    qp.push(filters.category);
-  }
-  
-  if (filters.search) {
-    conds.push(`(t.title ILIKE $${pi} OR t.description ILIKE $${pi})`);
-    qp.push(`%${filters.search}%`);
-    pi++;
-  }
-
-  if (filters.status) {
-    conds.push(`t.status = $${pi++}`);
-    qp.push(filters.status);
-  }
-
-  const where = conds.length ? `WHERE ${conds.join(' AND ')}` : '';
-
-  qp.push(limit, offset);
-  
-  const result = await this.db.query(
-    `SELECT t.*,
-            (SELECT COUNT(*) FROM training_applications WHERE training_id = t.id) AS application_count,
-            (SELECT COUNT(*) FROM training_enrollments WHERE training_id = t.id) AS enrollment_count,
-            COUNT(*) OVER() AS total_count
-     FROM trainings t ${where}
-     ORDER BY t.${sort_by} ${sort_order.toUpperCase()}
-     LIMIT $${pi++} OFFSET $${pi++}`,
-    qp
-  );
-  
-  const rows = result.rows;
-  const total = rows.length > 0 ? parseInt(rows[0].total_count) : 0;
-
-  console.log(`✅ Found ${total} training(s) for employer ${employerId || 'all'}`);
-
-  return {
-    success: true,
-    data: {
-      trainings: rows.map(r => ({
-        ...this.mapTrainingFromDb(r),
-        has_applied: false,
-        is_enrolled: false,
-        application_count: parseInt(r.application_count || 0),
-        enrollment_count: parseInt(r.enrollment_count || 0),
-      })),
-    },
-    pagination: {
-      current_page: page,
-      total_pages: Math.ceil(total / limit),
-      page_size: limit,
-      total_count: total,
-      has_next: page * limit < total,
-      has_previous: page > 1
-    },
-    filters_applied: filters,
-  };
 }
 
   /** Trainings the job-seeker has enrolled in */

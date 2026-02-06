@@ -356,6 +356,7 @@ export interface TrainingSearchParams {
   limit?: number;
   sort_by?: 'created_at' | 'title' | 'rating' | 'total_students' | 'start_date';
   sort_order?: 'asc' | 'desc';
+  status?: string;
   filters?: JobseekerTrainingFilters;
   include_sessions?: boolean;
   include_outcomes?: boolean;

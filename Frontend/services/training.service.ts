@@ -316,65 +316,67 @@ export class TrainingService {
   // ============================================
 
   getMyTrainings(params: TrainingSearchParams = {}, employerId: string): Observable<PaginatedResponse<{ trainings: Training[] }>> {
-    this.loadingSubject.next(true);
-    
-    const enhancedParams = {
-      ...params,
-      include_sessions: true,
-      include_outcomes: true
-    };
-    
-    const httpParams = this.buildParams(enhancedParams);
-    
-    return this.http.get<any>(
-      this.TRAINING_ENDPOINT, 
-      { headers: this.getAuthHeaders(), params: httpParams }
-    ).pipe(
-      map(response => {
-        console.log('📥 Raw API response:', response);
-        
-        let trainings: Training[] = [];
-        
-        if (response.success && response.data?.trainings) {
-          trainings = response.data.trainings;
-        } else if (response.trainings) {
-          trainings = response.trainings;
-        } else if (Array.isArray(response.data)) {
-          trainings = response.data;
-        } else if (Array.isArray(response)) {
-          trainings = response;
+  this.loadingSubject.next(true);
+  
+  const enhancedParams = {
+    ...params,
+    include_sessions: true,
+    include_outcomes: true
+  };
+  
+  const httpParams = this.buildParams(enhancedParams);
+  
+  console.log('🔍 Fetching employer trainings:', { employerId, params: enhancedParams });
+  
+  return this.http.get<any>(
+    this.TRAINING_ENDPOINT, 
+    { headers: this.getAuthHeaders(), params: httpParams }
+  ).pipe(
+    map(response => {
+      console.log('📥 Raw API response:', response);
+      
+      let trainings: Training[] = [];
+      
+      if (response.success && response.data?.trainings) {
+        trainings = response.data.trainings;
+      } else if (response.trainings) {
+        trainings = response.trainings;
+      } else if (Array.isArray(response.data)) {
+        trainings = response.data;
+      } else if (Array.isArray(response)) {
+        trainings = response;
+      }
+      
+      console.log('📦 Extracted trainings:', trainings.length);
+      
+      trainings = trainings.map(t => this.processTrainingData(t));
+      
+      return {
+        success: true,
+        data: { trainings },
+        pagination: response.pagination || {
+          current_page: 1,
+          total_pages: 1,
+          page_size: trainings.length,
+          total_count: trainings.length,
+          has_next: false,
+          has_previous: false
         }
-        
-        console.log('📦 Extracted trainings:', trainings.length);
-        
-        trainings = trainings.map(t => this.processTrainingData(t));
-        
-        return {
-          success: true,
-          data: { trainings },
-          pagination: response.pagination || {
-            current_page: 1,
-            total_pages: 1,
-            page_size: trainings.length,
-            total_count: trainings.length,
-            has_next: false,
-            has_previous: false
-          }
-        };
-      }),
-      tap(response => {
-        if (response.success && response.data?.trainings) {
-          console.log('✅ Setting trainings in subject:', response.data.trainings.length);
-          this.trainingsSubject.next(response.data.trainings);
-        }
-        this.loadingSubject.next(false);
-      }),
-      catchError(error => {
-        this.loadingSubject.next(false);
-        return this.handleError(error);
-      })
-    );
-  }
+      };
+    }),
+    tap(response => {
+      if (response.success && response.data?.trainings) {
+        console.log('✅ Setting trainings in subject:', response.data.trainings.length);
+        this.trainingsSubject.next(response.data.trainings);
+      }
+      this.loadingSubject.next(false);
+    }),
+    catchError(error => {
+      this.loadingSubject.next(false);
+      return this.handleError(error);
+    })
+  );
+}
 
   createTraining(trainingData: CreateTrainingRequest): Observable<ApiResponse<Training>> {
     this.loadingSubject.next(true);
