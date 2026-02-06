@@ -14,6 +14,7 @@ import {
 } from '../types/training.type';
 import { join } from 'path';
 import crypto from 'crypto';
+import { v4 as uuidv4 } from 'uuid'; 
 
 interface PaginatedResult<T> {
   trainings: T[];
@@ -1030,8 +1031,8 @@ async getSessionAttendance(sessionId: string, employerId: string): Promise<any> 
 }
 
 // services/training.service.ts - FIXED getAllTrainings method
+// services/training.service.ts - COMPLETE FIX
 
-//Update the getAllTrainings method
 async getAllTrainings(
   params: TrainingSearchParams,
   employerId?: string
@@ -1043,16 +1044,21 @@ async getAllTrainings(
     const sort_by = params.sort_by || 'created_at';
     const sort_order = params.sort_order || 'desc';
 
+    console.log('🔍 getAllTrainings called with:', { employerId, page, limit, sort_by });
+
     // Build WHERE conditions
     const conditions: string[] = [];
     const values: any[] = [];
     let paramCount = 1;
 
-    // ✅ CRITICAL FIX: Filter by employer if employerId is provided
+    // ✅ CRITICAL FIX: Filter by employer FIRST
     if (employerId) {
       conditions.push(`provider_id = $${paramCount}`);
       values.push(employerId);
       paramCount++;
+      console.log('✅ Filtering by employer:', employerId);
+    } else {
+      console.log('⚠️ No employer filter - returning all trainings');
     }
 
     // Apply search filter
@@ -1076,7 +1082,7 @@ async getAllTrainings(
       paramCount++;
     }
 
-    // Apply status filter (if exists in params)
+    // Apply status filter
     if ((params as any).status) {
       conditions.push(`status = $${paramCount}`);
       values.push((params as any).status);
@@ -1100,10 +1106,15 @@ async getAllTrainings(
     // Build WHERE clause
     const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
 
+    console.log('📝 SQL WHERE clause:', whereClause);
+    console.log('📝 SQL Values:', values);
+
     // Get total count
     const countQuery = `SELECT COUNT(*) as count FROM trainings ${whereClause}`;
     const countResult = await this.db.query(countQuery, values);
     const totalCount = parseInt(countResult.rows[0]?.count || '0', 10);
+
+    console.log('📊 Total count:', totalCount);
 
     // Get paginated results
     const dataQuery = `
@@ -1115,6 +1126,8 @@ async getAllTrainings(
     
     const dataValues = [...values, limit, offset];
     const dataResult = await this.db.query(dataQuery, dataValues);
+
+    console.log('📦 Found trainings:', dataResult.rows.length);
 
     // Load sessions and outcomes for each training
     const trainingsWithRelations = await Promise.all(
@@ -1201,70 +1214,114 @@ async getAllTrainings(
   // ==========================================================================
   // 4.  APPLICATION FLOW  (job-seeker submits → employer reviews)
   // ==========================================================================
+// services/training.service.ts
 
-  /** Job-seeker applies for a training */
-  async submitApplication(trainingId: string, userId: string, body: SubmitApplicationRequest): Promise<any> {
-    const client = await this.db.connect();
+async submitApplication(
+    trainingId: string,
+    userId: string,
+    data: { motivation?: string }
+  ): Promise<any> {
     try {
-      await client.query('BEGIN');
+      console.log('📝 Processing application:', { trainingId, userId });
 
-      // training must exist and be in 'published' (open) state
-      const tRow = await client.query(
-        `SELECT id, title, status, application_deadline, provider_id, provider_name FROM trainings WHERE id = $1`,
-        [trainingId]
-      );
-      if (tRow.rows.length === 0) throw new Error('Training not found');
-
-      const training = tRow.rows[0];
-      if (training.status !== 'published') {
-        throw new Error('Training is not currently accepting applications');
-      }
-      if (training.application_deadline && new Date(training.application_deadline) < new Date()) {
-        throw new Error('The application deadline has passed');
-      }
-
-      // duplicate check
-      const dup = await client.query(
-        `SELECT id, status FROM training_applications WHERE training_id = $1 AND user_id = $2`,
+      // ✅ 1. Check if user already applied
+      const existingApplication = await this.db.query(
+        'SELECT id FROM training_applications WHERE training_id = $1 AND user_id = $2',
         [trainingId, userId]
       );
-      if (dup.rows.length > 0) {
-        return { success: false, message: 'You have already applied for this training', application: dup.rows[0] };
+
+      if (existingApplication.rows.length > 0) {
+        console.log('⚠️ User already applied');
+        return {
+          success: false,
+          message: 'You have already applied for this training'
+        };
       }
 
-      // fetch user name for notification
-      const uRow = await client.query('SELECT first_name, last_name, email FROM users WHERE id = $1', [userId]);
-      const userName = `${uRow.rows[0]?.first_name || ''} ${uRow.rows[0]?.last_name || ''}`.trim() || uRow.rows[0]?.email || 'Applicant';
-
-      // insert application
-      const appResult = await client.query(
-        `INSERT INTO training_applications (training_id, user_id, motivation, status, applied_at, created_at, updated_at)
-         VALUES ($1, $2, $3, 'pending', NOW(), NOW(), NOW()) RETURNING *`,
-        [trainingId, userId, body.motivation?.trim() ?? null]
+      // ✅ 2. Get training details and employer ID
+      const trainingResult = await this.db.query(
+        'SELECT id, title, provider_id, provider_name FROM trainings WHERE id = $1',
+        [trainingId]
       );
 
-      await client.query('COMMIT');
-      const application = appResult.rows[0];
+      if (trainingResult.rows.length === 0) {
+        console.log('❌ Training not found');
+        return {
+          success: false,
+          message: 'Training not found'
+        };
+      }
 
-      // notify employer
-      this.createNotification(
-        training.provider_id, 'application_submitted',
-        `${userName} has applied for "${training.title}"`,
-        { training_id: trainingId, application_id: application.id, user_id: userId, applicant_name: userName }
-      );
-      // confirm to applicant
-      this.createNotification(
-        userId, 'application_submitted',
-        `Your application for "${training.title}" has been submitted. You will be notified once reviewed.`,
-        { training_id: trainingId, application_id: application.id }
+      const training = trainingResult.rows[0];
+      console.log('✅ Training found:', training.title);
+      console.log('✅ Employer ID:', training.provider_id);
+
+      // ✅ 3. Get user details
+      const userResult = await this.db.query(
+        'SELECT id, first_name, last_name, email FROM users WHERE id = $1',
+        [userId]
       );
 
-      return { success: true, message: 'Application submitted successfully', application };
-    } catch (err: any) {
-      await client.query('ROLLBACK');
-      throw err;
-    } finally {
-      client.release();
+      if (userResult.rows.length === 0) {
+        console.log('❌ User not found');
+        return {
+          success: false,
+          message: 'User not found'
+        };
+      }
+
+      const user = userResult.rows[0];
+      console.log('✅ User found:', user.email);
+
+      // ✅ 4. Create application
+      const applicationResult = await this.db.query(
+        `INSERT INTO training_applications 
+         (training_id, user_id, motivation, status, applied_at) 
+         VALUES ($1, $2, $3, 'pending', NOW()) 
+         RETURNING *`,
+        [trainingId, userId, data.motivation || '']
+      );
+
+      const application = applicationResult.rows[0];
+      console.log('✅ Application created:', application.id);
+
+      // ✅ 5. CREATE NOTIFICATION FOR EMPLOYER (ADD THIS SECTION)
+      const notificationId = uuidv4();
+      const notificationMetadata = JSON.stringify({
+        training_id: trainingId,
+        training_title: training.title,
+        application_id: application.id,
+        applicant_name: `${user.first_name} ${user.last_name}`,
+        applicant_email: user.email,
+        user_id: userId
+      });
+
+      await this.db.query(
+        `INSERT INTO notifications 
+         (id, user_id, type, title, message, related_id, metadata, is_read, created_at) 
+         VALUES ($1, $2, $3, $4, $5, $6, $7, false, NOW())`,
+        [
+          notificationId,
+          training.provider_id, // Employer's user ID
+          'application_submitted',
+          'New Training Application',
+          `${user.first_name} ${user.last_name} applied for "${training.title}"`,
+          application.id,
+          notificationMetadata
+        ]
+      );
+
+      console.log('✅ Notification created for employer:', training.provider_id);
+      console.log('📧 Notification ID:', notificationId);
+
+      return {
+        success: true,
+        message: 'Application submitted successfully',
+        data: application
+      };
+    } catch (error) {
+      console.error('❌ Error submitting application:', error);
+      throw error;
     }
   }
 
