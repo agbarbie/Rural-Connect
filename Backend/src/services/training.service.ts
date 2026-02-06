@@ -82,30 +82,31 @@ export class TrainingService {
 
   // ✅ NEW: Helper method to safely get user details
   private async getUserDetails(userId: string): Promise<any> {
-    let query = 'SELECT id, first_name, last_name, email, profile_image';
-    
-    if (this.phoneNumberColumnExists === null) {
-      await this.checkPhoneNumberColumn();
-    }
-    
-    if (this.phoneNumberColumnExists) {
-      query += ', phone_number';
-    }
-    
-    query += ' FROM users WHERE id = $1';
-    
-    const result = await this.db.query(query, [userId]);
-    
-    if (result.rows.length > 0) {
-      const user = result.rows[0];
-      return {
-        ...user,
-        phone_number: user.phone_number || '' // Ensure phone_number is always defined
-      };
-    }
-    
-    return null;
+  const query = `
+    SELECT 
+      id, 
+      first_name, 
+      last_name, 
+      email, 
+      phone_number,
+      profile_image
+    FROM users 
+    WHERE id = $1
+  `;
+  
+  const result = await this.db.query(query, [userId]);
+  
+  if (result.rows.length > 0) {
+    const user = result.rows[0];
+    return {
+      ...user,
+      phone_number: user.phone_number || '',
+      profile_image: user.profile_image || ''
+    };
   }
+  
+  return null;
+}
 
   private async verifyDatabaseTables(): Promise<void> {
     try {
@@ -1197,64 +1198,69 @@ export class TrainingService {
   }
 
   async getApplications(trainingId: string, employerId: string, params: { page?: number; limit?: number; status?: string }): Promise<any> {
-    const epRow = await this.db.query('SELECT id FROM employers WHERE user_id = $1', [employerId]);
-    const epId = epRow.rows.length > 0 ? epRow.rows[0].id : null;
+  const epRow = await this.db.query('SELECT id FROM employers WHERE user_id = $1', [employerId]);
+  const epId = epRow.rows.length > 0 ? epRow.rows[0].id : null;
 
-    const own = await this.db.query(
-      `SELECT id FROM trainings WHERE id = $1 AND (provider_id = $2 OR provider_id = $3)`,
-      [trainingId, employerId, epId ?? '']
-    );
-    if (own.rows.length === 0) return null;
+  const own = await this.db.query(
+    `SELECT id FROM trainings WHERE id = $1 AND (provider_id = $2 OR provider_id = $3)`,
+    [trainingId, employerId, epId ?? '']
+  );
+  if (own.rows.length === 0) return null;
 
-    const { page = 1, limit = 20, status } = params;
-    const offset = (page - 1) * limit;
+  const { page = 1, limit = 20, status } = params;
+  const offset = (page - 1) * limit;
 
-    let where = 'WHERE a.training_id = $1';
-    const qp: any[] = [trainingId];
-    let pi = 2;
-    if (status) { where += ` AND a.status = $${pi++}`; qp.push(status); }
+  let where = 'WHERE a.training_id = $1';
+  const qp: any[] = [trainingId];
+  let pi = 2;
+  if (status) { where += ` AND a.status = $${pi++}`; qp.push(status); }
 
-    qp.push(limit, offset);
-    
-    // ✅ FIX: Safe user data retrieval
-    let userQuery = 'SELECT a.*, u.first_name, u.last_name, u.email, u.profile_image';
-    if (this.phoneNumberColumnExists) {
-      userQuery += ', u.phone_number';
-    }
-    userQuery += `, COUNT(*) OVER() AS total_count
-       FROM training_applications a
-       JOIN users u ON a.user_id = u.id
-       ${where}
-       ORDER BY a.applied_at DESC
-       LIMIT $${pi++} OFFSET $${pi++}`;
+  qp.push(limit, offset);
+  
+  // ✅ FIX: Explicit column selection instead of dynamic
+  const userQuery = `
+    SELECT 
+      a.*,
+      u.first_name,
+      u.last_name,
+      u.email,
+      u.profile_image,
+      u.phone_number,
+      COUNT(*) OVER() AS total_count
+    FROM training_applications a
+    JOIN users u ON a.user_id = u.id
+    ${where}
+    ORDER BY a.applied_at DESC
+    LIMIT $${pi++} OFFSET $${pi++}
+  `;
 
-    const result = await this.db.query(userQuery, qp);
+  const result = await this.db.query(userQuery, qp);
 
-    const rows  = result.rows;
-    const total = rows.length > 0 ? parseInt(rows[0].total_count) : 0;
+  const rows  = result.rows;
+  const total = rows.length > 0 ? parseInt(rows[0].total_count) : 0;
 
-    return {
-      applications: rows.map(r => ({
-        id: r.id,
-        training_id: r.training_id,
-        user_id: r.user_id,
-        motivation: r.motivation,
-        status: r.status,
-        reviewed_at: r.reviewed_at,
-        employer_notes: r.employer_notes,
-        applied_at: r.applied_at,
-        user: { 
-          id: r.user_id, 
-          first_name: r.first_name, 
-          last_name: r.last_name, 
-          email: r.email, 
-          profile_image: r.profile_image,
-          phone_number: r.phone_number || ''
-        },
-      })),
-      pagination: { current_page: page, total_pages: Math.ceil(total / limit), page_size: limit, total_count: total, has_next: page * limit < total, has_previous: page > 1 },
-    };
-  }
+  return {
+    applications: rows.map(r => ({
+      id: r.id,
+      training_id: r.training_id,
+      user_id: r.user_id,
+      motivation: r.motivation,
+      status: r.status,
+      reviewed_at: r.reviewed_at,
+      employer_notes: r.employer_notes,
+      applied_at: r.applied_at,
+      user: { 
+        id: r.user_id, 
+        first_name: r.first_name, 
+        last_name: r.last_name, 
+        email: r.email, 
+        profile_image: r.profile_image || '',
+        phone_number: r.phone_number || ''
+      },
+    })),
+    pagination: { current_page: page, total_pages: Math.ceil(total / limit), page_size: limit, total_count: total, has_next: page * limit < total, has_previous: page > 1 },
+  };
+}
 
   // ==========================================================================
   // 5. SHORTLISTING & ENROLLMENT
@@ -1412,106 +1418,113 @@ export class TrainingService {
   }
 
   async issueCertificate(enrollmentId: string, employerId: string): Promise<any> {
-    // ✅ FIX: Safe user data retrieval in query
-    let enrQuery = `SELECT e.*, 
-              t.title AS training_title, t.provider_id, t.has_certificate, t.duration_hours,
-              u.first_name, u.last_name, u.email`;
-    
-    if (this.phoneNumberColumnExists) {
-      enrQuery += ', u.phone_number';
-    }
-    
-    enrQuery += ` FROM training_enrollments e
-       JOIN trainings t ON e.training_id = t.id
-       JOIN users u ON e.user_id = u.id
-       WHERE e.id = $1`;
+  // ✅ FIX: Explicit column selection
+  const enrQuery = `
+    SELECT 
+      e.*, 
+      t.title AS training_title, 
+      t.provider_id, 
+      t.has_certificate, 
+      t.duration_hours,
+      u.first_name, 
+      u.last_name, 
+      u.email,
+      u.phone_number,
+      u.profile_image
+    FROM training_enrollments e
+    JOIN trainings t ON e.training_id = t.id
+    JOIN users u ON e.user_id = u.id
+    WHERE e.id = $1
+  `;
 
-    const enrRow = await this.db.query(enrQuery, [enrollmentId]);
-    
-    if (enrRow.rows.length === 0) throw new Error('Enrollment not found');
+  const enrRow = await this.db.query(enrQuery, [enrollmentId]);
+  
+  if (enrRow.rows.length === 0) throw new Error('Enrollment not found');
 
-    const enr = enrRow.rows[0];
+  const enr = enrRow.rows[0];
 
-    const epRow = await this.db.query('SELECT id FROM employers WHERE user_id = $1', [employerId]);
-    const epId = epRow.rows.length > 0 ? epRow.rows[0].id : null;
-    
-    if (enr.provider_id !== employerId && enr.provider_id !== epId) {
-      throw new Error('Unauthorized: You can only issue certificates for your own trainings');
-    }
-    
-    if (!enr.has_certificate) throw new Error('This training does not provide certificates');
-    if (enr.status !== 'completed') throw new Error('Certificate can only be issued for completed enrollments');
-    
-    if (enr.certificate_issued) {
-      return { 
-        success: true, 
-        message: 'Certificate already issued', 
-        certificate_url: enr.certificate_url, 
-        enrollment_id: enrollmentId 
-      };
-    }
-
-    const userName = `${enr.first_name || ''} ${enr.last_name || ''}`.trim() || 
-                     (enr.email ? enr.email.split('@')[0] : 'User');
-
-    const cert = await this.generateCertificatePDF(
-      enrollmentId, 
-      enr.user_id, 
-      enr.training_id, 
-      enr.training_title, 
-      enr.duration_hours
-    );
-
-    await this.db.query(
-      `UPDATE training_enrollments 
-       SET certificate_issued = true, 
-           certificate_url = $1, 
-           certificate_issued_at = NOW() 
-       WHERE id = $2`,
-      [cert.certificate_url, enrollmentId]
-    );
-
-    await this.db.query(
-      `INSERT INTO certificate_verifications (enrollment_id, verification_code, certificate_url, issued_at)
-       VALUES ($1, $2, $3, NOW())
-       ON CONFLICT (enrollment_id) DO NOTHING`,
-      [enrollmentId, cert.verification_code, cert.certificate_url]
-    );
-
-    this.createNotification(
-      enr.user_id, 
-      'certificate_issued',
-      `🎉 Your certificate for "${enr.training_title}" is ready! Click to download.`,
-      { 
-        training_id: enr.training_id, 
-        enrollment_id: enrollmentId, 
-        certificate_url: cert.certificate_url,
-        user_id: enr.user_id,
-        applicant_name: userName
-      }
-    );
-    
-    this.createNotification(
-      enr.provider_id, 
-      'certificate_issued',
-      `Certificate issued to ${userName} for "${enr.training_title}".`,
-      { 
-        training_id: enr.training_id, 
-        enrollment_id: enrollmentId, 
-        user_id: enr.user_id,
-        applicant_name: userName,
-        jobseeker_name: userName
-      }
-    );
-
+  const epRow = await this.db.query('SELECT id FROM employers WHERE user_id = $1', [employerId]);
+  const epId = epRow.rows.length > 0 ? epRow.rows[0].id : null;
+  
+  if (enr.provider_id !== employerId && enr.provider_id !== epId) {
+    throw new Error('Unauthorized: You can only issue certificates for your own trainings');
+  }
+  
+  if (!enr.has_certificate) throw new Error('This training does not provide certificates');
+  if (enr.status !== 'completed') throw new Error('Certificate can only be issued for completed enrollments');
+  
+  if (enr.certificate_issued) {
     return { 
       success: true, 
-      message: 'Certificate issued successfully', 
-      certificate_url: cert.certificate_url, 
-      verification_code: cert.verification_code, 
+      message: 'Certificate already issued', 
+      certificate_url: enr.certificate_url, 
       enrollment_id: enrollmentId 
     };
   }
+
+  const userName = `${enr.first_name || ''} ${enr.last_name || ''}`.trim() || 
+                   (enr.email ? enr.email.split('@')[0] : 'User');
+
+  const cert = await this.generateCertificatePDF(
+    enrollmentId, 
+    enr.user_id, 
+    enr.training_id, 
+    enr.training_title, 
+    enr.duration_hours
+  );
+
+  await this.db.query(
+    `UPDATE training_enrollments 
+     SET certificate_issued = true, 
+         certificate_url = $1, 
+         certificate_issued_at = NOW() 
+     WHERE id = $2`,
+    [cert.certificate_url, enrollmentId]
+  );
+
+  await this.db.query(
+    `INSERT INTO certificate_verifications (enrollment_id, verification_code, certificate_url, issued_at)
+     VALUES ($1, $2, $3, NOW())
+     ON CONFLICT (enrollment_id) DO NOTHING`,
+    [enrollmentId, cert.verification_code, cert.certificate_url]
+  );
+
+  this.createNotification(
+    enr.user_id, 
+    'certificate_issued',
+    `🎉 Your certificate for "${enr.training_title}" is ready! Click to download.`,
+    { 
+      training_id: enr.training_id, 
+      enrollment_id: enrollmentId, 
+      certificate_url: cert.certificate_url,
+      user_id: enr.user_id,
+      applicant_name: userName,
+      profile_image: enr.profile_image || ''
+    }
+  );
+  
+  this.createNotification(
+    enr.provider_id, 
+    'certificate_issued',
+    `Certificate issued to ${userName} for "${enr.training_title}".`,
+    { 
+      training_id: enr.training_id, 
+      enrollment_id: enrollmentId, 
+      user_id: enr.user_id,
+      applicant_name: userName,
+      jobseeker_name: userName,
+      profile_image: enr.profile_image || ''
+    }
+  );
+
+  return { 
+    success: true, 
+    message: 'Certificate issued successfully', 
+    certificate_url: cert.certificate_url, 
+    verification_code: cert.verification_code, 
+    enrollment_id: enrollmentId 
+  };
+}
 
   async verifyCertificate(verificationCode: string): Promise<any> {
     const result = await this.db.query(
@@ -1862,49 +1875,66 @@ export class TrainingService {
   }
 
   async getTrainingEnrollments(trainingId: string, employerId: string, params: any): Promise<any | null> {
-    const epRow = await this.db.query('SELECT id FROM employers WHERE user_id = $1', [employerId]);
-    const epId = epRow.rows.length > 0 ? epRow.rows[0].id : null;
+  const epRow = await this.db.query('SELECT id FROM employers WHERE user_id = $1', [employerId]);
+  const epId = epRow.rows.length > 0 ? epRow.rows[0].id : null;
 
-    const own = await this.db.query(
-      `SELECT id FROM trainings WHERE id = $1 AND (provider_id = $2 OR provider_id = $3)`,
-      [trainingId, employerId, epId ?? '']
-    );
-    if (own.rows.length === 0) return null;
+  const own = await this.db.query(
+    `SELECT id FROM trainings WHERE id = $1 AND (provider_id = $2 OR provider_id = $3)`,
+    [trainingId, employerId, epId ?? '']
+  );
+  if (own.rows.length === 0) return null;
 
-    const { page = 1, limit = 20, status } = params;
-    const offset = (page - 1) * limit;
-    let where = 'WHERE e.training_id = $1';
-    const qp: any[] = [trainingId];
-    let pi = 2;
-    if (status) { where += ` AND e.status = $${pi++}`; qp.push(status); }
-    qp.push(limit, offset);
+  const { page = 1, limit = 20, status } = params;
+  const offset = (page - 1) * limit;
+  let where = 'WHERE e.training_id = $1';
+  const qp: any[] = [trainingId];
+  let pi = 2;
+  if (status) { where += ` AND e.status = $${pi++}`; qp.push(status); }
+  qp.push(limit, offset);
 
-    // ✅ FIX: Safe user data retrieval
-    let enrollQuery = 'SELECT e.*, u.first_name, u.last_name, u.email, u.profile_image';
-    if (this.phoneNumberColumnExists) {
-      enrollQuery += ', u.phone_number';
-    }
-    enrollQuery += `, COUNT(*) OVER() AS total_count
-       FROM training_enrollments e
-       JOIN users u ON e.user_id = u.id
-       ${where}
-       ORDER BY e.enrolled_at DESC
-       LIMIT $${pi++} OFFSET $${pi++}`;
+  // ✅ FIX: Explicit column selection
+  const enrollQuery = `
+    SELECT 
+      e.*,
+      u.first_name,
+      u.last_name,
+      u.email,
+      u.profile_image,
+      u.phone_number,
+      COUNT(*) OVER() AS total_count
+    FROM training_enrollments e
+    JOIN users u ON e.user_id = u.id
+    ${where}
+    ORDER BY e.enrolled_at DESC
+    LIMIT $${pi++} OFFSET $${pi++}
+  `;
 
-    const result = await this.db.query(enrollQuery, qp);
-    const rows  = result.rows;
-    const total = rows.length > 0 ? parseInt(rows[0].total_count) : 0;
+  const result = await this.db.query(enrollQuery, qp);
+  const rows  = result.rows;
+  const total = rows.length > 0 ? parseInt(rows[0].total_count) : 0;
 
-    return {
-      enrollments: rows.map(r => ({
-        id: r.id, training_id: r.training_id, user_id: r.user_id,
-        status: r.status, enrolled_at: r.enrolled_at, completed_at: r.completed_at,
-        completion_marked: r.completion_marked, certificate_issued: r.certificate_issued,
-        user: { id: r.user_id, first_name: r.first_name, last_name: r.last_name, email: r.email, profile_image: r.profile_image, phone_number: r.phone_number || '' },
-      })),
-      pagination: { current_page: page, total_pages: Math.ceil(total / limit), page_size: limit, total_count: total, has_next: page * limit < total, has_previous: page > 1 },
-    };
-  }
+  return {
+    enrollments: rows.map(r => ({
+      id: r.id, 
+      training_id: r.training_id, 
+      user_id: r.user_id,
+      status: r.status, 
+      enrolled_at: r.enrolled_at, 
+      completed_at: r.completed_at,
+      completion_marked: r.completion_marked, 
+      certificate_issued: r.certificate_issued,
+      user: { 
+        id: r.user_id, 
+        first_name: r.first_name, 
+        last_name: r.last_name, 
+        email: r.email, 
+        profile_image: r.profile_image || '', 
+        phone_number: r.phone_number || '' 
+      },
+    })),
+    pagination: { current_page: page, total_pages: Math.ceil(total / limit), page_size: limit, total_count: total, has_next: page * limit < total, has_previous: page > 1 },
+  };
+}
 
   // ==========================================================================
   // 8. MISC METHODS
