@@ -1,4 +1,4 @@
-// training.service.ts - COMPREHENSIVE FIXES for Employer Notifications & Filtering
+// training.service.ts - COMPLETE FIXED VERSION with safe phone_number handling
 
 import { Pool } from 'pg';
 import {
@@ -57,8 +57,54 @@ function generateVerificationCode(): string {
 }
 
 export class TrainingService {
+  private phoneNumberColumnExists: boolean | null = null;
+
   constructor(private db: Pool) {
     this.verifyDatabaseTables();
+    this.checkPhoneNumberColumn();
+  }
+
+  // ✅ NEW: Check if phone_number column exists in users table
+  private async checkPhoneNumberColumn(): Promise<void> {
+    try {
+      const result = await this.db.query(`
+        SELECT column_name 
+        FROM information_schema.columns 
+        WHERE table_name = 'users' AND column_name = 'phone_number'
+      `);
+      this.phoneNumberColumnExists = result.rows.length > 0;
+      console.log(`📞 phone_number column ${this.phoneNumberColumnExists ? 'EXISTS' : 'DOES NOT EXIST'} in users table`);
+    } catch (error: any) {
+      console.error('❌ Error checking phone_number column:', error.message);
+      this.phoneNumberColumnExists = false;
+    }
+  }
+
+  // ✅ NEW: Helper method to safely get user details
+  private async getUserDetails(userId: string): Promise<any> {
+    let query = 'SELECT id, first_name, last_name, email, profile_image';
+    
+    if (this.phoneNumberColumnExists === null) {
+      await this.checkPhoneNumberColumn();
+    }
+    
+    if (this.phoneNumberColumnExists) {
+      query += ', phone_number';
+    }
+    
+    query += ' FROM users WHERE id = $1';
+    
+    const result = await this.db.query(query, [userId]);
+    
+    if (result.rows.length > 0) {
+      const user = result.rows[0];
+      return {
+        ...user,
+        phone_number: user.phone_number || '' // Ensure phone_number is always defined
+      };
+    }
+    
+    return null;
   }
 
   private async verifyDatabaseTables(): Promise<void> {
@@ -126,14 +172,10 @@ export class TrainingService {
           }
 
           if (lookupUserId) {
-            const uRes = await this.db.query(
-              'SELECT first_name, last_name, email, phone_number, profile_image FROM users WHERE id = $1', 
-              [lookupUserId]
-            );
-            if (uRes.rows.length > 0) {
-              const u = uRes.rows[0];
-              const builtName = `${u.first_name || ''} ${u.last_name || ''}`.trim()
-                || (u.email ? u.email.split('@')[0].replace(/[_.-]/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase()) : null)
+            const user = await this.getUserDetails(lookupUserId);
+            if (user) {
+              const builtName = `${user.first_name || ''} ${user.last_name || ''}`.trim()
+                || (user.email ? user.email.split('@')[0].replace(/[_.-]/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase()) : null)
                 || 'User';
               
               // ✅ Populate ALL name variations for consistency
@@ -141,13 +183,13 @@ export class TrainingService {
               meta.jobseeker_name = builtName;
               meta.user_name = builtName;
               meta.user_id = lookupUserId;
-              meta.first_name = u.first_name || '';
-              meta.last_name = u.last_name || '';
-              meta.email = u.email || '';
-              meta.user_email = u.email || '';
-              meta.applicant_email = u.email || '';
-              meta.phone_number = u.phone_number || '';
-              meta.profile_image = u.profile_image || '';
+              meta.first_name = user.first_name || '';
+              meta.last_name = user.last_name || '';
+              meta.email = user.email || '';
+              meta.user_email = user.email || '';
+              meta.applicant_email = user.email || '';
+              meta.phone_number = user.phone_number || '';
+              meta.profile_image = user.profile_image || '';
             }
           }
         } catch (innerErr: any) {
@@ -311,14 +353,9 @@ export class TrainingService {
         let userDetails: any = {};
 
         if (parsedMetadata.user_id) {
-          const userResult = await this.db.query(
-            `SELECT id, first_name, last_name, email, phone_number, profile_image 
-             FROM users WHERE id = $1`,
-            [parsedMetadata.user_id]
-          );
-
-          if (userResult.rows.length > 0) {
-            const user = userResult.rows[0];
+          const user = await this.getUserDetails(parsedMetadata.user_id);
+          
+          if (user) {
             userDetails = {
               user_id: user.id,
               first_name: user.first_name || '',
@@ -336,7 +373,7 @@ export class TrainingService {
 
         if (parsedMetadata.application_id) {
           const appResult = await this.db.query(
-            `SELECT a.*, u.first_name, u.last_name, u.email, u.phone_number, u.profile_image
+            `SELECT a.*, u.first_name, u.last_name, u.email, u.profile_image
              FROM training_applications a
              JOIN users u ON a.user_id = u.id
              WHERE a.id = $1`,
@@ -358,7 +395,7 @@ export class TrainingService {
               first_name: app.first_name || '',
               last_name: app.last_name || '',
               email: app.email || '',
-              phone_number: app.phone_number || '',
+              phone_number: '', // Safe default
               profile_image: app.profile_image || '',
               display_name: `${app.first_name} ${app.last_name}`.trim() || app.email
             };
@@ -395,28 +432,28 @@ export class TrainingService {
     }
   }
 
- async markNotificationRead(notificationId: string, userId: string): Promise<void> {
-  try {
-    const result = await this.db.query(
-      `UPDATE notifications 
-       SET is_read = true, updated_at = NOW() 
-       WHERE id = $1 AND user_id = $2`,
-      [notificationId, userId]
-    );
-    
-    if (result.rowCount === 0) {
-      console.warn('⚠️  Notification not found or already read:', notificationId);
-    } else {
-      console.log('✅ Notification marked as read:', notificationId);
+  async markNotificationRead(notificationId: string, userId: string): Promise<void> {
+    try {
+      const result = await this.db.query(
+        `UPDATE notifications 
+         SET is_read = true, updated_at = NOW() 
+         WHERE id = $1 AND user_id = $2`,
+        [notificationId, userId]
+      );
+      
+      if (result.rowCount === 0) {
+        console.warn('⚠️  Notification not found or already read:', notificationId);
+      } else {
+        console.log('✅ Notification marked as read:', notificationId);
+      }
+    } catch (error: any) {
+      console.error('❌ Error marking notification as read:', error.message);
+      throw new Error('Failed to mark notification as read');
     }
-  } catch (error: any) {
-    console.error('❌ Error marking notification as read:', error.message);
-    throw new Error('Failed to mark notification as read');
   }
-}
 
   // ==========================================================================
-  // 2. TRAINING CRUD - UNCHANGED
+  // 2. TRAINING CRUD
   // ==========================================================================
 
   async createTraining(data: CreateTrainingRequest, employerId: string): Promise<Training> {
@@ -856,59 +893,58 @@ export class TrainingService {
       const values: any[] = [];
       let paramCount = 1;
 
-      // ✅ CRITICAL: Resolve employer profile ID and filter strictly
       // ✅ CRITICAL FIX: Proper employer filtering
-if (employerId) {
-  // Method 1: Try to resolve employer profile ID from user_id
-  const epResult = await this.db.query(
-    'SELECT id FROM employers WHERE user_id = $1',
-    [employerId]
-  );
+      if (employerId) {
+        // Method 1: Try to resolve employer profile ID from user_id
+        const epResult = await this.db.query(
+          'SELECT id FROM employers WHERE user_id = $1',
+          [employerId]
+        );
 
-  let employerProfileId: string | null = null;
+        let employerProfileId: string | null = null;
 
-  if (epResult.rows.length > 0) {
-    employerProfileId = epResult.rows[0].id;
-    console.log('✅ Employer profile found (via user_id):', employerProfileId);
-  } else {
-    // Method 2: Check if employerId IS the employer profile ID
-    const directCheck = await this.db.query(
-      'SELECT id FROM employers WHERE id = $1',
-      [employerId]
-    );
+        if (epResult.rows.length > 0) {
+          employerProfileId = epResult.rows[0].id;
+          console.log('✅ Employer profile found (via user_id):', employerProfileId);
+        } else {
+          // Method 2: Check if employerId IS the employer profile ID
+          const directCheck = await this.db.query(
+            'SELECT id FROM employers WHERE id = $1',
+            [employerId]
+          );
 
-    if (directCheck.rows.length > 0) {
-      employerProfileId = employerId;
-      console.log('✅ Employer profile found (direct ID):', employerProfileId);
-    }
-  }
+          if (directCheck.rows.length > 0) {
+            employerProfileId = employerId;
+            console.log('✅ Employer profile found (direct ID):', employerProfileId);
+          }
+        }
 
-  if (!employerProfileId) {
-    console.error('❌ No employer profile found for:', employerId);
-    return {
-      trainings: [],
-      pagination: {
-        current_page: page,
-        total_pages: 0,
-        page_size: limit,
-        total_count: 0,
-        has_next: false,
-        has_previous: false
-      }
-    };
-  }
+        if (!employerProfileId) {
+          console.error('❌ No employer profile found for:', employerId);
+          return {
+            trainings: [],
+            pagination: {
+              current_page: page,
+              total_pages: 0,
+              page_size: limit,
+              total_count: 0,
+              has_next: false,
+              has_previous: false
+            }
+          };
+        }
     
-  // ✅ STRICT FILTERING: Only trainings owned by THIS employer
-  conditions.push(`t.provider_id = $${paramCount}`);
-  values.push(employerProfileId);
-  paramCount++;
-  
-  console.log(`✅ Filtering for employer profile: ${employerProfileId}`);
-} else {
-  // If no employerId provided, show only published trainings
-  conditions.push(`t.status = 'published'`);
-  console.log('ℹ️  No employer filter - showing published trainings');
-}
+        // ✅ STRICT FILTERING: Only trainings owned by THIS employer
+        conditions.push(`t.provider_id = $${paramCount}`);
+        values.push(employerProfileId);
+        paramCount++;
+        
+        console.log(`✅ Filtering for employer profile: ${employerProfileId}`);
+      } else {
+        // If no employerId provided, show only published trainings
+        conditions.push(`t.status = 'published'`);
+        console.log('ℹ️  No employer filter - showing published trainings');
+      }
 
       // Apply other filters
       if (params.search) {
@@ -1044,10 +1080,10 @@ if (employerId) {
   }
 
   // ==========================================================================
-  // 4. APPLICATION FLOW - FIXED WITH RICH NOTIFICATIONS
+  // 4. APPLICATION FLOW - FIXED WITH SAFE COLUMN HANDLING
   // ==========================================================================
 
-  // ✅ FIX 5: Enhanced submitApplication with complete metadata
+  // ✅ FIX 5: Enhanced submitApplication with safe phone_number handling
   async submitApplication(
     trainingId: string,
     userId: string,
@@ -1081,17 +1117,12 @@ if (employerId) {
 
       const training = trainingResult.rows[0];
 
-      // Get complete user details
-      const userResult = await this.db.query(
-        'SELECT id, first_name, last_name, email, phone_number, profile_image FROM users WHERE id = $1',
-        [userId]
-      );
+      // ✅ FIX: Get user details safely
+      const user = await this.getUserDetails(userId);
 
-      if (userResult.rows.length === 0) {
+      if (!user) {
         return { success: false, message: 'User not found' };
       }
-
-      const user = userResult.rows[0];
 
       // Create application
       const applicationResult = await this.db.query(
@@ -1165,8 +1196,6 @@ if (employerId) {
     }
   }
 
-
-
   async getApplications(trainingId: string, employerId: string, params: { page?: number; limit?: number; status?: string }): Promise<any> {
     const epRow = await this.db.query('SELECT id FROM employers WHERE user_id = $1', [employerId]);
     const epId = epRow.rows.length > 0 ? epRow.rows[0].id : null;
@@ -1186,17 +1215,20 @@ if (employerId) {
     if (status) { where += ` AND a.status = $${pi++}`; qp.push(status); }
 
     qp.push(limit, offset);
-    const result = await this.db.query(
-      `SELECT a.*,
-              u.first_name, u.last_name, u.email, u.profile_image, u.phone_number,
-              COUNT(*) OVER() AS total_count
+    
+    // ✅ FIX: Safe user data retrieval
+    let userQuery = 'SELECT a.*, u.first_name, u.last_name, u.email, u.profile_image';
+    if (this.phoneNumberColumnExists) {
+      userQuery += ', u.phone_number';
+    }
+    userQuery += `, COUNT(*) OVER() AS total_count
        FROM training_applications a
        JOIN users u ON a.user_id = u.id
        ${where}
        ORDER BY a.applied_at DESC
-       LIMIT $${pi++} OFFSET $${pi++}`,
-      qp
-    );
+       LIMIT $${pi++} OFFSET $${pi++}`;
+
+    const result = await this.db.query(userQuery, qp);
 
     const rows  = result.rows;
     const total = rows.length > 0 ? parseInt(rows[0].total_count) : 0;
@@ -1217,7 +1249,7 @@ if (employerId) {
           last_name: r.last_name, 
           email: r.email, 
           profile_image: r.profile_image,
-          phone_number: r.phone_number 
+          phone_number: r.phone_number || ''
         },
       })),
       pagination: { current_page: page, total_pages: Math.ceil(total / limit), page_size: limit, total_count: total, has_next: page * limit < total, has_previous: page > 1 },
@@ -1287,11 +1319,9 @@ if (employerId) {
 
       await client.query('COMMIT');
 
-      const uRow = await client.query(
-        'SELECT first_name, last_name, email FROM users WHERE id = $1', 
-        [app.user_id]
-      );
-      const name = `${uRow.rows[0]?.first_name || ''} ${uRow.rows[0]?.last_name || ''}`.trim() || uRow.rows[0]?.email;
+      // ✅ FIX: Safe user data retrieval for notification
+      const user = await this.getUserDetails(app.user_id);
+      const name = user ? `${user.first_name || ''} ${user.last_name || ''}`.trim() || user.email : 'User';
 
       if (body.decision === 'shortlisted') {
         this.createNotification(app.user_id, 'application_shortlisted',
@@ -1319,7 +1349,7 @@ if (employerId) {
   }
 
   // ==========================================================================
-  // REMAINING METHODS (UNCHANGED FOR BREVITY)
+  // 6. COMPLETION & CERTIFICATES
   // ==========================================================================
 
   async markTraineeCompletion(enrollmentId: string, employerId: string, body: MarkCompletionRequest): Promise<any> {
@@ -1352,8 +1382,9 @@ if (employerId) {
 
       await client.query('COMMIT');
 
-      const uRow = await client.query('SELECT first_name, last_name, email FROM users WHERE id = $1', [enr.user_id]);
-      const name = `${uRow.rows[0]?.first_name || ''} ${uRow.rows[0]?.last_name || ''}`.trim() || uRow.rows[0]?.email;
+      // ✅ FIX: Safe user data retrieval
+      const user = await this.getUserDetails(enr.user_id);
+      const name = user ? `${user.first_name || ''} ${user.last_name || ''}`.trim() || user.email : 'User';
 
       if (body.completed) {
         this.createNotification(enr.user_id, 'training_completed_mark',
@@ -1381,16 +1412,21 @@ if (employerId) {
   }
 
   async issueCertificate(enrollmentId: string, employerId: string): Promise<any> {
-    const enrRow = await this.db.query(
-      `SELECT e.*, 
+    // ✅ FIX: Safe user data retrieval in query
+    let enrQuery = `SELECT e.*, 
               t.title AS training_title, t.provider_id, t.has_certificate, t.duration_hours,
-              u.first_name, u.last_name, u.email
-       FROM training_enrollments e
+              u.first_name, u.last_name, u.email`;
+    
+    if (this.phoneNumberColumnExists) {
+      enrQuery += ', u.phone_number';
+    }
+    
+    enrQuery += ` FROM training_enrollments e
        JOIN trainings t ON e.training_id = t.id
        JOIN users u ON e.user_id = u.id
-       WHERE e.id = $1`,
-      [enrollmentId]
-    );
+       WHERE e.id = $1`;
+
+    const enrRow = await this.db.query(enrQuery, [enrollmentId]);
     
     if (enrRow.rows.length === 0) throw new Error('Enrollment not found');
 
@@ -1515,9 +1551,9 @@ if (employerId) {
     const path = require('path');
     const PDFDocument = require('pdfkit');
 
-    const uRow = await this.db.query('SELECT first_name, last_name, email FROM users WHERE id = $1', [userId]);
-    const u    = uRow.rows[0] || {};
-    const trainee = `${u.first_name || ''} ${u.last_name || ''}`.trim() || (u.email || '').split('@')[0];
+    // ✅ FIX: Safe user data retrieval
+    const user = await this.getUserDetails(userId);
+    const trainee = user ? `${user.first_name || ''} ${user.last_name || ''}`.trim() || (user.email || '').split('@')[0] : 'Trainee';
 
     const tRow = await this.db.query(
       `SELECT t.provider_name, t.provider_id,
@@ -1594,6 +1630,10 @@ if (employerId) {
       stream.on('error', reject);
     });
   }
+
+  // ==========================================================================
+  // 7. STATS & ANALYTICS
+  // ==========================================================================
 
   async getTrainingStats(employerId: string): Promise<TrainingStatsResponse> {
     try {
@@ -1839,15 +1879,19 @@ if (employerId) {
     if (status) { where += ` AND e.status = $${pi++}`; qp.push(status); }
     qp.push(limit, offset);
 
-    const result = await this.db.query(
-      `SELECT e.*, u.first_name, u.last_name, u.email, u.profile_image, COUNT(*) OVER() AS total_count
+    // ✅ FIX: Safe user data retrieval
+    let enrollQuery = 'SELECT e.*, u.first_name, u.last_name, u.email, u.profile_image';
+    if (this.phoneNumberColumnExists) {
+      enrollQuery += ', u.phone_number';
+    }
+    enrollQuery += `, COUNT(*) OVER() AS total_count
        FROM training_enrollments e
        JOIN users u ON e.user_id = u.id
        ${where}
        ORDER BY e.enrolled_at DESC
-       LIMIT $${pi++} OFFSET $${pi++}`,
-      qp
-    );
+       LIMIT $${pi++} OFFSET $${pi++}`;
+
+    const result = await this.db.query(enrollQuery, qp);
     const rows  = result.rows;
     const total = rows.length > 0 ? parseInt(rows[0].total_count) : 0;
 
@@ -1856,11 +1900,15 @@ if (employerId) {
         id: r.id, training_id: r.training_id, user_id: r.user_id,
         status: r.status, enrolled_at: r.enrolled_at, completed_at: r.completed_at,
         completion_marked: r.completion_marked, certificate_issued: r.certificate_issued,
-        user: { id: r.user_id, first_name: r.first_name, last_name: r.last_name, email: r.email, profile_image: r.profile_image },
+        user: { id: r.user_id, first_name: r.first_name, last_name: r.last_name, email: r.email, profile_image: r.profile_image, phone_number: r.phone_number || '' },
       })),
       pagination: { current_page: page, total_pages: Math.ceil(total / limit), page_size: limit, total_count: total, has_next: page * limit < total, has_previous: page > 1 },
     };
   }
+
+  // ==========================================================================
+  // 8. MISC METHODS
+  // ==========================================================================
 
   async getTrainingCategories(): Promise<any[]> {
     const result = await this.db.query(
