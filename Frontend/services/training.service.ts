@@ -46,6 +46,7 @@ motivation_letter: any;
   reviewed_at?: Date;
   employer_notes?: string;
   user?: {
+phone_number: any;
     id: string;
     first_name: string;
     last_name: string;

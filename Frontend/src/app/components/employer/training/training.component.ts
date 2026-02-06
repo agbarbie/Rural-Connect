@@ -53,6 +53,28 @@ interface NewTraining {
   providers: [DatePipe]
 })
 export class TrainingComponent implements OnInit, OnDestroy {
+getNotificationIconClass(arg0: any) {
+throw new Error('Method not implemented.');
+}
+getNotificationTitle(arg0: any,arg1: any): any {
+throw new Error('Method not implemented.');
+}
+formatDate(arg0: any) {
+throw new Error('Method not implemented.');
+}
+viewApplicationDetails // ✅ FIX: Remove employerId and userType parameters
+(_t51: any) {
+throw new Error('Method not implemented.');
+}
+markNotificationAsRead(arg0: any) {
+throw new Error('Method not implemented.');
+}
+quickShortlist(_t732: TrainingApplication) {
+throw new Error('Method not implemented.');
+}
+quickReject(_t732: TrainingApplication) {
+throw new Error('Method not implemented.');
+}
   private destroy$ = new Subject<void>();
 
   // Component state

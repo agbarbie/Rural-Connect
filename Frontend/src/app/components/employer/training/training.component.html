@@ -1,4 +1,4 @@
-<!-- employer-training.component.html - BOOTCAMP MODEL (corrected dates) -->
+<!-- employer-training.component.html - MERGED & UPDATED (Fixed Notifications + Enhanced Applications Modal) -->
 
 <!-- Hamburger Menu Button -->
 <button class="hamburger" (click)="toggleSidebar()">
@@ -54,7 +54,7 @@
       </div>
     </div>
 
-    <!-- Notification Bell -->
+    <!-- FIXED: Notification Bell with Enhanced Display -->
     <div class="notification-wrapper" *ngIf="!showAddForm">
       <button class="notification-bell" (click)="toggleNotifications()">
         <i class="fas fa-bell"></i>
@@ -63,10 +63,16 @@
         </span>
       </button>
 
-      <!-- Enrollment Notifications Dropdown -->
+      <!-- FIXED: Enhanced Notification Dropdown -->
       <div class="notification-dropdown" *ngIf="showNotifications">
         <div class="notification-header">
-          <h3>Enrollment Updates</h3>
+          <h3>
+            <i class="fas fa-bell"></i>
+            Application Updates
+            <span class="notification-count" *ngIf="unreadNotificationCount > 0">
+              ({{ unreadNotificationCount }} new)
+            </span>
+          </h3>
           <button class="close-btn" (click)="toggleNotifications()">
             <i class="fas fa-times"></i>
           </button>
@@ -76,133 +82,112 @@
           <div
             class="notification-item"
             *ngFor="let notification of enrollmentNotifications"
-            [class]="'notification-' + notification.notification_type"
-          >
-            <div
-              class="notification-icon"
-              [style.color]="
-                getNotificationColor(notification.notification_type)
-              "
-            >
-              <i
-                class="fas"
-                [ngClass]="getNotificationIcon(notification.notification_type)"
-              ></i>
+            [class.unread]="!notification.is_read"
+            [class]="'notification-type-' + notification.type">
+
+            <!-- Notification Icon -->
+            <div class="notification-icon" [class]="getNotificationIconClass(notification.type)">
+              <i class="fas" [ngClass]="getNotificationIcon(notification.type)"></i>
             </div>
+
+            <!-- Notification Content -->
             <div class="notification-content">
-              <p class="notification-message">
-                <strong>{{ getJobseekerDisplayName(notification) }}</strong>
-                <span *ngIf="notification.notification_type === 'new'">
-                  just enrolled in
-                </span>
-                <span *ngIf="notification.notification_type === 'completed'">
-                  completed
-                </span>
-                <span *ngIf="notification.notification_type === 'in_progress'">
-                  is learning
-                </span>
-                <strong>"{{ notification.training_title }}"</strong>
+              <h4 class="notification-title">
+                {{ notification.title || getNotificationTitle(notification.type, notification.message) }}
+              </h4>
+
+              <div class="applicant-info">
+                <div class="applicant-details">
+                  <span class="applicant-name">
+                    <i class="fas fa-user"></i>
+                    {{ notification.display_name || notification.jobseeker_name || notification.user_name || 'Applicant' }}
+                  </span>
+                  <span class="applicant-email" *ngIf="notification.user_email || notification.email">
+                    <i class="fas fa-envelope"></i>
+                    {{ notification.user_email || notification.email }}
+                  </span>
+                </div>
+              </div>
+
+              <p class="training-title" *ngIf="notification.training_title || notification.metadata?.training_title">
+                <i class="fas fa-graduation-cap"></i>
+                <strong>{{ notification.training_title || notification.metadata?.training_title }}</strong>
               </p>
+
+              <div class="motivation-preview" *ngIf="notification.motivation_letter || notification.metadata?.motivation_letter">
+                <p class="motivation-text">
+                  "{{ (notification.motivation_letter || notification.metadata?.motivation_letter).substring(0, 100) }}{{ (notification.motivation_letter || notification.metadata?.motivation_letter).length > 100 ? '...' : '' }}"
+                </p>
+              </div>
+
               <div class="notification-meta">
-                <span class="notification-time">{{
-                  notification.enrolled_at | date: "short"
-                }}</span>
-                <span
-                  class="notification-progress"
-                  *ngIf="notification.progress_percentage"
-                >
-                  Progress: {{ notification.progress_percentage }}%
+                <span class="notification-time">
+                  <i class="fas fa-clock"></i>
+                  {{ formatDate(notification.applied_at || notification.created_at) }}
+                </span>
+                <span class="notification-status" *ngIf="!notification.is_read">
+                  <i class="fas fa-circle"></i>
+                  New
                 </span>
               </div>
             </div>
 
+            <!-- Notification Actions -->
             <div class="notification-actions">
               <button
-                *ngIf="canIssueCertificate(notification)"
-                class="btn-issue-cert"
-                (click)="
-                  issueCertificateFromNotification(notification);
-                  $event.stopPropagation()
-                "
-                title="Issue Certificate"
-              >
-                <i class="fas fa-certificate"></i>
-                Issue Certificate
-              </button>
-
-              <span
-                *ngIf="notification.certificate_issued"
-                class="certificate-badge"
-              >
-                <i class="fas fa-check-circle"></i> Issued
-              </span>
-
-              <button
-                *ngIf="notification.certificate_issued"
-                class="btn-download-cert"
-                (click)="
-                  downloadEmployerCertificate(notification.enrollment_id);
-                  $event.stopPropagation()
-                "
-                title="Download Certificate PDF"
-              >
-                <i class="fas fa-download"></i>
-                Download
+                class="btn-notification-action btn-view-profile"
+                (click)="viewStudentProfile(notification); $event.stopPropagation()"
+                title="View Applicant Profile">
+                <i class="fas fa-user-circle"></i>
+                View Profile
               </button>
 
               <button
-                class="btn-view-profile"
-                (click)="
-                  viewStudentProfile(notification); $event.stopPropagation()
-                "
-              >
-                <i class="fas fa-user"></i> Profile
+                *ngIf="notification.application_id || notification.metadata?.application_id"
+                class="btn-notification-action btn-view-details"
+                (click)="viewApplicationDetails(notification); $event.stopPropagation()"
+                title="View Full Application">
+                <i class="fas fa-file-alt"></i>
+                View Details
+              </button>
+
+              <button
+                *ngIf="!notification.is_read"
+                class="btn-notification-action btn-mark-read"
+                (click)="markNotificationAsRead(notification.id); $event.stopPropagation()"
+                title="Mark as Read">
+                <i class="fas fa-check"></i>
               </button>
             </div>
           </div>
 
-          <div
-            class="notification-footer"
-            *ngIf="enrollmentNotifications.length > 0"
-          >
+          <div class="notification-footer" *ngIf="enrollmentNotifications.length > 0">
             <div class="footer-actions">
               <button
                 class="btn-secondary"
-                (click)="
-                  markAllEnrollmentNotificationsRead(); $event.stopPropagation()
-                "
-              >
-                <i class="fas fa-check"></i> Mark all read
+                (click)="markAllEnrollmentNotificationsRead(); $event.stopPropagation()">
+                <i class="fas fa-check-double"></i> Mark all read
               </button>
 
               <button
                 class="btn-secondary"
                 *ngIf="hasMoreEnrollmentNotifications"
-                (click)="
-                  loadMoreEnrollmentNotifications(); $event.stopPropagation()
-                "
-              >
+                (click)="loadMoreEnrollmentNotifications(); $event.stopPropagation()">
                 <i class="fas fa-chevron-down"></i> Load more
               </button>
 
               <button
                 class="btn-secondary btn-danger"
-                (click)="
-                  confirmClearEnrollmentNotifications();
-                  $event.stopPropagation()
-                "
-              >
+                (click)="confirmClearEnrollmentNotifications(); $event.stopPropagation()">
                 <i class="fas fa-trash-alt"></i> Clear
               </button>
             </div>
           </div>
 
-          <div
-            class="no-notifications"
-            *ngIf="enrollmentNotifications.length === 0"
-          >
+          <div class="no-notifications" *ngIf="enrollmentNotifications.length === 0">
             <i class="fas fa-inbox"></i>
-            <p>No enrollment updates</p>
+            <p>No application updates</p>
+            <small>You'll be notified when jobseekers apply for your trainings</small>
           </div>
         </div>
       </div>
@@ -756,7 +741,6 @@
             Edit
           </button>
           <div class="action-buttons">
-            <!-- Status Actions -->
             <button
               *ngIf="training.status === 'draft'"
               class="btn-publish"
@@ -1243,7 +1227,7 @@
       </div>
     </div>
 
-    <!-- Applications Modal -->
+    <!-- FIXED: Enhanced Applications Modal -->
     <div
       class="modal-overlay"
       *ngIf="showApplicationsModal"
@@ -1288,27 +1272,80 @@
                 (change)="toggleApplicationSelection(app.id!)"
               />
 
+              <!-- Enhanced Applicant Display -->
               <div class="applicant-info">
-                <h5>{{ app.user_name }}</h5>
-                <p class="applicant-email">{{ app.user_email }}</p>
+                <div class="applicant-header">
+                  <img
+                    [src]="app.user?.profile_image || 'assets/default-avatar.png'"
+                    alt="Profile"
+                    class="applicant-avatar"
+                  />
+                  <div class="applicant-details">
+                    <h5>{{ app.user?.first_name }} {{ app.user?.last_name }}</h5>
+                    <p class="applicant-email">
+                      <i class="fas fa-envelope"></i>
+                      {{ app.user?.email }}
+                    </p>
+                    <p class="applicant-phone" *ngIf="app.user?.phone_number">
+                      <i class="fas fa-phone"></i>
+                      {{ app.user?.phone_number }}
+                    </p>
+                  </div>
+                </div>
+
                 <div class="application-status" [ngClass]="app.status">
+                  <i
+                    class="fas"
+                    [ngClass]="{
+                      'fa-clock': app.status === 'pending',
+                      'fa-check-circle': app.status === 'shortlisted',
+                      'fa-times-circle': app.status === 'rejected'
+                    }"
+                  ></i>
                   {{ app.status }}
                 </div>
               </div>
 
+              <!-- Motivation Letter -->
               <div class="motivation-letter">
-                <h6>Motivation:</h6>
-                <p>{{ app.motivation_letter }}</p>
+                <h6>
+                  <i class="fas fa-pen"></i>
+                  Motivation Letter:
+                </h6>
+                <p>{{ app.motivation || 'No motivation letter provided' }}</p>
               </div>
 
+              <!-- Application Date -->
               <div class="application-date">
-                Applied: {{ app.applied_at | date: "short" }}
+                <i class="fas fa-calendar"></i>
+                Applied: {{ formatDate(app.applied_at) }}
+              </div>
+
+              <!-- Quick Actions -->
+              <div class="application-actions">
+                <button
+                  *ngIf="app.status === 'pending'"
+                  class="btn-shortlist"
+                  (click)="quickShortlist(app)"
+                >
+                  <i class="fas fa-check"></i>
+                  Shortlist
+                </button>
+                <button
+                  *ngIf="app.status === 'pending'"
+                  class="btn-reject"
+                  (click)="quickReject(app)"
+                >
+                  <i class="fas fa-times"></i>
+                  Reject
+                </button>
               </div>
             </div>
 
             <div class="no-applications" *ngIf="applications.length === 0">
               <i class="fas fa-inbox"></i>
               <p>No applications yet</p>
+              <small>Applications will appear here once jobseekers apply</small>
             </div>
           </div>
         </div>
@@ -1321,7 +1358,7 @@
       </div>
     </div>
 
-    <!-- Enrollments Modal -->
+    <!-- Enrollments Modal (kept original) -->
     <div
       class="modal-overlay"
       *ngIf="showEnrollmentsModal"

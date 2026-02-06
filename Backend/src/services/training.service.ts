@@ -1,3 +1,5 @@
+// training.service.ts - COMPREHENSIVE FIXES for Employer Notifications & Filtering
+
 import { Pool } from 'pg';
 import {
   Training,
@@ -16,7 +18,6 @@ import { join } from 'path';
 import crypto from 'crypto';
 import { v4 as uuidv4 } from 'uuid'; 
 
-// ✅ ADD THIS INTERFACE at the top of the file (after imports)
 interface NotificationMetadata {
   training_id?: string;
   training_title?: string;
@@ -35,7 +36,7 @@ interface NotificationMetadata {
   motivation_letter?: string;
   applied_at?: Date | string;
   enrollment_id?: string;
-  [key: string]: any; // Allow additional properties
+  [key: string]: any;
 }
 
 interface PaginatedResult<T> {
@@ -50,11 +51,6 @@ interface PaginatedResult<T> {
   };
 }
 
-
-// ---------------------------------------------------------------------------
-// Helper – generate a human-readable verification code
-// Format: CERT-XXXX-XXXX-XXXX  (hex, upper-cased)
-// ---------------------------------------------------------------------------
 function generateVerificationCode(): string {
   const hex = crypto.randomBytes(6).toString('hex').toUpperCase();
   return `CERT-${hex.slice(0, 4)}-${hex.slice(4, 8)}-${hex.slice(8, 12)}`;
@@ -64,11 +60,11 @@ export class TrainingService {
   constructor(private db: Pool) {
     this.verifyDatabaseTables();
   }
+
   private async verifyDatabaseTables(): Promise<void> {
     try {
       console.log('🔍 Verifying training-related database tables...');
       
-      // Check all required tables
       const tables = [
         'trainings',
         'training_sessions',
@@ -89,28 +85,13 @@ export class TrainingService {
           console.error(`  ✗ ${table} table NOT accessible:`, error.message);
         }
       }
-
-      // Check current schema
-      const schemaResult = await this.db.query('SELECT current_schema()');
-      console.log('📊 Current database schema:', schemaResult.rows[0].current_schema);
-
-      // List all tables in public schema
-      const tablesResult = await this.db.query(`
-        SELECT table_name 
-        FROM information_schema.tables 
-        WHERE table_schema = 'public' 
-          AND table_name LIKE 'training%'
-        ORDER BY table_name
-      `);
-      console.log('📋 Available training tables:', tablesResult.rows.map(r => r.table_name));
-
     } catch (error: any) {
       console.error('❌ Error verifying database tables:', error.message);
     }
   }
 
   // ==========================================================================
-  // 1.  NOTIFICATION SYSTEM
+  // 1. NOTIFICATION SYSTEM - FIXED WITH PROPER METADATA
   // ==========================================================================
 
   async createNotification(
@@ -121,21 +102,17 @@ export class TrainingService {
   ): Promise<void> {
     try {
       const title = this.generateNotificationTitle(type, message);
-
-      // Derive related_id from metadata (enrollment > training > application)
       const relatedId: string | null =
         metadata?.enrollment_id ?? metadata?.training_id ?? metadata?.application_id ?? null;
 
-      // Ensure metadata object exists and clone so we can enrich safely
       const meta: Record<string, any> = { ...(metadata || {}) };
 
-      // If caller already included a name, keep it. Otherwise try to resolve a meaningful name.
+      // ✅ FIX 1: Always enrich metadata with user details
       const hasName =
         Boolean(meta.applicant_name) || Boolean(meta.jobseeker_name) || Boolean(meta.user_name) || Boolean(meta.name);
 
       if (!hasName) {
         try {
-          // Determine which user id to look up (prefer explicit user_id, then application -> enrollment)
           let lookupUserId: string | null = meta.user_id ?? null;
 
           if (!lookupUserId && meta.application_id) {
@@ -148,32 +125,32 @@ export class TrainingService {
             if (enrRes.rows.length > 0) lookupUserId = enrRes.rows[0].user_id;
           }
 
-          // If we found a user id to look up, fetch name/email and build a friendly name
           if (lookupUserId) {
-            const uRes = await this.db.query('SELECT first_name, last_name, email FROM users WHERE id = $1', [lookupUserId]);
+            const uRes = await this.db.query(
+              'SELECT first_name, last_name, email, phone_number, profile_image FROM users WHERE id = $1', 
+              [lookupUserId]
+            );
             if (uRes.rows.length > 0) {
               const u = uRes.rows[0];
               const builtName = `${u.first_name || ''} ${u.last_name || ''}`.trim()
                 || (u.email ? u.email.split('@')[0].replace(/[_.-]/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase()) : null)
                 || 'User';
-              // Populate several name fields for caller convenience / backward compatibility
-              meta.applicant_name = meta.applicant_name ?? builtName;
-              meta.jobseeker_name = meta.jobseeker_name ?? builtName;
-              meta.user_name = meta.user_name ?? builtName;
-              meta.user_id = meta.user_id ?? lookupUserId;
-            }
-          } else {
-            // As a last resort, try to attach recipient (notification owner) name
-            const rRes = await this.db.query('SELECT first_name, last_name, email FROM users WHERE id = $1', [userId]);
-            if (rRes.rows.length > 0) {
-              const r = rRes.rows[0];
-              const recName = `${r.first_name || ''} ${r.last_name || ''}`.trim()
-                || (r.email ? r.email.split('@')[0].replace(/[_.-]/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase()) : 'User');
-              meta.recipient_name = meta.recipient_name ?? recName;
+              
+              // ✅ Populate ALL name variations for consistency
+              meta.applicant_name = builtName;
+              meta.jobseeker_name = builtName;
+              meta.user_name = builtName;
+              meta.user_id = lookupUserId;
+              meta.first_name = u.first_name || '';
+              meta.last_name = u.last_name || '';
+              meta.email = u.email || '';
+              meta.user_email = u.email || '';
+              meta.applicant_email = u.email || '';
+              meta.phone_number = u.phone_number || '';
+              meta.profile_image = u.profile_image || '';
             }
           }
         } catch (innerErr: any) {
-          // Non-fatal: if enrichment fails, proceed with provided metadata
           console.error('⚠️ createNotification metadata enrichment failed:', innerErr.message);
         }
       }
@@ -187,12 +164,13 @@ export class TrainingService {
       if (!tableExists.rows[0]?.exists) return;
 
       await this.db.query(
-        `INSERT INTO notifications (user_id, type, title, message, metadata, related_id, created_at, read)
+        `INSERT INTO notifications (user_id, type, title, message, metadata, related_id, created_at, is_read)
          VALUES ($1, $2, $3, $4, $5, $6::UUID, CURRENT_TIMESTAMP, false)`,
         [userId, type, title, message, JSON.stringify(meta), relatedId]
       );
+      
+      console.log('✅ Notification created:', { userId, type, title });
     } catch (err: any) {
-      // Notifications are non-critical – log and continue
       console.error('❌ createNotification:', err.message);
     }
   }
@@ -214,7 +192,6 @@ export class TrainingService {
     return map[type] || message.split('.')[0].substring(0, 255) || 'Training Update';
   }
 
-  /** Notify every *enrolled* trainee of a training about an event */
   async notifyEnrolledTrainees(
     trainingId: string,
     type: string,
@@ -237,7 +214,6 @@ export class TrainingService {
     }
   }
 
-  /** Notify ALL job-seekers about a newly published training */
   async notifyJobseekersAboutNewTraining(
     trainingId: string,
     title: string,
@@ -269,406 +245,346 @@ export class TrainingService {
     }
   }
 
-  // ---------- Read notifications ----------
-  // services/training.service.ts - FIXED getNotifications method
+  // ✅ FIX 2: Enhanced getNotifications with proper metadata parsing
+  async getNotifications(
+    userId: string,
+    params: { page?: number; limit?: number; read?: boolean | string } = {}
+  ): Promise<any> {
+    try {
+      const page = params.page || 1;
+      const limit = params.limit || 50;
+      const offset = (page - 1) * limit;
 
-// services/training.service.ts
+      let whereClause = 'WHERE user_id = $1';
+      const values: any[] = [userId];
+      let paramCount = 2;
 
-// services/training.service.ts
-
-// ✅ UPDATED getNotifications method with proper typing
-async getNotifications(
-  userId: string,
-  params: { page?: number; limit?: number; read?: boolean | string } = {}
-): Promise<any> {
-  try {
-    const page = params.page || 1;
-    const limit = params.limit || 50;
-    const offset = (page - 1) * limit;
-
-    let whereClause = 'WHERE user_id = $1';
-    const values: any[] = [userId];
-    let paramCount = 2;
-
-    if (params.read !== undefined && params.read !== null && params.read !== '') {
-      const isRead = params.read === true || params.read === 'true';
-      whereClause += ` AND is_read = $${paramCount}`;
-      values.push(isRead);
-      paramCount++;
-    }
-
-    const query = `
-      SELECT 
-        id,
-        user_id,
-        type,
-        title,
-        message,
-        related_id,
-        metadata,
-        is_read,
-        created_at,
-        updated_at
-      FROM notifications
-      ${whereClause}
-      ORDER BY created_at DESC
-      LIMIT $${paramCount} OFFSET $${paramCount + 1}
-    `;
-
-    values.push(limit, offset);
-
-    const result = await this.db.query(query, values);
-
-    // ✅ Parse metadata with proper typing
-    const notifications = result.rows.map((notification: any) => {
-      let parsedMetadata: NotificationMetadata = {}; // ✅ Use the interface
-      
-      if (notification.metadata) {
-        try {
-          parsedMetadata = typeof notification.metadata === 'string' 
-            ? JSON.parse(notification.metadata) 
-            : notification.metadata;
-        } catch (e) {
-          console.error('Failed to parse notification metadata:', e);
-          parsedMetadata = {};
-        }
+      if (params.read !== undefined && params.read !== null && params.read !== '') {
+        const isRead = params.read === true || params.read === 'true';
+        whereClause += ` AND is_read = $${paramCount}`;
+        values.push(isRead);
+        paramCount++;
       }
+
+      const query = `
+        SELECT 
+          id,
+          user_id,
+          type,
+          title,
+          message,
+          related_id,
+          metadata,
+          is_read,
+          created_at,
+          updated_at
+        FROM notifications
+        ${whereClause}
+        ORDER BY created_at DESC
+        LIMIT $${paramCount} OFFSET $${paramCount + 1}
+      `;
+
+      values.push(limit, offset);
+
+      const result = await this.db.query(query, values);
+
+      // ✅ FIX 3: Parse metadata and extract fields to top level for easy access
+      const notifications = result.rows.map((notification: any) => {
+        let parsedMetadata: NotificationMetadata = {};
+        
+        if (notification.metadata) {
+          try {
+            parsedMetadata = typeof notification.metadata === 'string' 
+              ? JSON.parse(notification.metadata) 
+              : notification.metadata;
+          } catch (e) {
+            console.error('Failed to parse notification metadata:', e);
+            parsedMetadata = {};
+          }
+        }
+
+        // ✅ Extract ALL metadata fields to top level for template access
+        return {
+          ...notification,
+          metadata: parsedMetadata,
+          // User info
+          jobseeker_name: parsedMetadata.applicant_name || parsedMetadata.user_name || parsedMetadata.jobseeker_name || '',
+          user_name: parsedMetadata.applicant_name || parsedMetadata.user_name || '',
+          user_email: parsedMetadata.applicant_email || parsedMetadata.user_email || parsedMetadata.email || '',
+          first_name: parsedMetadata.first_name || '',
+          last_name: parsedMetadata.last_name || '',
+          phone_number: parsedMetadata.phone_number || '',
+          profile_image: parsedMetadata.profile_image || '',
+          // Training info
+          training_id: parsedMetadata.training_id || '',
+          training_title: parsedMetadata.training_title || '',
+          // Application info
+          application_id: parsedMetadata.application_id || '',
+          motivation_letter: parsedMetadata.motivation_letter || parsedMetadata.motivation || '',
+          applied_at: parsedMetadata.applied_at || notification.created_at,
+          // Enrollment info
+          enrollment_id: parsedMetadata.enrollment_id || '',
+          user_id: parsedMetadata.user_id || ''
+        };
+      });
+
+      console.log('📬 Loaded notifications:', {
+        userId,
+        total: notifications.length,
+        sample: notifications[0]
+      });
 
       return {
-        ...notification,
-        metadata: parsedMetadata,
-        // ✅ Extract user info from metadata for easy access
-        jobseeker_name: parsedMetadata.applicant_name || parsedMetadata.user_name || parsedMetadata.jobseeker_name || '',
-        user_name: parsedMetadata.applicant_name || parsedMetadata.user_name || '',
-        user_email: parsedMetadata.applicant_email || parsedMetadata.user_email || parsedMetadata.email || '',
-        first_name: parsedMetadata.first_name || '',
-        last_name: parsedMetadata.last_name || ''
+        success: true,
+        data: {
+          notifications: notifications
+        }
       };
-    });
-
-    console.log('📬 Loaded notifications for user:', userId);
-    console.log('📊 Total notifications:', notifications.length);
-
-    return {
-      success: true,
-      data: {
-        notifications: notifications
-      }
-    };
-  } catch (error) {
-    console.error('❌ Error loading notifications:', error);
-    throw error;
+    } catch (error) {
+      console.error('❌ Error loading notifications:', error);
+      throw error;
+    }
   }
-}
-
 
   async markNotificationRead(notificationId: string, userId: string): Promise<void> {
     await this.db.query(
-      'UPDATE notifications SET read = true WHERE id = $1 AND user_id = $2',
+      'UPDATE notifications SET is_read = true WHERE id = $1 AND user_id = $2',
       [notificationId, userId]
     );
   }
 
   // ==========================================================================
-  // 2.  TRAINING CRUD
+  // 2. TRAINING CRUD - UNCHANGED
   // ==========================================================================
 
-  // FIXED: createTraining method with proper field mapping
-// Replace the createTraining method in your training.service.ts (backend) with this:
-
-async createTraining(data: CreateTrainingRequest, employerId: string): Promise<Training> {
-  const client = await this.db.connect();
-  
-  try {
-    console.log('📝 Starting createTraining for employer:', employerId);
-    await client.query('BEGIN');
-
-    // -- Verify user exists and is an employer --
-    console.log('  → Checking user exists...');
-    const userRow = await client.query('SELECT id, email, user_type FROM users WHERE id = $1', [employerId]);
+  async createTraining(data: CreateTrainingRequest, employerId: string): Promise<Training> {
+    const client = await this.db.connect();
     
-    if (userRow.rows.length === 0) {
-      throw new Error(`User ${employerId} does not exist`);
-    }
-    
-    if (userRow.rows[0].user_type !== 'employer') {
-      throw new Error('Only employers can create trainings');
-    }
-    console.log('  ✓ User verified as employer');
+    try {
+      console.log('📝 Starting createTraining for employer:', employerId);
+      await client.query('BEGIN');
 
-    // -- Resolve employer-profile ID (FK target) --
-    console.log('  → Fetching employer profile...');
-    const epRow = await client.query('SELECT id FROM employers WHERE user_id = $1', [employerId]);
-    
-    if (epRow.rows.length === 0) {
-      throw new Error('Employer profile not found for this user');
-    }
-    
-    const employerProfileId = epRow.rows[0].id;
-    console.log('  ✓ Employer profile ID:', employerProfileId);
-
-    // -- Handle both field name variations --
-    const startDate = data.start_date || data.training_start_date || null;
-    const endDate = data.end_date || data.training_end_date || null;
-    
-    console.log('  → Date fields:', { startDate, endDate });
-
-    // -- Ensure sessions and outcomes are arrays --
-    const sessions = Array.isArray(data.sessions) ? data.sessions : [];
-    const outcomes = Array.isArray(data.outcomes) ? data.outcomes : [];
-    
-    console.log('  → Sessions:', sessions.length, '| Outcomes:', outcomes.length);
-
-    // -- Insert training --
-    console.log('  → Inserting training record...');
-    const tResult = await client.query(
-      `INSERT INTO trainings (
-         title, description, category, level, duration_hours, cost_type, price, mode,
-         provider_id, provider_name, has_certificate, eligibility_requirements,
-         application_deadline, thumbnail_url, location, start_date, end_date,
-         max_participants, status, created_at, updated_at
-       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,'draft',NOW(),NOW())
-       RETURNING *`,
-      [
-        data.title?.trim(), 
-        data.description?.trim(), 
-        data.category?.trim(), 
-        data.level,
-        data.duration_hours, 
-        data.cost_type, 
-        data.price ?? 0, 
-        data.mode,
-        employerProfileId, 
-        data.provider_name?.trim(), 
-        data.has_certificate ?? false,
-        data.eligibility_requirements ?? null,
-        data.application_deadline ?? null,
-        data.thumbnail_url ?? null,
-        data.location ?? null,
-        startDate,
-        endDate,
-        data.max_participants ?? null,
-      ]
-    );
-    
-    const trainingId = tResult.rows[0].id;
-    console.log('  ✓ Training created with ID:', trainingId);
-
-    // -- Insert sessions --
-    if (sessions.length > 0) {
-      console.log(`  → Inserting ${sessions.length} session(s)...`);
-      for (let i = 0; i < sessions.length; i++) {
-        const s = sessions[i];
-        await client.query(
-          `INSERT INTO training_sessions (
-             training_id, title, description, scheduled_at, duration_minutes, 
-             meeting_url, order_index, created_at, updated_at
-           ) VALUES ($1,$2,$3,$4,$5,$6,$7,NOW(),NOW())`,
-          [
-            trainingId, 
-            s.title?.trim(), 
-            s.description?.trim() ?? null,
-            s.scheduled_at, 
-            s.duration_minutes, 
-            s.meeting_url?.trim(), 
-            s.order_index ?? i + 1
-          ]
-        );
-      }
-      console.log('  ✓ Sessions inserted');
-    }
-
-    // -- Insert outcomes --
-    if (outcomes.length > 0) {
-      console.log(`  → Inserting ${outcomes.length} outcome(s)...`);
-      for (const o of outcomes) {
-        await client.query(
-          `INSERT INTO training_outcomes (training_id, outcome_text, order_index) 
-           VALUES ($1,$2,$3)`,
-          [trainingId, o.outcome_text?.trim(), o.order_index]
-        );
-      }
-      console.log('  ✓ Outcomes inserted');
-    }
-
-    await client.query('COMMIT');
-    console.log('✅ Training creation transaction committed');
-    
-    const result = await this.getTrainingById(trainingId);
-    console.log('✅ Training creation successful:', trainingId);
-    
-    return result as Training;
-    
-  } catch (err: any) {
-    await client.query('ROLLBACK');
-    console.error('❌ Error in createTraining:', {
-      message: err.message,
-      code: err.code,
-      detail: err.detail,
-      hint: err.hint,
-      position: err.position,
-      stack: err.stack
-    });
-    throw err;
-  } finally {
-    client.release();
-  }
-}
-
-  // services/training.service.ts - FIXED updateTraining
-
-async updateTraining(id: string, data: UpdateTrainingRequest, employerId: string): Promise<Training | null> {
-  const client = await this.db.connect();
-  try {
-    await client.query('BEGIN');
-
-    const epRow = await client.query('SELECT id FROM employers WHERE user_id = $1', [employerId]);
-    if (epRow.rows.length === 0) { 
-      await client.query('ROLLBACK'); 
-      return null; 
-    }
-    const employerProfileId = epRow.rows[0].id;
-
-    // Ownership check
-    const own = await client.query(
-      'SELECT id, title, status FROM trainings WHERE id = $1 AND provider_id = $2',
-      [id, employerProfileId]
-    );
-    if (own.rows.length === 0) { 
-      await client.query('ROLLBACK'); 
-      return null; 
-    }
-    const oldTitle  = own.rows[0].title;
-    const oldStatus = own.rows[0].status;
-
-    console.log('🔄 Updating training:', {
-      id,
-      hasSessions: !!data.sessions,
-      hasOutcomes: !!data.outcomes,
-      sessionCount: Array.isArray(data.sessions) ? data.sessions.length : 0,
-      outcomeCount: Array.isArray(data.outcomes) ? data.outcomes.length : 0
-    });
-
-    // ✅ FIXED: Handle date fields properly
-    const startDate = data.start_date || data.training_start_date || null;
-    const endDate = data.end_date || data.training_end_date || null;
-
-    // Dynamic SET for main training fields
-    const sets: string[] = [];
-    const vals: any[] = [];
-    let pi = 1;
-    
-    // ✅ Skip sessions and outcomes - handle separately
-    const skip = ['sessions', 'outcomes', 'training_start_date', 'training_end_date'];
-    
-    for (const [key, value] of Object.entries(data)) {
-      if (value === undefined || skip.includes(key)) continue;
-      sets.push(`${key} = $${pi++}`);
-      vals.push(value);
-    }
-
-    // ✅ Add date fields if provided
-    if (startDate !== null && startDate !== undefined) {
-      sets.push(`start_date = $${pi++}`);
-      vals.push(startDate);
-    }
-    if (endDate !== null && endDate !== undefined) {
-      sets.push(`end_date = $${pi++}`);
-      vals.push(endDate);
-    }
-
-    // Always update updated_at
-    sets.push('updated_at = CURRENT_TIMESTAMP');
-    vals.push(id);
-
-    // Update training metadata
-    if (sets.length > 1) { // More than just updated_at
-      await client.query(
-        `UPDATE trainings SET ${sets.join(', ')} WHERE id = $${pi}`, 
-        vals
-      );
-      console.log('✅ Training metadata updated');
-    }
-
-    // ✅ FIXED: Replace sessions if provided (even if empty array)
-    if (data.sessions !== undefined) {
-      console.log(`🗑️ Deleting existing sessions for training ${id}`);
-      await client.query('DELETE FROM training_sessions WHERE training_id = $1', [id]);
+      const userRow = await client.query('SELECT id, email, user_type FROM users WHERE id = $1', [employerId]);
       
-      if (Array.isArray(data.sessions) && data.sessions.length > 0) {
-        console.log(`➕ Inserting ${data.sessions.length} sessions`);
-        for (let i = 0; i < data.sessions.length; i++) {
-          const s = data.sessions[i];
+      if (userRow.rows.length === 0) {
+        throw new Error(`User ${employerId} does not exist`);
+      }
+      
+      if (userRow.rows[0].user_type !== 'employer') {
+        throw new Error('Only employers can create trainings');
+      }
+
+      const epRow = await client.query('SELECT id FROM employers WHERE user_id = $1', [employerId]);
+      
+      if (epRow.rows.length === 0) {
+        throw new Error('Employer profile not found for this user');
+      }
+      
+      const employerProfileId = epRow.rows[0].id;
+
+      const startDate = data.start_date || data.training_start_date || null;
+      const endDate = data.end_date || data.training_end_date || null;
+      
+      const sessions = Array.isArray(data.sessions) ? data.sessions : [];
+      const outcomes = Array.isArray(data.outcomes) ? data.outcomes : [];
+
+      const tResult = await client.query(
+        `INSERT INTO trainings (
+           title, description, category, level, duration_hours, cost_type, price, mode,
+           provider_id, provider_name, has_certificate, eligibility_requirements,
+           application_deadline, thumbnail_url, location, start_date, end_date,
+           max_participants, status, created_at, updated_at
+         ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,'draft',NOW(),NOW())
+         RETURNING *`,
+        [
+          data.title?.trim(), 
+          data.description?.trim(), 
+          data.category?.trim(), 
+          data.level,
+          data.duration_hours, 
+          data.cost_type, 
+          data.price ?? 0, 
+          data.mode,
+          employerProfileId, 
+          data.provider_name?.trim(), 
+          data.has_certificate ?? false,
+          data.eligibility_requirements ?? null,
+          data.application_deadline ?? null,
+          data.thumbnail_url ?? null,
+          data.location ?? null,
+          startDate,
+          endDate,
+          data.max_participants ?? null,
+        ]
+      );
+      
+      const trainingId = tResult.rows[0].id;
+
+      if (sessions.length > 0) {
+        for (let i = 0; i < sessions.length; i++) {
+          const s = sessions[i];
           await client.query(
             `INSERT INTO training_sessions (
-              training_id, title, description, scheduled_at, duration_minutes, 
-              meeting_url, meeting_password, order_index, created_at, updated_at
-            )
-            VALUES ($1,$2,$3,$4,$5,$6,$7,$8,NOW(),NOW())`,
+               training_id, title, description, scheduled_at, duration_minutes, 
+               meeting_url, order_index, created_at, updated_at
+             ) VALUES ($1,$2,$3,$4,$5,$6,$7,NOW(),NOW())`,
             [
-              id, 
+              trainingId, 
               s.title?.trim(), 
-              s.description?.trim() || null,
+              s.description?.trim() ?? null,
               s.scheduled_at, 
               s.duration_minutes, 
-              s.meeting_url?.trim() || null,
-              (s as any).meeting_password?.trim() || null,
-              s.order_index ?? i
+              s.meeting_url?.trim(), 
+              s.order_index ?? i + 1
             ]
           );
         }
-        console.log('✅ Sessions inserted');
       }
-    }
 
-    // ✅ FIXED: Replace outcomes if provided (even if empty array)
-    if (data.outcomes !== undefined) {
-      console.log(`🗑️ Deleting existing outcomes for training ${id}`);
-      await client.query('DELETE FROM training_outcomes WHERE training_id = $1', [id]);
-      
-      if (Array.isArray(data.outcomes) && data.outcomes.length > 0) {
-        console.log(`➕ Inserting ${data.outcomes.length} outcomes`);
-        for (let i = 0; i < data.outcomes.length; i++) {
-          const o = data.outcomes[i];
+      if (outcomes.length > 0) {
+        for (const o of outcomes) {
           await client.query(
             `INSERT INTO training_outcomes (training_id, outcome_text, order_index) 
              VALUES ($1,$2,$3)`,
-            [id, o.outcome_text?.trim(), o.order_index ?? i]
+            [trainingId, o.outcome_text?.trim(), o.order_index]
           );
         }
-        console.log('✅ Outcomes inserted');
       }
+
+      await client.query('COMMIT');
+      
+      const result = await this.getTrainingById(trainingId);
+      return result as Training;
+      
+    } catch (err: any) {
+      await client.query('ROLLBACK');
+      console.error('❌ Error in createTraining:', err);
+      throw err;
+    } finally {
+      client.release();
     }
-
-    await client.query('COMMIT');
-
-    // Notify enrolled trainees if training was already published
-    if (oldStatus === 'published' || oldStatus === 'in_progress') {
-      this.notifyEnrolledTrainees(
-        id, 
-        'training_updated', 
-        `Training "${oldTitle}" has been updated`, 
-        { training_id: id }
-      );
-    }
-
-    // ✅ Fetch complete training with sessions and outcomes
-    const updatedTraining = await this.getTrainingById(id);
-    console.log('✅ Training update complete:', {
-      id,
-      sessions: updatedTraining?.sessions?.length || 0,
-      outcomes: updatedTraining?.outcomes?.length || 0
-    });
-
-    return updatedTraining as Training;
-  } catch (err: any) {
-    await client.query('ROLLBACK');
-    console.error('❌ Error updating training:', err);
-    throw err;
-  } finally {
-    client.release();
   }
-}
+
+  async updateTraining(id: string, data: UpdateTrainingRequest, employerId: string): Promise<Training | null> {
+    const client = await this.db.connect();
+    try {
+      await client.query('BEGIN');
+
+      const epRow = await client.query('SELECT id FROM employers WHERE user_id = $1', [employerId]);
+      if (epRow.rows.length === 0) { 
+        await client.query('ROLLBACK'); 
+        return null; 
+      }
+      const employerProfileId = epRow.rows[0].id;
+
+      const own = await client.query(
+        'SELECT id, title, status FROM trainings WHERE id = $1 AND provider_id = $2',
+        [id, employerProfileId]
+      );
+      if (own.rows.length === 0) { 
+        await client.query('ROLLBACK'); 
+        return null; 
+      }
+      const oldTitle  = own.rows[0].title;
+      const oldStatus = own.rows[0].status;
+
+      const startDate = data.start_date || data.training_start_date || null;
+      const endDate = data.end_date || data.training_end_date || null;
+
+      const sets: string[] = [];
+      const vals: any[] = [];
+      let pi = 1;
+      
+      const skip = ['sessions', 'outcomes', 'training_start_date', 'training_end_date'];
+      
+      for (const [key, value] of Object.entries(data)) {
+        if (value === undefined || skip.includes(key)) continue;
+        sets.push(`${key} = $${pi++}`);
+        vals.push(value);
+      }
+
+      if (startDate !== null && startDate !== undefined) {
+        sets.push(`start_date = $${pi++}`);
+        vals.push(startDate);
+      }
+      if (endDate !== null && endDate !== undefined) {
+        sets.push(`end_date = $${pi++}`);
+        vals.push(endDate);
+      }
+
+      sets.push('updated_at = CURRENT_TIMESTAMP');
+      vals.push(id);
+
+      if (sets.length > 1) {
+        await client.query(
+          `UPDATE trainings SET ${sets.join(', ')} WHERE id = $${pi}`, 
+          vals
+        );
+      }
+
+      if (data.sessions !== undefined) {
+        await client.query('DELETE FROM training_sessions WHERE training_id = $1', [id]);
+        
+        if (Array.isArray(data.sessions) && data.sessions.length > 0) {
+          for (let i = 0; i < data.sessions.length; i++) {
+            const s = data.sessions[i];
+            await client.query(
+              `INSERT INTO training_sessions (
+                training_id, title, description, scheduled_at, duration_minutes, 
+                meeting_url, meeting_password, order_index, created_at, updated_at
+              )
+              VALUES ($1,$2,$3,$4,$5,$6,$7,$8,NOW(),NOW())`,
+              [
+                id, 
+                s.title?.trim(), 
+                s.description?.trim() || null,
+                s.scheduled_at, 
+                s.duration_minutes, 
+                s.meeting_url?.trim() || null,
+                (s as any).meeting_password?.trim() || null,
+                s.order_index ?? i
+              ]
+            );
+          }
+        }
+      }
+
+      if (data.outcomes !== undefined) {
+        await client.query('DELETE FROM training_outcomes WHERE training_id = $1', [id]);
+        
+        if (Array.isArray(data.outcomes) && data.outcomes.length > 0) {
+          for (let i = 0; i < data.outcomes.length; i++) {
+            const o = data.outcomes[i];
+            await client.query(
+              `INSERT INTO training_outcomes (training_id, outcome_text, order_index) 
+               VALUES ($1,$2,$3)`,
+              [id, o.outcome_text?.trim(), o.order_index ?? i]
+            );
+          }
+        }
+      }
+
+      await client.query('COMMIT');
+
+      if (oldStatus === 'published' || oldStatus === 'in_progress') {
+        this.notifyEnrolledTrainees(
+          id, 
+          'training_updated', 
+          `Training "${oldTitle}" has been updated`, 
+          { training_id: id }
+        );
+      }
+
+      const updatedTraining = await this.getTrainingById(id);
+      return updatedTraining as Training;
+    } catch (err: any) {
+      await client.query('ROLLBACK');
+      console.error('❌ Error updating training:', err);
+      throw err;
+    } finally {
+      client.release();
+    }
+  }
 
   async deleteTraining(id: string, employerId: string): Promise<boolean> {
     const client = await this.db.connect();
@@ -702,7 +618,6 @@ async updateTraining(id: string, data: UpdateTrainingRequest, employerId: string
     }
   }
 
-  // ---------- Status transitions (publish / unpublish / suspend / close-applications / start / end) ----------
   async updateTrainingStatus(trainingId: string, employerId: string, newStatus: string): Promise<Training | null> {
     const epRow = await this.db.query('SELECT id FROM employers WHERE user_id = $1', [employerId]);
     if (epRow.rows.length === 0) return null;
@@ -714,12 +629,10 @@ async updateTraining(id: string, data: UpdateTrainingRequest, employerId: string
     );
     if (result.rows.length === 0) return null;
 
-    // If just published, notify all jobseekers
     if (newStatus === 'published') {
       const t = result.rows[0];
       this.notifyJobseekersAboutNewTraining(trainingId, t.title, t.category, t.provider_name);
     }
-    // If suspended, notify enrolled trainees
     if (newStatus === 'suspended') {
       this.notifyEnrolledTrainees(trainingId, 'training_suspended', `Training "${result.rows[0].title}" has been suspended`);
     }
@@ -728,445 +641,295 @@ async updateTraining(id: string, data: UpdateTrainingRequest, employerId: string
   }
 
   // ==========================================================================
-  // 3.  TRAINING RETRIEVAL
+  // 3. TRAINING RETRIEVAL
   // ==========================================================================
 
-  // services/training.service.ts - FIXED getTrainingById
+  async getTrainingById(id: string): Promise<any | null> {
+    const result = await this.db.query('SELECT * FROM trainings WHERE id = $1', [id]);
+    if (result.rows.length === 0) return null;
 
-async getTrainingById(id: string): Promise<any | null> {
-  const result = await this.db.query('SELECT * FROM trainings WHERE id = $1', [id]);
-  if (result.rows.length === 0) return null;
+    const training = result.rows[0];
 
-  const training = result.rows[0];
+    const sessions = await this.db.query(
+      `SELECT 
+        id, training_id, title, description, scheduled_at, duration_minutes, 
+        meeting_url, meeting_password, order_index, is_completed, 
+        attendance_count, created_at, updated_at
+      FROM training_sessions 
+      WHERE training_id = $1 
+      ORDER BY order_index ASC, scheduled_at ASC`,
+      [id]
+    );
+    training.sessions = sessions.rows;
 
-  // ✅ FIXED: Always attach sessions (ordered by order_index)
-  const sessions = await this.db.query(
-    `SELECT 
-      id, training_id, title, description, scheduled_at, duration_minutes, 
-      meeting_url, meeting_password, order_index, is_completed, 
-      attendance_count, created_at, updated_at
-    FROM training_sessions 
-    WHERE training_id = $1 
-    ORDER BY order_index ASC, scheduled_at ASC`,
-    [id]
-  );
-  training.sessions = sessions.rows;
+    const outcomes = await this.db.query(
+      `SELECT 
+        id, training_id, outcome_text, order_index, created_at
+      FROM training_outcomes 
+      WHERE training_id = $1 
+      ORDER BY order_index ASC`,
+      [id]
+    );
+    training.outcomes = outcomes.rows;
 
-  // ✅ FIXED: Always attach outcomes (ordered by order_index)
-  const outcomes = await this.db.query(
-    `SELECT 
-      id, training_id, outcome_text, order_index, created_at
-    FROM training_outcomes 
-    WHERE training_id = $1 
-    ORDER BY order_index ASC`,
-    [id]
-  );
-  training.outcomes = outcomes.rows;
+    training.session_count = training.sessions.length;
 
-  // ✅ Add session count for convenience
-  training.session_count = training.sessions.length;
+    return training;
+  }
 
-  console.log('📦 Training loaded with:', {
-    id: training.id,
-    sessions: training.sessions.length,
-    outcomes: training.outcomes.length
-  });
-
-  return training;
-}
-
-  /** Full detail view for a specific user (adds my_application / my_enrollment flags) */
   async getTrainingByIdForUser(id: string, userId: string, userType: string): Promise<any | null> {
-  const training = await this.getTrainingById(id);
-  if (!training) return null;
+    const training = await this.getTrainingById(id);
+    if (!training) return null;
 
-  // jobseekers only see published (or trainings they already applied/enrolled in)
-  if (userType === 'jobseeker') {
-    const hasRelation = await this.db.query(
-      `SELECT 1 FROM training_applications WHERE training_id = $1 AND user_id = $2
-       UNION
-       SELECT 1 FROM training_enrollments WHERE training_id = $1 AND user_id = $2`,
-      [id, userId]
-    );
-    if (training.status !== 'published' && 
-        training.status !== 'applications_closed' && 
-        training.status !== 'in_progress' && 
-        training.status !== 'completed' && 
-        hasRelation.rows.length === 0) {
-      return null;
-    }
-
-    // ✅ FIXED: attach user's application
-    const appRow = await this.db.query(
-      'SELECT * FROM training_applications WHERE training_id = $1 AND user_id = $2 ORDER BY applied_at DESC LIMIT 1',
-      [id, userId]
-    );
-    training.my_application = appRow.rows[0] || null;
-    training.has_applied = appRow.rows.length > 0;
-    training.applied = appRow.rows.length > 0; // ✅ ADD THIS
-    training.application_status = appRow.rows[0]?.status || null; // ✅ ADD THIS
-
-    // ✅ FIXED: attach user's enrollment
-    const enrRow = await this.db.query(
-      'SELECT * FROM training_enrollments WHERE training_id = $1 AND user_id = $2 ORDER BY enrolled_at DESC LIMIT 1',
-      [id, userId]
-    );
-    training.my_enrollment = enrRow.rows[0] || null;
-    training.is_enrolled = enrRow.rows.length > 0;
-    training.enrolled = enrRow.rows.length > 0; // ✅ ADD THIS
-    training.enrollment_id = enrRow.rows[0]?.id || null; // ✅ ADD THIS
-  }
-
-  return training;
-}
-
-  /** Paginated listing for job-seekers (published trainings only) */
-  async getPublishedTrainingsForJobseeker(userId: string, params: TrainingSearchParams): Promise<TrainingListResponse> {
-  const { page = 1, limit = 10, sort_by = 'created_at', sort_order = 'desc', filters = {} } = params;
-  const offset = (page - 1) * limit;
-
-  const conds: string[] = [
-    "t.status IN ('published','applications_closed','in_progress','completed')",
-    't.provider_id IS NOT NULL',
-    't.title IS NOT NULL',
-  ];
-  const qp: any[] = [];
-  let pi = 1;
-
-  if (filters.category || params.category) {
-    conds.push(`t.category = $${pi++}`);
-    qp.push(filters.category || params.category);
-  }
-  if (params.level) { conds.push(`t.level = $${pi++}`); qp.push(params.level); }
-  if (params.cost_type) { conds.push(`t.cost_type = $${pi++}`); qp.push(params.cost_type); }
-  if (params.mode) { conds.push(`t.mode = $${pi++}`); qp.push(params.mode); }
-  if (params.search) {
-    conds.push(`(t.title ILIKE $${pi} OR t.description ILIKE $${pi})`);
-    qp.push(`%${params.search}%`); pi++;
-  }
-
-  const where = `WHERE ${conds.join(' AND ')}`;
-
-  // user context: LEFT JOIN on applications & enrollments
-  const userIdx = pi++;
-  qp.push(userId);
-  const limitIdx = pi++;  qp.push(limit);
-  const offIdx  = pi++;   qp.push(offset);
-
-  const query = `
-    SELECT
-      t.*,
-      CASE WHEN a.id IS NOT NULL THEN true ELSE false END AS has_applied,
-      CASE WHEN a.id IS NOT NULL THEN true ELSE false END AS applied, -- ✅ ADD THIS
-      a.status AS application_status,
-      a.applied_at,
-      CASE WHEN e.id IS NOT NULL THEN true ELSE false END AS is_enrolled,
-      CASE WHEN e.id IS NOT NULL THEN true ELSE false END AS enrolled, -- ✅ ADD THIS
-      e.status AS enrollment_status,
-      e.enrolled_at,
-      e.completed_at,
-      e.certificate_issued,
-      e.id AS enrollment_id, -- ✅ ADD THIS
-      COUNT(*) OVER() AS total_count
-    FROM trainings t
-    LEFT JOIN training_applications a ON a.training_id = t.id AND a.user_id = $${userIdx}
-    LEFT JOIN training_enrollments  e ON e.training_id = t.id AND e.user_id = $${userIdx}
-    ${where}
-    ORDER BY t.${sort_by} ${sort_order.toUpperCase()}
-    LIMIT $${limitIdx} OFFSET $${offIdx}
-  `;
-
-  const result = await this.db.query(query, qp);
-  const rows  = result.rows;
-  const total = rows.length > 0 ? parseInt(rows[0].total_count) : 0;
-
-  return {
-    trainings: rows.map(r => this.mapTrainingWithContext(r)),
-    pagination: {
-      current_page: page,
-      total_pages: Math.ceil(total / limit),
-      page_size: limit,
-      total_count: total,
-      has_next: page * limit < total,
-      has_previous: page > 1,
-    },
-    filters_applied: filters,
-  };
-}
-
-  // In TrainingService class
-
-/**
- * Mark attendance for a training session
- */
-async markSessionAttendance(
-  sessionId: string,
-  enrollmentIds: string[],
-  attendanceData: { enrollment_id: string; attended: boolean; notes?: string }[],
-  employerId: string
-): Promise<any> {
-  const client = await this.db.connect();
-  try {
-    await client.query('BEGIN');
-
-    // Verify employer owns this training
-    const session = await client.query(
-      `SELECT ts.*, t.provider_id 
-       FROM training_sessions ts
-       JOIN trainings t ON ts.training_id = t.id
-       WHERE ts.id = $1`,
-      [sessionId]
-    );
-
-    if (session.rows.length === 0) throw new Error('Session not found');
-
-    const epRow = await client.query('SELECT id FROM employers WHERE user_id = $1', [employerId]);
-    const epId = epRow.rows.length > 0 ? epRow.rows[0].id : null;
-
-    if (session.rows[0].provider_id !== employerId && session.rows[0].provider_id !== epId) {
-      throw new Error('Unauthorized');
-    }
-
-    // Mark attendance for each enrollment
-    for (const record of attendanceData) {
-      // Get user_id from enrollment
-      const enr = await client.query(
-        'SELECT user_id FROM training_enrollments WHERE id = $1',
-        [record.enrollment_id]
+    if (userType === 'jobseeker') {
+      const hasRelation = await this.db.query(
+        `SELECT 1 FROM training_applications WHERE training_id = $1 AND user_id = $2
+         UNION
+         SELECT 1 FROM training_enrollments WHERE training_id = $1 AND user_id = $2`,
+        [id, userId]
       );
-
-      if (enr.rows.length > 0) {
-        await client.query(
-          `INSERT INTO session_attendance (session_id, enrollment_id, user_id, attended, notes, attendance_marked_at)
-           VALUES ($1, $2, $3, $4, $5, NOW())
-           ON CONFLICT (session_id, enrollment_id)
-           DO UPDATE SET attended = $4, notes = $5, attendance_marked_at = NOW()`,
-          [sessionId, record.enrollment_id, enr.rows[0].user_id, record.attended, record.notes || null]
-        );
+      if (training.status !== 'published' && 
+          training.status !== 'applications_closed' && 
+          training.status !== 'in_progress' && 
+          training.status !== 'completed' && 
+          hasRelation.rows.length === 0) {
+        return null;
       }
+
+      const appRow = await this.db.query(
+        'SELECT * FROM training_applications WHERE training_id = $1 AND user_id = $2 ORDER BY applied_at DESC LIMIT 1',
+        [id, userId]
+      );
+      training.my_application = appRow.rows[0] || null;
+      training.has_applied = appRow.rows.length > 0;
+      training.applied = appRow.rows.length > 0;
+      training.application_status = appRow.rows[0]?.status || null;
+
+      const enrRow = await this.db.query(
+        'SELECT * FROM training_enrollments WHERE training_id = $1 AND user_id = $2 ORDER BY enrolled_at DESC LIMIT 1',
+        [id, userId]
+      );
+      training.my_enrollment = enrRow.rows[0] || null;
+      training.is_enrolled = enrRow.rows.length > 0;
+      training.enrolled = enrRow.rows.length > 0;
+      training.enrollment_id = enrRow.rows[0]?.id || null;
     }
 
-    // Recalculate attendance rates for affected enrollments
-    for (const record of attendanceData) {
-      await this.updateEnrollmentAttendanceRate(record.enrollment_id, client);
-    }
-
-    await client.query('COMMIT');
-
-    return { success: true, message: 'Attendance marked successfully' };
-  } catch (err: any) {
-    await client.query('ROLLBACK');
-    throw err;
-  } finally {
-    client.release();
+    return training;
   }
-}
 
-/**
- * Calculate and update enrollment attendance rate
- */
-private async updateEnrollmentAttendanceRate(enrollmentId: string, client: any): Promise<void> {
-  const result = await client.query(
-    `SELECT 
-       COUNT(*) as total_sessions,
-       COUNT(*) FILTER (WHERE attended = true) as attended_sessions
-     FROM session_attendance
-     WHERE enrollment_id = $1`,
-    [enrollmentId]
-  );
-
-  const total = parseInt(result.rows[0].total_sessions);
-  const attended = parseInt(result.rows[0].attended_sessions);
-  const rate = total > 0 ? Math.round((attended / total) * 100) : 0;
-
-  await client.query(
-    'UPDATE training_enrollments SET attendance_rate = $1 WHERE id = $2',
-    [rate, enrollmentId]
-  );
-}
-
-/**
- * Get session attendance for a training
- */
-async getSessionAttendance(sessionId: string, employerId: string): Promise<any> {
-  const epRow = await this.db.query('SELECT id FROM employers WHERE user_id = $1', [employerId]);
-  const epId = epRow.rows.length > 0 ? epRow.rows[0].id : null;
-
-  // Verify ownership
-  const session = await this.db.query(
-    `SELECT ts.*, t.provider_id 
-     FROM training_sessions ts
-     JOIN trainings t ON ts.training_id = t.id
-     WHERE ts.id = $1 AND (t.provider_id = $2 OR t.provider_id = $3)`,
-    [sessionId, employerId, epId ?? '']
-  );
-
-  if (session.rows.length === 0) return null;
-
-  // Get all enrollments for this training
-  const result = await this.db.query(
-    `SELECT 
-       e.id as enrollment_id,
-       e.user_id,
-       u.first_name,
-       u.last_name,
-       u.email,
-       COALESCE(sa.attended, false) as attended,
-       sa.notes,
-       sa.attendance_marked_at
-     FROM training_enrollments e
-     JOIN users u ON e.user_id = u.id
-     LEFT JOIN session_attendance sa ON sa.enrollment_id = e.id AND sa.session_id = $1
-     WHERE e.training_id = $2 AND e.status = 'enrolled'
-     ORDER BY u.last_name, u.first_name`,
-    [sessionId, session.rows[0].training_id]
-  );
-
-  return {
-    session: session.rows[0],
-    attendance: result.rows.map(r => ({
-      enrollment_id: r.enrollment_id,
-      user_id: r.user_id,
-      user_name: `${r.first_name} ${r.last_name}`,
-      email: r.email,
-      attended: r.attended,
-      notes: r.notes,
-      marked_at: r.attendance_marked_at,
-    })),
-  };
-}
-
-// services/training.service.ts - COMPLETE getAllTrainings METHOD
-
-async getAllTrainings(
-  params: TrainingSearchParams,
-  employerId?: string
-): Promise<any> {
-  try {
-    const page = params.page || 1;
-    const limit = params.limit || 10;
+  async getPublishedTrainingsForJobseeker(userId: string, params: TrainingSearchParams): Promise<TrainingListResponse> {
+    const { page = 1, limit = 10, sort_by = 'created_at', sort_order = 'desc', filters = {} } = params;
     const offset = (page - 1) * limit;
-    const sort_by = params.sort_by || 'created_at';
-    const sort_order = params.sort_order || 'desc';
 
-    console.log('🔍 getAllTrainings called with employerId:', employerId);
+    const conds: string[] = [
+      "t.status IN ('published','applications_closed','in_progress','completed')",
+      't.provider_id IS NOT NULL',
+      't.title IS NOT NULL',
+    ];
+    const qp: any[] = [];
+    let pi = 1;
 
-    // Build WHERE conditions
-    const conditions: string[] = [];
-    const values: any[] = [];
-    let paramCount = 1;
-
-    // ✅ CRITICAL: ALWAYS filter by employer if provided
-    if (employerId) {
-      conditions.push(`provider_id = $${paramCount}`);
-      values.push(employerId);
-      paramCount++;
-      console.log('✅ FILTERING BY EMPLOYER:', employerId);
+    if (filters.category || params.category) {
+      conds.push(`t.category = $${pi++}`);
+      qp.push(filters.category || params.category);
     }
-
-    // Other filters...
+    if (params.level) { conds.push(`t.level = $${pi++}`); qp.push(params.level); }
+    if (params.cost_type) { conds.push(`t.cost_type = $${pi++}`); qp.push(params.cost_type); }
+    if (params.mode) { conds.push(`t.mode = $${pi++}`); qp.push(params.mode); }
     if (params.search) {
-      conditions.push(`(title ILIKE $${paramCount} OR description ILIKE $${paramCount})`);
-      values.push(`%${params.search}%`);
-      paramCount++;
+      conds.push(`(t.title ILIKE $${pi} OR t.description ILIKE $${pi})`);
+      qp.push(`%${params.search}%`); pi++;
     }
 
-    if (params.category) {
-      conditions.push(`category = $${paramCount}`);
-      values.push(params.category);
-      paramCount++;
-    }
+    const where = `WHERE ${conds.join(' AND ')}`;
 
-    if (params.level) {
-      conditions.push(`level = $${paramCount}`);
-      values.push(params.level);
-      paramCount++;
-    }
+    const userIdx = pi++;
+    qp.push(userId);
+    const limitIdx = pi++;  qp.push(limit);
+    const offIdx  = pi++;   qp.push(offset);
 
-    if ((params as any).status) {
-      conditions.push(`status = $${paramCount}`);
-      values.push((params as any).status);
-      paramCount++;
-    }
-
-    if (params.cost_type) {
-      conditions.push(`cost_type = $${paramCount}`);
-      values.push(params.cost_type);
-      paramCount++;
-    }
-
-    if (params.mode) {
-      conditions.push(`mode = $${paramCount}`);
-      values.push(params.mode);
-      paramCount++;
-    }
-
-    const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
-
-    console.log('📝 SQL WHERE:', whereClause);
-    console.log('📝 SQL VALUES:', values);
-
-    // Get total count
-    const countQuery = `SELECT COUNT(*) as count FROM trainings ${whereClause}`;
-    const countResult = await this.db.query(countQuery, values);
-    const totalCount = parseInt(countResult.rows[0]?.count || '0', 10);
-
-    console.log('📊 TOTAL TRAININGS FOR THIS EMPLOYER:', totalCount);
-
-    // Get paginated results
-    const dataQuery = `
-      SELECT * FROM trainings
-      ${whereClause}
-      ORDER BY ${sort_by} ${sort_order.toUpperCase()}
-      LIMIT $${paramCount} OFFSET $${paramCount + 1}
+    const query = `
+      SELECT
+        t.*,
+        CASE WHEN a.id IS NOT NULL THEN true ELSE false END AS has_applied,
+        CASE WHEN a.id IS NOT NULL THEN true ELSE false END AS applied,
+        a.status AS application_status,
+        a.applied_at,
+        CASE WHEN e.id IS NOT NULL THEN true ELSE false END AS is_enrolled,
+        CASE WHEN e.id IS NOT NULL THEN true ELSE false END AS enrolled,
+        e.status AS enrollment_status,
+        e.enrolled_at,
+        e.completed_at,
+        e.certificate_issued,
+        e.id AS enrollment_id,
+        COUNT(*) OVER() AS total_count
+      FROM trainings t
+      LEFT JOIN training_applications a ON a.training_id = t.id AND a.user_id = $${userIdx}
+      LEFT JOIN training_enrollments  e ON e.training_id = t.id AND e.user_id = $${userIdx}
+      ${where}
+      ORDER BY t.${sort_by} ${sort_order.toUpperCase()}
+      LIMIT $${limitIdx} OFFSET $${offIdx}
     `;
-    
-    const dataValues = [...values, limit, offset];
-    const dataResult = await this.db.query(dataQuery, dataValues);
 
-    console.log('📦 FOUND TRAININGS:', dataResult.rows.length);
-
-    // Load sessions and outcomes
-    const trainingsWithRelations = await Promise.all(
-      dataResult.rows.map(async (training: any) => {
-        const [sessionsResult, outcomesResult] = await Promise.all([
-          this.db.query(
-            'SELECT * FROM training_sessions WHERE training_id = $1 ORDER BY order_index ASC',
-            [training.id]
-          ),
-          this.db.query(
-            'SELECT * FROM training_outcomes WHERE training_id = $1 ORDER BY order_index ASC',
-            [training.id]
-          )
-        ]);
-
-        return {
-          ...training,
-          sessions: sessionsResult.rows,
-          outcomes: outcomesResult.rows,
-          session_count: sessionsResult.rows.length
-        };
-      })
-    );
+    const result = await this.db.query(query, qp);
+    const rows  = result.rows;
+    const total = rows.length > 0 ? parseInt(rows[0].total_count) : 0;
 
     return {
-      trainings: trainingsWithRelations,
+      trainings: rows.map(r => this.mapTrainingWithContext(r)),
       pagination: {
         current_page: page,
-        total_pages: Math.ceil(totalCount / limit),
+        total_pages: Math.ceil(total / limit),
         page_size: limit,
-        total_count: totalCount,
-        has_next: page < Math.ceil(totalCount / limit),
-        has_previous: page > 1
-      }
+        total_count: total,
+        has_next: page * limit < total,
+        has_previous: page > 1,
+      },
+      filters_applied: filters,
     };
-  } catch (error) {
-    console.error('❌ Error in getAllTrainings:', error);
-    throw error;
   }
-}
 
-  /** Trainings the job-seeker has enrolled in */
+  // ✅ FIX 4: CRITICAL - Proper employer filtering in getAllTrainings
+  async getAllTrainings(
+    params: TrainingSearchParams,
+    employerId?: string
+  ): Promise<any> {
+    try {
+      const page = params.page || 1;
+      const limit = params.limit || 10;
+      const offset = (page - 1) * limit;
+      const sort_by = params.sort_by || 'created_at';
+      const sort_order = params.sort_order || 'desc';
+
+      console.log('🔍 getAllTrainings called with employerId:', employerId);
+
+      const conditions: string[] = [];
+      const values: any[] = [];
+      let paramCount = 1;
+
+      // ✅ CRITICAL FIX: Resolve employer profile ID FIRST, then filter
+      if (employerId) {
+        const epRow = await this.db.query('SELECT id FROM employers WHERE user_id = $1', [employerId]);
+        
+        if (epRow.rows.length > 0) {
+          const employerProfileId = epRow.rows[0].id;
+          conditions.push(`provider_id = $${paramCount}`);
+          values.push(employerProfileId);
+          paramCount++;
+          console.log('✅ FILTERING BY EMPLOYER PROFILE ID:', employerProfileId);
+        } else {
+          console.warn('⚠️ No employer profile found for user:', employerId);
+          // Return empty result if no employer profile exists
+          return {
+            trainings: [],
+            pagination: {
+              current_page: page,
+              total_pages: 0,
+              page_size: limit,
+              total_count: 0,
+              has_next: false,
+              has_previous: false
+            }
+          };
+        }
+      }
+
+      if (params.search) {
+        conditions.push(`(title ILIKE $${paramCount} OR description ILIKE $${paramCount})`);
+        values.push(`%${params.search}%`);
+        paramCount++;
+      }
+
+      if (params.category) {
+        conditions.push(`category = $${paramCount}`);
+        values.push(params.category);
+        paramCount++;
+      }
+
+      if (params.level) {
+        conditions.push(`level = $${paramCount}`);
+        values.push(params.level);
+        paramCount++;
+      }
+
+      if ((params as any).status) {
+        conditions.push(`status = $${paramCount}`);
+        values.push((params as any).status);
+        paramCount++;
+      }
+
+      if (params.cost_type) {
+        conditions.push(`cost_type = $${paramCount}`);
+        values.push(params.cost_type);
+        paramCount++;
+      }
+
+      if (params.mode) {
+        conditions.push(`mode = $${paramCount}`);
+        values.push(params.mode);
+        paramCount++;
+      }
+
+      const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+
+      const countQuery = `SELECT COUNT(*) as count FROM trainings ${whereClause}`;
+      const countResult = await this.db.query(countQuery, values);
+      const totalCount = parseInt(countResult.rows[0]?.count || '0', 10);
+
+      console.log('📊 TOTAL TRAININGS FOR THIS EMPLOYER:', totalCount);
+
+      const dataQuery = `
+        SELECT * FROM trainings
+        ${whereClause}
+        ORDER BY ${sort_by} ${sort_order.toUpperCase()}
+        LIMIT $${paramCount} OFFSET $${paramCount + 1}
+      `;
+      
+      const dataValues = [...values, limit, offset];
+      const dataResult = await this.db.query(dataQuery, dataValues);
+
+      console.log('📦 FOUND TRAININGS:', dataResult.rows.length);
+
+      const trainingsWithRelations = await Promise.all(
+        dataResult.rows.map(async (training: any) => {
+          const [sessionsResult, outcomesResult] = await Promise.all([
+            this.db.query(
+              'SELECT * FROM training_sessions WHERE training_id = $1 ORDER BY order_index ASC',
+              [training.id]
+            ),
+            this.db.query(
+              'SELECT * FROM training_outcomes WHERE training_id = $1 ORDER BY order_index ASC',
+              [training.id]
+            )
+          ]);
+
+          return {
+            ...training,
+            sessions: sessionsResult.rows,
+            outcomes: outcomesResult.rows,
+            session_count: sessionsResult.rows.length
+          };
+        })
+      );
+
+      return {
+        trainings: trainingsWithRelations,
+        pagination: {
+          current_page: page,
+          total_pages: Math.ceil(totalCount / limit),
+          page_size: limit,
+          total_count: totalCount,
+          has_next: page < Math.ceil(totalCount / limit),
+          has_previous: page > 1
+        }
+      };
+    } catch (error) {
+      console.error('❌ Error in getAllTrainings:', error);
+      throw error;
+    }
+  }
+
   async getEnrolledTrainings(userId: string, params: TrainingSearchParams): Promise<TrainingListResponse> {
     const { page = 1, limit = 10, sort_by = 'created_at', sort_order = 'desc' } = params;
     const offset = (page - 1) * limit;
@@ -1209,124 +972,124 @@ async getAllTrainings(
   }
 
   // ==========================================================================
-  // 4.  APPLICATION FLOW  (job-seeker submits → employer reviews)
+  // 4. APPLICATION FLOW - FIXED WITH RICH NOTIFICATIONS
   // ==========================================================================
-// services/training.service.ts
 
-// services/training.service.ts - submitApplication method
+  // ✅ FIX 5: Enhanced submitApplication with complete metadata
+  async submitApplication(
+    trainingId: string,
+    userId: string,
+    data: { motivation?: string }
+  ): Promise<any> {
+    try {
+      console.log('📝 Processing application:', { trainingId, userId });
 
+      const existingApplication = await this.db.query(
+        'SELECT id FROM training_applications WHERE training_id = $1 AND user_id = $2',
+        [trainingId, userId]
+      );
 
-async submitApplication(
-  trainingId: string,
-  userId: string,
-  data: { motivation?: string }
-): Promise<any> {
-  try {
-    console.log('📝 Processing application:', { trainingId, userId });
+      if (existingApplication.rows.length > 0) {
+        return {
+          success: false,
+          message: 'You have already applied for this training'
+        };
+      }
 
-    // Check if already applied
-    const existingApplication = await this.db.query(
-      'SELECT id FROM training_applications WHERE training_id = $1 AND user_id = $2',
-      [trainingId, userId]
-    );
+      const trainingResult = await this.db.query(
+        'SELECT id, title, provider_id, provider_name FROM trainings WHERE id = $1',
+        [trainingId]
+      );
 
-    if (existingApplication.rows.length > 0) {
-      return {
-        success: false,
-        message: 'You have already applied for this training'
+      if (trainingResult.rows.length === 0) {
+        return { success: false, message: 'Training not found' };
+      }
+
+      const training = trainingResult.rows[0];
+
+      const userResult = await this.db.query(
+        'SELECT id, first_name, last_name, email, phone_number, profile_image FROM users WHERE id = $1',
+        [userId]
+      );
+
+      if (userResult.rows.length === 0) {
+        return { success: false, message: 'User not found' };
+      }
+
+      const user = userResult.rows[0];
+
+      const applicationResult = await this.db.query(
+        `INSERT INTO training_applications 
+         (training_id, user_id, motivation, status, applied_at) 
+         VALUES ($1, $2, $3, 'pending', NOW()) 
+         RETURNING *`,
+        [trainingId, userId, data.motivation || '']
+      );
+
+      const application = applicationResult.rows[0];
+
+      // ✅ FIX 6: CREATE COMPLETE NOTIFICATION WITH ALL METADATA
+      const notificationId = uuidv4();
+      const applicantName = `${user.first_name || ''} ${user.last_name || ''}`.trim() || user.email;
+      
+      const metadata = {
+        training_id: trainingId,
+        training_title: training.title,
+        application_id: application.id,
+        user_id: userId,
+        // ✅ All name variations
+        applicant_name: applicantName,
+        user_name: applicantName,
+        jobseeker_name: applicantName,
+        // ✅ Email variations
+        applicant_email: user.email,
+        user_email: user.email,
+        email: user.email,
+        // ✅ Individual fields
+        first_name: user.first_name || '',
+        last_name: user.last_name || '',
+        phone_number: user.phone_number || '',
+        profile_image: user.profile_image || '',
+        // ✅ Application details
+        motivation_letter: data.motivation || '',
+        motivation: data.motivation || '',
+        applied_at: application.applied_at
       };
-    }
 
-    // Get training details
-    const trainingResult = await this.db.query(
-      'SELECT id, title, provider_id, provider_name FROM trainings WHERE id = $1',
-      [trainingId]
-    );
+      await this.db.query(
+        `INSERT INTO notifications 
+         (id, user_id, type, title, message, related_id, metadata, is_read, created_at) 
+         VALUES ($1, $2, $3, $4, $5, $6, $7, false, NOW())`,
+        [
+          notificationId,
+          training.provider_id,
+          'application_submitted',
+          '📝 New Application',
+          `${applicantName} applied for "${training.title}"`,
+          application.id,
+          JSON.stringify(metadata)
+        ]
+      );
 
-    if (trainingResult.rows.length === 0) {
-      return { success: false, message: 'Training not found' };
-    }
-
-    const training = trainingResult.rows[0];
-
-    // Get user details
-    const userResult = await this.db.query(
-      'SELECT id, first_name, last_name, email, phone_number, profile_image FROM users WHERE id = $1',
-      [userId]
-    );
-
-    if (userResult.rows.length === 0) {
-      return { success: false, message: 'User not found' };
-    }
-
-    const user = userResult.rows[0];
-
-    // Create application
-    const applicationResult = await this.db.query(
-      `INSERT INTO training_applications 
-       (training_id, user_id, motivation, status, applied_at) 
-       VALUES ($1, $2, $3, 'pending', NOW()) 
-       RETURNING *`,
-      [trainingId, userId, data.motivation || '']
-    );
-
-    const application = applicationResult.rows[0];
-
-    // ✅ CREATE RICH NOTIFICATION FOR EMPLOYER
-    const notificationId = uuidv4();
-    const applicantName = `${user.first_name || ''} ${user.last_name || ''}`.trim() || user.email;
-    
-    const metadata = {
-      training_id: trainingId,
-      training_title: training.title,
-      application_id: application.id,
-      user_id: userId,
-      applicant_name: applicantName,
-      user_name: applicantName,
-      jobseeker_name: applicantName,
-      applicant_email: user.email,
-      user_email: user.email,
-      first_name: user.first_name,
-      last_name: user.last_name,
-      email: user.email,
-      phone_number: user.phone_number,
-      profile_image: user.profile_image,
-      motivation_letter: data.motivation,
-      applied_at: application.applied_at
-    };
-
-    await this.db.query(
-      `INSERT INTO notifications 
-       (id, user_id, type, title, message, related_id, metadata, is_read, created_at) 
-       VALUES ($1, $2, $3, $4, $5, $6, $7, false, NOW())`,
-      [
+      console.log('✅ Application created with rich notification:', {
+        applicationId: application.id,
         notificationId,
-        training.provider_id,
-        'application_submitted',
-        'New Training Application',
-        `${applicantName} applied for "${training.title}"`,
-        application.id,
-        JSON.stringify(metadata)
-      ]
-    );
+        employerId: training.provider_id,
+        metadata
+      });
 
-    console.log('✅ Application created:', application.id);
-    console.log('✅ Notification created for employer:', training.provider_id);
-
-    return {
-      success: true,
-      message: 'Application submitted successfully',
-      data: application
-    };
-  } catch (error) {
-    console.error('❌ Error submitting application:', error);
-    throw error;
+      return {
+        success: true,
+        message: 'Application submitted successfully',
+        data: application
+      };
+    } catch (error) {
+      console.error('❌ Error submitting application:', error);
+      throw error;
+    }
   }
-}
 
-  /** Employer retrieves all applications for a training */
   async getApplications(trainingId: string, employerId: string, params: { page?: number; limit?: number; status?: string }): Promise<any> {
-    // ownership check
     const epRow = await this.db.query('SELECT id FROM employers WHERE user_id = $1', [employerId]);
     const epId = epRow.rows.length > 0 ? epRow.rows[0].id : null;
 
@@ -1334,7 +1097,7 @@ async submitApplication(
       `SELECT id FROM trainings WHERE id = $1 AND (provider_id = $2 OR provider_id = $3)`,
       [trainingId, employerId, epId ?? '']
     );
-    if (own.rows.length === 0) return null; // not found / unauthorized
+    if (own.rows.length === 0) return null;
 
     const { page = 1, limit = 20, status } = params;
     const offset = (page - 1) * limit;
@@ -1347,7 +1110,7 @@ async submitApplication(
     qp.push(limit, offset);
     const result = await this.db.query(
       `SELECT a.*,
-              u.first_name, u.last_name, u.email, u.profile_image,
+              u.first_name, u.last_name, u.email, u.profile_image, u.phone_number,
               COUNT(*) OVER() AS total_count
        FROM training_applications a
        JOIN users u ON a.user_id = u.id
@@ -1370,24 +1133,28 @@ async submitApplication(
         reviewed_at: r.reviewed_at,
         employer_notes: r.employer_notes,
         applied_at: r.applied_at,
-        user: { id: r.user_id, first_name: r.first_name, last_name: r.last_name, email: r.email, profile_image: r.profile_image },
+        user: { 
+          id: r.user_id, 
+          first_name: r.first_name, 
+          last_name: r.last_name, 
+          email: r.email, 
+          profile_image: r.profile_image,
+          phone_number: r.phone_number 
+        },
       })),
       pagination: { current_page: page, total_pages: Math.ceil(total / limit), page_size: limit, total_count: total, has_next: page * limit < total, has_previous: page > 1 },
     };
   }
 
   // ==========================================================================
-  // 5.  SHORTLISTING & ENROLLMENT
+  // 5. SHORTLISTING & ENROLLMENT
   // ==========================================================================
 
-  /** Employer shortlists or rejects an applicant.
-   *  If shortlisted → an enrollment row is automatically created. */
   async shortlistApplicant(applicationId: string, employerId: string, body: ShortlistDecisionRequest): Promise<any> {
     const client = await this.db.connect();
     try {
       await client.query('BEGIN');
 
-      // fetch application + training
       const appRow = await client.query(
         `SELECT a.*, t.title AS training_title, t.provider_id, t.max_participants
          FROM training_applications a
@@ -1399,8 +1166,7 @@ async submitApplication(
 
       const app = appRow.rows[0];
 
-      // employer ownership
-      const epRow = await this.db.query('SELECT id FROM employers WHERE user_id = $1', [employerId]);
+      const epRow = await client.query('SELECT id FROM employers WHERE user_id = $1', [employerId]);
       const epId = epRow.rows.length > 0 ? epRow.rows[0].id : null;
       if (app.provider_id !== employerId && app.provider_id !== epId) {
         throw new Error('Unauthorized');
@@ -1410,7 +1176,6 @@ async submitApplication(
         throw new Error(`Application is already ${app.status}`);
       }
 
-      // capacity guard for shortlisting
       if (body.decision === 'shortlisted' && app.max_participants) {
         const enrolled = await client.query(
           `SELECT COUNT(*) AS cnt FROM training_enrollments WHERE training_id = $1 AND status = 'enrolled'`,
@@ -1421,7 +1186,6 @@ async submitApplication(
         }
       }
 
-      // update application
       await client.query(
         `UPDATE training_applications SET status = $1, employer_notes = $2, reviewed_at = NOW(), updated_at = NOW() WHERE id = $3`,
         [body.decision, body.employer_notes ?? null, applicationId]
@@ -1430,7 +1194,6 @@ async submitApplication(
       let enrollment: any = null;
 
       if (body.decision === 'shortlisted') {
-        // create enrollment
         const enrResult = await client.query(
           `INSERT INTO training_enrollments (training_id, user_id, application_id, status, enrolled_at, completion_marked, certificate_issued, created_at, updated_at)
            VALUES ($1, $2, $3, 'enrolled', NOW(), false, false, NOW(), NOW()) RETURNING *`,
@@ -1438,7 +1201,6 @@ async submitApplication(
         );
         enrollment = enrResult.rows[0];
 
-        // bump participant count
         await client.query(
           `UPDATE trainings SET current_participants = COALESCE(current_participants, 0) + 1, total_students = COALESCE(total_students, 0) + 1 WHERE id = $1`,
           [app.training_id]
@@ -1447,8 +1209,10 @@ async submitApplication(
 
       await client.query('COMMIT');
 
-      // --- notifications (fire-and-forget) ---
-      const uRow = await this.db.query('SELECT first_name, last_name, email FROM users WHERE id = $1', [app.user_id]);
+      const uRow = await client.query(
+        'SELECT first_name, last_name, email FROM users WHERE id = $1', 
+        [app.user_id]
+      );
       const name = `${uRow.rows[0]?.first_name || ''} ${uRow.rows[0]?.last_name || ''}`.trim() || uRow.rows[0]?.email;
 
       if (body.decision === 'shortlisted') {
@@ -1477,7 +1241,7 @@ async submitApplication(
   }
 
   // ==========================================================================
-  // 6.  COMPLETION MARKING  (employer evaluates each trainee)
+  // REMAINING METHODS (UNCHANGED FOR BREVITY)
   // ==========================================================================
 
   async markTraineeCompletion(enrollmentId: string, employerId: string, body: MarkCompletionRequest): Promise<any> {
@@ -1496,8 +1260,7 @@ async submitApplication(
 
       const enr = enrRow.rows[0];
 
-      // ownership
-      const epRow = await this.db.query('SELECT id FROM employers WHERE user_id = $1', [employerId]);
+      const epRow = await client.query('SELECT id FROM employers WHERE user_id = $1', [employerId]);
       const epId = epRow.rows.length > 0 ? epRow.rows[0].id : null;
       if (enr.provider_id !== employerId && enr.provider_id !== epId) throw new Error('Unauthorized');
 
@@ -1511,8 +1274,7 @@ async submitApplication(
 
       await client.query('COMMIT');
 
-      // notifications
-      const uRow = await this.db.query('SELECT first_name, last_name, email FROM users WHERE id = $1', [enr.user_id]);
+      const uRow = await client.query('SELECT first_name, last_name, email FROM users WHERE id = $1', [enr.user_id]);
       const name = `${uRow.rows[0]?.first_name || ''} ${uRow.rows[0]?.last_name || ''}`.trim() || uRow.rows[0]?.email;
 
       if (body.completed) {
@@ -1540,116 +1302,103 @@ async submitApplication(
     }
   }
 
-  // ==========================================================================
-  // 7.  CERTIFICATE GENERATION & ISSUANCE
-  // ==========================================================================
-
-  /** Employer issues a certificate for a *completed* enrollment */
   async issueCertificate(enrollmentId: string, employerId: string): Promise<any> {
-  // fetch enrollment with user details
-  const enrRow = await this.db.query(
-    `SELECT e.*, 
-            t.title AS training_title, t.provider_id, t.has_certificate, t.duration_hours,
-            u.first_name, u.last_name, u.email
-     FROM training_enrollments e
-     JOIN trainings t ON e.training_id = t.id
-     JOIN users u ON e.user_id = u.id
-     WHERE e.id = $1`,
-    [enrollmentId]
-  );
-  
-  if (enrRow.rows.length === 0) throw new Error('Enrollment not found');
+    const enrRow = await this.db.query(
+      `SELECT e.*, 
+              t.title AS training_title, t.provider_id, t.has_certificate, t.duration_hours,
+              u.first_name, u.last_name, u.email
+       FROM training_enrollments e
+       JOIN trainings t ON e.training_id = t.id
+       JOIN users u ON e.user_id = u.id
+       WHERE e.id = $1`,
+      [enrollmentId]
+    );
+    
+    if (enrRow.rows.length === 0) throw new Error('Enrollment not found');
 
-  const enr = enrRow.rows[0];
+    const enr = enrRow.rows[0];
 
-  // ownership check
-  const epRow = await this.db.query('SELECT id FROM employers WHERE user_id = $1', [employerId]);
-  const epId = epRow.rows.length > 0 ? epRow.rows[0].id : null;
-  
-  if (enr.provider_id !== employerId && enr.provider_id !== epId) {
-    throw new Error('Unauthorized: You can only issue certificates for your own trainings');
-  }
-  
-  if (!enr.has_certificate) throw new Error('This training does not provide certificates');
-  if (enr.status !== 'completed') throw new Error('Certificate can only be issued for completed enrollments');
-  
-  if (enr.certificate_issued) {
+    const epRow = await this.db.query('SELECT id FROM employers WHERE user_id = $1', [employerId]);
+    const epId = epRow.rows.length > 0 ? epRow.rows[0].id : null;
+    
+    if (enr.provider_id !== employerId && enr.provider_id !== epId) {
+      throw new Error('Unauthorized: You can only issue certificates for your own trainings');
+    }
+    
+    if (!enr.has_certificate) throw new Error('This training does not provide certificates');
+    if (enr.status !== 'completed') throw new Error('Certificate can only be issued for completed enrollments');
+    
+    if (enr.certificate_issued) {
+      return { 
+        success: true, 
+        message: 'Certificate already issued', 
+        certificate_url: enr.certificate_url, 
+        enrollment_id: enrollmentId 
+      };
+    }
+
+    const userName = `${enr.first_name || ''} ${enr.last_name || ''}`.trim() || 
+                     (enr.email ? enr.email.split('@')[0] : 'User');
+
+    const cert = await this.generateCertificatePDF(
+      enrollmentId, 
+      enr.user_id, 
+      enr.training_id, 
+      enr.training_title, 
+      enr.duration_hours
+    );
+
+    await this.db.query(
+      `UPDATE training_enrollments 
+       SET certificate_issued = true, 
+           certificate_url = $1, 
+           certificate_issued_at = NOW() 
+       WHERE id = $2`,
+      [cert.certificate_url, enrollmentId]
+    );
+
+    await this.db.query(
+      `INSERT INTO certificate_verifications (enrollment_id, verification_code, certificate_url, issued_at)
+       VALUES ($1, $2, $3, NOW())
+       ON CONFLICT (enrollment_id) DO NOTHING`,
+      [enrollmentId, cert.verification_code, cert.certificate_url]
+    );
+
+    this.createNotification(
+      enr.user_id, 
+      'certificate_issued',
+      `🎉 Your certificate for "${enr.training_title}" is ready! Click to download.`,
+      { 
+        training_id: enr.training_id, 
+        enrollment_id: enrollmentId, 
+        certificate_url: cert.certificate_url,
+        user_id: enr.user_id,
+        applicant_name: userName
+      }
+    );
+    
+    this.createNotification(
+      enr.provider_id, 
+      'certificate_issued',
+      `Certificate issued to ${userName} for "${enr.training_title}".`,
+      { 
+        training_id: enr.training_id, 
+        enrollment_id: enrollmentId, 
+        user_id: enr.user_id,
+        applicant_name: userName,
+        jobseeker_name: userName
+      }
+    );
+
     return { 
       success: true, 
-      message: 'Certificate already issued', 
-      certificate_url: enr.certificate_url, 
+      message: 'Certificate issued successfully', 
+      certificate_url: cert.certificate_url, 
+      verification_code: cert.verification_code, 
       enrollment_id: enrollmentId 
     };
   }
 
-  // Build user name
-  const userName = `${enr.first_name || ''} ${enr.last_name || ''}`.trim() || 
-                   (enr.email ? enr.email.split('@')[0] : 'User');
-
-  // generate PDF
-  const cert = await this.generateCertificatePDF(
-    enrollmentId, 
-    enr.user_id, 
-    enr.training_id, 
-    enr.training_title, 
-    enr.duration_hours
-  );
-
-  // persist
-  await this.db.query(
-    `UPDATE training_enrollments 
-     SET certificate_issued = true, 
-         certificate_url = $1, 
-         certificate_issued_at = NOW() 
-     WHERE id = $2`,
-    [cert.certificate_url, enrollmentId]
-  );
-
-  // store verification record
-  await this.db.query(
-    `INSERT INTO certificate_verifications (enrollment_id, verification_code, certificate_url, issued_at)
-     VALUES ($1, $2, $3, NOW())
-     ON CONFLICT (enrollment_id) DO NOTHING`,
-    [enrollmentId, cert.verification_code, cert.certificate_url]
-  );
-
-  // notifications with full user details
-  this.createNotification(
-    enr.user_id, 
-    'certificate_issued',
-    `🎉 Your certificate for "${enr.training_title}" is ready! Click to download.`,
-    { 
-      training_id: enr.training_id, 
-      enrollment_id: enrollmentId, 
-      certificate_url: cert.certificate_url,
-      user_id: enr.user_id,
-      applicant_name: userName  // ✅ ADD THIS
-    }
-  );
-  
-  this.createNotification(
-    enr.provider_id, 
-    'certificate_issued',
-    `Certificate issued to ${userName} for "${enr.training_title}".`,
-    { 
-      training_id: enr.training_id, 
-      enrollment_id: enrollmentId, 
-      user_id: enr.user_id,
-      applicant_name: userName,  // ✅ ADD THIS
-      jobseeker_name: userName   // ✅ ADD THIS
-    }
-  );
-
-  return { 
-    success: true, 
-    message: 'Certificate issued successfully', 
-    certificate_url: cert.certificate_url, 
-    verification_code: cert.verification_code, 
-    enrollment_id: enrollmentId 
-  };
-}
-
-  /** Verify a certificate by its verification code */
   async verifyCertificate(verificationCode: string): Promise<any> {
     const result = await this.db.query(
       `SELECT cv.*, e.training_id, e.user_id, e.completed_at,
@@ -1677,7 +1426,6 @@ async submitApplication(
     };
   }
 
-  // ---------- PDF generation ----------
   private async generateCertificatePDF(
     enrollmentId: string,
     userId: string,
@@ -1689,12 +1437,10 @@ async submitApplication(
     const path = require('path');
     const PDFDocument = require('pdfkit');
 
-    // -- trainee name --
     const uRow = await this.db.query('SELECT first_name, last_name, email FROM users WHERE id = $1', [userId]);
     const u    = uRow.rows[0] || {};
     const trainee = `${u.first_name || ''} ${u.last_name || ''}`.trim() || (u.email || '').split('@')[0];
 
-    // -- provider name (company > provider_name fallback) --
     const tRow = await this.db.query(
       `SELECT t.provider_name, t.provider_id,
               COALESCE(c.name, '') AS company_name
@@ -1707,10 +1453,8 @@ async submitApplication(
     const td       = tRow.rows[0] || {};
     const provider = (td.company_name && td.company_name.trim()) ? td.company_name.trim() : (td.provider_name || 'Training Provider');
 
-    // -- verification code --
     const verificationCode = generateVerificationCode();
 
-    // -- file paths --
     const baseUpload    = path.join(__dirname, '../../uploads');
     const certDir       = path.join(baseUpload, 'certificates');
     if (!fs.existsSync(certDir)) fs.mkdirSync(certDir, { recursive: true });
@@ -1718,61 +1462,48 @@ async submitApplication(
     const fileName = `certificate-${enrollmentId}-${Date.now()}.pdf`;
     const filePath = path.join(certDir, fileName);
 
-    // -- layout constants --
     const doc = new PDFDocument({ size: 'A4', layout: 'landscape' });
     const W   = doc.page.width;
     const H   = doc.page.height;
     const stream = fs.createWriteStream(filePath);
     doc.pipe(stream);
 
-    // Outer border
     doc.rect(40, 40, W - 80, H - 80).stroke('#2c3e50');
     doc.rect(46, 46, W - 92, H - 92).stroke('#2c3e50');
 
-    // Title
     doc.fontSize(36).font('Helvetica-Bold').fillColor('#2c3e50')
        .text('Certificate of Completion', 0, 70, { align: 'center', width: W });
 
-    // Sub-header
     doc.fontSize(15).font('Helvetica').fillColor('#555555')
        .text('This is to certify that', 0, 140, { align: 'center', width: W });
 
-    // Trainee name
     doc.fontSize(30).font('Helvetica-Bold').fillColor('#1a5276')
        .text(trainee, 0, 180, { align: 'center', width: W });
 
-    // Body text
     doc.fontSize(15).font('Helvetica').fillColor('#555555')
        .text('has successfully completed the training programme', 0, 240, { align: 'center', width: W });
 
-    // Training title
     doc.fontSize(24).font('Helvetica-Bold').fillColor('#2c3e50')
        .text(trainingTitle, 0, 278, { align: 'center', width: W });
 
-    // Duration
     doc.fontSize(13).font('Helvetica').fillColor('#666666')
        .text(`Total Duration: ${durationHours} hours`, 0, 325, { align: 'center', width: W });
 
-    // Completion date
     const completionDate = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
     doc.fontSize(13).font('Helvetica').fillColor('#666666')
        .text(`Date of Completion: ${completionDate}`, 0, 348, { align: 'center', width: W });
 
-    // Divider
     doc.moveTo(180, 390).lineTo(W - 180, 390).strokeColor('#aaaaaa').stroke();
 
-    // Issued by
     doc.fontSize(12).font('Helvetica-Oblique').fillColor('#888888')
        .text('Issued by:', 0, 400, { align: 'center', width: W });
     doc.fontSize(18).font('Helvetica-Bold').fillColor('#2c3e50')
        .text(provider, 0, 422, { align: 'center', width: W });
 
-    // Signature line
     doc.moveTo(W / 2 - 80, 465).lineTo(W / 2 + 80, 465).strokeColor('#888888').stroke();
     doc.fontSize(10).font('Helvetica-Oblique').fillColor('#888888')
        .text('Authorised Signature', 0, 468, { align: 'center', width: W });
 
-    // Verification code at bottom
     doc.fontSize(9).font('Helvetica').fillColor('#aaaaaa')
        .text(`Verification Code: ${verificationCode}`, 0, H - 75, { align: 'center', width: W });
     doc.fontSize(8).font('Helvetica').fillColor('#aaaaaa')
@@ -1786,99 +1517,83 @@ async submitApplication(
     });
   }
 
-  // ==========================================================================
-  // 8.  EMPLOYER STATS
-  // ==========================================================================
+  async getTrainingStats(employerId: string): Promise<TrainingStatsResponse> {
+    try {
+      const epRow = await this.db.query('SELECT id FROM employers WHERE user_id = $1', [employerId]);
+      let cond = 't.provider_id = $1';
+      const qp: any[] = [employerId];
+      
+      if (epRow.rows.length > 0) {
+        cond = '(t.provider_id = $1 OR t.provider_id = $2)';
+        qp.push(epRow.rows[0].id);
+      }
 
- async getTrainingStats(employerId: string): Promise<TrainingStatsResponse> {
-  try {
-    console.log('📊 Getting training stats for employer:', employerId);
-    
-    const epRow = await this.db.query('SELECT id FROM employers WHERE user_id = $1', [employerId]);
-    let cond = 't.provider_id = $1';
-    const qp: any[] = [employerId];
-    
-    if (epRow.rows.length > 0) {
-      cond = '(t.provider_id = $1 OR t.provider_id = $2)';
-      qp.push(epRow.rows[0].id);
+      const stats = await this.db.query(
+        `SELECT
+           COUNT(t.id) AS total_trainings,
+           COUNT(*) FILTER (WHERE t.status = 'published') AS published_trainings,
+           COUNT(*) FILTER (WHERE t.status = 'draft') AS draft_trainings,
+           COUNT(*) FILTER (WHERE t.status = 'suspended') AS suspended_trainings,
+           COALESCE(AVG(t.rating), 0) AS avg_rating
+         FROM trainings t
+         WHERE ${cond}`,
+        qp
+      );
+
+      const appStats = await this.db.query(
+        `SELECT COUNT(*) AS total
+         FROM training_applications a
+         JOIN trainings t ON a.training_id = t.id
+         WHERE ${cond}`,
+        qp
+      );
+
+      const enrStats = await this.db.query(
+        `SELECT 
+           COUNT(*) AS total,
+           COUNT(*) FILTER (WHERE e.status = 'completed') AS completed
+         FROM training_enrollments e
+         JOIN trainings t ON e.training_id = t.id
+         WHERE ${cond}`,
+        qp
+      );
+
+      const s = stats.rows[0];
+      const totalEnr = parseInt(enrStats.rows[0]?.total || 0);
+      const totalComp = parseInt(enrStats.rows[0]?.completed || 0);
+
+      return {
+        total_trainings: parseInt(s.total_trainings || 0),
+        published_trainings: parseInt(s.published_trainings || 0),
+        draft_trainings: parseInt(s.draft_trainings || 0),
+        suspended_trainings: parseInt(s.suspended_trainings || 0),
+        total_applications: parseInt(appStats.rows[0]?.total || 0),
+        total_enrollments: totalEnr,
+        total_completions: totalComp,
+        total_revenue: 0,
+        avg_rating: parseFloat(s.avg_rating) || 0,
+        completion_rate: totalEnr > 0 ? Math.round((totalComp / totalEnr) * 10000) / 100 : 0,
+        categories_breakdown: [],
+        monthly_enrollments: [],
+      };
+    } catch (error: any) {
+      console.error('❌ Error in getTrainingStats:', error.message);
+      return {
+        total_trainings: 0,
+        published_trainings: 0,
+        draft_trainings: 0,
+        suspended_trainings: 0,
+        total_applications: 0,
+        total_enrollments: 0,
+        total_completions: 0,
+        total_revenue: 0,
+        avg_rating: 0,
+        completion_rate: 0,
+        categories_breakdown: [],
+        monthly_enrollments: [],
+      };
     }
-
-    // Use separate queries to avoid JOIN issues
-    const stats = await this.db.query(
-      `SELECT
-         COUNT(t.id) AS total_trainings,
-         COUNT(*) FILTER (WHERE t.status = 'published') AS published_trainings,
-         COUNT(*) FILTER (WHERE t.status = 'draft') AS draft_trainings,
-         COUNT(*) FILTER (WHERE t.status = 'suspended') AS suspended_trainings,
-         COALESCE(AVG(t.rating), 0) AS avg_rating
-       FROM trainings t
-       WHERE ${cond}`,
-      qp
-    );
-
-    // Separate query for applications
-    const appStats = await this.db.query(
-      `SELECT COUNT(*) AS total
-       FROM training_applications a
-       JOIN trainings t ON a.training_id = t.id
-       WHERE ${cond}`,
-      qp
-    );
-
-    // Separate query for enrollments
-    const enrStats = await this.db.query(
-      `SELECT 
-         COUNT(*) AS total,
-         COUNT(*) FILTER (WHERE e.status = 'completed') AS completed
-       FROM training_enrollments e
-       JOIN trainings t ON e.training_id = t.id
-       WHERE ${cond}`,
-      qp
-    );
-
-    const s = stats.rows[0];
-    const totalEnr = parseInt(enrStats.rows[0]?.total || 0);
-    const totalComp = parseInt(enrStats.rows[0]?.completed || 0);
-
-    console.log('✅ Training stats retrieved successfully');
-
-    return {
-      total_trainings: parseInt(s.total_trainings || 0),
-      published_trainings: parseInt(s.published_trainings || 0),
-      draft_trainings: parseInt(s.draft_trainings || 0),
-      suspended_trainings: parseInt(s.suspended_trainings || 0),
-      total_applications: parseInt(appStats.rows[0]?.total || 0),
-      total_enrollments: totalEnr,
-      total_completions: totalComp,
-      total_revenue: 0,
-      avg_rating: parseFloat(s.avg_rating) || 0,
-      completion_rate: totalEnr > 0 ? Math.round((totalComp / totalEnr) * 10000) / 100 : 0,
-      categories_breakdown: [],
-      monthly_enrollments: [],
-    };
-  } catch (error: any) {
-    console.error('❌ Error in getTrainingStats:', error.message);
-    // Return default stats instead of throwing
-    return {
-      total_trainings: 0,
-      published_trainings: 0,
-      draft_trainings: 0,
-      suspended_trainings: 0,
-      total_applications: 0,
-      total_enrollments: 0,
-      total_completions: 0,
-      total_revenue: 0,
-      avg_rating: 0,
-      completion_rate: 0,
-      categories_breakdown: [],
-      monthly_enrollments: [],
-    };
   }
-}
-
-  // ==========================================================================
-  // 9.  JOBSEEKER STATS
-  // ==========================================================================
 
   async getJobseekerTrainingStats(userId: string): Promise<any> {
     const result = await this.db.query(
@@ -1896,10 +1611,6 @@ async submitApplication(
       certificates_earned:parseInt(result.rows[0].certificates_earned),
     };
   }
-
-  // ==========================================================================
-  // 10. REVIEWS
-  // ==========================================================================
 
   async getTrainingReviews(trainingId: string, params: any): Promise<any | null> {
     const check = await this.db.query('SELECT id FROM trainings WHERE id = $1', [trainingId]);
@@ -1946,7 +1657,6 @@ async submitApplication(
   }
 
   async submitTrainingReview(trainingId: string, userId: string, reviewData: { rating: number; review_text?: string }): Promise<any> {
-    // must be enrolled
     const check = await this.db.query(
       `SELECT id FROM training_enrollments WHERE training_id = $1 AND user_id = $2`,
       [trainingId, userId]
@@ -1965,10 +1675,6 @@ async submitApplication(
     await this.updateTrainingRating(trainingId);
     return result.rows[0];
   }
-
-  // ==========================================================================
-  // 11. ANALYTICS (employer per-training)
-  // ==========================================================================
 
   async getTrainingAnalytics(trainingId: string, employerId: string, timeRange: string): Promise<any | null> {
     const epRow = await this.db.query('SELECT id FROM employers WHERE user_id = $1', [employerId]);
@@ -2037,7 +1743,6 @@ async submitApplication(
     };
   }
 
-  // Employer: list enrollments for a training (for completion-marking UI)
   async getTrainingEnrollments(trainingId: string, employerId: string, params: any): Promise<any | null> {
     const epRow = await this.db.query('SELECT id FROM employers WHERE user_id = $1', [employerId]);
     const epId = epRow.rows.length > 0 ? epRow.rows[0].id : null;
@@ -2078,10 +1783,6 @@ async submitApplication(
       pagination: { current_page: page, total_pages: Math.ceil(total / limit), page_size: limit, total_count: total, has_next: page * limit < total, has_previous: page > 1 },
     };
   }
-
-  // ==========================================================================
-  // 12. CATEGORIES / POPULAR / RECOMMENDED
-  // ==========================================================================
 
   async getTrainingCategories(): Promise<any[]> {
     const result = await this.db.query(
@@ -2132,10 +1833,6 @@ async submitApplication(
     return result.rows;
   }
 
-  // ==========================================================================
-  // PRIVATE HELPERS
-  // ==========================================================================
-
   private async updateTrainingRating(trainingId: string): Promise<void> {
     const r = await this.db.query('SELECT AVG(rating) AS avg FROM training_reviews WHERE training_id = $1', [trainingId]);
     await this.db.query('UPDATE trainings SET rating = $1 WHERE id = $2', [parseFloat(r.rows[0].avg) || 0, trainingId]);
@@ -2158,19 +1855,144 @@ async submitApplication(
   }
 
   private mapTrainingWithContext(row: any): any {
-  return {
-    ...this.mapTrainingFromDb(row),
-    has_applied: row.has_applied === true || row.has_applied === 'true',
-    applied: row.applied === true || row.applied === 'true', // ✅ ADD THIS
-    is_enrolled: row.is_enrolled === true || row.is_enrolled === 'true',
-    enrolled: row.enrolled === true || row.enrolled === 'true', // ✅ ADD THIS
-    application_status: row.application_status || null,
-    enrollment_status:  row.enrollment_status  || null,
-    applied_at:  row.applied_at  || null,
-    enrolled_at: row.enrolled_at || null,
-    completed_at: row.completed_at || null,
-    certificate_issued: Boolean(row.certificate_issued),
-    enrollment_id: row.enrollment_id || null, // ✅ ADD THIS
-  };
-}
+    return {
+      ...this.mapTrainingFromDb(row),
+      has_applied: row.has_applied === true || row.has_applied === 'true',
+      applied: row.applied === true || row.applied === 'true',
+      is_enrolled: row.is_enrolled === true || row.is_enrolled === 'true',
+      enrolled: row.enrolled === true || row.enrolled === 'true',
+      application_status: row.application_status || null,
+      enrollment_status:  row.enrollment_status  || null,
+      applied_at:  row.applied_at  || null,
+      enrolled_at: row.enrolled_at || null,
+      completed_at: row.completed_at || null,
+      certificate_issued: Boolean(row.certificate_issued),
+      enrollment_id: row.enrollment_id || null,
+    };
+  }
+
+  async markSessionAttendance(
+    sessionId: string,
+    enrollmentIds: string[],
+    attendanceData: { enrollment_id: string; attended: boolean; notes?: string }[],
+    employerId: string
+  ): Promise<any> {
+    const client = await this.db.connect();
+    try {
+      await client.query('BEGIN');
+
+      const session = await client.query(
+        `SELECT ts.*, t.provider_id 
+         FROM training_sessions ts
+         JOIN trainings t ON ts.training_id = t.id
+         WHERE ts.id = $1`,
+        [sessionId]
+      );
+
+      if (session.rows.length === 0) throw new Error('Session not found');
+
+      const epRow = await client.query('SELECT id FROM employers WHERE user_id = $1', [employerId]);
+      const epId = epRow.rows.length > 0 ? epRow.rows[0].id : null;
+
+      if (session.rows[0].provider_id !== employerId && session.rows[0].provider_id !== epId) {
+        throw new Error('Unauthorized');
+      }
+
+      for (const record of attendanceData) {
+        const enr = await client.query(
+          'SELECT user_id FROM training_enrollments WHERE id = $1',
+          [record.enrollment_id]
+        );
+
+        if (enr.rows.length > 0) {
+          await client.query(
+            `INSERT INTO session_attendance (session_id, enrollment_id, user_id, attended, notes, attendance_marked_at)
+             VALUES ($1, $2, $3, $4, $5, NOW())
+             ON CONFLICT (session_id, enrollment_id)
+             DO UPDATE SET attended = $4, notes = $5, attendance_marked_at = NOW()`,
+            [sessionId, record.enrollment_id, enr.rows[0].user_id, record.attended, record.notes || null]
+          );
+        }
+      }
+
+      for (const record of attendanceData) {
+        await this.updateEnrollmentAttendanceRate(record.enrollment_id, client);
+      }
+
+      await client.query('COMMIT');
+
+      return { success: true, message: 'Attendance marked successfully' };
+    } catch (err: any) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
+  }
+
+  private async updateEnrollmentAttendanceRate(enrollmentId: string, client: any): Promise<void> {
+    const result = await client.query(
+      `SELECT 
+         COUNT(*) as total_sessions,
+         COUNT(*) FILTER (WHERE attended = true) as attended_sessions
+       FROM session_attendance
+       WHERE enrollment_id = $1`,
+      [enrollmentId]
+    );
+
+    const total = parseInt(result.rows[0].total_sessions);
+    const attended = parseInt(result.rows[0].attended_sessions);
+    const rate = total > 0 ? Math.round((attended / total) * 100) : 0;
+
+    await client.query(
+      'UPDATE training_enrollments SET attendance_rate = $1 WHERE id = $2',
+      [rate, enrollmentId]
+    );
+  }
+
+  async getSessionAttendance(sessionId: string, employerId: string): Promise<any> {
+    const epRow = await this.db.query('SELECT id FROM employers WHERE user_id = $1', [employerId]);
+    const epId = epRow.rows.length > 0 ? epRow.rows[0].id : null;
+
+    const session = await this.db.query(
+      `SELECT ts.*, t.provider_id 
+       FROM training_sessions ts
+       JOIN trainings t ON ts.training_id = t.id
+       WHERE ts.id = $1 AND (t.provider_id = $2 OR t.provider_id = $3)`,
+      [sessionId, employerId, epId ?? '']
+    );
+
+    if (session.rows.length === 0) return null;
+
+    const result = await this.db.query(
+      `SELECT 
+         e.id as enrollment_id,
+         e.user_id,
+         u.first_name,
+         u.last_name,
+         u.email,
+         COALESCE(sa.attended, false) as attended,
+         sa.notes,
+         sa.attendance_marked_at
+       FROM training_enrollments e
+       JOIN users u ON e.user_id = u.id
+       LEFT JOIN session_attendance sa ON sa.enrollment_id = e.id AND sa.session_id = $1
+       WHERE e.training_id = $2 AND e.status = 'enrolled'
+       ORDER BY u.last_name, u.first_name`,
+      [sessionId, session.rows[0].training_id]
+    );
+
+    return {
+      session: session.rows[0],
+      attendance: result.rows.map(r => ({
+        enrollment_id: r.enrollment_id,
+        user_id: r.user_id,
+        user_name: `${r.first_name} ${r.last_name}`,
+        email: r.email,
+        attended: r.attended,
+        notes: r.notes,
+        marked_at: r.attendance_marked_at,
+      })),
+    };
+  }
 }
