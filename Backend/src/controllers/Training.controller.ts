@@ -164,10 +164,14 @@ export class TrainingController {
 
 // controllers/training.controller.ts
 
+// controllers/training.controller.ts
+
 async getAllTrainings(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
   try {
     const userId = req.user?.id;
     const userType = req.user?.user_type;
+
+    console.log('🔍 Controller getAllTrainings:', { userId, userType });
 
     const params: TrainingSearchParams = {
       page: parseInt(req.query.page as string) || 1,
@@ -179,33 +183,33 @@ async getAllTrainings(req: AuthenticatedRequest, res: Response, next: NextFuncti
       level: req.query.level as string,
       cost_type: req.query.cost_type as string,
       mode: req.query.mode as string,
-      status: req.query.status as string,  // ✅ ADD THIS
+      status: req.query.status as string,
       filters: req.query.filters ? JSON.parse(req.query.filters as string) : {},
     };
 
     let result;
     
     if (userType === 'jobseeker' && userId) {
-      // Jobseekers see all published trainings
+      console.log('👤 Jobseeker request - fetching published trainings');
       result = await this.trainingService.getPublishedTrainingsForJobseeker(userId, params);
     } else if (userType === 'employer' && userId) {
-      // ✅ CRITICAL FIX: Employers only see their own trainings
-      console.log('🔍 Fetching trainings for employer:', userId);
+      // ✅ CRITICAL: ALWAYS pass employer ID
+      console.log('🏢 EMPLOYER REQUEST - FILTERING BY EMPLOYER ID:', userId);
       result = await this.trainingService.getAllTrainings(params, userId);
-      console.log('✅ Found trainings:', result.trainings.length);
+      console.log('📦 EMPLOYER TRAININGS FOUND:', result.trainings?.length || 0);
     } else {
-      // Guests see all published trainings (without user-specific data)
+      console.log('👁️ Guest request - fetching published trainings');
       params.status = 'published';
       result = await this.trainingService.getAllTrainings(params);
     }
 
     res.json({ 
-  success: true, 
-  data: {
-    trainings: result.trainings
-  },
-  pagination: result.pagination 
-});
+      success: true, 
+      data: {
+        trainings: result.trainings
+      },
+      pagination: result.pagination 
+    });
   } catch (error: any) {
     console.error('❌ Controller error:', error);
     next(error);

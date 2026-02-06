@@ -403,7 +403,9 @@ loadTrainings(): void {
   // NOTIFICATION MANAGEMENT
   // ============================================
   
-  loadNotifications(): void {
+  // employer-training.component.ts
+
+loadNotifications(): void {
   console.log('🔔 Loading employer notifications');
   
   this.trainingService.getNotifications({ read: false })
@@ -416,56 +418,53 @@ loadTrainings(): void {
           const notifications = response.data.notifications || response.data || [];
           
           this.enrollmentNotifications = notifications.map((n: any) => {
-            // Extract user information from metadata or direct fields
             const metadata = typeof n.metadata === 'string' ? JSON.parse(n.metadata) : (n.metadata || {});
             
-            // Try multiple sources for the user name
+            // ✅ Extract user name from multiple sources
             let displayName = '';
             
-            // Priority 1: Direct fields
             if (n.jobseeker_name) {
               displayName = n.jobseeker_name;
-            }
-            // Priority 2: Metadata applicant_name
-            else if (metadata.applicant_name) {
+            } else if (metadata.applicant_name) {
               displayName = metadata.applicant_name;
-            }
-            // Priority 3: Metadata user details
-            else if (metadata.user_name) {
+            } else if (metadata.user_name) {
               displayName = metadata.user_name;
-            }
-            // Priority 4: First/Last name combination
-            else if (n.first_name || n.last_name) {
+            } else if (n.first_name || n.last_name) {
               displayName = `${n.first_name || ''} ${n.last_name || ''}`.trim();
-            }
-            // Priority 5: Email-based name
-            else if (n.email) {
-              displayName = n.email.split('@')[0]
+            } else if (metadata.first_name || metadata.last_name) {
+              displayName = `${metadata.first_name || ''} ${metadata.last_name || ''}`.trim();
+            } else if (n.email || metadata.email || metadata.applicant_email) {
+              const email = n.email || metadata.email || metadata.applicant_email;
+              displayName = email.split('@')[0]
                 .replace(/[_.-]/g, ' ')
                 .replace(/\b\w/g, (l: string) => l.toUpperCase());
-            }
-            // Fallback
-            else {
+            } else {
               displayName = 'Anonymous User';
             }
             
-            console.log('📧 Notification user mapping:', {
-              notification_id: n.id,
+            console.log('📧 Notification mapping:', {
+              id: n.id,
               type: n.type,
               displayName,
-              metadata,
-              rawNotification: n
+              created_at: n.created_at,
+              metadata
             });
             
             return {
               ...n,
               display_name: displayName,
-              metadata: metadata
+              metadata: metadata,
+              created_at: n.created_at, // ✅ Preserve timestamp
+              user_id: metadata.user_id,
+              user_email: metadata.user_email || metadata.applicant_email || metadata.email,
+              application_id: metadata.application_id,
+              training_id: metadata.training_id,
+              training_title: metadata.training_title
             };
           });
           
           this.unreadNotificationCount = this.enrollmentNotifications.filter(
-            (n: any) => !n.is_read && (n.type === 'new_enrollment' || n.type === 'application_submitted')
+            (n: any) => !n.is_read && (n.type === 'application_submitted')
           ).length;
           
           console.log('✅ Processed notifications:', {
@@ -473,16 +472,13 @@ loadTrainings(): void {
             unread: this.unreadNotificationCount,
             sample: this.enrollmentNotifications[0]
           });
-        } else {
-          this.enrollmentNotifications = [];
-          this.unreadNotificationCount = 0;
         }
       },
       error: (error) => {
         console.error('❌ Error loading notifications:', error);
       }
     });
-  }
+}
 
 
   toggleNotifications(): void {
@@ -578,11 +574,28 @@ loadTrainings(): void {
       });
   }
 
-  viewStudentProfile(notification: any): void {
-    console.log('Viewing student profile:', notification.user_id);
-    alert(`View profile for ${this.getJobseekerDisplayName(notification)}`);
-  }
+  // employer-training.component.ts
 
+viewStudentProfile(notification: any): void {
+  console.log('👤 Viewing applicant profile:', notification);
+  
+  const userId = notification.metadata?.user_id || notification.user_id;
+  const applicationId = notification.metadata?.application_id || notification.application_id;
+  const trainingId = notification.metadata?.training_id || notification.training_id;
+  
+  if (!userId || !applicationId || !trainingId) {
+    alert('Unable to load applicant information. Please try again.');
+    return;
+  }
+  
+  // ✅ Open application details modal with shortlisting option
+  this.selectedTraining = this.trainings.find(t => t.id === trainingId) || null;
+  if (this.selectedTraining) {
+    this.viewApplications(this.selectedTraining);
+  } else {
+    alert(`Viewing profile for applicant: ${notification.display_name}\n\nEmail: ${notification.user_email || 'N/A'}`);
+  }
+}
   markAllEnrollmentNotificationsRead(): void {
     if (!confirm('Mark all enrollment notifications as read?')) return;
 
