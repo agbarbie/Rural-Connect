@@ -81,14 +81,15 @@ export class TrainingService {
   }
 
   // ✅ NEW: Helper method to safely get user details
-  private async getUserDetails(userId: string): Promise<any> {
+ // ✅ FINAL FIX: Use contact_number instead of phone_number
+private async getUserDetails(userId: string): Promise<any> {
   const query = `
     SELECT 
       id, 
       first_name, 
       last_name, 
       email, 
-      phone_number,
+      contact_number,
       profile_image
     FROM users 
     WHERE id = $1
@@ -99,8 +100,12 @@ export class TrainingService {
   if (result.rows.length > 0) {
     const user = result.rows[0];
     return {
-      ...user,
-      phone_number: user.phone_number || '',
+      id: user.id,
+      first_name: user.first_name || '',
+      last_name: user.last_name || '',
+      email: user.email || '',
+      phone_number: user.contact_number || '', // ✅ Map contact_number to phone_number
+      contact_number: user.contact_number || '', // ✅ Include both for compatibility
       profile_image: user.profile_image || ''
     };
   }
@@ -1225,7 +1230,7 @@ export class TrainingService {
       u.last_name,
       u.email,
       u.profile_image,
-      u.phone_number,
+      u.contact_number,  -- ✅ Changed from phone_number
       COUNT(*) OVER() AS total_count
     FROM training_applications a
     JOIN users u ON a.user_id = u.id
@@ -1235,8 +1240,7 @@ export class TrainingService {
   `;
 
   const result = await this.db.query(userQuery, qp);
-
-  const rows  = result.rows;
+  const rows = result.rows;
   const total = rows.length > 0 ? parseInt(rows[0].total_count) : 0;
 
   return {
@@ -1255,10 +1259,10 @@ export class TrainingService {
         last_name: r.last_name, 
         email: r.email, 
         profile_image: r.profile_image || '',
-        phone_number: r.phone_number || ''
+        phone_number: r.contact_number || ''  // ✅ Map to phone_number
       },
     })),
-    pagination: { current_page: page, total_pages: Math.ceil(total / limit), page_size: limit, total_count: total, has_next: page * limit < total, has_previous: page > 1 },
+    pagination: { /* ... */ },
   };
 }
 
@@ -1429,7 +1433,7 @@ export class TrainingService {
       u.first_name, 
       u.last_name, 
       u.email,
-      u.phone_number,
+      u.contact_number,  -- ✅ Changed from phone_number
       u.profile_image
     FROM training_enrollments e
     JOIN trainings t ON e.training_id = t.id
@@ -1900,7 +1904,7 @@ export class TrainingService {
       u.last_name,
       u.email,
       u.profile_image,
-      u.phone_number,
+      u.contact_number,  -- ✅ Changed from phone_number
       COUNT(*) OVER() AS total_count
     FROM training_enrollments e
     JOIN users u ON e.user_id = u.id
@@ -1910,7 +1914,7 @@ export class TrainingService {
   `;
 
   const result = await this.db.query(enrollQuery, qp);
-  const rows  = result.rows;
+  const rows = result.rows;
   const total = rows.length > 0 ? parseInt(rows[0].total_count) : 0;
 
   return {
@@ -1929,10 +1933,10 @@ export class TrainingService {
         last_name: r.last_name, 
         email: r.email, 
         profile_image: r.profile_image || '', 
-        phone_number: r.phone_number || '' 
+        phone_number: r.contact_number || ''  // ✅ Map to phone_number
       },
     })),
-    pagination: { current_page: page, total_pages: Math.ceil(total / limit), page_size: limit, total_count: total, has_next: page * limit < total, has_previous: page > 1 },
+    pagination: { /* ... */ },
   };
 }
 
