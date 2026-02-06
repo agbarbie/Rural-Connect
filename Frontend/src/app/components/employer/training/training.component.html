@@ -1,4 +1,4 @@
-<!-- employer-training.component.html - MERGED & UPDATED (Fixed Notifications + Enhanced Applications Modal) -->
+<!-- employer-training.component.html - COMPLETE PRODUCTION VERSION -->
 
 <!-- Hamburger Menu Button -->
 <button class="hamburger" (click)="toggleSidebar()">
@@ -9,12 +9,14 @@
 <div class="sidebar-overlay" (click)="closeSidebar()"></div>
 
 <div class="training-container">
+  
   <!-- Sidebar -->
   <app-sidebar [userType]="'employer'"></app-sidebar>
 
   <!-- Main Content -->
   <div class="main-content">
-    <!-- Header -->
+    
+    <!-- Page Header -->
     <div class="page-header">
       <div class="header-content">
         <h1 class="page-title">
@@ -28,8 +30,7 @@
       <button
         class="btn-primary"
         (click)="toggleAddForm()"
-        [disabled]="isLoading"
-      >
+        [disabled]="isLoading">
         <i class="fas fa-plus"></i>
         {{ editingTrainingId ? "Edit Training" : "Create New Training" }}
       </button>
@@ -54,16 +55,16 @@
       </div>
     </div>
 
-    <!-- FIXED: Notification Bell with Enhanced Display -->
+    <!-- ✅ ENHANCED NOTIFICATION BELL -->
     <div class="notification-wrapper" *ngIf="!showAddForm">
       <button class="notification-bell" (click)="toggleNotifications()">
-        <i class="fas fa-bell"></i>
+        <i class="fas fa-bell" [class.ringing]="unreadNotificationCount > 0"></i>
         <span class="notification-badge" *ngIf="unreadNotificationCount > 0">
           {{ unreadNotificationCount }}
         </span>
       </button>
 
-      <!-- FIXED: Enhanced Notification Dropdown -->
+      <!-- ✅ ENHANCED NOTIFICATION DROPDOWN -->
       <div class="notification-dropdown" *ngIf="showNotifications">
         <div class="notification-header">
           <h3>
@@ -79,6 +80,7 @@
         </div>
 
         <div class="notification-list">
+          <!-- ✅ ENHANCED NOTIFICATION ITEM -->
           <div
             class="notification-item"
             *ngFor="let notification of enrollmentNotifications"
@@ -86,40 +88,57 @@
             [class]="'notification-type-' + notification.type">
 
             <!-- Notification Icon -->
-            <div class="notification-icon" [class]="getNotificationIconClass(notification.type)">
+            <div class="notification-icon" [ngClass]="getNotificationIconClass(notification.type)">
               <i class="fas" [ngClass]="getNotificationIcon(notification.type)"></i>
             </div>
 
-            <!-- Notification Content -->
+            <!-- ✅ ENHANCED NOTIFICATION CONTENT -->
             <div class="notification-content">
-              <h4 class="notification-title">
-                {{ notification.title || getNotificationTitle(notification.type, notification.message) }}
-              </h4>
+              <h4 class="notification-title">{{ notification.title }}</h4>
 
-              <div class="applicant-info">
-                <div class="applicant-details">
-                  <span class="applicant-name">
+              <!-- ✅ APPLICANT PROFILE CARD -->
+              <div class="applicant-profile-card">
+                <img 
+  [src]="getAvatarUrl(notification)" 
+  alt="Profile" 
+  class="applicant-avatar"
+  onerror="this.src='https://ui-avatars.com/api/?name=User&background=94a3b8&color=fff&size=128'">
+                
+                <div class="applicant-info">
+                  <h5 class="applicant-name">
                     <i class="fas fa-user"></i>
-                    {{ notification.display_name || notification.jobseeker_name || notification.user_name || 'Applicant' }}
-                  </span>
-                  <span class="applicant-email" *ngIf="notification.user_email || notification.email">
-                    <i class="fas fa-envelope"></i>
-                    {{ notification.user_email || notification.email }}
-                  </span>
+                    {{ notification.display_name || 'Anonymous User' }}
+                  </h5>
+                  
+                  <div class="applicant-contact">
+                    <span class="applicant-email" *ngIf="notification.user_email || notification.email">
+                      <i class="fas fa-envelope"></i>
+                      {{ notification.user_email || notification.email }}
+                    </span>
+                    
+                    <span class="applicant-phone" *ngIf="notification.phone_number">
+                      <i class="fas fa-phone"></i>
+                      {{ notification.phone_number }}
+                    </span>
+                  </div>
                 </div>
               </div>
 
-              <p class="training-title" *ngIf="notification.training_title || notification.metadata?.training_title">
+              <!-- ✅ TRAINING INFORMATION -->
+              <p class="training-title" *ngIf="notification.training_title">
                 <i class="fas fa-graduation-cap"></i>
-                <strong>{{ notification.training_title || notification.metadata?.training_title }}</strong>
+                <strong>{{ notification.training_title }}</strong>
               </p>
 
-              <div class="motivation-preview" *ngIf="notification.motivation_letter || notification.metadata?.motivation_letter">
+              <!-- ✅ MOTIVATION LETTER PREVIEW -->
+              <div class="motivation-preview" *ngIf="notification.motivation_letter">
+                <label><i class="fas fa-quote-left"></i> Motivation Letter:</label>
                 <p class="motivation-text">
-                  "{{ (notification.motivation_letter || notification.metadata?.motivation_letter).substring(0, 100) }}{{ (notification.motivation_letter || notification.metadata?.motivation_letter).length > 100 ? '...' : '' }}"
+                  "{{ notification.motivation_letter.substring(0, 150) }}{{ notification.motivation_letter.length > 150 ? '...' : '' }}"
                 </p>
               </div>
 
+              <!-- ✅ METADATA DISPLAY -->
               <div class="notification-meta">
                 <span class="notification-time">
                   <i class="fas fa-clock"></i>
@@ -132,7 +151,7 @@
               </div>
             </div>
 
-            <!-- Notification Actions -->
+            <!-- ✅ ENHANCED NOTIFICATION ACTIONS -->
             <div class="notification-actions">
               <button
                 class="btn-notification-action btn-view-profile"
@@ -143,12 +162,11 @@
               </button>
 
               <button
-                *ngIf="notification.application_id || notification.metadata?.application_id"
                 class="btn-notification-action btn-view-details"
                 (click)="viewApplicationDetails(notification); $event.stopPropagation()"
                 title="View Full Application">
                 <i class="fas fa-file-alt"></i>
-                View Details
+                View Application
               </button>
 
               <button
@@ -161,33 +179,35 @@
             </div>
           </div>
 
-          <div class="notification-footer" *ngIf="enrollmentNotifications.length > 0">
-            <div class="footer-actions">
-              <button
-                class="btn-secondary"
-                (click)="markAllEnrollmentNotificationsRead(); $event.stopPropagation()">
-                <i class="fas fa-check-double"></i> Mark all read
-              </button>
-
-              <button
-                class="btn-secondary"
-                *ngIf="hasMoreEnrollmentNotifications"
-                (click)="loadMoreEnrollmentNotifications(); $event.stopPropagation()">
-                <i class="fas fa-chevron-down"></i> Load more
-              </button>
-
-              <button
-                class="btn-secondary btn-danger"
-                (click)="confirmClearEnrollmentNotifications(); $event.stopPropagation()">
-                <i class="fas fa-trash-alt"></i> Clear
-              </button>
-            </div>
-          </div>
-
+          <!-- Empty State -->
           <div class="no-notifications" *ngIf="enrollmentNotifications.length === 0">
             <i class="fas fa-inbox"></i>
             <p>No application updates</p>
             <small>You'll be notified when jobseekers apply for your trainings</small>
+          </div>
+        </div>
+
+        <!-- Footer Actions -->
+        <div class="notification-footer" *ngIf="enrollmentNotifications.length > 0">
+          <div class="footer-actions">
+            <button
+              class="btn-secondary btn-small"
+              (click)="markAllEnrollmentNotificationsRead(); $event.stopPropagation()">
+              <i class="fas fa-check-double"></i> Mark all read
+            </button>
+
+            <button
+              class="btn-secondary btn-small"
+              *ngIf="hasMoreEnrollmentNotifications"
+              (click)="loadMoreEnrollmentNotifications(); $event.stopPropagation()">
+              <i class="fas fa-chevron-down"></i> Load more
+            </button>
+
+            <button
+              class="btn-secondary btn-small btn-danger"
+              (click)="confirmClearEnrollmentNotifications(); $event.stopPropagation()">
+              <i class="fas fa-trash-alt"></i> Clear
+            </button>
           </div>
         </div>
       </div>
@@ -208,8 +228,7 @@
       <div class="filters">
         <select
           (change)="onFilterChange('category', $any($event.target).value)"
-          class="filter-select"
-        >
+          class="filter-select">
           <option value="">All Categories</option>
           <option *ngFor="let category of categories" [value]="category">
             {{ category }}
@@ -218,8 +237,7 @@
 
         <select
           (change)="onFilterChange('level', $any($event.target).value)"
-          class="filter-select"
-        >
+          class="filter-select">
           <option value="">All Levels</option>
           <option *ngFor="let level of levels" [value]="level">
             {{ level }}
@@ -228,8 +246,7 @@
 
         <select
           (change)="onFilterChange('status', $any($event.target).value)"
-          class="filter-select"
-        >
+          class="filter-select">
           <option value="">All Status</option>
           <option value="published">Open for Applications</option>
           <option value="draft">Draft</option>
@@ -276,12 +293,10 @@
                   id="category"
                   [(ngModel)]="newTraining.category"
                   name="category"
-                  required
-                >
+                  required>
                   <option
                     *ngFor="let category of categories"
-                    [value]="category"
-                  >
+                    [value]="category">
                     {{ category }}
                   </option>
                 </select>
@@ -296,8 +311,7 @@
                 name="description"
                 rows="4"
                 placeholder="Describe what participants will learn and achieve in this training program..."
-                required
-              ></textarea>
+                required></textarea>
             </div>
 
             <div class="form-row">
@@ -307,8 +321,7 @@
                   id="level"
                   [(ngModel)]="newTraining.level"
                   name="level"
-                  required
-                >
+                  required>
                   <option *ngFor="let level of levels" [value]="level">
                     {{ level }}
                   </option>
@@ -338,8 +351,7 @@
                   [(ngModel)]="newTraining.mode"
                   name="mode"
                   (change)="onModeChange()"
-                  required
-                >
+                  required>
                   <option value="Online">Online (via Zoom/Meet)</option>
                   <option value="Offline">Offline (Physical Location)</option>
                 </select>
@@ -351,8 +363,7 @@
                   [(ngModel)]="newTraining.cost_type"
                   name="costType"
                   (change)="onCostTypeChange()"
-                  required
-                >
+                  required>
                   <option value="Free">Free</option>
                   <option value="Paid">Paid</option>
                 </select>
@@ -364,8 +375,7 @@
               *ngIf="
                 newTraining.cost_type === 'Paid' ||
                 newTraining.mode === 'Offline'
-              "
-            >
+              ">
               <div class="form-group" *ngIf="newTraining.cost_type === 'Paid'">
                 <label for="price">Price ($) *</label>
                 <input
@@ -408,8 +418,7 @@
                 type="button"
                 *ngIf="thumbnailPreview"
                 class="btn btn-sm btn-secondary mt-1"
-                (click)="removeThumbnail()"
-              >
+                (click)="removeThumbnail()">
                 Remove
               </button>
             </div>
@@ -428,10 +437,7 @@
                 name="applicationDeadline"
                 required
               />
-              <small
-                >Last date for jobseekers to apply (must be before training
-                start date)</small
-              >
+              <small>Last date for jobseekers to apply (must be before training start date)</small>
             </div>
 
             <div class="form-row">
@@ -469,8 +475,7 @@
               <button
                 type="button"
                 class="btn-secondary btn-small"
-                (click)="openSessionFormForNewTraining()"
-              >
+                (click)="openSessionFormForNewTraining()">
                 <i class="fas fa-plus"></i>
                 Add Session
               </button>
@@ -479,8 +484,7 @@
             <div class="session-list" *ngIf="newTraining.sessions.length > 0">
               <div
                 class="session-item"
-                *ngFor="let session of newTraining.sessions; let i = index"
-              >
+                *ngFor="let session of newTraining.sessions; let i = index">
                 <div class="session-info">
                   <h5>{{ session.title }}</h5>
                   <p>{{ session.description }}</p>
@@ -502,8 +506,7 @@
                 <button
                   type="button"
                   class="btn-delete btn-small"
-                  (click)="removeSession(i)"
-                >
+                  (click)="removeSession(i)">
                   <i class="fas fa-trash"></i>
                 </button>
               </div>
@@ -525,8 +528,7 @@
               <button
                 type="button"
                 class="btn-secondary btn-small"
-                (click)="toggleOutcomeForm()"
-              >
+                (click)="toggleOutcomeForm()">
                 <i class="fas fa-plus"></i>
                 Add Outcome
               </button>
@@ -535,14 +537,12 @@
             <div class="outcomes-list" *ngIf="newTraining.outcomes.length > 0">
               <div
                 class="outcome-item"
-                *ngFor="let outcome of newTraining.outcomes; let i = index"
-              >
+                *ngFor="let outcome of newTraining.outcomes; let i = index">
                 <span class="outcome-text">{{ outcome.outcome_text }}</span>
                 <button
                   type="button"
                   class="btn-delete btn-small"
-                  (click)="removeOutcome(i)"
-                >
+                  (click)="removeOutcome(i)">
                   <i class="fas fa-trash"></i>
                 </button>
               </div>
@@ -577,8 +577,7 @@
           <!-- Validation Errors -->
           <div
             class="validation-errors"
-            *ngIf="getValidationErrors().length > 0"
-          >
+            *ngIf="getValidationErrors().length > 0">
             <h4>Please fix the following errors:</h4>
             <ul>
               <li *ngFor="let error of getValidationErrors()">{{ error }}</li>
@@ -590,15 +589,13 @@
             <button
               type="button"
               class="btn-secondary"
-              (click)="toggleAddForm()"
-            >
+              (click)="toggleAddForm()">
               Cancel
             </button>
             <button
               type="submit"
               class="btn-primary"
-              [disabled]="!isFormValid() || isLoading"
-            >
+              [disabled]="!isFormValid() || isLoading">
               <i class="fas fa-save"></i>
               <span *ngIf="isLoading">Saving...</span>
               <span *ngIf="!isLoading">{{
@@ -642,8 +639,7 @@
               </h4>
               <button
                 class="btn-add-session"
-                (click)="openSessionForm(training)"
-              >
+                (click)="openSessionForm(training)">
                 <i class="fas fa-plus"></i>
                 Add Session
               </button>
@@ -651,12 +647,10 @@
 
             <div
               class="session-list"
-              *ngIf="(training.sessions?.length || 0) > 0"
-            >
+              *ngIf="(training.sessions?.length || 0) > 0">
               <div
                 class="session-item"
-                *ngFor="let session of training.sessions"
-              >
+                *ngFor="let session of training.sessions">
                 <div class="session-info">
                   <span class="session-order"
                     >{{ session.order_index + 1 }}.</span
@@ -679,14 +673,12 @@
                 <div class="session-actions">
                   <button
                     class="btn-edit"
-                    (click)="openSessionForm(training, session)"
-                  >
+                    (click)="openSessionForm(training, session)">
                     <i class="fas fa-edit"></i>
                   </button>
                   <button
                     class="btn-delete"
-                    (click)="deleteSession(training.id!, session.id!)"
-                  >
+                    (click)="deleteSession(training.id!, session.id!)">
                     <i class="fas fa-trash"></i>
                   </button>
                 </div>
@@ -695,8 +687,7 @@
 
             <div
               class="empty-sessions"
-              *ngIf="!training.sessions || training.sessions.length === 0"
-            >
+              *ngIf="!training.sessions || training.sessions.length === 0">
               <i class="fas fa-calendar-times"></i>
               <p>No sessions scheduled yet. Add your first session!</p>
             </div>
@@ -745,62 +736,54 @@
               *ngIf="training.status === 'draft'"
               class="btn-publish"
               (click)="publishTraining(training)"
-              title="Publish Training"
-            >
+              title="Publish Training">
               <i class="fas fa-rocket"></i>
             </button>
             <button
               *ngIf="training.status === 'published'"
               class="btn-applications"
               (click)="viewApplications(training)"
-              title="View Applications"
-            >
+              title="View Applications">
               <i class="fas fa-file-alt"></i>
             </button>
             <button
               *ngIf="training.status === 'published'"
               class="btn-close-apps"
               (click)="closeApplications(training)"
-              title="Close Applications"
-            >
+              title="Close Applications">
               <i class="fas fa-lock"></i>
             </button>
             <button
               *ngIf="training.status === 'applications_closed'"
               class="btn-start"
               (click)="startTrainingProgram(training)"
-              title="Start Training"
-            >
+              title="Start Training">
               <i class="fas fa-play"></i>
             </button>
             <button
               *ngIf="training.status === 'in_progress'"
               class="btn-enrollments"
               (click)="viewEnrollments(training)"
-              title="View Enrollments"
-            >
+              title="View Enrollments">
               <i class="fas fa-users"></i>
             </button>
             <button
               *ngIf="training.status === 'in_progress'"
               class="btn-complete"
               (click)="completeTrainingProgram(training)"
-              title="Complete Training"
-            >
+              title="Complete Training">
               <i class="fas fa-check-double"></i>
             </button>
             <button
               class="btn-duplicate"
               (click)="duplicateTraining(training)"
-              title="Duplicate Training"
-            >
+              title="Duplicate Training">
               <i class="fas fa-copy"></i>
             </button>
             <button
               class="btn-delete"
               (click)="deleteTraining(training.id)"
-              title="Delete Training"
-            >
+              title="Delete Training">
               <i class="fas fa-trash"></i>
             </button>
           </div>
@@ -824,8 +807,7 @@
       <button
         class="btn-secondary"
         [disabled]="currentPage === 1"
-        (click)="onPageChange(currentPage - 1)"
-      >
+        (click)="onPageChange(currentPage - 1)">
         <i class="fas fa-chevron-left"></i>
         Previous
       </button>
@@ -837,8 +819,7 @@
       <button
         class="btn-secondary"
         [disabled]="currentPage === totalPages"
-        (click)="onPageChange(currentPage + 1)"
-      >
+        (click)="onPageChange(currentPage + 1)">
         Next
         <i class="fas fa-chevron-right"></i>
       </button>
@@ -938,8 +919,7 @@
     <div
       class="modal-overlay"
       *ngIf="showSessionForm"
-      (click)="showSessionForm = false"
-    >
+      (click)="showSessionForm = false">
       <div class="modal-content" (click)="$event.stopPropagation()">
         <div class="modal-header">
           <h3>
@@ -972,8 +952,7 @@
                 [(ngModel)]="newSession.description"
                 name="sessionDescription"
                 rows="3"
-                placeholder="What will be covered in this session?"
-              ></textarea>
+                placeholder="What will be covered in this session?"></textarea>
             </div>
 
             <div class="form-row">
@@ -1020,8 +999,7 @@
               <button
                 type="button"
                 class="btn-secondary"
-                (click)="showSessionForm = false"
-              >
+                (click)="showSessionForm = false">
                 Cancel
               </button>
               <button type="submit" class="btn-primary">
@@ -1038,8 +1016,7 @@
     <div
       class="modal-overlay"
       *ngIf="showOutcomeForm"
-      (click)="showOutcomeForm = false"
-    >
+      (click)="showOutcomeForm = false">
       <div class="modal-content" (click)="$event.stopPropagation()">
         <div class="modal-header">
           <h3>
@@ -1061,27 +1038,22 @@
                 name="outcomeText"
                 rows="3"
                 placeholder="Participants will be able to..."
-                required
-              ></textarea>
-              <small
-                >Describe what participants will achieve after completing this
-                training.</small
-              >
+                required></textarea>
+              <small>Describe what participants will achieve after completing this
+                training.</small>
             </div>
 
             <div class="form-actions">
               <button
                 type="button"
                 class="btn-secondary"
-                (click)="showOutcomeForm = false"
-              >
+                (click)="showOutcomeForm = false">
                 Cancel
               </button>
               <button
                 type="submit"
                 class="btn-primary"
-                [disabled]="!newOutcome.outcome_text.trim()"
-              >
+                [disabled]="!newOutcome.outcome_text.trim()">
                 <i class="fas fa-plus"></i>
                 Add Outcome
               </button>
@@ -1095,8 +1067,7 @@
     <div
       class="modal-overlay"
       *ngIf="showDetailsModal"
-      (click)="closeDetailsModal()"
-    >
+      (click)="closeDetailsModal()">
       <div class="modal-content modal-lg" (click)="$event.stopPropagation()">
         <div class="modal-header">
           <h3>
@@ -1165,8 +1136,7 @@
           <!-- Sessions -->
           <div
             class="section"
-            *ngIf="(detailedTraining?.sessions || []).length > 0"
-          >
+            *ngIf="(detailedTraining?.sessions || []).length > 0">
             <h4>
               Training Sessions ({{
                 (detailedTraining?.sessions || []).length
@@ -1175,8 +1145,7 @@
             <div class="session-grid">
               <div
                 class="session-card"
-                *ngFor="let session of detailedTraining?.sessions || []"
-              >
+                *ngFor="let session of detailedTraining?.sessions || []">
                 <div class="session-header">
                   <span class="session-number">{{
                     session.order_index + 1
@@ -1205,8 +1174,7 @@
           <!-- Outcomes -->
           <div
             class="section"
-            *ngIf="(detailedTraining?.outcomes || []).length > 0"
-          >
+            *ngIf="(detailedTraining?.outcomes || []).length > 0">
             <h4>Learning Outcomes</h4>
             <ul class="outcomes-list">
               <li *ngFor="let outcome of detailedTraining?.outcomes || []">
@@ -1227,12 +1195,11 @@
       </div>
     </div>
 
-    <!-- FIXED: Enhanced Applications Modal -->
+    <!-- Applications Modal -->
     <div
       class="modal-overlay"
       *ngIf="showApplicationsModal"
-      (click)="closeApplicationsModal()"
-    >
+      (click)="closeApplicationsModal()">
       <div class="modal-content modal-lg" (click)="$event.stopPropagation()">
         <div class="modal-header">
           <h3>
@@ -1249,16 +1216,14 @@
             <button
               class="btn-primary"
               (click)="shortlistSelected()"
-              [disabled]="selectedApplications.size === 0"
-            >
+              [disabled]="selectedApplications.size === 0">
               <i class="fas fa-check"></i>
               Shortlist Selected ({{ selectedApplications.size }})
             </button>
             <button
               class="btn-danger"
               (click)="rejectSelected()"
-              [disabled]="selectedApplications.size === 0"
-            >
+              [disabled]="selectedApplications.size === 0">
               <i class="fas fa-times"></i>
               Reject Selected
             </button>
@@ -1272,7 +1237,7 @@
                 (change)="toggleApplicationSelection(app.id!)"
               />
 
-              <!-- Enhanced Applicant Display -->
+              <!-- Applicant Info -->
               <div class="applicant-info">
                 <div class="applicant-header">
                   <img
@@ -1300,8 +1265,7 @@
                       'fa-clock': app.status === 'pending',
                       'fa-check-circle': app.status === 'shortlisted',
                       'fa-times-circle': app.status === 'rejected'
-                    }"
-                  ></i>
+                    }"></i>
                   {{ app.status }}
                 </div>
               </div>
@@ -1326,16 +1290,14 @@
                 <button
                   *ngIf="app.status === 'pending'"
                   class="btn-shortlist"
-                  (click)="quickShortlist(app)"
-                >
+                  (click)="quickShortlist(app)">
                   <i class="fas fa-check"></i>
                   Shortlist
                 </button>
                 <button
                   *ngIf="app.status === 'pending'"
                   class="btn-reject"
-                  (click)="quickReject(app)"
-                >
+                  (click)="quickReject(app)">
                   <i class="fas fa-times"></i>
                   Reject
                 </button>
@@ -1358,12 +1320,11 @@
       </div>
     </div>
 
-    <!-- Enrollments Modal (kept original) -->
+    <!-- Enrollments Modal -->
     <div
       class="modal-overlay"
       *ngIf="showEnrollmentsModal"
-      (click)="closeEnrollmentsModal()"
-    >
+      (click)="closeEnrollmentsModal()">
       <div class="modal-content modal-lg" (click)="$event.stopPropagation()">
         <div class="modal-header">
           <h3>
@@ -1398,15 +1359,13 @@
                 <button
                   class="btn-certificate"
                   *ngIf="enrollment.completed && !enrollment.certificate_issued"
-                  (click)="issueCertificate(enrollment)"
-                >
+                  (click)="issueCertificate(enrollment)">
                   <i class="fas fa-certificate"></i>
                   Issue Certificate
                 </button>
                 <span
                   class="certificate-badge"
-                  *ngIf="enrollment.certificate_issued"
-                >
+                  *ngIf="enrollment.certificate_issued">
                   <i class="fas fa-check-circle"></i> Certificate Issued
                 </span>
               </div>

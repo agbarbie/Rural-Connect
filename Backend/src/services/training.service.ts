@@ -255,32 +255,34 @@ export class TrainingService {
       const limit = params.limit || 50;
       const offset = (page - 1) * limit;
 
-      let whereClause = 'WHERE user_id = $1';
+      console.log('🔔 Loading notifications for user:', userId);
+
+      let whereClause = 'WHERE n.user_id = $1';
       const values: any[] = [userId];
       let paramCount = 2;
 
       if (params.read !== undefined && params.read !== null && params.read !== '') {
         const isRead = params.read === true || params.read === 'true';
-        whereClause += ` AND is_read = $${paramCount}`;
+        whereClause += ` AND n.is_read = $${paramCount}`;
         values.push(isRead);
         paramCount++;
       }
 
       const query = `
         SELECT 
-          id,
-          user_id,
-          type,
-          title,
-          message,
-          related_id,
-          metadata,
-          is_read,
-          created_at,
-          updated_at
-        FROM notifications
+          n.id,
+          n.user_id,
+          n.type,
+          n.title,
+          n.message,
+          n.related_id,
+          n.metadata,
+          n.is_read,
+          n.created_at,
+          n.updated_at
+        FROM notifications n
         ${whereClause}
-        ORDER BY created_at DESC
+        ORDER BY n.created_at DESC
         LIMIT $${paramCount} OFFSET $${paramCount + 1}
       `;
 
@@ -288,9 +290,11 @@ export class TrainingService {
 
       const result = await this.db.query(query, values);
 
-      // ✅ FIX 3: Parse metadata and extract fields to top level for easy access
-      const notifications = result.rows.map((notification: any) => {
-        let parsedMetadata: NotificationMetadata = {};
+      console.log('📥 Raw notifications:', result.rows.length);
+
+      // ✅ CRITICAL: Parse metadata and enrich with user data
+      const notifications = await Promise.all(result.rows.map(async (notification: any) => {
+        let parsedMetadata: any = {};
         
         if (notification.metadata) {
           try {
@@ -303,36 +307,81 @@ export class TrainingService {
           }
         }
 
-        // ✅ Extract ALL metadata fields to top level for template access
+        // Fetch complete user details if available in metadata
+        let userDetails: any = {};
+
+        if (parsedMetadata.user_id) {
+          const userResult = await this.db.query(
+            `SELECT id, first_name, last_name, email, phone_number, profile_image 
+             FROM users WHERE id = $1`,
+            [parsedMetadata.user_id]
+          );
+
+          if (userResult.rows.length > 0) {
+            const user = userResult.rows[0];
+            userDetails = {
+              user_id: user.id,
+              first_name: user.first_name || '',
+              last_name: user.last_name || '',
+              email: user.email || '',
+              phone_number: user.phone_number || '',
+              profile_image: user.profile_image || '',
+              display_name: `${user.first_name} ${user.last_name}`.trim() || user.email
+            };
+          }
+        }
+
+        // Fetch application details if present and use its user info to override when appropriate
+        let applicationDetails: any = {};
+
+        if (parsedMetadata.application_id) {
+          const appResult = await this.db.query(
+            `SELECT a.*, u.first_name, u.last_name, u.email, u.phone_number, u.profile_image
+             FROM training_applications a
+             JOIN users u ON a.user_id = u.id
+             WHERE a.id = $1`,
+            [parsedMetadata.application_id]
+          );
+
+          if (appResult.rows.length > 0) {
+            const app = appResult.rows[0];
+            applicationDetails = {
+              application_id: app.id,
+              motivation_letter: app.motivation || '',
+              applied_at: app.applied_at,
+              status: app.status
+            };
+
+            // Override user details with application user info for accuracy
+            userDetails = {
+              user_id: app.user_id,
+              first_name: app.first_name || '',
+              last_name: app.last_name || '',
+              email: app.email || '',
+              phone_number: app.phone_number || '',
+              profile_image: app.profile_image || '',
+              display_name: `${app.first_name} ${app.last_name}`.trim() || app.email
+            };
+          }
+        }
+
+        // Merge all data and return a single enriched notification object
         return {
           ...notification,
           metadata: parsedMetadata,
-          // User info
-          jobseeker_name: parsedMetadata.applicant_name || parsedMetadata.user_name || parsedMetadata.jobseeker_name || '',
-          user_name: parsedMetadata.applicant_name || parsedMetadata.user_name || '',
-          user_email: parsedMetadata.applicant_email || parsedMetadata.user_email || parsedMetadata.email || '',
-          first_name: parsedMetadata.first_name || '',
-          last_name: parsedMetadata.last_name || '',
-          phone_number: parsedMetadata.phone_number || '',
-          profile_image: parsedMetadata.profile_image || '',
-          // Training info
+          ...userDetails,
+          ...applicationDetails,
+          // Legacy field mappings for compatibility
+          jobseeker_name: userDetails.display_name || '',
+          user_name: userDetails.display_name || '',
+          user_email: userDetails.email || '',
           training_id: parsedMetadata.training_id || '',
           training_title: parsedMetadata.training_title || '',
-          // Application info
-          application_id: parsedMetadata.application_id || '',
-          motivation_letter: parsedMetadata.motivation_letter || parsedMetadata.motivation || '',
-          applied_at: parsedMetadata.applied_at || notification.created_at,
-          // Enrollment info
-          enrollment_id: parsedMetadata.enrollment_id || '',
-          user_id: parsedMetadata.user_id || ''
+          enrollment_id: parsedMetadata.enrollment_id || ''
         };
-      });
+      }));
 
-      console.log('📬 Loaded notifications:', {
-        userId,
-        total: notifications.length,
-        sample: notifications[0]
-      });
+      console.log('✅ Enriched notifications:', notifications.length);
 
       return {
         success: true,
@@ -346,12 +395,25 @@ export class TrainingService {
     }
   }
 
-  async markNotificationRead(notificationId: string, userId: string): Promise<void> {
-    await this.db.query(
-      'UPDATE notifications SET is_read = true WHERE id = $1 AND user_id = $2',
+ async markNotificationRead(notificationId: string, userId: string): Promise<void> {
+  try {
+    const result = await this.db.query(
+      `UPDATE notifications 
+       SET is_read = true, updated_at = NOW() 
+       WHERE id = $1 AND user_id = $2`,
       [notificationId, userId]
     );
+    
+    if (result.rowCount === 0) {
+      console.warn('⚠️  Notification not found or already read:', notificationId);
+    } else {
+      console.log('✅ Notification marked as read:', notificationId);
+    }
+  } catch (error: any) {
+    console.error('❌ Error marking notification as read:', error.message);
+    throw new Error('Failed to mark notification as read');
   }
+}
 
   // ==========================================================================
   // 2. TRAINING CRUD - UNCHANGED
@@ -651,28 +713,16 @@ export class TrainingService {
     const training = result.rows[0];
 
     const sessions = await this.db.query(
-      `SELECT 
-        id, training_id, title, description, scheduled_at, duration_minutes, 
-        meeting_url, meeting_password, order_index, is_completed, 
-        attendance_count, created_at, updated_at
-      FROM training_sessions 
-      WHERE training_id = $1 
-      ORDER BY order_index ASC, scheduled_at ASC`,
+      'SELECT * FROM training_sessions WHERE training_id = $1 ORDER BY order_index ASC',
       [id]
     );
     training.sessions = sessions.rows;
 
     const outcomes = await this.db.query(
-      `SELECT 
-        id, training_id, outcome_text, order_index, created_at
-      FROM training_outcomes 
-      WHERE training_id = $1 
-      ORDER BY order_index ASC`,
+      'SELECT * FROM training_outcomes WHERE training_id = $1 ORDER BY order_index ASC',
       [id]
     );
     training.outcomes = outcomes.rows;
-
-    training.session_count = training.sessions.length;
 
     return training;
   }
@@ -792,105 +842,126 @@ export class TrainingService {
 
   // ✅ FIX 4: CRITICAL - Proper employer filtering in getAllTrainings
   async getAllTrainings(
-    params: TrainingSearchParams,
+    params: any,
     employerId?: string
   ): Promise<any> {
     try {
       const page = params.page || 1;
       const limit = params.limit || 10;
       const offset = (page - 1) * limit;
-      const sort_by = params.sort_by || 'created_at';
-      const sort_order = params.sort_order || 'desc';
 
-      console.log('🔍 getAllTrainings called with employerId:', employerId);
+      console.log('🔍 getAllTrainings - Input:', { employerId, params });
 
       const conditions: string[] = [];
       const values: any[] = [];
       let paramCount = 1;
 
-      // ✅ CRITICAL FIX: Resolve employer profile ID FIRST, then filter
-      if (employerId) {
-        const epRow = await this.db.query('SELECT id FROM employers WHERE user_id = $1', [employerId]);
-        
-        if (epRow.rows.length > 0) {
-          const employerProfileId = epRow.rows[0].id;
-          conditions.push(`provider_id = $${paramCount}`);
-          values.push(employerProfileId);
-          paramCount++;
-          console.log('✅ FILTERING BY EMPLOYER PROFILE ID:', employerProfileId);
-        } else {
-          console.warn('⚠️ No employer profile found for user:', employerId);
-          // Return empty result if no employer profile exists
-          return {
-            trainings: [],
-            pagination: {
-              current_page: page,
-              total_pages: 0,
-              page_size: limit,
-              total_count: 0,
-              has_next: false,
-              has_previous: false
-            }
-          };
-        }
-      }
+      // ✅ CRITICAL: Resolve employer profile ID and filter strictly
+      // ✅ CRITICAL FIX: Proper employer filtering
+if (employerId) {
+  // Method 1: Try to resolve employer profile ID from user_id
+  const epResult = await this.db.query(
+    'SELECT id FROM employers WHERE user_id = $1',
+    [employerId]
+  );
 
+  let employerProfileId: string | null = null;
+
+  if (epResult.rows.length > 0) {
+    employerProfileId = epResult.rows[0].id;
+    console.log('✅ Employer profile found (via user_id):', employerProfileId);
+  } else {
+    // Method 2: Check if employerId IS the employer profile ID
+    const directCheck = await this.db.query(
+      'SELECT id FROM employers WHERE id = $1',
+      [employerId]
+    );
+
+    if (directCheck.rows.length > 0) {
+      employerProfileId = employerId;
+      console.log('✅ Employer profile found (direct ID):', employerProfileId);
+    }
+  }
+
+  if (!employerProfileId) {
+    console.error('❌ No employer profile found for:', employerId);
+    return {
+      trainings: [],
+      pagination: {
+        current_page: page,
+        total_pages: 0,
+        page_size: limit,
+        total_count: 0,
+        has_next: false,
+        has_previous: false
+      }
+    };
+  }
+    
+  // ✅ STRICT FILTERING: Only trainings owned by THIS employer
+  conditions.push(`t.provider_id = $${paramCount}`);
+  values.push(employerProfileId);
+  paramCount++;
+  
+  console.log(`✅ Filtering for employer profile: ${employerProfileId}`);
+} else {
+  // If no employerId provided, show only published trainings
+  conditions.push(`t.status = 'published'`);
+  console.log('ℹ️  No employer filter - showing published trainings');
+}
+
+      // Apply other filters
       if (params.search) {
-        conditions.push(`(title ILIKE $${paramCount} OR description ILIKE $${paramCount})`);
+        conditions.push(`(t.title ILIKE $${paramCount} OR t.description ILIKE $${paramCount})`);
         values.push(`%${params.search}%`);
         paramCount++;
       }
 
       if (params.category) {
-        conditions.push(`category = $${paramCount}`);
+        conditions.push(`t.category = $${paramCount}`);
         values.push(params.category);
         paramCount++;
       }
 
       if (params.level) {
-        conditions.push(`level = $${paramCount}`);
+        conditions.push(`t.level = $${paramCount}`);
         values.push(params.level);
         paramCount++;
       }
 
-      if ((params as any).status) {
-        conditions.push(`status = $${paramCount}`);
-        values.push((params as any).status);
-        paramCount++;
-      }
-
-      if (params.cost_type) {
-        conditions.push(`cost_type = $${paramCount}`);
-        values.push(params.cost_type);
-        paramCount++;
-      }
-
-      if (params.mode) {
-        conditions.push(`mode = $${paramCount}`);
-        values.push(params.mode);
+      if (params.status) {
+        conditions.push(`t.status = $${paramCount}`);
+        values.push(params.status);
         paramCount++;
       }
 
       const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
 
-      const countQuery = `SELECT COUNT(*) as count FROM trainings ${whereClause}`;
+      // Get total count
+      const countQuery = `SELECT COUNT(*) as count FROM trainings t ${whereClause}`;
       const countResult = await this.db.query(countQuery, values);
       const totalCount = parseInt(countResult.rows[0]?.count || '0', 10);
 
-      console.log('📊 TOTAL TRAININGS FOR THIS EMPLOYER:', totalCount);
+      console.log('📊 Total trainings found:', totalCount);
 
+      // Get trainings with sessions and outcomes
       const dataQuery = `
-        SELECT * FROM trainings
+        SELECT t.*,
+          (SELECT COUNT(*) FROM training_sessions WHERE training_id = t.id) as session_count,
+          (SELECT COUNT(*) FROM training_applications WHERE training_id = t.id) as application_count,
+          (SELECT COUNT(*) FROM training_enrollments WHERE training_id = t.id) as enrollment_count
+        FROM trainings t
         ${whereClause}
-        ORDER BY ${sort_by} ${sort_order.toUpperCase()}
+        ORDER BY t.created_at DESC
         LIMIT $${paramCount} OFFSET $${paramCount + 1}
       `;
-      
+
       const dataValues = [...values, limit, offset];
       const dataResult = await this.db.query(dataQuery, dataValues);
 
-      console.log('📦 FOUND TRAININGS:', dataResult.rows.length);
+      console.log('📦 Trainings fetched:', dataResult.rows.length);
 
+      // Load sessions and outcomes for each training
       const trainingsWithRelations = await Promise.all(
         dataResult.rows.map(async (training: any) => {
           const [sessionsResult, outcomesResult] = await Promise.all([
@@ -908,7 +979,8 @@ export class TrainingService {
             ...training,
             sessions: sessionsResult.rows,
             outcomes: outcomesResult.rows,
-            session_count: sessionsResult.rows.length
+            session_count: sessionsResult.rows.length,
+            current_participants: parseInt(training.enrollment_count) || 0
           };
         })
       );
@@ -984,18 +1056,20 @@ export class TrainingService {
     try {
       console.log('📝 Processing application:', { trainingId, userId });
 
-      const existingApplication = await this.db.query(
+      // Check for existing application
+      const existingApp = await this.db.query(
         'SELECT id FROM training_applications WHERE training_id = $1 AND user_id = $2',
         [trainingId, userId]
       );
 
-      if (existingApplication.rows.length > 0) {
+      if (existingApp.rows.length > 0) {
         return {
           success: false,
           message: 'You have already applied for this training'
         };
       }
 
+      // Get training details
       const trainingResult = await this.db.query(
         'SELECT id, title, provider_id, provider_name FROM trainings WHERE id = $1',
         [trainingId]
@@ -1007,6 +1081,7 @@ export class TrainingService {
 
       const training = trainingResult.rows[0];
 
+      // Get complete user details
       const userResult = await this.db.query(
         'SELECT id, first_name, last_name, email, phone_number, profile_image FROM users WHERE id = $1',
         [userId]
@@ -1018,6 +1093,7 @@ export class TrainingService {
 
       const user = userResult.rows[0];
 
+      // Create application
       const applicationResult = await this.db.query(
         `INSERT INTO training_applications 
          (training_id, user_id, motivation, status, applied_at) 
@@ -1028,52 +1104,52 @@ export class TrainingService {
 
       const application = applicationResult.rows[0];
 
-      // ✅ FIX 6: CREATE COMPLETE NOTIFICATION WITH ALL METADATA
-      const notificationId = uuidv4();
-      const applicantName = `${user.first_name || ''} ${user.last_name || ''}`.trim() || user.email;
+      // ✅ CRITICAL: Create notification with COMPLETE metadata
+      const displayName = `${user.first_name} ${user.last_name}`.trim() || user.email;
       
       const metadata = {
+        // Training info
         training_id: trainingId,
         training_title: training.title,
+        
+        // Application info
         application_id: application.id,
+        motivation_letter: data.motivation || '',
+        applied_at: application.applied_at,
+        
+        // User info (ALL variations for compatibility)
         user_id: userId,
-        // ✅ All name variations
-        applicant_name: applicantName,
-        user_name: applicantName,
-        jobseeker_name: applicantName,
-        // ✅ Email variations
-        applicant_email: user.email,
-        user_email: user.email,
-        email: user.email,
-        // ✅ Individual fields
+        applicant_name: displayName,
+        user_name: displayName,
+        jobseeker_name: displayName,
+        display_name: displayName,
+        
+        // Contact details
         first_name: user.first_name || '',
         last_name: user.last_name || '',
+        email: user.email || '',
+        user_email: user.email || '',
+        applicant_email: user.email || '',
         phone_number: user.phone_number || '',
-        profile_image: user.profile_image || '',
-        // ✅ Application details
-        motivation_letter: data.motivation || '',
-        motivation: data.motivation || '',
-        applied_at: application.applied_at
+        profile_image: user.profile_image || ''
       };
 
       await this.db.query(
         `INSERT INTO notifications 
-         (id, user_id, type, title, message, related_id, metadata, is_read, created_at) 
-         VALUES ($1, $2, $3, $4, $5, $6, $7, false, NOW())`,
+         (user_id, type, title, message, related_id, metadata, is_read, created_at) 
+         VALUES ($1, $2, $3, $4, $5, $6, false, NOW())`,
         [
-          notificationId,
           training.provider_id,
           'application_submitted',
           '📝 New Application',
-          `${applicantName} applied for "${training.title}"`,
+          `${displayName} applied for "${training.title}"`,
           application.id,
           JSON.stringify(metadata)
         ]
       );
 
-      console.log('✅ Application created with rich notification:', {
+      console.log('✅ Application created with notification:', {
         applicationId: application.id,
-        notificationId,
         employerId: training.provider_id,
         metadata
       });
@@ -1088,6 +1164,8 @@ export class TrainingService {
       throw error;
     }
   }
+
+
 
   async getApplications(trainingId: string, employerId: string, params: { page?: number; limit?: number; status?: string }): Promise<any> {
     const epRow = await this.db.query('SELECT id FROM employers WHERE user_id = $1', [employerId]);

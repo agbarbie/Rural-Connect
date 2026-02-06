@@ -1,4 +1,4 @@
-// employer-training.component.ts - BOOTCAMP MODEL (Fixed Method Signatures)
+// employer-training.component.ts - COMPLETE PRODUCTION VERSION
 import { Component, OnInit, OnDestroy, Inject, forwardRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -19,8 +19,6 @@ import {
 import { SidebarComponent } from '../../shared/sidebar/sidebar.component';
 import { DatePipe } from '@angular/common';
 
-// employer-training.component.ts - UPDATED NewTraining interface
-
 interface NewTraining {
   title: string;
   description: string;
@@ -35,11 +33,8 @@ interface NewTraining {
   thumbnail_url: string;
   location: string;
   application_deadline: string;
-  
-  // ✅ FIXED: Use start_date/end_date consistently
   start_date: string;
   end_date: string;
-  
   max_participants: number;
   sessions: TrainingSession[];
   outcomes: TrainingOutcome[];
@@ -53,33 +48,11 @@ interface NewTraining {
   providers: [DatePipe]
 })
 export class TrainingComponent implements OnInit, OnDestroy {
-getNotificationIconClass(arg0: any) {
-throw new Error('Method not implemented.');
-}
-getNotificationTitle(arg0: any,arg1: any): any {
-throw new Error('Method not implemented.');
-}
-formatDate(arg0: any) {
-throw new Error('Method not implemented.');
-}
-viewApplicationDetails // ✅ FIX: Remove employerId and userType parameters
-(_t51: any) {
-throw new Error('Method not implemented.');
-}
-markNotificationAsRead(arg0: any) {
-throw new Error('Method not implemented.');
-}
-quickShortlist(_t732: TrainingApplication) {
-throw new Error('Method not implemented.');
-}
-quickReject(_t732: TrainingApplication) {
-throw new Error('Method not implemented.');
-}
   private destroy$ = new Subject<void>();
 
   // Component state
-  employerName: string = 'TechCorp Solutions';
-  employerId: string = 'current-employer-id';
+  employerName: string = 'Training Provider';
+  employerId: string = '';
   trainings: Training[] = [];
   showAddForm: boolean = false;
   selectedTraining: Training | null = null;
@@ -111,30 +84,29 @@ throw new Error('Method not implemented.');
   };
   totalPages: number = 0;
   currentPage: number = 1;
+  pageSize: number = 10;
 
   // Form data
-  // In your component class, update newTraining initialization:
-
-newTraining: NewTraining = {
-  title: '',
-  description: '',
-  category: 'Technology',
-  level: 'Beginner',
-  duration_hours: 40,
-  cost_type: 'Free',
-  price: 0,
-  mode: 'Online',
-  provider_name: this.employerName,
-  has_certificate: true,
-  thumbnail_url: '',
-  location: '',
-  application_deadline: '',
-  start_date: '',  // ✅ FIXED: Changed from training_start_date
-  end_date: '',    // ✅ FIXED: Changed from training_end_date
-  max_participants: 30,
-  sessions: [],
-  outcomes: []
-};
+  newTraining: NewTraining = {
+    title: '',
+    description: '',
+    category: 'Technology',
+    level: 'Beginner',
+    duration_hours: 40,
+    cost_type: 'Free',
+    price: 0,
+    mode: 'Online',
+    provider_name: this.employerName,
+    has_certificate: true,
+    thumbnail_url: '',
+    location: '',
+    application_deadline: '',
+    start_date: '',
+    end_date: '',
+    max_participants: 30,
+    sessions: [],
+    outcomes: []
+  };
 
   // Categories
   categories: string[] = [
@@ -191,75 +163,60 @@ newTraining: NewTraining = {
   ) {}
 
   ngOnInit(): void {
-  console.log('🚀 Initializing Training Component (Bootcamp Model)...');
-  
-  // ✅ Get employer ID from localStorage
-  const userId = localStorage.getItem('userId');
-  if (userId) {
-    this.employerId = userId;
-    console.log('✅ Employer ID loaded:', this.employerId);
-  } else {
-    console.error('❌ No employer ID found in localStorage');
-    alert('Session expired. Please log in again.');
-    // Redirect to login or show error
-    return;
+    console.log('🚀 Initializing Training Component (Bootcamp Model)...');
+    
+    // ✅ CRITICAL: Get employer ID from localStorage
+    const userId = localStorage.getItem('userId');
+    if (userId) {
+      this.employerId = userId;
+      console.log('✅ Employer ID loaded:', this.employerId);
+    } else {
+      console.error('❌ No employer ID found in localStorage');
+      this.error = 'Session expired. Please log in again.';
+      alert('Session expired. Please log in again.');
+      return;
+    }
+    
+    // Get employer name
+    const userName = localStorage.getItem('userName');
+    if (userName) {
+      this.employerName = userName;
+      this.newTraining.provider_name = userName;
+    }
+    
+    // Subscribe to trainings observable
+    this.trainingService.trainings$
+      .pipe(takeUntil(this.destroy$))
+      .subscribe(trainings => {
+        console.log('📦 Trainings received from service:', trainings?.length || 0);
+        this.trainings = trainings || [];
+        this.calculateLocalStats();
+      });
+    
+    // Initial data load
+    this.loadTrainings();
+    this.loadStats();
+    this.loadNotifications();
+    
+    // Auto-refresh every 30 seconds
+    interval(30000)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe(() => {
+        console.log('🔄 Auto-refreshing data...');
+        this.loadTrainings();
+        this.loadNotifications();
+      });
   }
-  
-  // Continue with initialization...
-  this.trainingService.trainings$
-    .pipe(takeUntil(this.destroy$))
-    .subscribe(trainings => {
-      console.log('📦 Trainings received from service:', trainings?.length || 0);
-      this.trainings = trainings || [];
-      this.calculateLocalStats();
-    });
-  
-  // ... rest of initialization
-  
-  this.loadTrainings();
-  this.loadStats();
-  this.loadNotifications();
-}
-
-loadTrainings(): void {
-  if (!this.employerId) {
-    console.error('❌ Cannot load trainings: No employer ID');
-    this.error = 'Session error. Please log in again.';
-    return;
-  }
-  
-  console.log('🔄 Loading trainings for employer:', this.employerId);
-  
-  this.trainingService.getMyTrainings(this.searchParams, this.employerId)
-    .pipe(takeUntil(this.destroy$))
-    .subscribe({
-      next: (response) => {
-        console.log('📥 Component received response:', response);
-        
-        if (response.success) {
-          if (response.data && Array.isArray(response.data.trainings)) {
-            this.trainings = response.data.trainings;
-            console.log('✅ Trainings set:', this.trainings.length);
-          }
-          
-          if (response.pagination) {
-            this.totalPages = response.pagination.total_pages;
-            this.currentPage = response.pagination.current_page;
-          }
-        }
-      },
-      error: (error) => {
-        console.error('❌ Error loading trainings:', error);
-        this.error = 'Failed to load trainings. Please try again.';
-      }
-    });
-}
 
   ngOnDestroy(): void {
     this.destroy$.next();
     this.destroy$.complete();
   }
 
+  // ============================================
+  // SIDEBAR TOGGLE METHODS
+  // ============================================
+  
   toggleSidebar(): void {
     const sidebar = document.querySelector('.sidebar');
     const overlay = document.querySelector('.sidebar-overlay');
@@ -281,60 +238,49 @@ loadTrainings(): void {
   }
 
   // ============================================
-  // COMPUTED PROPERTIES
-  // ============================================
-  
-  get totalCompletions(): number {
-    return this.trainings.reduce((sum, t) => sum + (t.total_students || 0), 0);
-  }
-
-  get totalCertificates(): number {
-    return this.trainings
-      .filter(t => t.has_certificate)
-      .reduce((sum, t) => sum + (t.total_students || 0), 0);
-  }
-
-  get activeTrainingsCount(): number {
-    return this.trainings.filter(t => t.status === 'published').length;
-  }
-
-  get draftTrainingsCount(): number {
-    return this.trainings.filter(t => t.status === 'draft').length;
-  }
-
-  get totalTrainingsCount(): number {
-    return this.trainings.length;
-  }
-
-  get totalSessionsCount(): number {
-    return this.trainings.reduce((sum, t) => {
-      const sessionCount = t.sessions?.length || t.session_count || 0;
-      return sum + sessionCount;
-    }, 0);
-  }
-
-  get averageRating(): number {
-    if (this.trainings.length === 0) return 0;
-    const totalRating = this.trainings.reduce((sum, t) => sum + (t.rating || 0), 0);
-    return Math.round((totalRating / this.trainings.length) * 10) / 10;
-  }
-
-  get totalRevenue(): number {
-    return this.trainings
-      .filter(t => t.cost_type === 'Paid')
-      .reduce((sum, t) => sum + ((t.price || 0) * (t.total_students || 0)), 0);
-  }
-
-  // ============================================
   // DATA LOADING
   // ============================================
   
- 
+  loadTrainings(): void {
+    if (!this.employerId) {
+      console.error('❌ Cannot load trainings: No employer ID');
+      this.error = 'Session error. Please log in again.';
+      return;
+    }
+    
+    console.log('🔄 Loading trainings for employer:', this.employerId);
+    this.isLoading = true;
+    
+    this.trainingService.getMyTrainings(this.searchParams, this.employerId)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (response) => {
+          console.log('📥 Component received response:', response);
+          
+          if (response.success) {
+            if (response.data && Array.isArray(response.data.trainings)) {
+              this.trainings = response.data.trainings;
+              console.log('✅ Trainings set:', this.trainings.length);
+            }
+            
+            if (response.pagination) {
+              this.totalPages = response.pagination.total_pages;
+              this.currentPage = response.pagination.current_page;
+            }
+          }
+          this.isLoading = false;
+        },
+        error: (error) => {
+          console.error('❌ Error loading trainings:', error);
+          this.error = 'Failed to load trainings. Please try again.';
+          this.isLoading = false;
+        }
+      });
+  }
 
   loadStats(): void {
     this.calculateLocalStats();
    
-    // ✅ FIXED: getTrainingStats expects no arguments
     this.trainingService.getTrainingStats()
       .pipe(takeUntil(this.destroy$))
       .subscribe({
@@ -355,77 +301,32 @@ loadTrainings(): void {
 
   private calculateLocalStats(): void {
     const computedStats: Partial<TrainingStats> & { categories_breakdown?: any[] } = {
-      total_trainings: this.totalTrainingsCount,
-      published_trainings: this.activeTrainingsCount,
-      draft_trainings: this.draftTrainingsCount,
-      total_enrollments: this.totalCompletions,
-      total_revenue: this.totalRevenue,
-      avg_rating: this.averageRating,
+      total_trainings: this.trainings.length,
+      published_trainings: this.trainings.filter(t => t.status === 'published').length,
+      draft_trainings: this.trainings.filter(t => t.status === 'draft').length,
+      total_enrollments: this.trainings.reduce((sum, t) => sum + (t.total_students || 0), 0),
+      total_revenue: this.trainings
+        .filter(t => t.cost_type === 'Paid')
+        .reduce((sum, t) => sum + ((t.price || 0) * (t.total_students || 0)), 0),
+      avg_rating: this.trainings.length > 0 
+        ? this.trainings.reduce((sum, t) => sum + (t.rating || 0), 0) / this.trainings.length 
+        : 0,
       completion_rate: 0,
       certificates_issued: 0,
       total_applications: 0,
       pending_applications: 0,
-      categories_breakdown: this.getCategoriesBreakdown()
+      categories_breakdown: []
     };
    
     this.stats = computedStats as TrainingStats;
-  }
-
-  private getCategoriesBreakdown(): any[] {
-    const categoriesMap = new Map<string, {
-      count: number;
-      total_revenue: number;
-      rating_sum: number;
-      rating_count: number;
-      sessions: number;
-      enrollments: number;
-    }>();
-
-    this.trainings.forEach(t => {
-      const category = t.category || 'Uncategorized';
-      const existing = categoriesMap.get(category) || {
-        count: 0,
-        total_revenue: 0,
-        rating_sum: 0,
-        rating_count: 0,
-        sessions: 0,
-        enrollments: 0
-      };
-
-      existing.count += 1;
-
-      if (t.cost_type === 'Paid') {
-        const price = Number(t.price) || 0;
-        const students = Number(t.total_students) || 0;
-        existing.total_revenue += price * students;
-      }
-
-      if (typeof t.rating === 'number' && !isNaN(t.rating)) {
-        existing.rating_sum += t.rating;
-        existing.rating_count += 1;
-      }
-
-      existing.sessions += (Array.isArray(t.sessions) ? t.sessions.length : (Number(t.session_count) || 0));
-      existing.enrollments += Number(t.total_students) || 0;
-
-      categoriesMap.set(category, existing);
-    });
-
-    return Array.from(categoriesMap.entries()).map(([category, data]) => ({
-      category,
-      count: data.count,
-      total_revenue: Math.round(data.total_revenue * 100) / 100,
-      avg_rating: data.rating_count ? Math.round((data.rating_sum / data.rating_count) * 10) / 10 : 0,
-      sessions: data.sessions,
-      enrollments: data.enrollments
-    })).sort((a, b) => b.count - a.count);
   }
 
   // ============================================
   // NOTIFICATION MANAGEMENT
   // ============================================
   
-  // employer-training.component.ts
+  // QUICK FIX: Enhanced loadNotifications() method
+// Replace your loadNotifications() method in employer-training.component.ts
 
 loadNotifications(): void {
   console.log('🔔 Loading employer notifications');
@@ -440,53 +341,82 @@ loadNotifications(): void {
           const notifications = response.data.notifications || response.data || [];
           
           this.enrollmentNotifications = notifications.map((n: any) => {
-            const metadata = typeof n.metadata === 'string' ? JSON.parse(n.metadata) : (n.metadata || {});
+            // ✅ Parse metadata if it's a string
+            const metadata = typeof n.metadata === 'string' 
+              ? JSON.parse(n.metadata) 
+              : (n.metadata || {});
             
-            // ✅ Extract user name from multiple sources
-            let displayName = '';
+            // ✅ CRITICAL: Extract display name with comprehensive fallback chain
+            const displayName = 
+              n.display_name ||
+              n.user_name ||
+              n.jobseeker_name ||
+              metadata.display_name ||
+              metadata.user_name ||
+              metadata.jobseeker_name ||
+              metadata.applicant_name ||
+              (n.first_name && n.last_name ? `${n.first_name} ${n.last_name}`.trim() : null) ||
+              (metadata.first_name && metadata.last_name ? `${metadata.first_name} ${metadata.last_name}`.trim() : null) ||
+              (n.email ? n.email.split('@')[0].replace(/[_.-]/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase()) : null) ||
+              (metadata.email ? metadata.email.split('@')[0].replace(/[_.-]/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase()) : null) ||
+              'Anonymous User';
             
-            if (n.jobseeker_name) {
-              displayName = n.jobseeker_name;
-            } else if (metadata.applicant_name) {
-              displayName = metadata.applicant_name;
-            } else if (metadata.user_name) {
-              displayName = metadata.user_name;
-            } else if (n.first_name || n.last_name) {
-              displayName = `${n.first_name || ''} ${n.last_name || ''}`.trim();
-            } else if (metadata.first_name || metadata.last_name) {
-              displayName = `${metadata.first_name || ''} ${metadata.last_name || ''}`.trim();
-            } else if (n.email || metadata.email || metadata.applicant_email) {
-              const email = n.email || metadata.email || metadata.applicant_email;
-              displayName = email.split('@')[0]
-                .replace(/[_.-]/g, ' ')
-                .replace(/\b\w/g, (l: string) => l.toUpperCase());
-            } else {
-              displayName = 'Anonymous User';
-            }
+            // ✅ Extract email with fallback
+            const userEmail = 
+              n.user_email ||
+              n.email ||
+              metadata.user_email ||
+              metadata.applicant_email ||
+              metadata.email ||
+              '';
+            
+            // ✅ Extract profile image (may be null)
+            const profileImage = 
+              n.profile_image ||
+              metadata.profile_image ||
+              null; // Let the template handle the fallback
             
             console.log('📧 Notification mapping:', {
               id: n.id,
               type: n.type,
               displayName,
-              created_at: n.created_at,
-              metadata
+              email: userEmail,
+              hasImage: !!profileImage,
+              created_at: n.created_at
             });
             
             return {
-              ...n,
+              id: n.id,
+              type: n.type,
+              title: n.title || this.getNotificationTitle(n.type, n.message || ''),
+              message: n.message,
+              is_read: n.is_read || false,
+              created_at: n.created_at,
+              
+              // ✅ User information
               display_name: displayName,
-              metadata: metadata,
-              created_at: n.created_at, // ✅ Preserve timestamp
-              user_id: metadata.user_id,
-              user_email: metadata.user_email || metadata.applicant_email || metadata.email,
-              application_id: metadata.application_id,
-              training_id: metadata.training_id,
-              training_title: metadata.training_title
+              user_id: n.user_id || metadata.user_id || '',
+              user_email: userEmail,
+              phone_number: n.phone_number || metadata.phone_number || '',
+              profile_image: profileImage,
+              
+              // ✅ Training information
+              training_id: n.training_id || metadata.training_id || '',
+              training_title: n.training_title || metadata.training_title || '',
+              
+              // ✅ Application information
+              application_id: n.application_id || metadata.application_id || '',
+              motivation_letter: n.motivation_letter || metadata.motivation_letter || metadata.motivation || '',
+              applied_at: n.applied_at || metadata.applied_at || n.created_at,
+              
+              // ✅ Keep metadata for debugging
+              metadata: metadata
             };
           });
           
+          // ✅ Count unread notifications
           this.unreadNotificationCount = this.enrollmentNotifications.filter(
-            (n: any) => !n.is_read && (n.type === 'application_submitted')
+            (n: any) => !n.is_read && (n.type === 'application_submitted' || n.type === 'application_received')
           ).length;
           
           console.log('✅ Processed notifications:', {
@@ -498,10 +428,12 @@ loadNotifications(): void {
       },
       error: (error) => {
         console.error('❌ Error loading notifications:', error);
+        // Don't crash the app, just log the error
+        this.enrollmentNotifications = [];
+        this.unreadNotificationCount = 0;
       }
     });
 }
-
 
   toggleNotifications(): void {
     this.showNotifications = !this.showNotifications;
@@ -509,158 +441,249 @@ loadNotifications(): void {
 
   getNotificationIcon(type: string): string {
     switch (type) {
-      case 'new': return 'fa-user-plus';
-      case 'completed': return 'fa-check-circle';
-      case 'in_progress': return 'fa-spinner';
-      default: return 'fa-info-circle';
+      case 'application_submitted': return 'fa-file-alt';
+      case 'application_shortlisted': return 'fa-check-circle';
+      case 'application_rejected': return 'fa-times-circle';
+      case 'training_completed': return 'fa-graduation-cap';
+      case 'new_enrollment': return 'fa-user-plus';
+      default: return 'fa-bell';
+    }
+  }
+  
+  getNotificationIconClass(type: string): string {
+    const classMap: Record<string, string> = {
+      'application_submitted': 'notification-new',
+      'application_shortlisted': 'notification-success',
+      'application_rejected': 'notification-error',
+      'training_completed': 'notification-complete',
+      'new_enrollment': 'notification-success'
+    };
+   
+    return classMap[type] || 'notification-default';
+  }
+
+  getAvatarUrl(notification: any): string {
+  if (notification.profile_image) {
+    return notification.profile_image;
+  }
+  
+  // Generate avatar with user's name initials
+  const name = notification.display_name || 'User';
+  const encodedName = encodeURIComponent(name);
+  return `https://ui-avatars.com/api/?name=${encodedName}&background=3b82f6&color=fff&size=128`;
+}
+
+// ============================================
+// SOLUTION 2: Simple CSS-based avatar fallback
+// ============================================
+
+// Add this method to your component:
+getInitials(name: string): string {
+  if (!name || name === 'Anonymous User') return 'U';
+  
+  const parts = name.trim().split(' ');
+  if (parts.length >= 2) {
+    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+  }
+  return name.substring(0, 2).toUpperCase();
+}
+  
+  getNotificationTitle(type: string, message: string): string {
+    const titleMap: Record<string, string> = {
+      'application_submitted': '📝 New Application',
+      'application_shortlisted': '✅ Application Shortlisted',
+      'application_rejected': '❌ Application Rejected',
+      'training_completed': '🎉 Training Completed',
+      'new_enrollment': '👤 New Enrollment'
+    };
+    
+    return titleMap[type] || message.split('.')[0].substring(0, 50) || 'Training Update';
+  }
+
+  formatDate(date: any): string {
+    if (!date) return 'N/A';
+    try {
+      return this.datePipe.transform(date, 'medium') || 'N/A';
+    } catch {
+      return 'Invalid date';
     }
   }
 
-  getNotificationColor(type: string): string {
-    switch (type) {
-      case 'new': return 'blue';
-      case 'completed': return 'green';
-      case 'in_progress': return 'orange';
-      default: return 'gray';
-    }
-  }
+  viewStudentProfile(notification: any): void {
+  console.log('👤 Viewing applicant profile:', notification);
+  
+  // ✅ Extract profile data from notification metadata
+  const metadata = notification.metadata || {};
+  
+  const profileData = {
+    name: notification.display_name || 
+          metadata.display_name || 
+          metadata.applicant_name || 
+          'Unknown Applicant',
+    
+    email: notification.user_email || 
+           metadata.user_email || 
+           metadata.email || 
+           'N/A',
+    
+    phone: notification.phone_number || 
+           metadata.phone_number || 
+           'N/A',
+    
+    trainingTitle: notification.training_title || 
+                   metadata.training_title || 
+                   'N/A',
+    
+    motivationLetter: notification.motivation_letter || 
+                      metadata.motivation_letter || 
+                      'No motivation letter provided',
+    
+    appliedAt: this.formatDate(
+      notification.applied_at || 
+      metadata.applied_at || 
+      notification.created_at
+    )
+  };
 
-  getJobseekerDisplayName(notification: any): string {
-    let name = notification.display_name || notification.jobseeker_name || '';
-    if (!name || name === 'Anonymous User') {
-      name = notification.email ? notification.email.split('@')[0].replace(/[_.-]/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase()) : 'Anonymous User';
-    }
-    return name.charAt(0).toUpperCase() + name.slice(1);
-  }
+  // Display profile
+  const profileText = `
+═══════════════════════════════════
+    APPLICANT PROFILE
+═══════════════════════════════════
 
-  canIssueCertificate(notification: any): boolean {
-    return notification.notification_type === 'completed' && 
-           notification.progress_percentage === 100 && 
-           !notification.certificate_issued;
-  }
+Name:     ${profileData.name}
+Email:    ${profileData.email}
+Phone:    ${profileData.phone}
 
-  issueCertificateFromNotification(notification: any): void {
-  if (!notification.enrollment_id) {
-    alert('No enrollment ID available');
+Training: ${profileData.trainingTitle}
+Applied:  ${profileData.appliedAt}
+
+MOTIVATION LETTER:
+${profileData.motivationLetter}
+
+═══════════════════════════════════
+  `.trim();
+
+  alert(profileText);
+  
+  // Mark notification as read
+  this.markNotificationAsRead(notification.id);
+}
+
+  viewApplicationDetails(notification: any): void {
+  console.log('📄 Viewing application details:', notification);
+  
+  const metadata = notification.metadata || {};
+  const trainingId = notification.training_id || metadata.training_id;
+  
+  if (!trainingId) {
+    alert('Training information is missing from this notification.');
     return;
   }
 
-  if (confirm(`Issue certificate to ${this.getJobseekerDisplayName(notification)} for "${notification.training_title}"?`)) {
-    // ✅ FIX: Remove employerId parameter
-    this.trainingService.issueCertificate(notification.training_id, notification.enrollment_id)
+  // Find training in current list
+  const training = this.trainings.find(t => t.id === trainingId);
+  
+  if (training) {
+    this.selectedTraining = training;
+    this.viewApplications(training);
+    this.showNotifications = false;
+    this.markNotificationAsRead(notification.id);
+  } else {
+    // Training not in list - fetch it
+    this.isLoading = true;
+    this.trainingService.getTrainingDetails(trainingId)
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: (response) => {
-          if (response.success) {
-            alert('Certificate issued successfully! Trainee notified.');
-            notification.certificate_issued = true;
-            this.unreadNotificationCount = Math.max(0, this.unreadNotificationCount - 1);
-            this.loadNotifications();
+          this.isLoading = false;
+          if (response.success && response.data) {
+            this.selectedTraining = response.data;
+            this.viewApplications(response.data);
+            this.showNotifications = false;
+            this.markNotificationAsRead(notification.id);
+          } else {
+            alert('Unable to load training details');
           }
         },
         error: (error) => {
-          console.error('Error issuing certificate:', error);
-          alert('Failed to issue certificate: ' + (error.message || 'Try again'));
+          this.isLoading = false;
+          console.error('❌ Error loading training:', error);
+          alert('Unable to load training. It may have been removed.');
         }
       });
   }
 }
 
-  downloadEmployerCertificate(enrollmentId: string): void {
-    if (!enrollmentId) {
-      alert('No enrollment ID available');
-      return;
+  markNotificationAsRead(notificationId: string): void {
+    console.log('✅ Marking notification as read:', notificationId);
+    
+    const notification = this.enrollmentNotifications.find(n => n.id === notificationId);
+    if (notification && !notification.is_read) {
+      notification.is_read = true;
+      this.unreadNotificationCount = Math.max(0, this.unreadNotificationCount - 1);
     }
     
-    this.trainingService.downloadCertificate(enrollmentId)
+    this.trainingService.markNotificationRead(notificationId)
       .pipe(takeUntil(this.destroy$))
       .subscribe({
-        next: (blob) => {
-          if (blob.size > 0) {
-            const url = window.URL.createObjectURL(blob);
-            const link = document.createElement('a');
-            link.href = url;
-            link.download = `certificate-${enrollmentId}.pdf`;
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-            window.URL.revokeObjectURL(url);
-          } else {
-            alert('Empty file – ask to re-issue.');
-          }
+        next: () => {
+          console.log('✅ Notification marked as read on server');
         },
         error: (error) => {
-          console.error('❌ Download failed:', error);
-          alert(`Download failed: ${error?.message || 'File not found'}`);
+          console.error('❌ Error marking notification as read:', error);
+          if (notification) {
+            notification.is_read = false;
+            this.unreadNotificationCount++;
+          }
         }
       });
   }
 
-  // employer-training.component.ts
-
-viewStudentProfile(notification: any): void {
-  console.log('👤 Viewing applicant profile:', notification);
-  
-  const userId = notification.metadata?.user_id || notification.user_id;
-  const applicationId = notification.metadata?.application_id || notification.application_id;
-  const trainingId = notification.metadata?.training_id || notification.training_id;
-  
-  if (!userId || !applicationId || !trainingId) {
-    alert('Unable to load applicant information. Please try again.');
-    return;
-  }
-  
-  // ✅ Open application details modal with shortlisting option
-  this.selectedTraining = this.trainings.find(t => t.id === trainingId) || null;
-  if (this.selectedTraining) {
-    this.viewApplications(this.selectedTraining);
-  } else {
-    alert(`Viewing profile for applicant: ${notification.display_name}\n\nEmail: ${notification.user_email || 'N/A'}`);
-  }
-}
   markAllEnrollmentNotificationsRead(): void {
     if (!confirm('Mark all enrollment notifications as read?')) return;
 
-    this.enrollmentNotifications.forEach(n => n.is_read = true);
-    this.unreadNotificationCount = 0;
-  }
-
- loadMoreEnrollmentNotifications(): void {
-  if (this.loadingNotifications) return;
-
-  this.loadingNotifications = true;
-  this.notificationsPage += 1;
-
-  // ✅ FIX: Remove employerId and userType parameters
-  this.trainingService.getNotifications({ 
-    page: this.notificationsPage,
-    limit: this.notificationsLimit,
-    read: undefined 
-  })
-    .pipe(takeUntil(this.destroy$))
-    .subscribe({
-      next: (response: any) => {
-        const newItems = response?.data?.notifications || response?.data || [];
-        if (!Array.isArray(newItems) || newItems.length === 0) {
-          this.hasMoreEnrollmentNotifications = false;
-        } else {
-          const mapped = newItems.map((n: any) => ({
-            ...n,
-            display_name: n.jobseeker_name || `${n.first_name || ''} ${n.last_name || ''}`.trim() ||
-                          (n.email ? n.email.split('@')[0].replace(/[_.-]/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase()) : 'Anonymous User')
-          }));
-          this.enrollmentNotifications = [...this.enrollmentNotifications, ...mapped];
-          this.hasMoreEnrollmentNotifications = newItems.length === this.notificationsLimit;
-        }
-        this.loadingNotifications = false;
-      },
-      error: (err: any) => {
-        console.error('Error loading more notifications:', err);
-        this.loadingNotifications = false;
+    this.enrollmentNotifications.forEach(n => {
+      if (!n.is_read) {
+        this.markNotificationAsRead(n.id);
       }
     });
-}
+  }
 
+  loadMoreEnrollmentNotifications(): void {
+    if (this.loadingNotifications) return;
+
+    this.loadingNotifications = true;
+    this.notificationsPage += 1;
+
+    this.trainingService.getNotifications({ 
+      page: this.notificationsPage,
+      limit: this.notificationsLimit,
+      read: undefined 
+    })
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (response: any) => {
+          const newItems = response?.data?.notifications || response?.data || [];
+          if (!Array.isArray(newItems) || newItems.length === 0) {
+            this.hasMoreEnrollmentNotifications = false;
+          } else {
+            const mapped = newItems.map((n: any) => ({
+              ...n,
+              display_name: n.jobseeker_name || `${n.first_name || ''} ${n.last_name || ''}`.trim() ||
+                            (n.email ? n.email.split('@')[0].replace(/[_.-]/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase()) : 'Anonymous User')
+            }));
+            this.enrollmentNotifications = [...this.enrollmentNotifications, ...mapped];
+            this.hasMoreEnrollmentNotifications = newItems.length === this.notificationsLimit;
+          }
+          this.loadingNotifications = false;
+        },
+        error: (err: any) => {
+          console.error('Error loading more notifications:', err);
+          this.loadingNotifications = false;
+        }
+      });
+  }
 
   confirmClearEnrollmentNotifications(): void {
     if (!confirm('Are you sure you want to clear all enrollment notifications?')) return;
@@ -689,31 +712,31 @@ viewStudentProfile(notification: any): void {
   }
 
   resetForm(): void {
-  this.newTraining = {
-    title: '',
-    description: '',
-    category: 'Technology',
-    level: 'Beginner',
-    duration_hours: 40,
-    cost_type: 'Free',
-    price: 0,
-    mode: 'Online',
-    provider_name: this.employerName,
-    has_certificate: true,
-    thumbnail_url: '',
-    location: '',
-    application_deadline: '',
-    start_date: '',  // ✅ FIXED
-    end_date: '',    // ✅ FIXED
-    max_participants: 30,
-    sessions: [],
-    outcomes: []
-  };
-  this.editingTrainingId = null;
-  this.thumbnailPreview = null;
-  this.thumbnailFile = null;
-  this.error = null;
-}
+    this.newTraining = {
+      title: '',
+      description: '',
+      category: 'Technology',
+      level: 'Beginner',
+      duration_hours: 40,
+      cost_type: 'Free',
+      price: 0,
+      mode: 'Online',
+      provider_name: this.employerName,
+      has_certificate: true,
+      thumbnail_url: '',
+      location: '',
+      application_deadline: '',
+      start_date: '',
+      end_date: '',
+      max_participants: 30,
+      sessions: [],
+      outcomes: []
+    };
+    this.editingTrainingId = null;
+    this.thumbnailPreview = null;
+    this.thumbnailFile = null;
+    this.error = null;
+  }
 
   onThumbnailSelected(event: any): void {
     const file = event.target.files[0];
@@ -782,34 +805,32 @@ viewStudentProfile(notification: any): void {
   }
 
   addSession(): void {
-  console.log('📅 addSession called');
+    console.log('📅 addSession called');
 
-  if (!this.newSession.title || !this.newSession.scheduled_at) {
-    alert('Please fill in session title and schedule');
-    return;
-  }
+    if (!this.newSession.title || !this.newSession.scheduled_at) {
+      alert('Please fill in session title and schedule');
+      return;
+    }
 
-  // ✅ FIX: Add to form array if creating/editing training
-  if (!this.selectedTraining || this.editingTrainingId) {
-    console.log('📅 Adding session to form array');
-    
-    this.newTraining.sessions.push({ 
-      ...this.newSession,
-      order_index: this.newTraining.sessions.length 
-    });
-    
-    console.log('✅ Session added. Total sessions:', this.newTraining.sessions.length);
-    this.toggleSessionForm();
-    return;
-  }
+    if (!this.selectedTraining || this.editingTrainingId) {
+      console.log('📅 Adding session to form array');
+      
+      this.newTraining.sessions.push({ 
+        ...this.newSession,
+        order_index: this.newTraining.sessions.length 
+      });
+      
+      console.log('✅ Session added. Total sessions:', this.newTraining.sessions.length);
+      this.toggleSessionForm();
+      return;
+    }
 
-  // If we have a selected training that's already saved, show info message
-  if (this.selectedTraining && this.selectedTraining.id) {
-    alert('To add sessions to an existing training, please edit the training and add sessions there.');
-    this.toggleSessionForm();
-    return;
+    if (this.selectedTraining && this.selectedTraining.id) {
+      alert('To add sessions to an existing training, please edit the training and add sessions there.');
+      this.toggleSessionForm();
+      return;
+    }
   }
-}
 
   removeSession(index: number): void {
     this.newTraining.sessions.splice(index, 1);
@@ -819,63 +840,28 @@ viewStudentProfile(notification: any): void {
   }
 
   openSessionForm(training?: Training, session?: TrainingSession): void {
-  // ✅ FIX: When opening from existing training card, guide user to edit mode
-  if (training && training.id && !this.editingTrainingId) {
-    alert('To add or edit sessions, please first click "Edit" on the training card.');
-    return;
-  }
-  
-  if (training) {
-    this.selectedTraining = training;
+    if (training && training.id && !this.editingTrainingId) {
+      alert('To add or edit sessions, please first click "Edit" on the training card.');
+      return;
+    }
     
-    if (session) {
-      this.editingSessionId = session.id || null;
-      this.newSession = { ...session };
+    if (training) {
+      this.selectedTraining = training;
+      
+      if (session) {
+        this.editingSessionId = session.id || null;
+        this.newSession = { ...session };
+      } else {
+        this.resetSessionForm();
+        this.newSession.order_index = training.sessions?.length || 0;
+      }
     } else {
+      this.selectedTraining = null;
       this.resetSessionForm();
-      this.newSession.order_index = training.sessions?.length || 0;
+      this.newSession.order_index = this.newTraining.sessions.length;
     }
-  } else {
-    this.selectedTraining = null;
-    this.resetSessionForm();
-    this.newSession.order_index = this.newTraining.sessions.length;
-  }
- 
-  this.showSessionForm = true;
-}
-
-  saveSession(): void {
-    if (!this.selectedTraining) {
-      alert('No training selected');
-      return;
-    }
-
-    if (!this.selectedTraining.id || this.selectedTraining.id === 'undefined') {
-      console.error('❌ Invalid training ID:', this.selectedTraining.id);
-      alert('Cannot add session: Training ID is invalid. Please save the training first.');
-      return;
-    }
-
-    const title = this.newSession.title ? this.newSession.title.trim() : '';
-    
-    if (!title || !this.newSession.scheduled_at) {
-      alert('Please fill in all required fields (title and schedule)');
-      return;
-    }
-
-    console.log('💾 Saving session to training:', {
-      trainingId: this.selectedTraining.id,
-      sessionTitle: title,
-      isEditing: !!this.editingSessionId
-    });
-
-    if (this.editingSessionId) {
-      // Update existing session (if API supports it)
-      alert('Session update not yet implemented');
-    } else {
-      // Add new session (if API supports it)
-      alert('Session creation not yet implemented - sessions are created with training');
-    }
+   
+    this.showSessionForm = true;
   }
 
   deleteSession(trainingId: string, sessionId: string): void {
@@ -954,99 +940,93 @@ viewStudentProfile(notification: any): void {
     });
   }
 
- // employer-training.component.ts - FIXED performSave (update section)
+  private performSave(thumbnailUrl: string): void {
+    console.log('🚀 performSave called with thumbnail:', thumbnailUrl);
+    
+    const baseData: CreateTrainingRequest = {
+      title: this.newTraining.title.trim(),
+      description: this.newTraining.description.trim(),
+      category: this.newTraining.category,
+      level: this.newTraining.level,
+      duration_hours: this.newTraining.duration_hours,
+      cost_type: this.newTraining.cost_type,
+      price: this.newTraining.cost_type === 'Paid' ? this.newTraining.price : undefined,
+      mode: this.newTraining.mode,
+      provider_name: this.newTraining.provider_name.trim(),
+      has_certificate: this.newTraining.has_certificate,
+      thumbnail_url: thumbnailUrl || this.newTraining.thumbnail_url,
+      location: this.newTraining.location || undefined,
+      eligibility_requirements: undefined,
+      application_deadline: this.newTraining.application_deadline || undefined,
+      start_date: this.newTraining.start_date || undefined,
+      end_date: this.newTraining.end_date || undefined,
+      max_participants: this.newTraining.max_participants || undefined,
+      
+      sessions: (this.newTraining.sessions || []).map((s, index) => ({
+        title: s.title,
+        description: s.description,
+        scheduled_at: s.scheduled_at,
+        duration_minutes: s.duration_minutes,
+        meeting_url: s.meeting_url,
+        meeting_password: (s as any).meeting_password,
+        order_index: index
+      })),
+      outcomes: (this.newTraining.outcomes || []).map((o, index) => ({
+        outcome_text: o.outcome_text,
+        order_index: index
+      }))
+    };
 
-private performSave(thumbnailUrl: string): void {
-  console.log('🚀 performSave called with thumbnail:', thumbnailUrl);
-  
-  const baseData: CreateTrainingRequest = {
-    title: this.newTraining.title.trim(),
-    description: this.newTraining.description.trim(),
-    category: this.newTraining.category,
-    level: this.newTraining.level,
-    duration_hours: this.newTraining.duration_hours,
-    cost_type: this.newTraining.cost_type,
-    price: this.newTraining.cost_type === 'Paid' ? this.newTraining.price : undefined,
-    mode: this.newTraining.mode,
-    provider_name: this.newTraining.provider_name.trim(),
-    has_certificate: this.newTraining.has_certificate,
-    thumbnail_url: thumbnailUrl || this.newTraining.thumbnail_url,
-    location: this.newTraining.location || undefined,
-    eligibility_requirements: undefined,
-    application_deadline: this.newTraining.application_deadline || undefined,
-    
-    // ✅ FIXED: Send as start_date/end_date
-    start_date: this.newTraining.start_date || undefined,
-    end_date: this.newTraining.end_date || undefined,
-    
-    max_participants: this.newTraining.max_participants || undefined,
-    
-    sessions: (this.newTraining.sessions || []).map((s, index) => ({
-      title: s.title,
-      description: s.description,
-      scheduled_at: s.scheduled_at,
-      duration_minutes: s.duration_minutes,
-      meeting_url: s.meeting_url,
-      meeting_password: (s as any).meeting_password,
-      order_index: index
-    })),
-    outcomes: (this.newTraining.outcomes || []).map((o, index) => ({
-      outcome_text: o.outcome_text,
-      order_index: index
-    }))
-  };
+    console.log('📦 Training payload:', {
+      ...baseData,
+      sessionCount: baseData.sessions?.length || 0,
+      outcomeCount: baseData.outcomes?.length || 0
+    });
 
-  console.log('📦 Training payload:', {
-    ...baseData,
-    sessionCount: baseData.sessions?.length || 0,
-    outcomeCount: baseData.outcomes?.length || 0
-  });
-
-  if (this.editingTrainingId) {
-    console.log('🔄 Updating training:', this.editingTrainingId);
-    
-    this.trainingService.updateTraining(this.editingTrainingId, baseData)
-      .pipe(takeUntil(this.destroy$))
-      .subscribe({
-        next: (response) => {
-          if (response.success) {
-            console.log('✅ Training updated successfully');
-            this.cancelEdit();
-            this.loadTrainings();
-            this.loadStats();
-            alert('Training updated successfully!');
+    if (this.editingTrainingId) {
+      console.log('🔄 Updating training:', this.editingTrainingId);
+      
+      this.trainingService.updateTraining(this.editingTrainingId, baseData)
+        .pipe(takeUntil(this.destroy$))
+        .subscribe({
+          next: (response) => {
+            if (response.success) {
+              console.log('✅ Training updated successfully');
+              this.cancelEdit();
+              this.loadTrainings();
+              this.loadStats();
+              alert('Training updated successfully!');
+            }
+          },
+          error: (error) => {
+            console.error('❌ Error updating training:', error);
+            this.error = 'Failed to update training: ' + (error.message || 'Unknown error');
+            alert('Failed to update training: ' + (error.message || 'Unknown error'));
           }
-        },
-        error: (error) => {
-          console.error('❌ Error updating training:', error);
-          this.error = 'Failed to update training: ' + (error.message || 'Unknown error');
-          alert('Failed to update training: ' + (error.message || 'Unknown error'));
-        }
-      });
-  } else {
-    console.log('➕ Creating new training');
-    
-    this.trainingService.createTraining(baseData)
-      .pipe(takeUntil(this.destroy$))
-      .subscribe({
-        next: (response) => {
-          if (response.success) {
-            console.log('✅ Training created successfully');
-            this.toggleAddForm();
-            this.resetForm();
-            this.loadStats();
-            alert('Training created successfully!');
+        });
+    } else {
+      console.log('➕ Creating new training');
+      
+      this.trainingService.createTraining(baseData)
+        .pipe(takeUntil(this.destroy$))
+        .subscribe({
+          next: (response) => {
+            if (response.success) {
+              console.log('✅ Training created successfully');
+              this.toggleAddForm();
+              this.resetForm();
+              this.loadStats();
+              alert('Training created successfully!');
+            }
+          },
+          error: (error) => {
+            console.error('❌ Error creating training:', error);
+            this.error = 'Failed to create training: ' + (error.message || 'Unknown error');
+            alert('Failed to create training: ' + (error.message || 'Unknown error'));
           }
-        },
-        error: (error) => {
-          console.error('❌ Error creating training:', error);
-          this.error = 'Failed to create training: ' + (error.message || 'Unknown error');
-          alert('Failed to create training: ' + (error.message || 'Unknown error'));
-        }
-      });
+        });
+    }
   }
-}
-
 
   cancelEdit(): void {
     this.showAddForm = false;
@@ -1056,118 +1036,110 @@ private performSave(thumbnailUrl: string): void {
     this.thumbnailFile = null;
   }
 
-  // employer-training.component.ts - FIXED editTraining method
-
-// employer-training.component.ts - FIXED editTraining method
-
-editTraining(training: Training): void {
-  console.log('✏️ Editing training:', training.id);
-  
-  this.trainingService.getTrainingDetails(training.id)
-    .pipe(takeUntil(this.destroy$))
-    .subscribe({
-      next: (response) => {
-        if (response.success && response.data) {
-          const fullTraining = response.data;
-          
-          console.log('📥 Full training loaded:', {
-            id: fullTraining.id,
-            sessions: fullTraining.sessions?.length || 0,
-            outcomes: fullTraining.outcomes?.length || 0
-          });
-          
-          this.editingTrainingId = fullTraining.id;
-          
-          const mappedSessions: TrainingSession[] = (fullTraining.sessions || []).map((s: any, index: number) => ({
-            id: s.id,
-            training_id: s.training_id,
-            title: s.title || '',
-            description: s.description || '',
-            scheduled_at: s.scheduled_at ? this.formatDateTimeLocal(s.scheduled_at) : '',
-            duration_minutes: s.duration_minutes || 120,
-            meeting_url: s.meeting_url || '',
-            meeting_password: s.meeting_password || '',
-            order_index: s.order_index ?? index,
-            is_completed: s.is_completed || false,
-            attendance_count: s.attendance_count || 0,
-            created_at: s.created_at,
-            updated_at: s.updated_at
-          }));
-          
-          const mappedOutcomes: TrainingOutcome[] = (fullTraining.outcomes || []).map((o: any, index: number) => ({
-            id: o.id,
-            training_id: o.training_id,
-            outcome_text: o.outcome_text || '',
-            order_index: o.order_index ?? index,
-            created_at: o.created_at
-          }));
-          
-          // ✅ FIXED: Use start_date/end_date consistently
-          this.newTraining = {
-            title: fullTraining.title,
-            description: fullTraining.description,
-            category: fullTraining.category,
-            level: fullTraining.level,
-            duration_hours: fullTraining.duration_hours,
-            cost_type: fullTraining.cost_type,
-            price: fullTraining.price || 0,
-            mode: fullTraining.mode,
-            provider_name: fullTraining.provider_name,
-            has_certificate: fullTraining.has_certificate,
-            thumbnail_url: fullTraining.thumbnail_url || '',
-            location: fullTraining.location || '',
-            application_deadline: fullTraining.application_deadline 
-              ? this.datePipe.transform(fullTraining.application_deadline, 'yyyy-MM-dd') || '' 
-              : '',
-            start_date: fullTraining.start_date
-              ? this.datePipe.transform(fullTraining.start_date, 'yyyy-MM-dd') || '' 
-              : '',
-            end_date: fullTraining.end_date
-              ? this.datePipe.transform(fullTraining.end_date, 'yyyy-MM-dd') || '' 
-              : '',
-            max_participants: fullTraining.max_participants || 30,
-            sessions: mappedSessions,
-            outcomes: mappedOutcomes
-          };
-          
-          if (fullTraining.thumbnail_url) {
-            this.thumbnailPreview = fullTraining.thumbnail_url;
+  editTraining(training: Training): void {
+    console.log('✏️ Editing training:', training.id);
+    
+    this.trainingService.getTrainingDetails(training.id)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (response) => {
+          if (response.success && response.data) {
+            const fullTraining = response.data;
+            
+            console.log('📥 Full training loaded:', {
+              id: fullTraining.id,
+              sessions: fullTraining.sessions?.length || 0,
+              outcomes: fullTraining.outcomes?.length || 0
+            });
+            
+            this.editingTrainingId = fullTraining.id;
+            
+            const mappedSessions: TrainingSession[] = (fullTraining.sessions || []).map((s: any, index: number) => ({
+              id: s.id,
+              training_id: s.training_id,
+              title: s.title || '',
+              description: s.description || '',
+              scheduled_at: s.scheduled_at ? this.formatDateTimeLocal(s.scheduled_at) : '',
+              duration_minutes: s.duration_minutes || 120,
+              meeting_url: s.meeting_url || '',
+              meeting_password: s.meeting_password || '',
+              order_index: s.order_index ?? index,
+              is_completed: s.is_completed || false,
+              attendance_count: s.attendance_count || 0,
+              created_at: s.created_at,
+              updated_at: s.updated_at
+            }));
+            
+            const mappedOutcomes: TrainingOutcome[] = (fullTraining.outcomes || []).map((o: any, index: number) => ({
+              id: o.id,
+              training_id: o.training_id,
+              outcome_text: o.outcome_text || '',
+              order_index: o.order_index ?? index,
+              created_at: o.created_at
+            }));
+            
+            this.newTraining = {
+              title: fullTraining.title,
+              description: fullTraining.description,
+              category: fullTraining.category,
+              level: fullTraining.level,
+              duration_hours: fullTraining.duration_hours,
+              cost_type: fullTraining.cost_type,
+              price: fullTraining.price || 0,
+              mode: fullTraining.mode,
+              provider_name: fullTraining.provider_name,
+              has_certificate: fullTraining.has_certificate,
+              thumbnail_url: fullTraining.thumbnail_url || '',
+              location: fullTraining.location || '',
+              application_deadline: fullTraining.application_deadline 
+                ? this.datePipe.transform(fullTraining.application_deadline, 'yyyy-MM-dd') || '' 
+                : '',
+              start_date: fullTraining.start_date
+                ? this.datePipe.transform(fullTraining.start_date, 'yyyy-MM-dd') || '' 
+                : '',
+              end_date: fullTraining.end_date
+                ? this.datePipe.transform(fullTraining.end_date, 'yyyy-MM-dd') || '' 
+                : '',
+              max_participants: fullTraining.max_participants || 30,
+              sessions: mappedSessions,
+              outcomes: mappedOutcomes
+            };
+            
+            if (fullTraining.thumbnail_url) {
+              this.thumbnailPreview = fullTraining.thumbnail_url;
+            }
+            
+            this.showAddForm = true;
+            this.error = null;
+            
+            console.log('✅ Edit form populated:', {
+              sessions: this.newTraining.sessions.length,
+              outcomes: this.newTraining.outcomes.length
+            });
           }
-          
-          this.showAddForm = true;
-          this.error = null;
-          
-          console.log('✅ Edit form populated:', {
-            sessions: this.newTraining.sessions.length,
-            outcomes: this.newTraining.outcomes.length
-          });
+        },
+        error: (error) => {
+          console.error('❌ Error loading training details:', error);
+          this.error = 'Failed to load training details for editing';
         }
-      },
-      error: (error) => {
-        console.error('❌ Error loading training details:', error);
-        this.error = 'Failed to load training details for editing';
-      }
-    });
-}
+      });
+  }
 
-// ✅ ADD: Helper method to format datetime for input[type="datetime-local"]
-private formatDateTimeLocal(dateString: string): string {
-  if (!dateString) return '';
-  
-  // Convert to datetime-local format: YYYY-MM-DDTHH:mm
-  const date = new Date(dateString);
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  const hours = String(date.getHours()).padStart(2, '0');
-  const minutes = String(date.getMinutes()).padStart(2, '0');
-  
-  return `${year}-${month}-${day}T${hours}:${minutes}`;
-}
+  private formatDateTimeLocal(dateString: string): string {
+    if (!dateString) return '';
+    
+    const date = new Date(dateString);
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const hours = String(date.getHours()).padStart(2, '0');
+    const minutes = String(date.getMinutes()).padStart(2, '0');
+    
+    return `${year}-${month}-${day}T${hours}:${minutes}`;
+  }
 
   deleteTraining(trainingId: string): void {
     if (confirm('Are you sure you want to delete this training? This action cannot be undone.')) {
-      // ✅ FIXED: deleteTraining expects (id) - removed employerId parameter
       this.trainingService.deleteTraining(trainingId)
         .pipe(takeUntil(this.destroy$))
         .subscribe({
@@ -1204,7 +1176,7 @@ private formatDateTimeLocal(dateString: string): string {
         sessions: training.sessions || [],
         outcomes: training.outcomes || []
       };
-      // ✅ FIXED: createTraining expects (trainingData) - removed employerId parameter
+      
       this.trainingService.createTraining(duplicatedTraining)
         .pipe(takeUntil(this.destroy$))
         .subscribe({
@@ -1330,7 +1302,6 @@ private formatDateTimeLocal(dateString: string): string {
     this.selectedTraining = training;
     this.showApplicationsModal = true;
     
-    // ✅ FIXED: getApplications expects (trainingId, params?) - removed employerId parameter
     this.trainingService.getApplications(training.id)
       .pipe(takeUntil(this.destroy$))
       .subscribe({
@@ -1377,7 +1348,6 @@ private formatDateTimeLocal(dateString: string): string {
       const promises: Promise<any>[] = [];
       
       this.selectedApplications.forEach(appId => {
-        // ✅ FIXED: shortlistApplicant expects (trainingId, applicationId, decision, employer_notes?) - removed employerId parameter
         const promise = this.trainingService.shortlistApplicant(
           this.selectedTraining!.id,
           appId,
@@ -1412,7 +1382,6 @@ private formatDateTimeLocal(dateString: string): string {
       const promises: Promise<any>[] = [];
       
       this.selectedApplications.forEach(appId => {
-        // ✅ FIXED: shortlistApplicant expects (trainingId, applicationId, decision, employer_notes?) - removed employerId parameter
         const promise = this.trainingService.shortlistApplicant(
           this.selectedTraining!.id,
           appId,
@@ -1432,6 +1401,50 @@ private formatDateTimeLocal(dateString: string): string {
     }
   }
 
+  quickShortlist(app: TrainingApplication): void {
+    if (!this.selectedTraining) return;
+    
+    if (confirm(`Shortlist ${app.user?.first_name} ${app.user?.last_name}?`)) {
+      this.trainingService.shortlistApplicant(
+        this.selectedTraining.id,
+        app.id!,
+        'shortlisted'
+      ).pipe(takeUntil(this.destroy$))
+        .subscribe({
+          next: () => {
+            alert('Applicant shortlisted successfully!');
+            this.viewApplications(this.selectedTraining!);
+          },
+          error: (error) => {
+            console.error('Error shortlisting applicant:', error);
+            alert('Failed to shortlist applicant');
+          }
+        });
+    }
+  }
+
+  quickReject(app: TrainingApplication): void {
+    if (!this.selectedTraining) return;
+    
+    if (confirm(`Reject ${app.user?.first_name} ${app.user?.last_name}?`)) {
+      this.trainingService.shortlistApplicant(
+        this.selectedTraining.id,
+        app.id!,
+        'rejected'
+      ).pipe(takeUntil(this.destroy$))
+        .subscribe({
+          next: () => {
+            alert('Applicant rejected');
+            this.viewApplications(this.selectedTraining!);
+          },
+          error: (error) => {
+            console.error('Error rejecting applicant:', error);
+            alert('Failed to reject applicant');
+          }
+        });
+    }
+  }
+
   // ============================================
   // ENROLLMENT MANAGEMENT
   // ============================================
@@ -1442,7 +1455,6 @@ private formatDateTimeLocal(dateString: string): string {
     this.selectedTraining = training;
     this.showEnrollmentsModal = true;
     
-    // ✅ FIXED: getTrainingEnrollments expects (id, params?) - removed employerId parameter
     this.trainingService.getTrainingEnrollments(training.id, { page: 1, limit: 50 })
       .pipe(takeUntil(this.destroy$))
       .subscribe({
@@ -1473,7 +1485,6 @@ private formatDateTimeLocal(dateString: string): string {
 
     const action = completed ? 'complete' : 'incomplete';
     if (confirm(`Mark this trainee as ${action}?`)) {
-      // ✅ FIXED: markCompletion expects (trainingId, enrollmentId, completed, employer_notes?) - removed employerId parameter
       this.trainingService.markCompletion(
         this.selectedTraining.id,
         enrollment.id,
@@ -1504,7 +1515,6 @@ private formatDateTimeLocal(dateString: string): string {
     }
 
     if (confirm('Issue certificate for this trainee?')) {
-      // ✅ FIXED: issueCertificate expects (trainingId, enrollmentId) - removed employerId parameter
       this.trainingService.issueCertificate(this.selectedTraining!.id, enrollment.id)
         .pipe(takeUntil(this.destroy$))
         .subscribe({
@@ -1593,43 +1603,43 @@ private formatDateTimeLocal(dateString: string): string {
   }
 
   getValidationErrors(): string[] {
-  const errors: string[] = [];
-  
-  if (!this.newTraining.title) errors.push('Title is required');
-  if (!this.newTraining.description) errors.push('Description is required');
-  if (!this.newTraining.category) errors.push('Category is required');
-  if (!this.newTraining.provider_name) errors.push('Provider name is required');
-  if (this.newTraining.duration_hours <= 0) errors.push('Duration must be greater than 0');
-  if (!this.newTraining.application_deadline) errors.push('Application deadline is required');
-  if (!this.newTraining.start_date) errors.push('Training start date is required');  // ✅ FIXED
-  if (!this.newTraining.end_date) errors.push('Training end date is required');      // ✅ FIXED
-  
-  if (this.newTraining.cost_type === 'Paid' && this.newTraining.price <= 0) {
-    errors.push('Price must be greater than 0 for paid trainings');
-  }
-  
-  if (this.newTraining.mode === 'Offline' && !this.newTraining.location?.trim()) {
-    errors.push('Location is required for offline trainings');
-  }
-  
-  if (this.newTraining.application_deadline && this.newTraining.start_date) {
-    const appDeadline = new Date(this.newTraining.application_deadline);
-    const startDate = new Date(this.newTraining.start_date);
-    if (appDeadline >= startDate) {
-      errors.push('Application deadline must be before training start date');
+    const errors: string[] = [];
+    
+    if (!this.newTraining.title) errors.push('Title is required');
+    if (!this.newTraining.description) errors.push('Description is required');
+    if (!this.newTraining.category) errors.push('Category is required');
+    if (!this.newTraining.provider_name) errors.push('Provider name is required');
+    if (this.newTraining.duration_hours <= 0) errors.push('Duration must be greater than 0');
+    if (!this.newTraining.application_deadline) errors.push('Application deadline is required');
+    if (!this.newTraining.start_date) errors.push('Training start date is required');
+    if (!this.newTraining.end_date) errors.push('Training end date is required');
+    
+    if (this.newTraining.cost_type === 'Paid' && this.newTraining.price <= 0) {
+      errors.push('Price must be greater than 0 for paid trainings');
     }
-  }
-  
-  if (this.newTraining.start_date && this.newTraining.end_date) {
-    const startDate = new Date(this.newTraining.start_date);
-    const endDate = new Date(this.newTraining.end_date);
-    if (startDate >= endDate) {
-      errors.push('Training end date must be after start date');
+    
+    if (this.newTraining.mode === 'Offline' && !this.newTraining.location?.trim()) {
+      errors.push('Location is required for offline trainings');
     }
+    
+    if (this.newTraining.application_deadline && this.newTraining.start_date) {
+      const appDeadline = new Date(this.newTraining.application_deadline);
+      const startDate = new Date(this.newTraining.start_date);
+      if (appDeadline >= startDate) {
+        errors.push('Application deadline must be before training start date');
+      }
+    }
+    
+    if (this.newTraining.start_date && this.newTraining.end_date) {
+      const startDate = new Date(this.newTraining.start_date);
+      const endDate = new Date(this.newTraining.end_date);
+      if (startDate >= endDate) {
+        errors.push('Training end date must be after start date');
+      }
+    }
+    
+    return errors;
   }
-  
-  return errors;
-}
 
   // ============================================
   // UTILITY METHODS
