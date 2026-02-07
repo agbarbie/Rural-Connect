@@ -1,19 +1,12 @@
-// middleware/validation.middleware.ts - FIXED TO WORK WITH protect.ts
+// middleware/validation.middleware.ts - COMPLETE FIXED VERSION
 import { Request, Response, NextFunction } from 'express';
+import { AuthenticatedRequest } from './auth.middleware';
 
-// ✅ Import the correct RequestWithUser type from your protect middleware
-interface RequestWithUser extends Request {
-  user?: {
-    id: string;
-    email: string;
-    role: string;
-    name?: string;
-    user_type: string;
-  };
-}
+// ============================================================================
+// TRAINING VALIDATION
+// ============================================================================
 
-// Validation for creating/updating a training (bootcamp model)
-export const validateTrainingData = (req: RequestWithUser, res: Response, next: NextFunction): void => {
+export const validateTrainingData = (req: AuthenticatedRequest, res: Response, next: NextFunction): void => {
   const { 
     title, description, category, level, duration_hours, cost_type, mode, 
     provider_name, sessions, outcomes, 
@@ -29,7 +22,9 @@ export const validateTrainingData = (req: RequestWithUser, res: Response, next: 
     isCreating,
     isUpdating,
     userId: req.user?.id,
-    userType: req.user?.user_type
+    userType: req.user?.user_type,
+    mode: mode,
+    modeType: typeof mode
   });
 
   // ✅ Basic fields validation (required for creation, optional for update)
@@ -46,7 +41,7 @@ export const validateTrainingData = (req: RequestWithUser, res: Response, next: 
       errors.push('Category is required');
     }
 
-    if (!['Beginner', 'Intermediate', 'Advanced'].includes(level)) {
+    if (!level || !['Beginner', 'Intermediate', 'Advanced'].includes(level)) {
       errors.push('Level must be Beginner, Intermediate, or Advanced');
     }
 
@@ -54,12 +49,12 @@ export const validateTrainingData = (req: RequestWithUser, res: Response, next: 
       errors.push('Duration must be at least 1 hour');
     }
 
-    if (!['Free', 'Paid'].includes(cost_type)) {
+    if (!cost_type || !['Free', 'Paid'].includes(cost_type)) {
       errors.push('Cost type must be Free or Paid');
     }
 
-    if (!['Online', 'Hybrid', 'Offline'].includes(mode)) {
-      errors.push('Mode must be Online, Hybrid, or Offline');
+    if (!mode || !['Online', 'Hybrid', 'Offline'].includes(mode)) {
+      errors.push(`Mode must be Online, Hybrid, or Offline. Received: "${mode}"`);
     }
 
     if (!provider_name || provider_name.trim().length < 2) {
@@ -104,7 +99,7 @@ export const validateTrainingData = (req: RequestWithUser, res: Response, next: 
     }
 
     if (mode !== undefined && !['Online', 'Hybrid', 'Offline'].includes(mode)) {
-      errors.push('Mode must be Online, Hybrid, or Offline');
+      errors.push(`Mode must be Online, Hybrid, or Offline. Received: "${mode}"`);
     }
 
     if (provider_name !== undefined && provider_name.trim().length < 2) {
@@ -199,7 +194,7 @@ export const validateTrainingData = (req: RequestWithUser, res: Response, next: 
     }
   }
 
-  // ✅ Validate user authentication (adjusted for protect.ts middleware)
+  // ✅ Validate user authentication
   if (!req.user?.id) {
     errors.push('User authentication required');
   }
@@ -232,8 +227,11 @@ function isValidUrl(urlString: string): boolean {
   }
 }
 
-// ✅ FIXED: Validate application submission
-export const validateApplicationData = (req: RequestWithUser, res: Response, next: NextFunction): void => {
+// ============================================================================
+// APPLICATION VALIDATION
+// ============================================================================
+
+export const validateApplicationData = (req: AuthenticatedRequest, res: Response, next: NextFunction): void => {
   const errors: string[] = [];
 
   console.log('🔍 Validating application data:', {
@@ -252,7 +250,7 @@ export const validateApplicationData = (req: RequestWithUser, res: Response, nex
     errors.push('Authentication required');
   }
 
-  // ✅ Check user type (adjusted for protect.ts middleware)
+  // ✅ Check user type
   if (req.user?.user_type !== 'jobseeker') {
     errors.push('Only job-seekers can apply for trainings');
   }
@@ -271,8 +269,11 @@ export const validateApplicationData = (req: RequestWithUser, res: Response, nex
   next();
 };
 
-// Validate shortlisting decision
-export const validateShortlistDecision = (req: RequestWithUser, res: Response, next: NextFunction): void => {
+// ============================================================================
+// SHORTLIST DECISION VALIDATION
+// ============================================================================
+
+export const validateShortlistDecision = (req: AuthenticatedRequest, res: Response, next: NextFunction): void => {
   const { decision, employer_notes } = req.body;
   const errors: string[] = [];
 
@@ -304,8 +305,11 @@ export const validateShortlistDecision = (req: RequestWithUser, res: Response, n
   next();
 };
 
-// Validate completion marking
-export const validateCompletionMarking = (req: RequestWithUser, res: Response, next: NextFunction): void => {
+// ============================================================================
+// COMPLETION MARKING VALIDATION
+// ============================================================================
+
+export const validateCompletionMarking = (req: AuthenticatedRequest, res: Response, next: NextFunction): void => {
   const { completed, employer_notes } = req.body;
   const errors: string[] = [];
 
@@ -337,8 +341,11 @@ export const validateCompletionMarking = (req: RequestWithUser, res: Response, n
   next();
 };
 
-// Validate review submission
-export const validateReviewData = (req: RequestWithUser, res: Response, next: NextFunction): void => {
+// ============================================================================
+// REVIEW VALIDATION
+// ============================================================================
+
+export const validateReviewData = (req: AuthenticatedRequest, res: Response, next: NextFunction): void => {
   const { rating, review_text } = req.body;
   const errors: string[] = [];
 
@@ -374,7 +381,10 @@ export const validateReviewData = (req: RequestWithUser, res: Response, next: Ne
   next();
 };
 
-// Validate UUID format
+// ============================================================================
+// ID VALIDATION
+// ============================================================================
+
 export const validateId = (req: Request, res: Response, next: NextFunction): void => {
   const { id } = req.params;
   
@@ -391,7 +401,10 @@ export const validateId = (req: Request, res: Response, next: NextFunction): voi
   next();
 };
 
-// Validate multiple IDs
+// ============================================================================
+// MULTIPLE IDS VALIDATION
+// ============================================================================
+
 export const validateMultipleIds = (paramNames: string[]) => {
   return (req: Request, res: Response, next: NextFunction): void => {
     const errors: string[] = [];
