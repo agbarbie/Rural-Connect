@@ -1148,6 +1148,11 @@ async getNotifications(
   // ==========================================================================
   // 4. APPLICATION FLOW - FIXED WITH SAFE COLUMN HANDLING
   // ==========================================================================
+// training.service.ts - FIXED submitApplication method with robust error handling
+
+// FINAL FIX - training.service.ts submitApplication method
+// Based on your actual database schema
+
 async submitApplication(
   trainingId: string,
   userId: string,
@@ -1181,11 +1186,10 @@ async submitApplication(
 
     const training = trainingResult.rows[0];
 
-    // ✅ FIX: Query user details with SAFE column handling
+    // ✅ FIXED: Query with YOUR actual column names
     let user: any = null;
     
     try {
-      // Try to get user details - this should work even if phone_number doesn't exist
       const userQuery = `
         SELECT 
           id,
@@ -1193,18 +1197,20 @@ async submitApplication(
           COALESCE(last_name, '') as last_name,
           COALESCE(email, '') as email,
           COALESCE(contact_number, '') as contact_number,
-          COALESCE(profile_image, '') as profile_image
+          COALESCE(phone_number, '') as phone_number,
+          COALESCE(profile_image, profile_picture, '') as profile_image
         FROM users 
         WHERE id = $1
       `;
       
+      console.log('🔍 Executing user query for:', userId);
       const userResult = await this.db.query(userQuery, [userId]);
       
       if (userResult.rows.length === 0) {
         console.error('❌ User not found in database:', userId);
         return { 
           success: false, 
-          message: 'User not found. Please ensure you are logged in correctly.' 
+          message: 'User account not found. Please ensure you are logged in correctly.' 
         };
       }
       
@@ -1212,18 +1218,23 @@ async submitApplication(
       console.log('✅ User found:', { 
         userId: user.id, 
         email: user.email,
-        hasName: !!(user.first_name || user.last_name)
+        hasName: !!(user.first_name || user.last_name),
+        hasContactNumber: !!user.contact_number,
+        hasPhoneNumber: !!user.phone_number
       });
       
     } catch (userErr: any) {
-      console.error('❌ Error fetching user:', userErr.message);
+      console.error('❌ Error fetching user details:', userErr);
+      console.error('SQL Error:', userErr.message);
+      console.error('Stack:', userErr.stack);
       return {
         success: false,
-        message: 'Failed to retrieve user information'
+        message: 'Failed to retrieve user information. Please contact support.'
       };
     }
 
     // Create application
+    console.log('💾 Creating application record');
     const applicationResult = await this.db.query(
       `INSERT INTO training_applications 
        (training_id, user_id, motivation, status, applied_at) 
@@ -1233,12 +1244,16 @@ async submitApplication(
     );
 
     const application = applicationResult.rows[0];
+    console.log('✅ Application created:', application.id);
 
-    // ✅ CRITICAL: Create notification with COMPLETE metadata
-    const displayName = `${user.first_name} ${user.last_name}`.trim() || 
-                        user.email.split('@')[0] || 
-                        'User';
+    // ✅ Build display name with proper fallbacks
+    const displayName = `${user.first_name || ''} ${user.last_name || ''}`.trim() || 
+                        (user.email ? user.email.split('@')[0] : 'User');
     
+    // ✅ Use whichever phone field has data (prefer contact_number)
+    const phoneNumber = user.contact_number || user.phone_number || '';
+    
+    // ✅ Build complete metadata with ALL variations for compatibility
     const metadata = {
       // Training info
       training_id: trainingId,
@@ -1249,26 +1264,32 @@ async submitApplication(
       motivation_letter: data.motivation || '',
       applied_at: application.applied_at,
       
-      // User info (ALL variations for compatibility)
+      // User info - ALL NAME VARIATIONS
       user_id: userId,
       applicant_name: displayName,
       user_name: displayName,
       jobseeker_name: displayName,
       display_name: displayName,
+      name: displayName,
       
-      // Contact details
+      // Contact details - ALL VARIATIONS
       first_name: user.first_name || '',
       last_name: user.last_name || '',
       email: user.email || '',
       user_email: user.email || '',
       applicant_email: user.email || '',
-      phone_number: user.contact_number || '',
-      contact_number: user.contact_number || '',
+      
+      // Phone - BOTH VARIATIONS
+      phone_number: phoneNumber,
+      contact_number: phoneNumber,
+      
+      // Profile image
       profile_image: user.profile_image || ''
     };
 
     // Notify employer
     try {
+      console.log('📧 Sending notification to employer:', training.provider_id);
       await this.db.query(
         `INSERT INTO notifications 
          (user_id, type, title, message, related_id, metadata, is_read, created_at) 
@@ -1282,32 +1303,26 @@ async submitApplication(
           JSON.stringify(metadata)
         ]
       );
-      
-      console.log('✅ Notification created for employer:', training.provider_id);
+      console.log('✅ Notification sent successfully');
     } catch (notifErr: any) {
-      console.error('⚠️ Failed to create notification:', notifErr.message);
+      console.error('⚠️ Failed to create notification (non-critical):', notifErr.message);
       // Don't fail the application if notification fails
     }
 
-    console.log('✅ Application created successfully:', {
-      applicationId: application.id,
-      trainingId,
-      userId
-    });
-
+    console.log('🎉 Application submitted successfully');
     return {
       success: true,
       message: 'Application submitted successfully',
       data: application
     };
+    
   } catch (error: any) {
-    console.error('❌ Error submitting application:', error);
+    console.error('❌ Error in submitApplication:', error);
     console.error('Stack:', error.stack);
     
-    // Return user-friendly error
     return {
       success: false,
-      message: error.message || 'Failed to submit application. Please try again.'
+      message: 'An unexpected error occurred. Please try again or contact support.'
     };
   }
 }
