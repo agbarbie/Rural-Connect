@@ -1148,89 +1148,127 @@ async getNotifications(
   // ==========================================================================
   // 4. APPLICATION FLOW - FIXED WITH SAFE COLUMN HANDLING
   // ==========================================================================
+async submitApplication(
+  trainingId: string,
+  userId: string,
+  data: { motivation?: string }
+): Promise<any> {
+  try {
+    console.log('📝 Processing application:', { trainingId, userId });
 
-  // ✅ FIX 5: Enhanced submitApplication with safe phone_number handling
-  async submitApplication(
-    trainingId: string,
-    userId: string,
-    data: { motivation?: string }
-  ): Promise<any> {
+    // Check for existing application
+    const existingApp = await this.db.query(
+      'SELECT id FROM training_applications WHERE training_id = $1 AND user_id = $2',
+      [trainingId, userId]
+    );
+
+    if (existingApp.rows.length > 0) {
+      return {
+        success: false,
+        message: 'You have already applied for this training'
+      };
+    }
+
+    // Get training details
+    const trainingResult = await this.db.query(
+      'SELECT id, title, provider_id, provider_name FROM trainings WHERE id = $1',
+      [trainingId]
+    );
+
+    if (trainingResult.rows.length === 0) {
+      return { success: false, message: 'Training not found' };
+    }
+
+    const training = trainingResult.rows[0];
+
+    // ✅ FIX: Query user details with SAFE column handling
+    let user: any = null;
+    
     try {
-      console.log('📝 Processing application:', { trainingId, userId });
-
-      // Check for existing application
-      const existingApp = await this.db.query(
-        'SELECT id FROM training_applications WHERE training_id = $1 AND user_id = $2',
-        [trainingId, userId]
-      );
-
-      if (existingApp.rows.length > 0) {
-        return {
-          success: false,
-          message: 'You have already applied for this training'
+      // Try to get user details - this should work even if phone_number doesn't exist
+      const userQuery = `
+        SELECT 
+          id,
+          COALESCE(first_name, '') as first_name,
+          COALESCE(last_name, '') as last_name,
+          COALESCE(email, '') as email,
+          COALESCE(contact_number, '') as contact_number,
+          COALESCE(profile_image, '') as profile_image
+        FROM users 
+        WHERE id = $1
+      `;
+      
+      const userResult = await this.db.query(userQuery, [userId]);
+      
+      if (userResult.rows.length === 0) {
+        console.error('❌ User not found in database:', userId);
+        return { 
+          success: false, 
+          message: 'User not found. Please ensure you are logged in correctly.' 
         };
       }
-
-      // Get training details
-      const trainingResult = await this.db.query(
-        'SELECT id, title, provider_id, provider_name FROM trainings WHERE id = $1',
-        [trainingId]
-      );
-
-      if (trainingResult.rows.length === 0) {
-        return { success: false, message: 'Training not found' };
-      }
-
-      const training = trainingResult.rows[0];
-
-      // ✅ FIX: Get user details safely
-      const user = await this.getUserDetails(userId);
-
-      if (!user) {
-        return { success: false, message: 'User not found' };
-      }
-
-      // Create application
-      const applicationResult = await this.db.query(
-        `INSERT INTO training_applications 
-         (training_id, user_id, motivation, status, applied_at) 
-         VALUES ($1, $2, $3, 'pending', NOW()) 
-         RETURNING *`,
-        [trainingId, userId, data.motivation || '']
-      );
-
-      const application = applicationResult.rows[0];
-
-      // ✅ CRITICAL: Create notification with COMPLETE metadata
-      const displayName = `${user.first_name} ${user.last_name}`.trim() || user.email;
       
-      const metadata = {
-        // Training info
-        training_id: trainingId,
-        training_title: training.title,
-        
-        // Application info
-        application_id: application.id,
-        motivation_letter: data.motivation || '',
-        applied_at: application.applied_at,
-        
-        // User info (ALL variations for compatibility)
-        user_id: userId,
-        applicant_name: displayName,
-        user_name: displayName,
-        jobseeker_name: displayName,
-        display_name: displayName,
-        
-        // Contact details
-        first_name: user.first_name || '',
-        last_name: user.last_name || '',
-        email: user.email || '',
-        user_email: user.email || '',
-        applicant_email: user.email || '',
-        phone_number: user.phone_number || '',
-        profile_image: user.profile_image || ''
+      user = userResult.rows[0];
+      console.log('✅ User found:', { 
+        userId: user.id, 
+        email: user.email,
+        hasName: !!(user.first_name || user.last_name)
+      });
+      
+    } catch (userErr: any) {
+      console.error('❌ Error fetching user:', userErr.message);
+      return {
+        success: false,
+        message: 'Failed to retrieve user information'
       };
+    }
 
+    // Create application
+    const applicationResult = await this.db.query(
+      `INSERT INTO training_applications 
+       (training_id, user_id, motivation, status, applied_at) 
+       VALUES ($1, $2, $3, 'pending', NOW()) 
+       RETURNING *`,
+      [trainingId, userId, data.motivation || '']
+    );
+
+    const application = applicationResult.rows[0];
+
+    // ✅ CRITICAL: Create notification with COMPLETE metadata
+    const displayName = `${user.first_name} ${user.last_name}`.trim() || 
+                        user.email.split('@')[0] || 
+                        'User';
+    
+    const metadata = {
+      // Training info
+      training_id: trainingId,
+      training_title: training.title,
+      
+      // Application info
+      application_id: application.id,
+      motivation_letter: data.motivation || '',
+      applied_at: application.applied_at,
+      
+      // User info (ALL variations for compatibility)
+      user_id: userId,
+      applicant_name: displayName,
+      user_name: displayName,
+      jobseeker_name: displayName,
+      display_name: displayName,
+      
+      // Contact details
+      first_name: user.first_name || '',
+      last_name: user.last_name || '',
+      email: user.email || '',
+      user_email: user.email || '',
+      applicant_email: user.email || '',
+      phone_number: user.contact_number || '',
+      contact_number: user.contact_number || '',
+      profile_image: user.profile_image || ''
+    };
+
+    // Notify employer
+    try {
       await this.db.query(
         `INSERT INTO notifications 
          (user_id, type, title, message, related_id, metadata, is_read, created_at) 
@@ -1244,23 +1282,35 @@ async getNotifications(
           JSON.stringify(metadata)
         ]
       );
-
-      console.log('✅ Application created with notification:', {
-        applicationId: application.id,
-        employerId: training.provider_id,
-        metadata
-      });
-
-      return {
-        success: true,
-        message: 'Application submitted successfully',
-        data: application
-      };
-    } catch (error) {
-      console.error('❌ Error submitting application:', error);
-      throw error;
+      
+      console.log('✅ Notification created for employer:', training.provider_id);
+    } catch (notifErr: any) {
+      console.error('⚠️ Failed to create notification:', notifErr.message);
+      // Don't fail the application if notification fails
     }
+
+    console.log('✅ Application created successfully:', {
+      applicationId: application.id,
+      trainingId,
+      userId
+    });
+
+    return {
+      success: true,
+      message: 'Application submitted successfully',
+      data: application
+    };
+  } catch (error: any) {
+    console.error('❌ Error submitting application:', error);
+    console.error('Stack:', error.stack);
+    
+    // Return user-friendly error
+    return {
+      success: false,
+      message: error.message || 'Failed to submit application. Please try again.'
+    };
   }
+}
 
  async getApplications(trainingId: string, employerId: string, params: { page?: number; limit?: number; status?: string }): Promise<any> {
   const epRow = await this.db.query('SELECT id FROM employers WHERE user_id = $1', [employerId]);
