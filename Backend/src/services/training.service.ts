@@ -83,11 +83,7 @@ export class TrainingService {
   }
 }
 
-// ALSO UPDATE getUserDetails method
-// Replace in training.service.ts
-
 private async getUserDetails(userId: string): Promise<any> {
-  // ✅ Query using YOUR actual column names
   const query = `
     SELECT 
       id, 
@@ -95,7 +91,7 @@ private async getUserDetails(userId: string): Promise<any> {
       COALESCE(last_name, '') as last_name, 
       COALESCE(email, '') as email, 
       COALESCE(contact_number, '') as contact_number,
-      COALESCE(profile_picture, '') as profile_picture
+      COALESCE(profile_image, '') as profile_image
     FROM users 
     WHERE id = $1
   `;
@@ -113,8 +109,8 @@ private async getUserDetails(userId: string): Promise<any> {
         email: user.email || '',
         contact_number: user.contact_number || '',
         phone_number: user.contact_number || '', // ✅ Alias for compatibility
-        profile_picture: user.profile_picture || '',
-        profile_image: user.profile_picture || '' // ✅ Alias for compatibility
+        profile_image: user.profile_image || '',
+        profile_picture: user.profile_image || '' // ✅ Alias for compatibility
       };
     }
     
@@ -1160,10 +1156,6 @@ async getNotifications(
   // ==========================================================================
 // training.service.ts - FIXED submitApplication method with robust error handling
 
-// ACTUAL FIX for your database schema
-// Your database has: contact_number and profile_picture
-// Replace submitApplication method in training.service.ts
-
 async submitApplication(
   trainingId: string,
   userId: string,
@@ -1197,7 +1189,7 @@ async submitApplication(
 
     const training = trainingResult.rows[0];
 
-    // ✅ CORRECT: Query using YOUR actual column names
+    // ✅ CORRECT: Query using actual database column names
     let user: any = null;
     
     try {
@@ -1208,7 +1200,7 @@ async submitApplication(
           COALESCE(last_name, '') as last_name,
           COALESCE(email, '') as email,
           COALESCE(contact_number, '') as contact_number,
-          COALESCE(profile_picture, '') as profile_picture
+          COALESCE(profile_image, '') as profile_image
         FROM users 
         WHERE id = $1
       `;
@@ -1259,7 +1251,7 @@ async submitApplication(
     const displayName = `${user.first_name || ''} ${user.last_name || ''}`.trim() || 
                         (user.email ? user.email.split('@')[0] : 'User');
     
-    // ✅ Build metadata with YOUR actual column names
+    // ✅ Build metadata with ACTUAL database column names
     const metadata = {
       // Training info
       training_id: trainingId,
@@ -1270,23 +1262,23 @@ async submitApplication(
       motivation_letter: data.motivation || '',
       applied_at: application.applied_at,
       
-      // User info - using ACTUAL column names
+      // User info
       user_id: userId,
       applicant_name: displayName,
       user_name: displayName,
       jobseeker_name: displayName,
       display_name: displayName,
       
-      // Contact details - using ACTUAL column names
+      // Contact details - using ACTUAL database column names
       first_name: user.first_name || '',
       last_name: user.last_name || '',
       email: user.email || '',
       user_email: user.email || '',
       applicant_email: user.email || '',
-      contact_number: user.contact_number || '',  // ✅ YOUR actual column
-      phone_number: user.contact_number || '',     // ✅ Alias for compatibility
-      profile_picture: user.profile_picture || '', // ✅ YOUR actual column
-      profile_image: user.profile_picture || ''    // ✅ Alias for compatibility
+      contact_number: user.contact_number || '',  // ✅ Actual column
+      phone_number: user.contact_number || '',     // ✅ Alias
+      profile_image: user.profile_image || '',     // ✅ Actual column
+      profile_picture: user.profile_image || ''    // ✅ Alias
     };
 
     // Notify employer
@@ -1308,7 +1300,6 @@ async submitApplication(
       console.log('✅ Notification sent successfully');
     } catch (notifErr: any) {
       console.error('⚠️ Failed to create notification (non-critical):', notifErr.message);
-      // Don't fail the application if notification fails
     }
 
     console.log('🎉 Application submitted successfully');
@@ -1329,7 +1320,11 @@ async submitApplication(
   }
 }
 
- async getApplications(trainingId: string, employerId: string, params: { page?: number; limit?: number; status?: string }): Promise<any> {
+async getApplications(
+  trainingId: string, 
+  employerId: string, 
+  params: { page?: number; limit?: number; status?: string }
+): Promise<any> {
   const epRow = await this.db.query('SELECT id FROM employers WHERE user_id = $1', [employerId]);
   const epId = epRow.rows.length > 0 ? epRow.rows[0].id : null;
 
@@ -1349,7 +1344,7 @@ async submitApplication(
 
   qp.push(limit, offset);
   
-
+  // ✅ Use actual database column names
   const userQuery = `
     SELECT 
       a.*,
@@ -1385,9 +1380,10 @@ async submitApplication(
         first_name: r.first_name, 
         last_name: r.last_name, 
         email: r.email, 
-        profile_image: r.profile_image || '',
-        phone_number: r.contact_number || '', // ✅ Map contact_number to phone_number
-        contact_number: r.contact_number || ''
+        profile_image: r.profile_image || '',      // ✅ Actual column
+        contact_number: r.contact_number || '',    // ✅ Actual column
+        phone_number: r.contact_number || '',      // ✅ Alias
+        profile_picture: r.profile_image || ''     // ✅ Alias
       },
     })),
     pagination: {
@@ -1556,8 +1552,8 @@ async submitApplication(
     }
   }
 
- async issueCertificate(enrollmentId: string, employerId: string): Promise<any> {
-  // ✅ FIX: Use contact_number instead of phone_number
+async issueCertificate(enrollmentId: string, employerId: string): Promise<any> {
+  // ✅ Use actual database column names
   const enrQuery = `
     SELECT 
       e.*, 
@@ -1638,7 +1634,7 @@ async submitApplication(
       certificate_url: cert.certificate_url,
       user_id: enr.user_id,
       applicant_name: userName,
-      profile_image: enr.profile_image || ''
+      profile_image: enr.profile_image || ''  // ✅ Actual column
     }
   );
   
@@ -1652,7 +1648,7 @@ async submitApplication(
       user_id: enr.user_id,
       applicant_name: userName,
       jobseeker_name: userName,
-      profile_image: enr.profile_image || ''
+      profile_image: enr.profile_image || ''  // ✅ Actual column
     }
   );
 
@@ -1664,6 +1660,7 @@ async submitApplication(
     enrollment_id: enrollmentId 
   };
 }
+
 
   async verifyCertificate(verificationCode: string): Promise<any> {
     const result = await this.db.query(
@@ -2013,7 +2010,11 @@ async submitApplication(
     };
   }
 
- async getTrainingEnrollments(trainingId: string, employerId: string, params: any): Promise<any | null> {
+async getTrainingEnrollments(
+  trainingId: string, 
+  employerId: string, 
+  params: any
+): Promise<any | null> {
   const epRow = await this.db.query('SELECT id FROM employers WHERE user_id = $1', [employerId]);
   const epId = epRow.rows.length > 0 ? epRow.rows[0].id : null;
 
@@ -2031,7 +2032,7 @@ async submitApplication(
   if (status) { where += ` AND e.status = $${pi++}`; qp.push(status); }
   qp.push(limit, offset);
 
-  // ✅ FIX: Use contact_number instead of phone_number
+  // ✅ Use actual database column names
   const enrollQuery = `
     SELECT 
       e.*,
@@ -2067,9 +2068,10 @@ async submitApplication(
         first_name: r.first_name, 
         last_name: r.last_name, 
         email: r.email, 
-        profile_image: r.profile_image || '', 
-        phone_number: r.contact_number || '', // ✅ Map contact_number to phone_number
-        contact_number: r.contact_number || ''
+        profile_image: r.profile_image || '',      // ✅ Actual column
+        contact_number: r.contact_number || '',    // ✅ Actual column
+        phone_number: r.contact_number || '',      // ✅ Alias
+        profile_picture: r.profile_image || ''     // ✅ Alias
       },
     })),
     pagination: {
