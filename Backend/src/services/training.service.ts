@@ -1162,7 +1162,7 @@ async submitApplication(
   data: { motivation?: string }
 ): Promise<any> {
   try {
-    console.log('📝 Processing application:', { trainingId, userId });
+    console.log('🚀 NEW VERSION - submitApplication called', { trainingId, userId });
 
     // Check for existing application
     const existingApp = await this.db.query(
@@ -2068,10 +2068,10 @@ async getTrainingEnrollments(
         first_name: r.first_name, 
         last_name: r.last_name, 
         email: r.email, 
-        profile_image: r.profile_image || '',      // ✅ Actual column
-        contact_number: r.contact_number || '',    // ✅ Actual column
-        phone_number: r.contact_number || '',      // ✅ Alias
-        profile_picture: r.profile_image || ''     // ✅ Alias
+        profile_image: r.profile_image || '',      
+        contact_number: r.contact_number || '',    
+        phone_number: r.contact_number || '',     
+        profile_picture: r.profile_image || ''     
       },
     })),
     pagination: {
