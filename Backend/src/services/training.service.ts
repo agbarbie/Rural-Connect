@@ -1332,7 +1332,7 @@ async submitApplication(
 
   qp.push(limit, offset);
   
-  // ✅ FIX: Use contact_number instead of phone_number
+
   const userQuery = `
     SELECT 
       a.*,
