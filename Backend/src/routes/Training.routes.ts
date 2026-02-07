@@ -2,7 +2,7 @@
 import { Router } from 'express';
 import { TrainingController } from '../controllers/Training.controller';
 import { TrainingService } from '../services/training.service';
-import { authenticate } from '../middleware/auth.middleware';
+import { authenticate, optionalAuthenticate } from '../middleware/auth.middleware';
 import { authorize } from '../middleware/role.middleware';
 import { 
   validateTrainingData, 
@@ -99,15 +99,17 @@ export function createTrainingRoutes(db: Pool): Router {
   // PUBLIC ROUTES (no authentication required)
   // ==========================================================================
 
-  // Browse trainings (public view)
+  // Browse trainings (public view) - optionalAuthenticate added
   router.get(
     '/',
+    optionalAuthenticate,
     bind(trainingController.getAllTrainings)
   );
 
-  // View single training detail - MUST COME AFTER ALL SPECIFIC ROUTES
+  // View single training detail - optionalAuthenticate added
   router.get(
     '/:id',
+    optionalAuthenticate,
     validateId,
     bind(trainingController.getTrainingById)
   );
@@ -231,19 +233,19 @@ export function createTrainingRoutes(db: Pool): Router {
   );
 
   // Session attendance management
-router.post(
-  '/:id/sessions/:sessionId/attendance',
-  authenticate,
-  authorize('employer'),
-  bind(trainingController.markSessionAttendance)
-);
+  router.post(
+    '/:id/sessions/:sessionId/attendance',
+    authenticate,
+    authorize('employer'),
+    bind(trainingController.markSessionAttendance)
+  );
 
-router.get(
-  '/:id/sessions/:sessionId/attendance',
-  authenticate,
-  authorize('employer'),
-  bind(trainingController.getSessionAttendance)
-);
+  router.get(
+    '/:id/sessions/:sessionId/attendance',
+    authenticate,
+    authorize('employer'),
+    bind(trainingController.getSessionAttendance)
+  );
   // ==========================================================================
   // EMPLOYER ROUTES - Certificate Issuance
   // ==========================================================================
