@@ -251,28 +251,30 @@ async getAllTrainings(req: AuthenticatedRequest, res: Response, next: NextFuncti
    * Jobseeker submits an application for a training
    */
   async submitApplication(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
-    try {
-      const { id: trainingId } = req.params;
-      const userId = req.user?.id;
+  try {
+    const { id: trainingId } = req.params;
+    const userId = req.user?.id;
 
-      if (!userId) {
-        res.status(401).json({ success: false, message: 'Unauthorized' });
-        return;
-      }
-
-      const body: SubmitApplicationRequest = req.body;
-      const result = await this.trainingService.submitApplication(trainingId, userId, body);
-
-      if (!result.success) {
-        res.status(400).json(result);
-        return;
-      }
-
-      res.status(201).json(result);
-    } catch (error: any) {
-      next(error);
+    if (!userId) {
+      res.status(401).json({ success: false, message: 'Unauthorized' });
+      return;
     }
+
+    const body: SubmitApplicationRequest = req.body;
+    const result = await this.trainingService.submitApplication(trainingId, userId, body);
+
+    // ✅ FIX: Check if service returned error
+    if (result && result.success === false) {
+      res.status(400).json(result);  // ✅ Numeric status code
+      return;
+    }
+
+    // ✅ FIX: Success - use numeric status code
+    res.status(201).json(result);  // ✅ Numeric status code
+  } catch (error: any) {
+    next(error);
   }
+}
 
   /**
    * GET /api/trainings/:id/applications
