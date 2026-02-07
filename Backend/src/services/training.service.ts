@@ -1165,10 +1165,12 @@ async submitApplication(
     console.log('📝 Processing application:', { trainingId, userId });
 
     // Check for existing application
+    console.log('🔍 Checking for existing application...');
     const existingApp = await this.db.query(
       'SELECT id FROM training_applications WHERE training_id = $1 AND user_id = $2',
       [trainingId, userId]
     );
+    console.log('✅ Existing app check complete:', existingApp.rows.length);
 
     if (existingApp.rows.length > 0) {
       return {
@@ -1178,10 +1180,12 @@ async submitApplication(
     }
 
     // Get training details
+   console.log('🔍 Fetching training details...');
     const trainingResult = await this.db.query(
       'SELECT id, title, provider_id, provider_name FROM trainings WHERE id = $1',
       [trainingId]
     );
+    console.log('✅ Training fetch complete:', trainingResult.rows.length);
 
     if (trainingResult.rows.length === 0) {
       return { success: false, message: 'Training not found' };
