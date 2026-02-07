@@ -65,23 +65,25 @@ export class TrainingService {
   }
 
   // ✅ NEW: Check if phone_number column exists in users table
-  private async checkPhoneNumberColumn(): Promise<void> {
-    try {
-      const result = await this.db.query(`
-        SELECT column_name 
-        FROM information_schema.columns 
-        WHERE table_name = 'users' AND column_name = 'phone_number'
-      `);
-      this.phoneNumberColumnExists = result.rows.length > 0;
-      console.log(`📞 phone_number column ${this.phoneNumberColumnExists ? 'EXISTS' : 'DOES NOT EXIST'} in users table`);
-    } catch (error: any) {
-      console.error('❌ Error checking phone_number column:', error.message);
-      this.phoneNumberColumnExists = false;
-    }
+ private async checkPhoneNumberColumn(): Promise<void> {
+  try {
+    const result = await this.db.query(`
+      SELECT column_name 
+      FROM information_schema.columns 
+      WHERE table_name = 'users' AND column_name = 'contact_number'
+    `);
+    
+    const hasContactNumber = result.rows.length > 0;
+    this.phoneNumberColumnExists = hasContactNumber; // Reuse this flag for contact_number
+    
+    console.log(`📞 contact_number column ${hasContactNumber ? 'EXISTS' : 'DOES NOT EXIST'} in users table`);
+  } catch (error: any) {
+    console.error('❌ Error checking contact_number column:', error.message);
+    this.phoneNumberColumnExists = false;
   }
+}
 
   // ✅ NEW: Helper method to safely get user details
- // ✅ FINAL FIX: Use contact_number instead of phone_number
 private async getUserDetails(userId: string): Promise<any> {
   const query = `
     SELECT 
@@ -95,22 +97,27 @@ private async getUserDetails(userId: string): Promise<any> {
     WHERE id = $1
   `;
   
-  const result = await this.db.query(query, [userId]);
-  
-  if (result.rows.length > 0) {
-    const user = result.rows[0];
-    return {
-      id: user.id,
-      first_name: user.first_name || '',
-      last_name: user.last_name || '',
-      email: user.email || '',
-      phone_number: user.contact_number || '', // ✅ Map contact_number to phone_number
-      contact_number: user.contact_number || '', // ✅ Include both for compatibility
-      profile_image: user.profile_image || ''
-    };
+  try {
+    const result = await this.db.query(query, [userId]);
+    
+    if (result.rows.length > 0) {
+      const user = result.rows[0];
+      return {
+        id: user.id,
+        first_name: user.first_name || '',
+        last_name: user.last_name || '',
+        email: user.email || '',
+        contact_number: user.contact_number || '',
+        phone_number: user.contact_number || '', // ✅ Map contact_number to phone_number for compatibility
+        profile_image: user.profile_image || ''
+      };
+    }
+    
+    return null;
+  } catch (error: any) {
+    console.error('❌ Error fetching user details:', userId, error.message);
+    return null;
   }
-  
-  return null;
 }
 
   private async verifyDatabaseTables(): Promise<void> {
@@ -294,149 +301,202 @@ private async getUserDetails(userId: string): Promise<any> {
   }
 
   // ✅ FIX 2: Enhanced getNotifications with proper metadata parsing
-  async getNotifications(
-    userId: string,
-    params: { page?: number; limit?: number; read?: boolean | string } = {}
-  ): Promise<any> {
-    try {
-      const page = params.page || 1;
-      const limit = params.limit || 50;
-      const offset = (page - 1) * limit;
+  // FIXED getNotifications method for training.service.ts
+// Replace the existing getNotifications method (lines ~210-305) with this version
 
-      console.log('🔔 Loading notifications for user:', userId);
+async getNotifications(
+  userId: string,
+  params: { page?: number; limit?: number; read?: boolean | string } = {}
+): Promise<any> {
+  try {
+    const page = params.page || 1;
+    const limit = params.limit || 50;
+    const offset = (page - 1) * limit;
 
-      let whereClause = 'WHERE n.user_id = $1';
-      const values: any[] = [userId];
-      let paramCount = 2;
+    console.log('🔔 Loading notifications for user:', userId);
 
-      if (params.read !== undefined && params.read !== null && params.read !== '') {
-        const isRead = params.read === true || params.read === 'true';
-        whereClause += ` AND n.is_read = $${paramCount}`;
-        values.push(isRead);
-        paramCount++;
+    let whereClause = 'WHERE n.user_id = $1';
+    const values: any[] = [userId];
+    let paramCount = 2;
+
+    if (params.read !== undefined && params.read !== null && params.read !== '') {
+      const isRead = params.read === true || params.read === 'true';
+      whereClause += ` AND n.is_read = $${paramCount}`;
+      values.push(isRead);
+      paramCount++;
+    }
+
+    const query = `
+      SELECT 
+        n.id,
+        n.user_id,
+        n.type,
+        n.title,
+        n.message,
+        n.related_id,
+        n.metadata,
+        n.is_read,
+        n.created_at,
+        n.updated_at
+      FROM notifications n
+      ${whereClause}
+      ORDER BY n.created_at DESC
+      LIMIT $${paramCount} OFFSET $${paramCount + 1}
+    `;
+
+    values.push(limit, offset);
+
+    const result = await this.db.query(query, values);
+
+    console.log('📥 Raw notifications:', result.rows.length);
+
+    // ✅ CRITICAL FIX: Safe metadata parsing with error handling
+    const notifications = await Promise.all(result.rows.map(async (notification: any) => {
+      let parsedMetadata: any = {};
+      
+      // Parse metadata safely
+      if (notification.metadata) {
+        try {
+          parsedMetadata = typeof notification.metadata === 'string' 
+            ? JSON.parse(notification.metadata) 
+            : notification.metadata;
+        } catch (e) {
+          console.error('Failed to parse notification metadata:', notification.id, e);
+          parsedMetadata = {};
+        }
       }
 
-      const query = `
-        SELECT 
-          n.id,
-          n.user_id,
-          n.type,
-          n.title,
-          n.message,
-          n.related_id,
-          n.metadata,
-          n.is_read,
-          n.created_at,
-          n.updated_at
-        FROM notifications n
-        ${whereClause}
-        ORDER BY n.created_at DESC
-        LIMIT $${paramCount} OFFSET $${paramCount + 1}
-      `;
-
-      values.push(limit, offset);
-
-      const result = await this.db.query(query, values);
-
-      console.log('📥 Raw notifications:', result.rows.length);
-
-      // ✅ CRITICAL: Parse metadata and enrich with user data
-      const notifications = await Promise.all(result.rows.map(async (notification: any) => {
-        let parsedMetadata: any = {};
-        
-        if (notification.metadata) {
-          try {
-            parsedMetadata = typeof notification.metadata === 'string' 
-              ? JSON.parse(notification.metadata) 
-              : notification.metadata;
-          } catch (e) {
-            console.error('Failed to parse notification metadata:', e);
-            parsedMetadata = {};
-          }
-        }
-
-        // Fetch complete user details if available in metadata
-        let userDetails: any = {};
-
-        if (parsedMetadata.user_id) {
-          const user = await this.getUserDetails(parsedMetadata.user_id);
-          
-          if (user) {
-            userDetails = {
-              user_id: user.id,
-              first_name: user.first_name || '',
-              last_name: user.last_name || '',
-              email: user.email || '',
-              phone_number: user.phone_number || '',
-              profile_image: user.profile_image || '',
-              display_name: `${user.first_name} ${user.last_name}`.trim() || user.email
-            };
-          }
-        }
-
-        // Fetch application details if present and use its user info to override when appropriate
-        let applicationDetails: any = {};
-
-        if (parsedMetadata.application_id) {
-          const appResult = await this.db.query(
-            `SELECT a.*, u.first_name, u.last_name, u.email, u.profile_image
-             FROM training_applications a
-             JOIN users u ON a.user_id = u.id
-             WHERE a.id = $1`,
-            [parsedMetadata.application_id]
-          );
-
-          if (appResult.rows.length > 0) {
-            const app = appResult.rows[0];
-            applicationDetails = {
-              application_id: app.id,
-              motivation_letter: app.motivation || '',
-              applied_at: app.applied_at,
-              status: app.status
-            };
-
-            // Override user details with application user info for accuracy
-            userDetails = {
-              user_id: app.user_id,
-              first_name: app.first_name || '',
-              last_name: app.last_name || '',
-              email: app.email || '',
-              phone_number: '', // Safe default
-              profile_image: app.profile_image || '',
-              display_name: `${app.first_name} ${app.last_name}`.trim() || app.email
-            };
-          }
-        }
-
-        // Merge all data and return a single enriched notification object
-        return {
-          ...notification,
-          metadata: parsedMetadata,
-          ...userDetails,
-          ...applicationDetails,
-          // Legacy field mappings for compatibility
-          jobseeker_name: userDetails.display_name || '',
-          user_name: userDetails.display_name || '',
-          user_email: userDetails.email || '',
-          training_id: parsedMetadata.training_id || '',
-          training_title: parsedMetadata.training_title || '',
-          enrollment_id: parsedMetadata.enrollment_id || ''
-        };
-      }));
-
-      console.log('✅ Enriched notifications:', notifications.length);
-
-      return {
-        success: true,
-        data: {
-          notifications: notifications
-        }
+      // ✅ FIX: Initialize enriched data with defaults
+      let enrichedNotification = {
+        ...notification,
+        metadata: parsedMetadata,
+        // Default values
+        user_id: parsedMetadata.user_id || '',
+        first_name: parsedMetadata.first_name || '',
+        last_name: parsedMetadata.last_name || '',
+        email: parsedMetadata.email || parsedMetadata.user_email || parsedMetadata.applicant_email || '',
+        phone_number: parsedMetadata.phone_number || '',
+        profile_image: parsedMetadata.profile_image || '',
+        display_name: parsedMetadata.applicant_name || parsedMetadata.user_name || parsedMetadata.jobseeker_name || '',
+        jobseeker_name: parsedMetadata.jobseeker_name || parsedMetadata.applicant_name || parsedMetadata.user_name || '',
+        user_name: parsedMetadata.user_name || parsedMetadata.applicant_name || parsedMetadata.jobseeker_name || '',
+        user_email: parsedMetadata.user_email || parsedMetadata.email || parsedMetadata.applicant_email || '',
+        training_id: parsedMetadata.training_id || '',
+        training_title: parsedMetadata.training_title || '',
+        enrollment_id: parsedMetadata.enrollment_id || '',
+        application_id: parsedMetadata.application_id || '',
+        motivation_letter: parsedMetadata.motivation_letter || '',
+        applied_at: parsedMetadata.applied_at || null
       };
-    } catch (error) {
-      console.error('❌ Error loading notifications:', error);
-      throw error;
-    }
+
+      // ✅ FIX: Only try to fetch additional data if we don't already have complete info
+      const hasCompleteUserInfo = enrichedNotification.display_name && 
+                                   enrichedNotification.email;
+
+      if (!hasCompleteUserInfo) {
+        // Try to fetch user details if user_id is available
+        if (parsedMetadata.user_id) {
+          try {
+            const user = await this.getUserDetails(parsedMetadata.user_id);
+            
+            if (user) {
+              const displayName = `${user.first_name} ${user.last_name}`.trim() || user.email;
+              
+              enrichedNotification = {
+                ...enrichedNotification,
+                user_id: user.id,
+                first_name: user.first_name || '',
+                last_name: user.last_name || '',
+                email: user.email || '',
+                phone_number: user.phone_number || '',
+                profile_image: user.profile_image || '',
+                display_name: displayName,
+                jobseeker_name: displayName,
+                user_name: displayName,
+                user_email: user.email || ''
+              };
+            }
+          } catch (userErr: any) {
+            console.warn('⚠️ Could not fetch user details:', parsedMetadata.user_id, userErr.message);
+            // Continue without user details - we have defaults
+          }
+        }
+
+        // ✅ FIX: Try to fetch application details ONLY if application_id exists and we still need info
+        if (parsedMetadata.application_id && !enrichedNotification.display_name) {
+          try {
+            const appResult = await this.db.query(
+              `SELECT 
+                a.id,
+                a.user_id,
+                a.motivation,
+                a.applied_at,
+                a.status,
+                u.first_name, 
+                u.last_name, 
+                u.email, 
+                u.profile_image,
+                u.contact_number
+               FROM training_applications a
+               JOIN users u ON a.user_id = u.id
+               WHERE a.id = $1`,
+              [parsedMetadata.application_id]
+            );
+
+            if (appResult.rows.length > 0) {
+              const app = appResult.rows[0];
+              const displayName = `${app.first_name} ${app.last_name}`.trim() || app.email;
+
+              enrichedNotification = {
+                ...enrichedNotification,
+                application_id: app.id,
+                motivation_letter: app.motivation || '',
+                applied_at: app.applied_at,
+                status: app.status,
+                user_id: app.user_id,
+                first_name: app.first_name || '',
+                last_name: app.last_name || '',
+                email: app.email || '',
+                phone_number: app.contact_number || '',
+                profile_image: app.profile_image || '',
+                display_name: displayName,
+                jobseeker_name: displayName,
+                user_name: displayName,
+                user_email: app.email || ''
+              };
+            }
+          } catch (appErr: any) {
+            console.warn('⚠️ Could not fetch application details:', parsedMetadata.application_id, appErr.message);
+            // Continue without application details - we have defaults
+          }
+        }
+      }
+
+      return enrichedNotification;
+    }));
+
+    console.log('✅ Enriched notifications:', notifications.length);
+
+    return {
+      success: true,
+      data: {
+        notifications: notifications
+      }
+    };
+  } catch (error: any) {
+    console.error('❌ Error loading notifications:', error);
+    console.error('Stack trace:', error.stack);
+    
+    // ✅ CRITICAL: Return empty array instead of throwing error
+    return {
+      success: false,
+      data: {
+        notifications: []
+      },
+      message: error.message || 'Failed to load notifications'
+    };
   }
+}
 
   async markNotificationRead(notificationId: string, userId: string): Promise<void> {
     try {
@@ -1202,7 +1262,7 @@ private async getUserDetails(userId: string): Promise<any> {
     }
   }
 
-  async getApplications(trainingId: string, employerId: string, params: { page?: number; limit?: number; status?: string }): Promise<any> {
+ async getApplications(trainingId: string, employerId: string, params: { page?: number; limit?: number; status?: string }): Promise<any> {
   const epRow = await this.db.query('SELECT id FROM employers WHERE user_id = $1', [employerId]);
   const epId = epRow.rows.length > 0 ? epRow.rows[0].id : null;
 
@@ -1222,7 +1282,7 @@ private async getUserDetails(userId: string): Promise<any> {
 
   qp.push(limit, offset);
   
-  // ✅ FIX: Explicit column selection instead of dynamic
+  // ✅ FIX: Use contact_number instead of phone_number
   const userQuery = `
     SELECT 
       a.*,
@@ -1230,7 +1290,7 @@ private async getUserDetails(userId: string): Promise<any> {
       u.last_name,
       u.email,
       u.profile_image,
-      u.contact_number,  -- ✅ Changed from phone_number
+      u.contact_number,
       COUNT(*) OVER() AS total_count
     FROM training_applications a
     JOIN users u ON a.user_id = u.id
@@ -1259,10 +1319,18 @@ private async getUserDetails(userId: string): Promise<any> {
         last_name: r.last_name, 
         email: r.email, 
         profile_image: r.profile_image || '',
-        phone_number: r.contact_number || ''  // ✅ Map to phone_number
+        phone_number: r.contact_number || '', // ✅ Map contact_number to phone_number
+        contact_number: r.contact_number || ''
       },
     })),
-    pagination: { /* ... */ },
+    pagination: {
+      current_page: page,
+      total_pages: Math.ceil(total / limit),
+      page_size: limit,
+      total_count: total,
+      has_next: page < Math.ceil(total / limit),
+      has_previous: page > 1
+    },
   };
 }
 
@@ -1421,8 +1489,8 @@ private async getUserDetails(userId: string): Promise<any> {
     }
   }
 
-  async issueCertificate(enrollmentId: string, employerId: string): Promise<any> {
-  // ✅ FIX: Explicit column selection
+ async issueCertificate(enrollmentId: string, employerId: string): Promise<any> {
+  // ✅ FIX: Use contact_number instead of phone_number
   const enrQuery = `
     SELECT 
       e.*, 
@@ -1433,7 +1501,7 @@ private async getUserDetails(userId: string): Promise<any> {
       u.first_name, 
       u.last_name, 
       u.email,
-      u.contact_number,  -- ✅ Changed from phone_number
+      u.contact_number,
       u.profile_image
     FROM training_enrollments e
     JOIN trainings t ON e.training_id = t.id
@@ -1878,7 +1946,7 @@ private async getUserDetails(userId: string): Promise<any> {
     };
   }
 
-  async getTrainingEnrollments(trainingId: string, employerId: string, params: any): Promise<any | null> {
+ async getTrainingEnrollments(trainingId: string, employerId: string, params: any): Promise<any | null> {
   const epRow = await this.db.query('SELECT id FROM employers WHERE user_id = $1', [employerId]);
   const epId = epRow.rows.length > 0 ? epRow.rows[0].id : null;
 
@@ -1896,7 +1964,7 @@ private async getUserDetails(userId: string): Promise<any> {
   if (status) { where += ` AND e.status = $${pi++}`; qp.push(status); }
   qp.push(limit, offset);
 
-  // ✅ FIX: Explicit column selection
+  // ✅ FIX: Use contact_number instead of phone_number
   const enrollQuery = `
     SELECT 
       e.*,
@@ -1904,7 +1972,7 @@ private async getUserDetails(userId: string): Promise<any> {
       u.last_name,
       u.email,
       u.profile_image,
-      u.contact_number,  -- ✅ Changed from phone_number
+      u.contact_number,
       COUNT(*) OVER() AS total_count
     FROM training_enrollments e
     JOIN users u ON e.user_id = u.id
@@ -1933,10 +2001,18 @@ private async getUserDetails(userId: string): Promise<any> {
         last_name: r.last_name, 
         email: r.email, 
         profile_image: r.profile_image || '', 
-        phone_number: r.contact_number || ''  // ✅ Map to phone_number
+        phone_number: r.contact_number || '', // ✅ Map contact_number to phone_number
+        contact_number: r.contact_number || ''
       },
     })),
-    pagination: { /* ... */ },
+    pagination: {
+      current_page: page,
+      total_pages: Math.ceil(total / limit),
+      page_size: limit,
+      total_count: total,
+      has_next: page < Math.ceil(total / limit),
+      has_previous: page > 1
+    },
   };
 }
 
