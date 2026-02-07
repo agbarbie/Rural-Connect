@@ -83,16 +83,19 @@ export class TrainingService {
   }
 }
 
-  // ✅ NEW: Helper method to safely get user details
+// ALSO UPDATE getUserDetails method
+// Replace in training.service.ts
+
 private async getUserDetails(userId: string): Promise<any> {
+  // ✅ Query using YOUR actual column names
   const query = `
     SELECT 
       id, 
-      first_name, 
-      last_name, 
-      email, 
-      contact_number,
-      profile_image
+      COALESCE(first_name, '') as first_name, 
+      COALESCE(last_name, '') as last_name, 
+      COALESCE(email, '') as email, 
+      COALESCE(contact_number, '') as contact_number,
+      COALESCE(profile_picture, '') as profile_picture
     FROM users 
     WHERE id = $1
   `;
@@ -102,14 +105,16 @@ private async getUserDetails(userId: string): Promise<any> {
     
     if (result.rows.length > 0) {
       const user = result.rows[0];
+      
       return {
         id: user.id,
         first_name: user.first_name || '',
         last_name: user.last_name || '',
         email: user.email || '',
         contact_number: user.contact_number || '',
-        phone_number: user.contact_number || '', // ✅ Map contact_number to phone_number for compatibility
-        profile_image: user.profile_image || ''
+        phone_number: user.contact_number || '', // ✅ Alias for compatibility
+        profile_picture: user.profile_picture || '',
+        profile_image: user.profile_picture || '' // ✅ Alias for compatibility
       };
     }
     
@@ -300,9 +305,8 @@ private async getUserDetails(userId: string): Promise<any> {
     }
   }
 
-  // ✅ FIX 2: Enhanced getNotifications with proper metadata parsing
-  // FIXED getNotifications method for training.service.ts
-// Replace the existing getNotifications method (lines ~210-305) with this version
+  // COMPLETE FIXED getNotifications method
+// Replace the ENTIRE getNotifications method in training.service.ts with this
 
 async getNotifications(
   userId: string,
@@ -350,7 +354,7 @@ async getNotifications(
 
     console.log('📥 Raw notifications:', result.rows.length);
 
-    // ✅ CRITICAL FIX: Safe metadata parsing with error handling
+    // ✅ Safe metadata parsing with error handling
     const notifications = await Promise.all(result.rows.map(async (notification: any) => {
       let parsedMetadata: any = {};
       
@@ -366,7 +370,7 @@ async getNotifications(
         }
       }
 
-      // ✅ FIX: Initialize enriched data with defaults
+      // ✅ Initialize enriched data with defaults
       let enrichedNotification = {
         ...notification,
         metadata: parsedMetadata,
@@ -375,8 +379,10 @@ async getNotifications(
         first_name: parsedMetadata.first_name || '',
         last_name: parsedMetadata.last_name || '',
         email: parsedMetadata.email || parsedMetadata.user_email || parsedMetadata.applicant_email || '',
-        phone_number: parsedMetadata.phone_number || '',
-        profile_image: parsedMetadata.profile_image || '',
+        phone_number: parsedMetadata.phone_number || parsedMetadata.contact_number || '',
+        contact_number: parsedMetadata.contact_number || parsedMetadata.phone_number || '',
+        profile_image: parsedMetadata.profile_image || parsedMetadata.profile_picture || '',
+        profile_picture: parsedMetadata.profile_picture || parsedMetadata.profile_image || '',
         display_name: parsedMetadata.applicant_name || parsedMetadata.user_name || parsedMetadata.jobseeker_name || '',
         jobseeker_name: parsedMetadata.jobseeker_name || parsedMetadata.applicant_name || parsedMetadata.user_name || '',
         user_name: parsedMetadata.user_name || parsedMetadata.applicant_name || parsedMetadata.jobseeker_name || '',
@@ -389,7 +395,7 @@ async getNotifications(
         applied_at: parsedMetadata.applied_at || null
       };
 
-      // ✅ FIX: Only try to fetch additional data if we don't already have complete info
+      // ✅ Only try to fetch additional data if we don't already have complete info
       const hasCompleteUserInfo = enrichedNotification.display_name && 
                                    enrichedNotification.email;
 
@@ -408,8 +414,10 @@ async getNotifications(
                 first_name: user.first_name || '',
                 last_name: user.last_name || '',
                 email: user.email || '',
-                phone_number: user.phone_number || '',
-                profile_image: user.profile_image || '',
+                phone_number: user.contact_number || '',     // ✅ From actual column
+                contact_number: user.contact_number || '',   // ✅ Actual column
+                profile_image: user.profile_picture || '',   // ✅ Alias
+                profile_picture: user.profile_picture || '', // ✅ Actual column
                 display_name: displayName,
                 jobseeker_name: displayName,
                 user_name: displayName,
@@ -422,7 +430,7 @@ async getNotifications(
           }
         }
 
-        // ✅ FIX: Try to fetch application details ONLY if application_id exists and we still need info
+        // ✅ FIXED: Try to fetch application details ONLY if application_id exists
         if (parsedMetadata.application_id && !enrichedNotification.display_name) {
           try {
             const appResult = await this.db.query(
@@ -435,7 +443,7 @@ async getNotifications(
                 u.first_name, 
                 u.last_name, 
                 u.email, 
-                u.profile_image,
+                u.profile_picture,
                 u.contact_number
                FROM training_applications a
                JOIN users u ON a.user_id = u.id
@@ -457,8 +465,10 @@ async getNotifications(
                 first_name: app.first_name || '',
                 last_name: app.last_name || '',
                 email: app.email || '',
-                phone_number: app.contact_number || '',
-                profile_image: app.profile_image || '',
+                phone_number: app.contact_number || '',      // ✅ Actual column
+                contact_number: app.contact_number || '',    // ✅ Actual column
+                profile_image: app.profile_picture || '',    // ✅ Alias
+                profile_picture: app.profile_picture || '',  // ✅ Actual column
                 display_name: displayName,
                 jobseeker_name: displayName,
                 user_name: displayName,
@@ -1150,8 +1160,9 @@ async getNotifications(
   // ==========================================================================
 // training.service.ts - FIXED submitApplication method with robust error handling
 
-// FINAL FIX - training.service.ts submitApplication method
-// Based on your actual database schema
+// ACTUAL FIX for your database schema
+// Your database has: contact_number and profile_picture
+// Replace submitApplication method in training.service.ts
 
 async submitApplication(
   trainingId: string,
@@ -1186,7 +1197,7 @@ async submitApplication(
 
     const training = trainingResult.rows[0];
 
-    // ✅ FIXED: Query with YOUR actual column names
+    // ✅ CORRECT: Query using YOUR actual column names
     let user: any = null;
     
     try {
@@ -1197,8 +1208,7 @@ async submitApplication(
           COALESCE(last_name, '') as last_name,
           COALESCE(email, '') as email,
           COALESCE(contact_number, '') as contact_number,
-          COALESCE(phone_number, '') as phone_number,
-          COALESCE(profile_image, profile_picture, '') as profile_image
+          COALESCE(profile_picture, '') as profile_picture
         FROM users 
         WHERE id = $1
       `;
@@ -1219,8 +1229,7 @@ async submitApplication(
         userId: user.id, 
         email: user.email,
         hasName: !!(user.first_name || user.last_name),
-        hasContactNumber: !!user.contact_number,
-        hasPhoneNumber: !!user.phone_number
+        hasContactNumber: !!user.contact_number
       });
       
     } catch (userErr: any) {
@@ -1246,14 +1255,11 @@ async submitApplication(
     const application = applicationResult.rows[0];
     console.log('✅ Application created:', application.id);
 
-    // ✅ Build display name with proper fallbacks
+    // Build display name
     const displayName = `${user.first_name || ''} ${user.last_name || ''}`.trim() || 
                         (user.email ? user.email.split('@')[0] : 'User');
     
-    // ✅ Use whichever phone field has data (prefer contact_number)
-    const phoneNumber = user.contact_number || user.phone_number || '';
-    
-    // ✅ Build complete metadata with ALL variations for compatibility
+    // ✅ Build metadata with YOUR actual column names
     const metadata = {
       // Training info
       training_id: trainingId,
@@ -1264,27 +1270,23 @@ async submitApplication(
       motivation_letter: data.motivation || '',
       applied_at: application.applied_at,
       
-      // User info - ALL NAME VARIATIONS
+      // User info - using ACTUAL column names
       user_id: userId,
       applicant_name: displayName,
       user_name: displayName,
       jobseeker_name: displayName,
       display_name: displayName,
-      name: displayName,
       
-      // Contact details - ALL VARIATIONS
+      // Contact details - using ACTUAL column names
       first_name: user.first_name || '',
       last_name: user.last_name || '',
       email: user.email || '',
       user_email: user.email || '',
       applicant_email: user.email || '',
-      
-      // Phone - BOTH VARIATIONS
-      phone_number: phoneNumber,
-      contact_number: phoneNumber,
-      
-      // Profile image
-      profile_image: user.profile_image || ''
+      contact_number: user.contact_number || '',  // ✅ YOUR actual column
+      phone_number: user.contact_number || '',     // ✅ Alias for compatibility
+      profile_picture: user.profile_picture || '', // ✅ YOUR actual column
+      profile_image: user.profile_picture || ''    // ✅ Alias for compatibility
     };
 
     // Notify employer
