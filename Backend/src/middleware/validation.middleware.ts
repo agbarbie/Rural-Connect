@@ -1,9 +1,19 @@
-// middleware/validation.middleware.ts - FIXED VERSION
+// middleware/validation.middleware.ts - FIXED TO WORK WITH protect.ts
 import { Request, Response, NextFunction } from 'express';
-import { AuthenticatedRequest } from './auth.middleware';
+
+// ✅ Import the correct RequestWithUser type from your protect middleware
+interface RequestWithUser extends Request {
+  user?: {
+    id: string;
+    email: string;
+    role: string;
+    name?: string;
+    user_type: string;
+  };
+}
 
 // Validation for creating/updating a training (bootcamp model)
-export const validateTrainingData = (req: AuthenticatedRequest, res: Response, next: NextFunction): void => {
+export const validateTrainingData = (req: RequestWithUser, res: Response, next: NextFunction): void => {
   const { 
     title, description, category, level, duration_hours, cost_type, mode, 
     provider_name, sessions, outcomes, 
@@ -18,10 +28,11 @@ export const validateTrainingData = (req: AuthenticatedRequest, res: Response, n
     method: req.method,
     isCreating,
     isUpdating,
-    body: JSON.stringify(req.body, null, 2)
+    userId: req.user?.id,
+    userType: req.user?.user_type
   });
 
-  // ✅ FIXED: Basic fields validation (required for creation, optional for update)
+  // ✅ Basic fields validation (required for creation, optional for update)
   if (isCreating) {
     if (!title || title.trim().length < 3) {
       errors.push('Title must be at least 3 characters long');
@@ -55,7 +66,6 @@ export const validateTrainingData = (req: AuthenticatedRequest, res: Response, n
       errors.push('Provider name is required');
     }
 
-    // ✅ FIXED: Require application_deadline, start_date, end_date for creation
     if (!application_deadline) {
       errors.push('Application deadline is required');
     }
@@ -102,7 +112,7 @@ export const validateTrainingData = (req: AuthenticatedRequest, res: Response, n
     }
   }
 
-  // ✅ Conditional field validation (applies to both create and update)
+  // Conditional field validation
   if (cost_type === 'Paid' && (!req.body.price || req.body.price <= 0)) {
     errors.push('Price is required for paid trainings');
   }
@@ -111,7 +121,7 @@ export const validateTrainingData = (req: AuthenticatedRequest, res: Response, n
     errors.push('Location is required for offline/hybrid trainings');
   }
 
-  // ✅ FIXED: Validate date sequence if dates are provided
+  // Validate date sequence if dates are provided
   if (application_deadline && start_date) {
     const deadlineDate = new Date(application_deadline);
     const startDateObj = new Date(start_date);
@@ -146,7 +156,7 @@ export const validateTrainingData = (req: AuthenticatedRequest, res: Response, n
     }
   }
 
-  // ✅ FIXED: Sessions validation - NOT required for creation, but if provided must be valid
+  // Sessions validation
   if (sessions !== undefined && sessions !== null) {
     if (!Array.isArray(sessions)) {
       errors.push('Sessions must be an array');
@@ -173,7 +183,7 @@ export const validateTrainingData = (req: AuthenticatedRequest, res: Response, n
     }
   }
 
-  // ✅ Validate outcomes (optional but if provided, must be valid)
+  // Validate outcomes
   if (outcomes && Array.isArray(outcomes)) {
     outcomes.forEach((outcome: any, index: number) => {
       if (!outcome.outcome_text || outcome.outcome_text.trim().length < 5) {
@@ -182,14 +192,14 @@ export const validateTrainingData = (req: AuthenticatedRequest, res: Response, n
     });
   }
 
-  // ✅ Validate max_participants (if provided)
+  // Validate max_participants
   if (max_participants !== undefined && max_participants !== null) {
     if (max_participants < 1 || max_participants > 10000) {
       errors.push('Max participants must be between 1 and 10000');
     }
   }
 
-  // ✅ Validate user authentication
+  // ✅ Validate user authentication (adjusted for protect.ts middleware)
   if (!req.user?.id) {
     errors.push('User authentication required');
   }
@@ -222,23 +232,33 @@ function isValidUrl(urlString: string): boolean {
   }
 }
 
-// Validate application submission
-export const validateApplicationData = (req: AuthenticatedRequest, res: Response, next: NextFunction): void => {
+// ✅ FIXED: Validate application submission
+export const validateApplicationData = (req: RequestWithUser, res: Response, next: NextFunction): void => {
   const errors: string[] = [];
 
+  console.log('🔍 Validating application data:', {
+    userId: req.user?.id,
+    userType: req.user?.user_type,
+    hasMotivation: !!req.body.motivation
+  });
+
+  // Motivation is optional, but if provided must meet minimum length
   if (req.body.motivation && req.body.motivation.trim().length < 10) {
     errors.push('Motivation letter must be at least 10 characters if provided');
   }
 
+  // ✅ Check authentication
   if (!req.user?.id) {
     errors.push('Authentication required');
   }
 
+  // ✅ Check user type (adjusted for protect.ts middleware)
   if (req.user?.user_type !== 'jobseeker') {
     errors.push('Only job-seekers can apply for trainings');
   }
 
   if (errors.length > 0) {
+    console.error('❌ Application validation errors:', errors);
     res.status(400).json({
       success: false,
       message: 'Validation failed',
@@ -247,11 +267,12 @@ export const validateApplicationData = (req: AuthenticatedRequest, res: Response
     return;
   }
 
+  console.log('✅ Application validation passed');
   next();
 };
 
 // Validate shortlisting decision
-export const validateShortlistDecision = (req: AuthenticatedRequest, res: Response, next: NextFunction): void => {
+export const validateShortlistDecision = (req: RequestWithUser, res: Response, next: NextFunction): void => {
   const { decision, employer_notes } = req.body;
   const errors: string[] = [];
 
@@ -284,7 +305,7 @@ export const validateShortlistDecision = (req: AuthenticatedRequest, res: Respon
 };
 
 // Validate completion marking
-export const validateCompletionMarking = (req: AuthenticatedRequest, res: Response, next: NextFunction): void => {
+export const validateCompletionMarking = (req: RequestWithUser, res: Response, next: NextFunction): void => {
   const { completed, employer_notes } = req.body;
   const errors: string[] = [];
 
@@ -317,7 +338,7 @@ export const validateCompletionMarking = (req: AuthenticatedRequest, res: Respon
 };
 
 // Validate review submission
-export const validateReviewData = (req: AuthenticatedRequest, res: Response, next: NextFunction): void => {
+export const validateReviewData = (req: RequestWithUser, res: Response, next: NextFunction): void => {
   const { rating, review_text } = req.body;
   const errors: string[] = [];
 

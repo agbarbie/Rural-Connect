@@ -1,9 +1,9 @@
-// routes/training.routes.ts
+// routes/training.routes.ts - FIXED VERSION
 import { Router } from 'express';
 import { TrainingController } from '../controllers/Training.controller';
 import { TrainingService } from '../services/training.service';
-import { authenticate, optionalAuthenticate } from '../middleware/auth.middleware';
-import { authorize } from '../middleware/role.middleware';
+import { protect } from '../middleware/protect'; // ✅ USE YOUR ACTUAL AUTH MIDDLEWARE
+import { checkRole } from '../middleware/protect'; // ✅ USE YOUR ACTUAL ROLE MIDDLEWARE
 import { 
   validateTrainingData, 
   validateApplicationData,
@@ -30,14 +30,14 @@ export function createTrainingRoutes(db: Pool): Router {
   // Get user's notifications
   router.get(
     '/notifications',
-    authenticate,
+    protect, // ✅ CHANGED
     bind(trainingController.getNotifications)
   );
 
   // Mark notification as read
   router.patch(
     '/notifications/:id/read',
-    authenticate,
+    protect, // ✅ CHANGED
     validateId,
     bind(trainingController.markNotificationRead)
   );
@@ -61,31 +61,31 @@ export function createTrainingRoutes(db: Pool): Router {
   // Get recommended trainings (requires login)
   router.get(
     '/recommended/list',
-    authenticate,
+    protect, // ✅ CHANGED
     bind(trainingController.getRecommendedTrainings)
   );
 
   // Get enrolled trainings
   router.get(
     '/enrolled/list',
-    authenticate,
-    authorize('jobseeker'),
+    protect, // ✅ CHANGED
+    checkRole(['jobseeker']), // ✅ CHANGED
     bind(trainingController.getEnrolledTrainings)
   );
 
   // Get jobseeker stats
   router.get(
     '/jobseeker/stats',
-    authenticate,
-    authorize('jobseeker'),
+    protect, // ✅ CHANGED
+    checkRole(['jobseeker']), // ✅ CHANGED
     bind(trainingController.getJobseekerStats)
   );
 
   // Get employer's overall training stats
   router.get(
     '/stats/overview',
-    authenticate,
-    authorize('employer'),
+    protect, // ✅ CHANGED
+    checkRole(['employer']), // ✅ CHANGED
     bind(trainingController.getTrainingStats)
   );
 
@@ -99,17 +99,15 @@ export function createTrainingRoutes(db: Pool): Router {
   // PUBLIC ROUTES (no authentication required)
   // ==========================================================================
 
-  // Browse trainings (public view) - optionalAuthenticate added
+  // Browse trainings (public view)
   router.get(
     '/',
-    optionalAuthenticate,
     bind(trainingController.getAllTrainings)
   );
 
-  // View single training detail - optionalAuthenticate added
+  // View single training detail
   router.get(
     '/:id',
-    optionalAuthenticate,
     validateId,
     bind(trainingController.getTrainingById)
   );
@@ -125,11 +123,11 @@ export function createTrainingRoutes(db: Pool): Router {
   // JOBSEEKER ROUTES
   // ==========================================================================
 
-  // Apply for a training
+  // Apply for a training - ✅ THIS IS THE ROUTE YOU'RE TESTING
   router.post(
     '/:id/apply',
-    authenticate,
-    authorize('jobseeker'),
+    protect, // ✅ CHANGED - This is the critical fix
+    checkRole(['jobseeker']), // ✅ CHANGED
     validateId,
     validateApplicationData,
     bind(trainingController.submitApplication)
@@ -138,8 +136,8 @@ export function createTrainingRoutes(db: Pool): Router {
   // Submit a review
   router.post(
     '/:id/reviews',
-    authenticate,
-    authorize('jobseeker'),
+    protect, // ✅ CHANGED
+    checkRole(['jobseeker']), // ✅ CHANGED
     validateId,
     validateReviewData,
     bind(trainingController.submitReview)
@@ -152,8 +150,8 @@ export function createTrainingRoutes(db: Pool): Router {
   // Create a new training
   router.post(
     '/',
-    authenticate,
-    authorize('employer'),
+    protect, // ✅ CHANGED
+    checkRole(['employer']), // ✅ CHANGED
     validateTrainingData,
     bind(trainingController.createTraining)
   );
@@ -161,8 +159,8 @@ export function createTrainingRoutes(db: Pool): Router {
   // Update training
   router.put(
     '/:id',
-    authenticate,
-    authorize('employer'),
+    protect, // ✅ CHANGED
+    checkRole(['employer']), // ✅ CHANGED
     validateId,
     validateTrainingData,
     bind(trainingController.updateTraining)
@@ -171,17 +169,17 @@ export function createTrainingRoutes(db: Pool): Router {
   // Delete training
   router.delete(
     '/:id',
-    authenticate,
-    authorize('employer'),
+    protect, // ✅ CHANGED
+    checkRole(['employer']), // ✅ CHANGED
     validateId,
     bind(trainingController.deleteTraining)
   );
 
-  // Update training status (publish / suspend / close applications / etc.)
+  // Update training status
   router.patch(
     '/:id/status',
-    authenticate,
-    authorize('employer'),
+    protect, // ✅ CHANGED
+    checkRole(['employer']), // ✅ CHANGED
     validateId,
     bind(trainingController.updateTrainingStatus)
   );
@@ -193,8 +191,8 @@ export function createTrainingRoutes(db: Pool): Router {
   // Get all applications for a training
   router.get(
     '/:id/applications',
-    authenticate,
-    authorize('employer'),
+    protect, // ✅ CHANGED
+    checkRole(['employer']), // ✅ CHANGED
     validateId,
     bind(trainingController.getApplications)
   );
@@ -202,8 +200,8 @@ export function createTrainingRoutes(db: Pool): Router {
   // Shortlist or reject an application
   router.post(
     '/:trainingId/applications/:applicationId/shortlist',
-    authenticate,
-    authorize('employer'),
+    protect, // ✅ CHANGED
+    checkRole(['employer']), // ✅ CHANGED
     validateMultipleIds(['trainingId', 'applicationId']),
     validateShortlistDecision,
     bind(trainingController.shortlistApplicant)
@@ -216,8 +214,8 @@ export function createTrainingRoutes(db: Pool): Router {
   // Get all enrollments for a training
   router.get(
     '/:id/enrollments',
-    authenticate,
-    authorize('employer'),
+    protect, // ✅ CHANGED
+    checkRole(['employer']), // ✅ CHANGED
     validateId,
     bind(trainingController.getTrainingEnrollments)
   );
@@ -225,8 +223,8 @@ export function createTrainingRoutes(db: Pool): Router {
   // Mark a trainee's completion status
   router.put(
     '/:trainingId/enrollments/:enrollmentId/completion',
-    authenticate,
-    authorize('employer'),
+    protect, // ✅ CHANGED
+    checkRole(['employer']), // ✅ CHANGED
     validateMultipleIds(['trainingId', 'enrollmentId']),
     validateCompletionMarking,
     bind(trainingController.markCompletion)
@@ -235,17 +233,18 @@ export function createTrainingRoutes(db: Pool): Router {
   // Session attendance management
   router.post(
     '/:id/sessions/:sessionId/attendance',
-    authenticate,
-    authorize('employer'),
+    protect, // ✅ CHANGED
+    checkRole(['employer']), // ✅ CHANGED
     bind(trainingController.markSessionAttendance)
   );
 
   router.get(
     '/:id/sessions/:sessionId/attendance',
-    authenticate,
-    authorize('employer'),
+    protect, // ✅ CHANGED
+    checkRole(['employer']), // ✅ CHANGED
     bind(trainingController.getSessionAttendance)
   );
+
   // ==========================================================================
   // EMPLOYER ROUTES - Certificate Issuance
   // ==========================================================================
@@ -253,8 +252,8 @@ export function createTrainingRoutes(db: Pool): Router {
   // Issue a certificate for a completed enrollment
   router.post(
     '/:trainingId/enrollments/:enrollmentId/certificate',
-    authenticate,
-    authorize('employer'),
+    protect, // ✅ CHANGED
+    checkRole(['employer']), // ✅ CHANGED
     validateMultipleIds(['trainingId', 'enrollmentId']),
     bind(trainingController.issueCertificate)
   );
@@ -266,8 +265,8 @@ export function createTrainingRoutes(db: Pool): Router {
   // Get analytics for a specific training
   router.get(
     '/:id/analytics',
-    authenticate,
-    authorize('employer'),
+    protect, // ✅ CHANGED
+    checkRole(['employer']), // ✅ CHANGED
     validateId,
     bind(trainingController.getTrainingAnalytics)
   );

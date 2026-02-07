@@ -837,7 +837,16 @@ export class TrainingComponent implements OnInit, OnDestroy {
 
   console.log('📝 Submitting application for training:', this.applyingTrainingId);
   
+  // Make sure user is properly authenticated before submitting
+  if (!this.userId) {
+    console.error('❌ No user ID found for application submission');
+    alert('Your session may have expired. Please log in again to apply for this training.');
+    return;
+  }
+
   this.loading = true;
+  
+  // Pass additional information that might be required by the backend
   this.trainingService.applyForTraining(this.applyingTrainingId, this.motivationLetter)
     .pipe(takeUntil(this.destroy$))
     .subscribe({
@@ -848,7 +857,7 @@ export class TrainingComponent implements OnInit, OnDestroy {
         if (response.success) {
           console.log('✅ Application submitted successfully');
           
-          // ✅ FIX: Update local state immediately
+          // Update local state immediately
           const training = this.trainings.find(t => t.id === this.applyingTrainingId);
           if (training) {
             training.applied = true;
@@ -866,7 +875,7 @@ export class TrainingComponent implements OnInit, OnDestroy {
           
           this.closeApplicationModal();
           
-          // ✅ FIX: Force refresh to get updated state from backend
+          // Force refresh to get updated state from backend
           setTimeout(() => {
             this.loadTrainings(this.currentPage);
             this.loadNotifications();
@@ -877,32 +886,23 @@ export class TrainingComponent implements OnInit, OnDestroy {
         this.loading = false;
         console.error('❌ Error submitting application:', error);
         
-        // ✅ FIX: Better error message handling
+        // Better error message handling
         let errorMessage = 'Failed to submit application.';
         
-        if (error.message) {
-          if (error.message.includes('already applied')) {
-            errorMessage = 'You have already applied for this training. Please check your applications.';
-            
-            // Update local state if backend says already applied
-            const training = this.trainings.find(t => t.id === this.applyingTrainingId);
-            if (training) {
-              training.applied = true;
-              training.has_applied = true;
-              training.application_status = 'pending';
-            }
-            
-            this.closeApplicationModal();
-            this.loadTrainings(this.currentPage); // Refresh to sync state
-          } else {
-            errorMessage = error.message;
-          }
+        if (error && error.error && error.error.message) {
+          errorMessage = error.error.message;
+        } else if (error && error.message) {
+          errorMessage = error.message;
+        }
+        
+        if (errorMessage.includes('user information')) {
+          errorMessage += ' Please try logging out and logging back in.';
         }
         
         alert(errorMessage);
       }
     });
-  }
+}
 
   getApplicationStatusBadge(training: Training): string {
     if (!training.applied) return '';
