@@ -1,5 +1,4 @@
 import { Component, OnInit, OnDestroy, ViewChild, ElementRef } from '@angular/core';
-import { DatePipe } from '@angular/common';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, Router } from '@angular/router';
 import { HttpClient } from '@angular/common/http';
@@ -11,22 +10,35 @@ declare const DyteClient: any;
 @Component({
   selector: 'app-meeting-room',
   standalone: true,
-  imports: [CommonModule, DatePipe],
-  templateUrl: './meeting-room.component.html',
-  styleUrls: ['./meeting-room.component.css']
+  imports: [CommonModule],
+  template: `
+    <!-- Loading -->
+    <div *ngIf="isLoading" style="display: flex; align-items: center; justify-content: center; height: 100vh; background: #000; color: #fff; flex-direction: column; gap: 20px;">
+      <div style="width: 60px; height: 60px; border: 4px solid rgba(255,255,255,0.1); border-top-color: #667eea; border-radius: 50%; animation: spin 1s linear infinite;"></div>
+      <p>Loading meeting...</p>
+    </div>
+
+    <!-- Error -->
+    <div *ngIf="error" style="display: flex; align-items: center; justify-content: center; height: 100vh; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: #fff; flex-direction: column; gap: 20px; padding: 20px; text-align: center;">
+      <h2>Unable to Join Meeting</h2>
+      <p>{{ error }}</p>
+      <button (click)="goBack()" style="padding: 12px 24px; background: white; color: #667eea; border: none; border-radius: 8px; cursor: pointer; font-weight: 600;">Go Back</button>
+    </div>
+
+    <!-- Meeting -->
+    <div *ngIf="!isLoading && !error" #dyteContainer style="width: 100vw; height: 100vh; background: #000;"></div>
+  `,
+  styles: [`
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+  `]
 })
 export class MeetingRoomComponent implements OnInit, OnDestroy {
   @ViewChild('dyteContainer', { static: false }) dyteContainer!: ElementRef;
   
-  meetingDetails: any = null;
   error: string | null = null;
   isLoading = true;
-  dyteLoaded = false;
-  
-  isMuted = false;
-  isVideoOff = false;
-  participantCount = 1;
-  
   private dyteClient: any;
   private readonly API_URL = environment.apiUrl;
 
@@ -38,13 +50,12 @@ export class MeetingRoomComponent implements OnInit, OnDestroy {
 
   ngOnInit() {
     const sessionId = this.route.snapshot.paramMap.get('sessionId');
-
-    if (sessionId) {
-      this.loadMeeting(sessionId);
-    } else {
-      this.error = 'Invalid meeting link - no session ID';
+    if (!sessionId) {
+      this.error = 'No session ID provided';
       this.isLoading = false;
+      return;
     }
+    this.loadMeeting(sessionId);
   }
 
   ngOnDestroy() {
@@ -67,153 +78,66 @@ export class MeetingRoomComponent implements OnInit, OnDestroy {
       }
     }).subscribe({
       next: (response: any) => {
-        if (response.success && response.data) {
-          this.meetingDetails = response.data;
-          this.isLoading = false;
-          
-          // Initialize Dyte after a short delay
-          setTimeout(() => {
-            this.initializeDyteMeet(response.data.authToken);
-          }, 500);
+        if (response.success && response.data && response.data.authToken) {
+          console.log('✅ Got authToken from backend');
+          setTimeout(() => this.initDyte(response.data.authToken), 500);
         } else {
-          this.error = response.message || 'Failed to join meeting';
+          this.error = 'Failed to get meeting credentials';
           this.isLoading = false;
         }
       },
       error: (err) => {
-        this.error = err.error?.message || 'Failed to load meeting. Please try again.';
+        this.error = err.error?.message || 'Failed to load meeting';
         this.isLoading = false;
         console.error('Meeting load error:', err);
       }
     });
   }
 
-  async initializeDyteMeet(authToken: string) {
+  async initDyte(authToken: string) {
     try {
-      console.log('🎥 Initializing Dyte client...');
+      console.log('🎥 Initializing Dyte with authToken only (NO roomName)...');
+      
+      // Wait for DyteClient to be available
+      if (typeof DyteClient === 'undefined') {
+        console.log('⏳ Waiting for Dyte SDK to load...');
+        await new Promise(resolve => setTimeout(resolve, 2000));
+      }
 
-      // ✅ CRITICAL: Initialize with ONLY authToken (Dyte SDK v2+)
+      // ✅ CRITICAL: ONLY authToken - absolutely NO roomName anywhere
       this.dyteClient = await DyteClient.init({
         authToken: authToken,
         defaults: {
-          audio: false,  // Start muted
-          video: false,  // Start with camera off
+          audio: false,
+          video: false
         }
       });
 
       console.log('✅ Dyte client initialized');
-
-      // ✅ CRITICAL: Must call join() after init
+      
       await this.dyteClient.join();
-      console.log('✅ Successfully joined meeting');
+      console.log('✅ Joined meeting');
 
-      // Create and append Dyte meeting UI element
+      // Create meeting UI
       const meetingEl = document.createElement('dyte-meeting');
       meetingEl.setAttribute('mode', 'fill');
       (meetingEl as any).meeting = this.dyteClient;
 
-      // Clear container and add meeting element
       if (this.dyteContainer) {
-        this.dyteContainer.nativeElement.innerHTML = '';
         this.dyteContainer.nativeElement.appendChild(meetingEl);
       }
 
-      this.dyteLoaded = true;
+      this.isLoading = false;
 
-      // Setup event listeners
-      this.setupDyteListeners();
+      // Listen for leave
+      this.dyteClient.self.on('roomLeft', () => {
+        this.router.navigate(['/dashboard']);
+      });
 
     } catch (err: any) {
-      console.error('❌ Failed to initialize Dyte:', err);
-      this.error = 'Failed to initialize video call. Please refresh and try again.';
-      this.dyteLoaded = false;
-    }
-  }
-
-  setupDyteListeners() {
-    if (!this.dyteClient) return;
-
-    // Listen for participant changes
-    this.dyteClient.participants.joined.on('participantJoined', () => {
-      this.participantCount = this.dyteClient.participants.joined.size + 1;
-    });
-
-    this.dyteClient.participants.joined.on('participantLeft', () => {
-      this.participantCount = this.dyteClient.participants.joined.size + 1;
-    });
-
-    // Listen for self leaving
-    this.dyteClient.self.on('roomLeft', () => {
-      console.log('👋 Left the meeting');
-      this.router.navigate(['/dashboard']);
-    });
-
-    // Listen for meeting ending
-    this.dyteClient.meta.on('meetingEnded', () => {
-      console.log('🛑 Meeting ended');
-      alert('The meeting has ended');
-      this.router.navigate(['/dashboard']);
-    });
-
-    // Listen for audio/video state changes
-    this.dyteClient.self.on('audioUpdate', ({ audioEnabled }: any) => {
-      this.isMuted = !audioEnabled;
-    });
-
-    this.dyteClient.self.on('videoUpdate', ({ videoEnabled }: any) => {
-      this.isVideoOff = !videoEnabled;
-    });
-  }
-
-  toggleMute() {
-    if (this.dyteClient) {
-      if (this.isMuted) {
-        this.dyteClient.self.enableAudio();
-      } else {
-        this.dyteClient.self.disableAudio();
-      }
-    }
-  }
-
-  toggleVideo() {
-    if (this.dyteClient) {
-      if (this.isVideoOff) {
-        this.dyteClient.self.enableVideo();
-      } else {
-        this.dyteClient.self.disableVideo();
-      }
-    }
-  }
-
-  toggleScreenShare() {
-    if (this.dyteClient) {
-      if (this.dyteClient.self.screenShareEnabled) {
-        this.dyteClient.self.disableScreenShare();
-      } else {
-        this.dyteClient.self.enableScreenShare();
-      }
-    }
-  }
-
-  toggleChat() {
-    // Dyte UI Kit handles chat internally
-    // This is handled by the dyte-meeting component
-    console.log('Chat toggle - handled by Dyte UI');
-  }
-
-  toggleParticipants() {
-    // Dyte UI Kit handles participants view internally
-    // This is handled by the dyte-meeting component
-    console.log('Participants toggle - handled by Dyte UI');
-  }
-
-  leaveMeeting() {
-    if (confirm('Are you sure you want to leave the meeting?')) {
-      if (this.dyteClient) {
-        this.dyteClient.leaveRoom();
-      } else {
-        this.router.navigate(['/dashboard']);
-      }
+      console.error('❌ Dyte init failed:', err);
+      this.error = 'Failed to initialize video call: ' + (err.message || 'Unknown error');
+      this.isLoading = false;
     }
   }
 
