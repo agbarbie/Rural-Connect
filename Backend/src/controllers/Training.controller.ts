@@ -170,17 +170,17 @@ export class TrainingController {
       console.log('🔍 Controller getAllTrainings:', { userId, userType });
 
       const params: TrainingSearchParams = {
-        page: parseInt(req.query.page as string) || 1,
-        limit: parseInt(req.query.limit as string) || 10,
-        sort_by: (req.query.sort_by as any) || 'created_at',
-        sort_order: (req.query.sort_order as 'asc' | 'desc') || 'desc',
-        search: req.query.search as string,
-        category: req.query.category as string,
-        level: req.query.level as string,
-        cost_type: req.query.cost_type as string,
-        mode: req.query.mode as string,
-        status: req.query.status as string,
-        filters: req.query.filters ? JSON.parse(req.query.filters as string) : {},
+        page: parseInt(req.query.page as string as string) || 1,
+        limit: parseInt(req.query.limit as string as string) || 10,
+        sort_by: (req.query.sort_by as string as any) || 'created_at',
+        sort_order: (req.query.sort_order as string as 'asc' | 'desc') || 'desc',
+        search: req.query.search as string as string,
+        category: req.query.category as string as string,
+        level: req.query.level as string as string,
+        cost_type: req.query.cost_type as string as string,
+        mode: req.query.mode as string as string,
+        status: req.query.status as string as string,
+        filters: req.query.filters as string ? JSON.parse(req.query.filters as string as string) : {},
       };
 
       let result;
@@ -224,10 +224,10 @@ export class TrainingController {
       }
 
       const params: TrainingSearchParams = {
-        page: parseInt(req.query.page as string) || 1,
-        limit: parseInt(req.query.limit as string) || 10,
-        sort_by: (req.query.sort_by as any) || 'created_at',
-        sort_order: (req.query.sort_order as 'asc' | 'desc') || 'desc',
+        page: parseInt(req.query.page as string as string) || 1,
+        limit: parseInt(req.query.limit as string as string) || 10,
+        sort_by: (req.query.sort_by as string as any) || 'created_at',
+        sort_order: (req.query.sort_order as string as 'asc' | 'desc') || 'desc',
       };
 
       const result = await this.trainingService.getEnrolledTrainings(userId, params);
@@ -314,9 +314,9 @@ export class TrainingController {
       }
 
       const params = {
-        page: parseInt(req.query.page as string) || 1,
-        limit: parseInt(req.query.limit as string) || 20,
-        status: req.query.status as string,
+        page: parseInt(req.query.page as string as string) || 1,
+        limit: parseInt(req.query.limit as string as string) || 20,
+        status: req.query.status as string as string,
       };
 
       const result = await this.trainingService.getApplications(trainingId, employerId, params);
@@ -534,9 +534,9 @@ export class TrainingController {
       }
 
       const params = {
-        page: parseInt(req.query.page as string) || 1,
-        limit: parseInt(req.query.limit as string) || 20,
-        status: req.query.status as string,
+        page: parseInt(req.query.page as string as string) || 1,
+        limit: parseInt(req.query.limit as string as string) || 20,
+        status: req.query.status as string as string,
       };
 
       const result = await this.trainingService.getTrainingEnrollments(trainingId, employerId, params);
@@ -613,7 +613,7 @@ export class TrainingController {
     try {
       const { id: trainingId } = req.params;
       const employerId = req.user?.id;
-      const timeRange = (req.query.time_range as string) || '30days';
+      const timeRange = (req.query.time_range as string as string) || '30days';
 
       if (!employerId) {
         res.status(401).json({ success: false, message: 'Unauthorized' });
@@ -655,10 +655,10 @@ export class TrainingController {
     try {
       const { id: trainingId } = req.params;
       const params = {
-        page: parseInt(req.query.page as string) || 1,
-        limit: parseInt(req.query.limit as string) || 10,
-        sort_by: req.query.sort_by as string || 'created_at',
-        sort_order: req.query.sort_order as string || 'desc',
+        page: parseInt(req.query.page as string as string) || 1,
+        limit: parseInt(req.query.limit as string as string) || 10,
+        sort_by: req.query.sort_by as string as string || 'created_at',
+        sort_order: req.query.sort_order as string as string || 'desc',
       };
 
       const result = await this.trainingService.getTrainingReviews(trainingId, params);
@@ -716,7 +716,7 @@ export class TrainingController {
 
   async getPopularTrainings(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
-      const limit = parseInt(req.query.limit as string) || 10;
+      const limit = parseInt(req.query.limit as string as string) || 10;
       const trainings = await this.trainingService.getPopularTrainings(limit);
       res.json({ success: true, data: trainings });
     } catch (error: any) {
@@ -732,7 +732,7 @@ export class TrainingController {
         return;
       }
 
-      const limit = parseInt(req.query.limit as string) || 10;
+      const limit = parseInt(req.query.limit as string as string) || 10;
       const trainings = await this.trainingService.getRecommendedTrainings(userId, limit);
       res.json({ success: true, data: trainings });
     } catch (error: any) {
@@ -753,9 +753,9 @@ export class TrainingController {
       }
 
       const params = {
-        page: parseInt(req.query.page as string) || 1,
-        limit: parseInt(req.query.limit as string) || 10,
-        read: req.query.read as string | boolean,
+        page: parseInt(req.query.page as string as string) || 1,
+        limit: parseInt(req.query.limit as string as string) || 10,
+        read: req.query.read as string as string | boolean,
       };
 
       const result = await this.trainingService.getNotifications(userId, params);
@@ -767,7 +767,7 @@ export class TrainingController {
 
   async markNotificationRead(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
     try {
-      const notificationId = req.params.id;
+      const notificationId = req.params.id as string;
       const userId = req.user?.id;
 
       if (!userId) {

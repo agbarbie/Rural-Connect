@@ -112,7 +112,7 @@ export class CVBuilderController {
   getCVById = async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
       const userId = req.user?.id;
-      const cvId = req.params.id;
+      const cvId = req.params.id as string;
 
       if (!userId || !isValidUUID(userId)) {
         res.status(401).json({
@@ -154,7 +154,7 @@ export class CVBuilderController {
   updateCV = async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
       const userId = req.user?.id;
-      const cvId = req.params.id;
+      const cvId = req.params.id as string;
 
       if (!userId || !isValidUUID(userId)) {
         res.status(401).json({
@@ -199,7 +199,7 @@ export class CVBuilderController {
   deleteCV = async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
       const userId = req.user?.id;
-      const cvId = req.params.id;
+      const cvId = req.params.id as string;
 
       if (!userId || !isValidUUID(userId)) {
         res.status(401).json({
@@ -436,7 +436,7 @@ export class CVBuilderController {
   saveAsDraft = async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
       const userId = req.user?.id;
-      const cvId = req.params.id;
+      const cvId = req.params.id as string;
 
       if (!userId || !isValidUUID(userId)) {
         res.status(401).json({
@@ -479,7 +479,7 @@ export class CVBuilderController {
   saveAsFinal = async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
       const userId = req.user?.id;
-      const cvId = req.params.id;
+      const cvId = req.params.id as string;
 
       if (!userId || !isValidUUID(userId)) {
         res.status(401).json({
@@ -525,7 +525,7 @@ export class CVBuilderController {
   exportToPDF = async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
       const userId = req.user?.id;
-      const cvId = req.params.id;
+      const cvId = req.params.id as string;
 
       if (!userId || !isValidUUID(userId)) {
         res.status(401).json({ success: false, message: 'Invalid or missing user ID' });
@@ -569,7 +569,7 @@ export class CVBuilderController {
   exportToWord = async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
       const userId = req.user?.id;
-      const cvId = req.params.id;
+      const cvId = req.params.id as string;
 
       if (!userId || !isValidUUID(userId)) {
         res.status(401).json({ success: false, message: 'Invalid or missing user ID' });
@@ -612,7 +612,7 @@ export class CVBuilderController {
   setActiveCV = async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
       const userId = req.user?.id;
-      const cvId = req.params.id;
+      const cvId = req.params.id as string;
 
       if (!userId || !isValidUUID(userId)) {
         res.status(401).json({

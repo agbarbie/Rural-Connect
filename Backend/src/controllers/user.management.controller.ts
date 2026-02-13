@@ -27,14 +27,14 @@ export class UserManagementController {
     try {
       // Extract query parameters
       const filters: UserManagementFilters = {
-        search: req.query.search as string,
-        role: req.query.role as any,
-        status: req.query.status as any,
-        verification: req.query.verification as any,
-        page: req.query.page ? parseInt(req.query.page as string) : 1,
-        limit: req.query.limit ? parseInt(req.query.limit as string) : 10,
-        sortBy: req.query.sortBy as string,
-        sortOrder: req.query.sortOrder as 'asc' | 'desc'
+        search: req.query.search as string as string,
+        role: req.query.role as string as any,
+        status: req.query.status as string as any,
+        verification: req.query.verification as string as any,
+        page: req.query.page as string ? parseInt(req.query.page as string as string) : 1,
+        limit: req.query.limit as string ? parseInt(req.query.limit as string as string) : 10,
+        sortBy: req.query.sortBy as string as string,
+        sortOrder: req.query.sortOrder as string as 'asc' | 'desc'
       };
 
       // Get users and stats
@@ -89,7 +89,7 @@ export class UserManagementController {
     next: NextFunction
   ): Promise<void> => {
     try {
-      const userId = req.params.id;
+      const userId = req.params.id as string;
 
       const userData = await this.userManagementService.getUserById(userId);
 
@@ -121,7 +121,7 @@ export class UserManagementController {
     next: NextFunction
   ): Promise<void> => {
     try {
-      const userId = req.params.id;
+      const userId = req.params.id as string;
       const adminId = req.user?.id;
 
       if (!adminId) {
@@ -161,7 +161,7 @@ export class UserManagementController {
     next: NextFunction
   ): Promise<void> => {
     try {
-      const userId = req.params.id;
+      const userId = req.params.id as string;
       const adminId = req.user?.id;
 
       if (!adminId) {
@@ -287,7 +287,7 @@ export class UserManagementController {
     next: NextFunction
   ): Promise<void> => {
     try {
-      const userId = req.params.id;
+      const userId = req.params.id as string;
       const adminId = req.user?.id;
 
       if (!adminId) {
@@ -334,10 +334,10 @@ export class UserManagementController {
     try {
       // Extract filters (without pagination for export)
       const filters: UserManagementFilters = {
-        search: req.query.search as string,
-        role: req.query.role as any,
-        status: req.query.status as any,
-        verification: req.query.verification as any,
+        search: req.query.search as string as string,
+        role: req.query.role as string as any,
+        status: req.query.status as string as any,
+        verification: req.query.verification as string as any,
         limit: 10000 // Large limit for export
       };
 

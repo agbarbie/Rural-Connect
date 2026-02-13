@@ -65,8 +65,8 @@ export class ProfileViewsController {
         });
       }
 
-      const limit = parseInt(req.query.limit as string) || 50;
-      const offset = parseInt(req.query.offset as string) || 0;
+      const limit = parseInt(req.query.limit as string as string) || 50;
+      const offset = parseInt(req.query.offset as string as string) || 0;
 
       // ✅ SIMPLE: Only get basic employer info from users table
       const query = `

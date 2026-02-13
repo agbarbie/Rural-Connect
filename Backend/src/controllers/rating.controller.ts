@@ -270,9 +270,9 @@ export class RatingController {
   async getJobseekerRatings(req: AuthenticatedRequest, res: Response): Promise<Response> {
     try {
       const { jobseekerId } = req.params;
-      const page = parseInt(req.query.page as string) || 1;
-      const limit = parseInt(req.query.limit as string) || 10;
-      const public_only = req.query.public_only === 'true';
+      const page = parseInt(req.query.page as string as string) || 1;
+      const limit = parseInt(req.query.limit as string as string) || 10;
+      const public_only = req.query.public_only as string === 'true';
       const offset = (page - 1) * limit;
 
       console.log('📊 Fetching ratings for jobseeker:', jobseekerId);

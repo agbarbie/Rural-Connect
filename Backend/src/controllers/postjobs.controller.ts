@@ -166,19 +166,19 @@ export class PostJobsController {
       }
 
       const query: JobQuery = {
-        page: Number(req.query.page) || 1,
-        limit: Math.min(Number(req.query.limit) || 10, 50),
-        status: ['Open', 'Closed', 'Paused', 'Filled'].includes(req.query.status as string)
-          ? (req.query.status as 'Open' | 'Closed' | 'Paused' | 'Filled')
+        page: Number(req.query.page as string) || 1,
+        limit: Math.min(Number(req.query.limit as string) || 10, 50),
+        status: ['Open', 'Closed', 'Paused', 'Filled'].includes(req.query.status as string as string)
+          ? (req.query.status as string as 'Open' | 'Closed' | 'Paused' | 'Filled')
           : undefined,
-        employment_type: req.query.employment_type as string,
-        work_arrangement: req.query.work_arrangement as string,
-        search: req.query.search as string,
-        sort_by: ['created_at', 'salary_max', 'applications_count', 'views_count'].includes(req.query.sort_by as string)
-          ? (req.query.sort_by as 'created_at' | 'salary_max' | 'applications_count' | 'views_count')
+        employment_type: req.query.employment_type as string as string,
+        work_arrangement: req.query.work_arrangement as string as string,
+        search: req.query.search as string as string,
+        sort_by: ['created_at', 'salary_max', 'applications_count', 'views_count'].includes(req.query.sort_by as string as string)
+          ? (req.query.sort_by as string as 'created_at' | 'salary_max' | 'applications_count' | 'views_count')
           : 'created_at',
-        sort_order: (req.query.sort_order === 'ASC' || req.query.sort_order === 'DESC')
-          ? (req.query.sort_order as 'ASC' | 'DESC')
+        sort_order: (req.query.sort_order as string === 'ASC' || req.query.sort_order as string === 'DESC')
+          ? (req.query.sort_order as string as 'ASC' | 'DESC')
           : 'DESC'
       };
 
@@ -523,8 +523,8 @@ export class PostJobsController {
         return;
       }
 
-      const page = Number(req.query.page) || 1;
-      const limit = Math.min(Number(req.query.limit) || 10, 100);
+      const page = Number(req.query.page as string) || 1;
+      const limit = Math.min(Number(req.query.limit as string) || 10, 100);
 
       const result = await this.jobService.getJobViews(jobId, page, limit);
 
