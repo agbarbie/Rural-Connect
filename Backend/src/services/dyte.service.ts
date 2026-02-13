@@ -28,6 +28,13 @@ interface DyteParticipant {
   role: 'host' | 'participant';
 }
 
+interface DyteErrorResponse {
+  error?: {
+    message?: string;
+  };
+  message?: string;
+}
+
 export class DyteService {
   private apiKey: string;
   private orgId: string;
@@ -71,7 +78,7 @@ export class DyteService {
 
   private handleDyteError(error: any, context: string): never {
     if (axios.isAxiosError(error)) {
-      const axiosError = error as AxiosError;
+      const axiosError = error as AxiosError<DyteErrorResponse>;
       console.error(`❌ Dyte ${context} Error:`, {
         status: axiosError.response?.status,
         statusText: axiosError.response?.statusText,
@@ -85,7 +92,7 @@ export class DyteService {
       }
 
       if (axiosError.response?.status === 404) {
-        const errorData = axiosError.response?.data as any;
+        const errorData = axiosError.response?.data;
         if (errorData?.error?.message?.includes('preset')) {
           throw new Error(
             `Dyte preset not found! Current: "${this.hostPresetName}". ` +
@@ -100,7 +107,24 @@ export class DyteService {
         throw new Error('Dyte access forbidden. Check organization permissions');
       }
 
-      const errorData = axiosError.response?.data as any;
+      // Handle 422 Unprocessable Content - often due to invalid preset names
+      if (axiosError.response?.status === 422) {
+        const errorData = axiosError.response?.data;
+        const errorMessage = errorData?.error?.message || errorData?.message || 'Unprocessable Content';
+        
+        if (errorMessage.includes('preset') || errorMessage.includes('userpreset')) {
+          throw new Error(
+            `Dyte preset error (422): "${errorMessage}". ` +
+            `Current presets: host="${this.hostPresetName}", participant="${this.participantPresetName}". ` +
+            `Run: node Backend/check-dyte-presets.js to see available presets in your organization, ` +
+            `then update DYTE_HOST_PRESET and DYTE_PARTICIPANT_PRESET in .env file. ` +
+            `See Backend/DYTE_SETUP.md for detailed instructions.`
+          );
+        }
+        throw new Error(`Dyte validation error (422): ${errorMessage}`);
+      }
+
+      const errorData = axiosError.response?.data;
       throw new Error(errorData?.error?.message || `Dyte ${context} failed: ${axiosError.message}`);
     }
 

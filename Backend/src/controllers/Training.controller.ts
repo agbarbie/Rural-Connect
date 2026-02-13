@@ -459,8 +459,7 @@ export class TrainingController {
     console.log('🎥 Getting iframe URL for employer:', { sessionId, employerId });
 
     // Get session details
-    // @ts-ignore - method may exist at runtime though not declared on the TrainingService type
-    const session = await (this.trainingService as any).getSessionById(sessionId);
+    const session = await this.trainingService.getSessionById(sessionId);
     
     if (!session || !session.meeting_id) {
       res.status(404).json({
