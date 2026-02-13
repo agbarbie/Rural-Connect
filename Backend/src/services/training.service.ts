@@ -17,7 +17,7 @@ import {
 import { join } from 'path';
 import crypto from 'crypto';
 import { v4 as uuidv4 } from 'uuid'; 
-import { DyteService } from './dyte.service';
+import { BigBlueButtonService } from './bigbluebutton.service';
 
 interface NotificationMetadata {
   training_id?: string;
@@ -59,12 +59,12 @@ function generateVerificationCode(): string {
 
 export class TrainingService {
   private phoneNumberColumnExists: boolean | null = null;
-  dyteService: DyteService; // ✅ CHANGED: from jitsiService
+  jitsiService: BigBlueButtonService;
 
   constructor(private db: Pool) {
     this.verifyDatabaseTables();
     this.checkPhoneNumberColumn();
-    this.dyteService = new DyteService(); // ✅ CHANGED: from JitsiService
+  this.jitsiService = new BigBlueButtonService();
   }
 
   // ✅ NEW: Check if phone_number column exists in users table
@@ -148,31 +148,34 @@ private async generateMeetingUrl(
 
     const moderatorName = `${employerUser.first_name} ${employerUser.last_name}`.trim() || employerUser.email;
 
-    const meeting = await this.dyteService.createMeeting({
+    // Create a Jitsi meeting via the BigBlueButtonService wrapper
+    const meeting = await this.jitsiService.createMeeting({
       trainingId,
       sessionId,
       sessionTitle,
       trainingTitle,
       providerName,
-      durationMinutes,
-      moderatorId: employerId,
-      moderatorName: moderatorName,
-      moderatorEmail: employerUser.email
+      durationMinutes
     });
 
-    console.log('✅ Dyte meeting created:', {
+    console.log('✅ Jitsi meeting created:', {
       meetingId: meeting.meetingId,
-      roomName: meeting.roomName,
       sessionTitle,
       moderator: moderatorName
     });
 
+    // Map Jitsi response to expected return shape
+    const meetingUrl = meeting.moderatorUrl || meeting.attendeeUrl;
+    const meetingPassword = meeting.attendeePassword;
+    const moderatorPassword = meeting.moderatorPassword;
+    const roomName = meeting.meetingId;
+
     return {
-      meetingUrl: meeting.meetingUrl,
-      meetingPassword: meeting.password,
-      moderatorPassword: meeting.moderatorToken,
-      roomName: meeting.roomName,
-      meetingId: meeting.meetingId // ✅ ADD THIS
+      meetingUrl,
+      meetingPassword,
+      moderatorPassword,
+      roomName,
+      meetingId: meeting.meetingId
     };
   } catch (error: any) {
     console.error('❌ Error creating Dyte meeting:', error);
@@ -184,6 +187,29 @@ private async generateMeetingUrl(
   // ✅ NEW: Generate 6-digit meeting password
   private generateMeetingPassword(): string {
     return crypto.randomInt(100000, 999999).toString();
+  }
+
+  // Sanitize a room name for Jitsi (same rules as BigBlueButtonService.sanitizeRoomName)
+  private sanitizeRoomNameForJitsi(name: string): string {
+    return (name || '')
+      .toLowerCase()
+      .replace(/[^a-z0-9-]/g, '-')
+      .replace(/-+/g, '-')
+      .replace(/^-|-$/g, '')
+      .substring(0, 50);
+  }
+
+  // Notify all jobseekers about a new training (public announcement)
+  private async notifyJobseekersAboutNewTraining(trainingId: string, title: string, category: string, providerName: string) {
+    try {
+      // Send a site-wide notification to jobseekers (not just enrolled)
+      const rows = await this.db.query(`SELECT id FROM users WHERE user_type = 'jobseeker' AND deleted_at IS NULL`);
+      await Promise.all(rows.rows.map((r: any) =>
+        this.createNotification(r.id, 'new_training', `New training available: "${title}" by ${providerName}`, { training_id: trainingId, category })
+      ));
+    } catch (err: any) {
+      console.error('❌ notifyJobseekersAboutNewTraining error:', err.message);
+    }
   }
 
   // ✅ NEW: Get meeting details for validation
@@ -356,56 +382,26 @@ private async generateMeetingUrl(
     return map[type] || message.split('.')[0].substring(0, 255) || 'Training Update';
   }
 
-  async notifyEnrolledTrainees(
-    trainingId: string,
-    type: string,
-    message: string,
-    extraMeta: Record<string, any> = {}
-  ): Promise<void> {
-    try {
-      const rows = await this.db.query(
-        `SELECT DISTINCT user_id FROM training_enrollments
-         WHERE training_id = $1 AND status IN ('enrolled')`,
-        [trainingId]
-      );
-      await Promise.all(
-        rows.rows.map(r =>
-          this.createNotification(r.user_id, type, message, { training_id: trainingId, ...extraMeta })
-        )
-      );
-    } catch (err: any) {
-      console.error('❌ notifyEnrolledTrainees:', err.message);
-    }
-  }
-
-  async notifyJobseekersAboutNewTraining(
-    trainingId: string,
-    title: string,
-    category: string,
-    providerName: string
-  ): Promise<void> {
+  async notifyEnrolledTrainees(trainingId: string, type: string, title: string, meta: any = {}): Promise<void> {
     try {
       const BATCH = 1000;
       let offset = 0;
       while (true) {
         const rows = await this.db.query(
-          `SELECT id FROM users WHERE user_type = 'jobseeker' AND deleted_at IS NULL ORDER BY id LIMIT $1 OFFSET $2`,
-          [BATCH, offset]
+          `SELECT user_id FROM training_enrollments WHERE training_id = $1 AND status = 'enrolled' ORDER BY user_id LIMIT $2 OFFSET $3`,
+          [trainingId, BATCH, offset]
         );
         if (rows.rows.length === 0) break;
         await Promise.all(
-          rows.rows.map(r =>
-            this.createNotification(r.id, 'new_training',
-              `New training available: "${title}" by ${providerName}`,
-              { training_id: trainingId, category, employer_name: providerName }
-            )
+          rows.rows.map((r: any) =>
+            this.createNotification(r.user_id, type, title, meta)
           )
         );
         offset += BATCH;
         if (rows.rows.length < BATCH) break;
       }
     } catch (err: any) {
-      console.error('❌ notifyJobseekersAboutNewTraining:', err.message);
+      console.error('❌ notifyEnrolledTrainees:', err.message);
     }
   }
 
@@ -800,17 +796,16 @@ async getNotifications(
       }
 
       const userName = `${user.first_name} ${user.last_name}`.trim() || user.email;
-      const roomName = session.room_name || `training_${session.training_id}_session_${sessionId}`;
+  const roomName = session.room_name || this.sanitizeRoomNameForJitsi(`${session.title || ''}-${session.training_title || ''}`);
 
       // ✅ Use Dyte instead of Jitsi
-      const meetingData = await this.dyteService.getMeeting(session.meeting_id!);
-const participant = await this.dyteService.addParticipant(
-  session.meeting_id!,
-  userName,
-  userId,
-  isEmployer || isModerator ? 'host' : 'participant'
-);
-const joinUrl = this.dyteService.getJoinUrl(session.meeting_id!, participant.authToken)
+      const meetingData = await this.jitsiService.getMeetingInfo(session.meeting_id!);
+      const joinUrl = await this.jitsiService.getJoinUrl({
+        meetingId: session.meeting_id!,
+        userName,
+        password: session.moderator_password || session.meeting_password || '',
+        isModerator: isEmployer || isModerator
+      });
 
       console.log('✅ Dyte join URL generated:', {
         roomName,
@@ -926,8 +921,8 @@ if (data.sessions !== undefined) {
       }
       
      // ✅ Get moderator password and room name (with fallback)
-      let moderatorPassword = this.generateMeetingPassword();
-      let roomName = `training_${id}_session_${sessionId}`;
+  let moderatorPassword = this.generateMeetingPassword();
+  let roomName = this.sanitizeRoomNameForJitsi(`${s.title || ''}-${trainingTitleForSessions || ''}`) || `training-${id}-session-${sessionId}`;
       
       // If meeting was created successfully, use its credentials
       if (meetingUrl && meetingUrl !== null) {
@@ -1131,25 +1126,19 @@ async getSessionIframeUrl(
 
     const moderatorName = `${employer.first_name} ${employer.last_name}`.trim() || employer.email;
 
-    console.log('🎥 Adding employer as host to meeting:', session.meeting_id);
+    console.log('🎥 Generating moderator join URL for Jitsi meeting:', session.meeting_id);
 
-    // Add employer as moderator to the existing meeting
-    const participant = await this.dyteService.addParticipant(
-      session.meeting_id,
-      moderatorName,
-      employerId,
-      'host'
-    );
+    // For Jitsi we generate a moderator join URL (no server-side token required for meet.jit.si)
+    const moderatorJoinUrl = await this.jitsiService.getJoinUrl({
+      meetingId: session.meeting_id,
+      userName: moderatorName,
+      password: session.moderator_password || session.meeting_password || '',
+      isModerator: true
+    });
 
-    // Generate iframe URL with auth token
-    const iframeUrl = this.dyteService.getIframeUrl(
-      session.meeting_id,
-      participant.authToken
-    );
+    console.log('✅ Moderator join URL generated for employer');
 
-    console.log('✅ Dyte iframe URL generated for employer');
-
-    return iframeUrl;
+    return moderatorJoinUrl;
   } catch (error: any) {
     console.error('❌ Error generating iframe URL:', error);
     throw error;

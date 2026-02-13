@@ -153,6 +153,72 @@ export class JobseekerJobService {
     }
   }
 
+  // Minimal stub: Get recommended jobs for a user (pagination)
+  async getRecommendedJobs(userId: string, filters: RecommendationFilters): Promise<PaginatedResult<JobWithDetails>> {
+    const page = filters?.page || 1;
+    const limit = filters?.limit || 10;
+    return {
+      data: [],
+      pagination: {
+        total: 0,
+        page,
+        limit,
+        totalPages: 0,
+        hasNext: false,
+        hasPrev: false
+      }
+    };
+  }
+
+  // Minimal stub: Get saved jobs for a user (pagination)
+  async getSavedJobs(userId: string, filters: JobFilters): Promise<PaginatedResult<JobBookmarkWithDetails>> {
+    const page = filters?.page || 1;
+    const limit = filters?.limit || 10;
+    return {
+      data: [],
+      pagination: {
+        total: 0,
+        page,
+        limit,
+        totalPages: 0,
+        hasNext: false,
+        hasPrev: false
+      }
+    };
+  }
+
+  // Minimal stub: Get applied jobs for a user (pagination)
+  async getAppliedJobs(userId: string, filters: JobFilters): Promise<PaginatedResult<JobApplicationWithDetails>> {
+    const page = filters?.page || 1;
+    const limit = filters?.limit || 10;
+    return {
+      data: [],
+      pagination: {
+        total: 0,
+        page,
+        limit,
+        totalPages: 0,
+        hasNext: false,
+        hasPrev: false
+      }
+    };
+  }
+
+  // Minimal stub: Get jobseeker stats
+  async getJobseekerStats(userId: string): Promise<JobseekerStats> {
+    return {
+      total_applications: 0,
+      pending_applications: 0,
+      reviewed_applications: 0,
+      shortlisted_applications: 0,
+      rejected_applications: 0,
+      total_saved_jobs: 0,
+      profile_views: 0,
+      applications_this_month: 0,
+      withdrawn_applications: 0
+    };
+  }
+
   // ...existing methods preserved from original file... (file is long)
 }
 

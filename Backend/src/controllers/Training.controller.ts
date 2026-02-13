@@ -10,7 +10,8 @@ import {
   ShortlistDecisionRequest,
   MarkCompletionRequest,
 } from '../types/training.type';
-import dyteService from '../services/dyte.service';
+import { BigBlueButtonService } from '../services/bigbluebutton.service';
+const jitsiService = new BigBlueButtonService();
 
 export class TrainingController {
   constructor(private trainingService: TrainingService) {}
@@ -469,17 +470,14 @@ export class TrainingController {
       return;
     }
 
-    // Add employer as participant and get auth token
+    // Generate a moderator join URL for Jitsi
     const userName = req.user?.email || 'Employer';
-    const participant = await dyteService.addParticipant(
-      session.meeting_id,
+    const iframeUrl = await jitsiService.getJoinUrl({
+      meetingId: session.meeting_id,
       userName,
-      employerId,
-      'host'
-    );
-
-    // Generate iframe URL
-    const iframeUrl = dyteService.getIframeUrl(session.meeting_id, participant.authToken);
+      password: session.moderator_password || session.meeting_password || '',
+      isModerator: true
+    });
 
     res.status(200).json({
       success: true,

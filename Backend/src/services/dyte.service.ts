@@ -47,8 +47,13 @@ export class DyteService {
   constructor() {
     this.apiKey = process.env.DYTE_API_KEY || '';
     this.orgId = process.env.DYTE_ORG_ID || '';
-    // this.baseUrl = process.env.DYTE_API_URL || 'https://api.dyte.io/v2';
-    this.baseUrl = 'https://api.dyte.io/v2';
+    // Prefer environment override, but ensure we use v2 endpoints.
+    const rawApiUrl = (process.env.DYTE_API_URL || 'https://api.dyte.io/v2').trim();
+    if (/\/v1(\/|$)/.test(rawApiUrl)) {
+      console.warn('⚠️  DYTE_API_URL contains v1 - upgrading to v2 to avoid 422 errors');
+    }
+    // Normalize any accidental v1 -> v2 and remove trailing slash
+    this.baseUrl = rawApiUrl.replace(/\/v1(\b|\/)/, '/v2/').replace(/\/$/, '');
     
     // ✅ FIX: Use environment variables for preset names with fallbacks
     // Common preset names: 'host', 'moderator', 'webinar_presenter', 'group_call_host'
@@ -67,6 +72,22 @@ export class DyteService {
       console.error('❌ CRITICAL: Dyte credentials not configured!');
       console.error('Set DYTE_API_KEY and DYTE_ORG_ID in .env');
     }
+  }
+
+  // Generate a Dyte-compliant room name: six lowercase letters, hyphen, six lowercase letters
+  // Deterministic from a source id (sessionId or meetingId)
+  public generateDyteRoomName(sourceId: string): string {
+    const hash = crypto.createHash('sha256').update(sourceId || Date.now().toString()).digest();
+    let letters = '';
+    for (let i = 0; letters.length < 12 && i < hash.length; i++) {
+      const val = hash[i] % 26; // 0-25
+      letters += String.fromCharCode(97 + val); // a-z
+    }
+    if (letters.length < 12) {
+      // pad with random letters if somehow short
+      while (letters.length < 12) letters += String.fromCharCode(97 + (crypto.randomInt(0, 26)));
+    }
+    return `${letters.slice(0,6)}-${letters.slice(6,12)}`;
   }
 
   private getHeaders() {
@@ -188,8 +209,8 @@ export class DyteService {
 
       const moderatorToken = moderatorResponse.data.data.token;
       const meetingUrl = `https://app.dyte.io/${meetingId}`;
-      const password = this.generateMeetingPassword();
-      const roomName = `training_${config.trainingId}_session_${config.sessionId}`;
+  const password = this.generateMeetingPassword();
+  const roomName = this.generateDyteRoomName(config.sessionId);
 
       console.log('✅ Dyte meeting fully configured');
 
