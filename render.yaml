@@ -1,0 +1,10 @@
+﻿services:
+  - type: web
+    name: rural-connect-frontend
+    env: static
+    buildCommand: cd Frontend && npm install && npm run build
+    staticPublishPath: ./Frontend/dist/ruralconnect
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html

@@ -1,0 +1,39 @@
+<nav class="sidebar">
+  <div class="sidebar-header">
+    <div class="logo">
+      <div class="logo-icon">
+        <i class="fas fa-graduation-cap"></i>
+      </div>
+      <span>Digital Skilling App</span>
+    </div>
+  </div>
+
+  <div class="nav-section" *ngFor="let section of navSections">
+    <div class="nav-title">{{ section.title }}</div>
+    <a 
+      *ngFor="let item of section.items" 
+      [routerLink]="item.route"
+      class="nav-item"
+      [class.active]="isActive(item.route)"
+      routerLinkActive="active"
+    >
+      <i [class]="item.icon"></i>
+      <span>{{ item.label }}</span>
+      <span class="nav-badge" *ngIf="item.badge">{{ item.badge }}</span>
+    </a>
+  </div>
+
+  <!-- Functional Logout Button -->
+  <div class="sidebar-footer">
+    <button 
+      class="logout-btn" 
+      (click)="logout()"
+      [disabled]="isLoggingOut">
+      <i class="fas" 
+         [class.fa-sign-out-alt]="!isLoggingOut" 
+         [class.fa-spinner]="isLoggingOut" 
+         [class.fa-spin]="isLoggingOut"></i>
+      <span>{{ isLoggingOut ? 'Logging out...' : 'Logout' }}</span>
+    </button>
+  </div>
+</nav>

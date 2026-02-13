@@ -1,0 +1,342 @@
+<div class="dashboard-container">
+  <!-- Sidebar -->
+  <app-sidebar [userType]="'employer'"></app-sidebar>
+  
+  <!-- Main Content -->
+  <main class="main-content">
+    <!-- Sidebar Overlay (Mobile) -->
+    <div class="sidebar-overlay" (click)="closeSidebar()"></div>
+
+    <!-- Top Header (Single, Fixed Version) -->
+    <header class="top-header">
+      <!-- Hamburger Menu (Mobile Only) -->
+      <button class="hamburger" (click)="toggleSidebar()" aria-label="Toggle Menu">
+        <i class="fas fa-bars"></i>
+      </button>
+
+      <div class="header-left">
+        <h1>Employer Dashboard</h1>
+        <p>Manage your recruitment and training programs</p>
+      </div>
+      
+      <div class="header-right">
+        <div class="search-container">
+          <i class="fas fa-search"></i>
+          <input type="text" placeholder="Search candidates, skills, training...">
+        </div>
+        <div class="header-actions">
+          <button class="action-btn notification-btn">
+            <i class="fas fa-bell"></i>
+            <span class="badge">{{urgentActions}}</span>
+          </button>
+          <div class="user-dropdown">
+            <img src="https://via.placeholder.com/36" alt="Profile">
+            <i class="fas fa-chevron-down"></i>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <!-- Welcome Banner -->
+    <section class="welcome-banner">
+      <div class="banner-content">
+        <div class="welcome-info">
+          <h2>Welcome back to Digital Skilling, {{employerName}}!</h2>
+          <p>Your recruitment hub is ready. Company profile is {{profileCompletion}}% complete.</p>
+          <div class="quick-actions">
+            <button class="action-btn primary-btn" (click)="createNewJobPost()">
+              <i class="fas fa-plus"></i>
+              Post New Job
+            </button>
+            <button class="action-btn secondary-btn" (click)="createNewTraining()">
+              <i class="fas fa-graduation-cap"></i>
+              Create Training
+            </button>
+          </div>
+        </div>
+        <div class="banner-visual">
+          <div class="floating-card">
+            <img src="assets/employer.svg" alt="Company Logo">
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Stats Grid -->
+    <section class="stats-grid">
+      <div class="stat-card job-posts">
+        <div class="stat-header">
+          <i class="fas fa-briefcase"></i>
+          <span class="stat-trend up">+12%</span>
+        </div>
+        <h3>{{activeJobs}}</h3>
+        <p>Active Job Posts</p>
+      </div>
+      
+      <div class="stat-card candidates">
+        <div class="stat-header">
+          <i class="fas fa-users"></i>
+          <span class="stat-trend up">+25%</span>
+        </div>
+        <h3>{{totalCandidates}}</h3>
+        <p>Total Applications</p>
+      </div>
+      
+      <div class="stat-card interviews">
+        <div class="stat-header">
+          <i class="fas fa-calendar-check"></i>
+          <span class="stat-trend neutral">±0%</span>
+        </div>
+        <h3>{{scheduledInterviews}}</h3>
+        <p>Scheduled Interviews</p>
+      </div>
+      
+      <div class="stat-card training">
+        <div class="stat-header">
+          <i class="fas fa-play-circle"></i>
+          <span class="stat-trend up">+8%</span>
+        </div>
+        <h3>15</h3>
+        <p>Training Programs</p>
+      </div>
+    </section>
+
+    <!-- Main Dashboard Grid -->
+    <div class="dashboard-grid">
+      <!-- AI Skill Matches -->
+      <section class="dashboard-card skill-matches">
+        <div class="card-header">
+          <h3>
+            <i class="fas fa-brain"></i>
+            AI Skill Matches
+          </h3>
+          <span class="status-indicator new">{{topApplicants.length}} New</span>
+        </div>
+        <div class="matches-container">
+          <div class="match-item" *ngFor="let applicant of topApplicants">
+            <div class="applicant-profile">
+              <div class="profile-pic">{{applicant.avatar}}</div>
+              <div class="profile-details">
+                <h4>{{applicant.name}}</h4>
+                <span class="position">{{applicant.position}}</span>
+                <div class="skills-preview">
+                  <span class="skill" *ngFor="let skill of applicant.skills.slice(0, 3)">{{skill}}</span>
+                </div>
+              </div>
+            </div>
+            <div class="match-score" [ngClass]="getMatchScoreClass(applicant.matchScore)">
+              {{applicant.matchScore}}%
+            </div>
+            <div class="match-actions">
+              <button class="btn-sm outline" (click)="viewApplicant(applicant.id)">Review</button>
+              <button class="btn-sm primary" (click)="contactApplicant(applicant.id)">Contact</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Training Analytics -->
+      <section class="dashboard-card training-analytics">
+        <div class="card-header">
+          <h3>
+            <i class="fas fa-chart-line"></i>
+            Training Impact
+          </h3>
+        </div>
+        <div class="training-stats">
+          <div class="training-metric">
+            <div class="metric-value">{{analytics.applications.count}}</div>
+            <div class="metric-label">Learners Enrolled</div>
+            <div class="metric-change positive">+{{analytics.applications.change}}%</div>
+          </div>
+          <div class="training-metric">
+            <div class="metric-value">{{analytics.interviews.count}}</div>
+            <div class="metric-label">Certificates Issued</div>
+            <div class="metric-change positive">+{{analytics.interviews.change}}%</div>
+          </div>
+          <div class="training-metric">
+            <div class="metric-value">4.8</div>
+            <div class="metric-label">Avg Rating</div>
+            <div class="metric-change positive">+0.3</div>
+          </div>
+        </div>
+        <div class="training-progress">
+          <div class="progress-item">
+            <span>JavaScript Fundamentals</span>
+            <div class="progress-bar">
+              <div class="progress-fill" style="width: 85%"></div>
+            </div>
+            <span class="progress-percent">85%</span>
+          </div>
+          <div class="progress-item">
+            <span>Digital Marketing</span>
+            <div class="progress-bar">
+              <div class="progress-fill" style="width: 67%"></div>
+            </div>
+            <span class="progress-percent">67%</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- Enrollment Notifications -->
+      <section class="dashboard-card enrollment-notifications">
+        <div class="card-header">
+          <h3><i class="fas fa-user-graduate"></i> Enrollment Notifications</h3>
+          <button class="btn-icon" (click)="toggleNotifications()" title="Toggle Notifications">
+            <i class="fas" [ngClass]="showNotifications ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
+          </button>
+        </div>
+
+        <div class="notification-dropdown" *ngIf="showNotifications">
+          <div class="notification-header">
+            <h4>Enrollment Updates</h4>
+            <button class="close-btn" (click)="toggleNotifications()">
+              <i class="fas fa-times"></i>
+            </button>
+          </div>
+
+          <div class="notification-list">
+            <div
+              class="notification-item"
+              *ngFor="let notification of enrollmentNotifications"
+              [class]="'notification-' + notification.notification_type"
+              [class.action-required]="notification.notification_type === 'completed' && !notification.certificate_issued"
+              (click)="viewStudentProfile(notification)">
+              
+              <div class="notification-icon" [style.color]="getNotificationColor(notification.notification_type)">
+                <i class="fas" [ngClass]="getNotificationIcon(notification.notification_type)"></i>
+              </div>
+
+              <div class="notification-content">
+                <p class="notification-message">
+                  <strong>{{ getJobseekerDisplayName(notification) }}</strong>
+                  <span *ngIf="notification.notification_type === 'new'"> just enrolled in </span>
+                  <span *ngIf="notification.notification_type === 'completed'"> completed </span>
+                  <span *ngIf="notification.notification_type === 'in_progress'"> is learning </span>
+                  <strong>"{{ notification.training_title }}"</strong>
+                </p>
+
+                <div class="completion-alert" *ngIf="notification.notification_type === 'completed'">
+                  <i class="fas fa-check-circle"></i>
+                  <span *ngIf="!notification.certificate_issued">Ready for certificate issuance</span>
+                  <span *ngIf="notification.certificate_issued">Certificate issued ✓</span>
+                </div>
+
+                <div class="notification-meta">
+                  <span class="notification-time">{{ notification.enrolled_at | date:'short' }}</span>
+                  <span class="notification-progress" *ngIf="notification.progress_percentage">
+                    Progress: {{ notification.progress_percentage }}%
+                  </span>
+                </div>
+              </div>
+
+              <div class="notification-actions" (click)="$event.stopPropagation()">
+                <button
+                  *ngIf="notification.notification_type === 'completed' && !notification.certificate_issued"
+                  class="btn-issue-cert btn-primary-action"
+                  (click)="issueCertificateFromNotification(notification)">
+                  <i class="fas fa-certificate"></i>
+                  <span>Issue Certificate</span>
+                </button>
+
+                <span *ngIf="notification.certificate_issued" class="certificate-badge success">
+                  <i class="fas fa-check-circle"></i> Certificate Issued
+                </span>
+
+                <button
+                  *ngIf="notification.certificate_issued"
+                  class="btn-download-cert btn-secondary"
+                  (click)="downloadEmployerCertificate(notification.enrollment_id)">
+                  <i class="fas fa-download"></i>
+                  <span>Download</span>
+                </button>
+
+                <button class="btn-view-profile btn-secondary" (click)="viewStudentProfile(notification)">
+                  <i class="fas fa-user"></i>
+                  <span>Profile</span>
+                </button>
+              </div>
+            </div>
+
+            <div class="no-notifications" *ngIf="enrollmentNotifications.length === 0">
+              <i class="fas fa-inbox"></i>
+              <p>No enrollment updates</p>
+            </div>
+          </div>
+
+          <div class="notification-footer" *ngIf="enrollmentNotifications.length > 0">
+            <div class="footer-actions">
+              <button class="btn-secondary" (click)="markAllEnrollmentNotificationsRead()">
+                <i class="fas fa-check"></i>
+                Mark all as read
+              </button>
+              <button class="btn-secondary" *ngIf="hasMoreEnrollmentNotifications" (click)="loadMoreEnrollmentNotifications()">
+                <i class="fas fa-chevron-down"></i>
+                Load more
+              </button>
+              <button class="btn-secondary btn-danger" (click)="confirmClearEnrollmentNotifications()">
+                <i class="fas fa-trash-alt"></i>
+                Clear
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Interview Schedule -->
+      <section class="dashboard-card interview-schedule">
+        <div class="card-header">
+          <h3>
+            <i class="fas fa-calendar-alt"></i>
+            Today's Interviews
+          </h3>
+        </div>
+        <div class="interview-list">
+          <div class="interview-slot" *ngFor="let interview of upcomingInterviews.slice(0, 3)">
+            <div class="time-slot">
+              <span class="time">{{interview.time}}</span>
+              <span class="duration">30min</span>
+            </div>
+            <div class="interview-info">
+              <h4>{{interview.candidateName}}</h4>
+              <p>{{interview.position}}</p>
+              <div class="interview-type" [ngClass]="interview.type">
+                <i class="fas" [ngClass]="interview.type === 'online' ? 'fa-video' : 'fa-map-marker-alt'"></i>
+                {{interview.type | titlecase}}
+              </div>
+            </div>
+            <div class="interview-actions">
+              <button class="btn-icon" (click)="joinInterview(interview.id)" title="Join Interview">
+                <i class="fas fa-play"></i>
+              </button>
+              <button class="btn-icon" (click)="viewInterviewDetails(interview.id)" title="Details">
+                <i class="fas fa-info"></i>
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Recent Activity -->
+      <section class="dashboard-card recent-activity">
+        <div class="card-header">
+          <h3>
+            <i class="fas fa-clock"></i>
+            Recent Activity
+          </h3>
+        </div>
+        <div class="activity-feed">
+          <div class="activity-item" *ngFor="let activity of recentActivity.slice(0, 4)">
+            <div class="activity-icon" [ngClass]="activity.type">
+              <i [class]="getActivityIcon(activity.type)"></i>
+            </div>
+            <div class="activity-content">
+              <p>{{activity.message}}</p>
+              <span class="activity-time">{{activity.timestamp}}</span>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+  </main>
+</div>

@@ -1,0 +1,349 @@
+<!-- Hamburger Menu Button -->
+<button class="hamburger" (click)="toggleSidebar()">
+  <i class="fas fa-bars"></i>
+</button>
+
+<!-- Sidebar Overlay -->
+<div class="sidebar-overlay" (click)="closeSidebar()"></div>
+<div class="app-layout">
+      <!-- Sidebar Navigation -->
+
+<app-sidebar [userType]="'employer'"></app-sidebar>
+
+      <!-- Main Content -->
+      <div class="main-content">
+        <!-- Header Section -->
+        <div class="header-section">
+          <div class="company-header">
+            <div class="company-logo">
+              @if (companyInfo().logo) {
+                <img [src]="companyInfo().logo" [alt]="companyInfo().name" (error)="handleImageError($event)">
+              } @else {
+                <div class="logo-placeholder">
+                  <i class="fas fa-building"></i>
+                </div>
+              }
+            </div>
+            <div class="company-info">
+              <h1 class="company-name">{{ companyInfo().name }}</h1>
+              <div class="header-actions">
+                <div class="search-box">
+                  <i class="fas fa-search"></i>
+                  <input type="text" placeholder="Search..." (input)="onSearchChange($event)">
+                </div>
+                <button class="edit-profile-btn" (click)="editProfile()">
+                  <i class="fas fa-edit"></i>
+                  Edit Profile
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tab Navigation -->
+        <div class="tab-navigation">
+          <button 
+            class="tab-item" 
+            [class.active]="activeTab() === 'overview'"
+            (click)="setActiveTab('overview')">
+            Overview
+          </button>
+          <button 
+            class="tab-item" 
+            [class.active]="activeTab() === 'culture'"
+            (click)="setActiveTab('culture')">
+            Culture & Values
+          </button>
+          <button 
+            class="tab-item" 
+            [class.active]="activeTab() === 'benefits'"
+            (click)="setActiveTab('benefits')">
+            Benefits & Perks
+          </button>
+          <button 
+            class="tab-item" 
+            [class.active]="activeTab() === 'social'"
+            (click)="setActiveTab('social')">
+            Social Responsibility
+          </button>
+          <button 
+            class="tab-item" 
+            [class.active]="activeTab() === 'jobs'"
+            (click)="setActiveTab('jobs')">
+            Open Roles
+          </button>
+        </div>
+
+        <!-- Content Area -->
+        <div class="content-wrapper">
+          <div class="main-content-area">
+            <!-- Overview Tab -->
+            @if (activeTab() === 'overview') {
+              <div class="tab-content">
+                <!-- About Section -->
+                <div class="section">
+                  <h2 class="section-title">About {{ companyInfo().name }}</h2>
+                  <p class="company-description">{{ companyInfo().about }}</p>
+                </div>
+
+                <!-- Mission & Vision Cards -->
+                <div class="mission-vision-cards">
+                  <div class="card mission-card">
+                    <div class="card-header">
+                      <i class="fas fa-bullseye"></i>
+                      <h3>Our Mission</h3>
+                    </div>
+                    <p>{{ companyInfo().mission }}</p>
+                  </div>
+                  <div class="card vision-card">
+                    <div class="card-header">
+                      <i class="fas fa-eye"></i>
+                      <h3>Our Vision</h3>
+                    </div>
+                    <p>{{ companyInfo().vision }}</p>
+                  </div>
+                </div>
+
+                <!-- Work Environment -->
+                <div class="section">
+                  <div class="section-header">
+                    <h2 class="section-title">Work Environment</h2>
+                    <a href="#" class="see-more-link">See more details</a>
+                  </div>
+                  <p class="section-description">Modern open-plan offices with flexible work policies and remote options available</p>
+                  <div class="work-environment-gallery">
+                    @for (image of workEnvironmentImages(); track $index) {
+                      <div class="image-container">
+                        <img [src]="image.url" [alt]="image.alt" class="office-image">
+                        <div class="image-overlay">
+                          <span class="image-label">{{ image.label }}</span>
+                        </div>
+                      </div>
+                    }
+                  </div>
+                </div>
+
+                <!-- Stats & Highlights -->
+                <div class="section">
+                  <h2 class="section-title">Company Stats</h2>
+                  <div class="stats-grid">
+                    <div class="stat-card">
+                      <div class="stat-icon">
+                        <i class="fas fa-calendar"></i>
+                      </div>
+                      <div class="stat-info">
+                        <span class="stat-label">Founded</span>
+                        <span class="stat-value">{{ companyInfo().founded }}</span>
+                      </div>
+                    </div>
+                    <div class="stat-card">
+                      <div class="stat-icon">
+                        <i class="fas fa-users"></i>
+                      </div>
+                      <div class="stat-info">
+                        <span class="stat-label">Company Size</span>
+                        <span class="stat-value">{{ companyInfo().size }} employees</span>
+                      </div>
+                    </div>
+                    <div class="stat-card">
+                      <div class="stat-icon">
+                        <i class="fas fa-industry"></i>
+                      </div>
+                      <div class="stat-info">
+                        <span class="stat-label">Industry</span>
+                        <span class="stat-value">{{ companyInfo().industry }}</span>
+                      </div>
+                    </div>
+                    <div class="stat-card">
+                      <div class="stat-icon">
+                        <i class="fas fa-map-marker-alt"></i>
+                      </div>
+                      <div class="stat-info">
+                        <span class="stat-label">Headquarters</span>
+                        <span class="stat-value">{{ companyInfo().headquarters }}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            }
+
+            <!-- Culture & Values Tab -->
+            @if (activeTab() === 'culture') {
+              <div class="tab-content">
+                <div class="section">
+                  <h2 class="section-title">Company Culture</h2>
+                  <p class="section-description">Our culture is built on innovation, collaboration, and continuous learning. We believe in empowering our employees to make a meaningful impact.</p>
+                  
+                  <div class="culture-values">
+                    <div class="value-card">
+                      <i class="fas fa-lightbulb"></i>
+                      <h4>Innovation</h4>
+                      <p>We encourage creative thinking and groundbreaking solutions.</p>
+                    </div>
+                    <div class="value-card">
+                      <i class="fas fa-handshake"></i>
+                      <h4>Collaboration</h4>
+                      <p>Teamwork and open communication drive our success.</p>
+                    </div>
+                    <div class="value-card">
+                      <i class="fas fa-chart-line"></i>
+                      <h4>Growth</h4>
+                      <p>Continuous learning and development for all team members.</p>
+                    </div>
+                    <div class="value-card">
+                      <i class="fas fa-balance-scale"></i>
+                      <h4>Integrity</h4>
+                      <p>We maintain the highest ethical standards in all our work.</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            }
+
+            <!-- Benefits & Perks Tab -->
+            @if (activeTab() === 'benefits') {
+              <div class="tab-content">
+                <div class="section">
+                  <h2 class="section-title">Benefits & Perks</h2>
+                  <div class="benefits-grid">
+                    @for (benefit of benefits(); track benefit.title) {
+                      <div class="benefit-card">
+                        <div class="benefit-icon">
+                          <i [class]="benefit.icon"></i>
+                        </div>
+                        <div class="benefit-info">
+                          <h4>{{ benefit.title }}</h4>
+                          <p>{{ benefit.description }}</p>
+                        </div>
+                      </div>
+                    }
+                  </div>
+                </div>
+              </div>
+            }
+
+            <!-- Social Responsibility Tab -->
+            @if (activeTab() === 'social') {
+              <div class="tab-content">
+                <div class="section">
+                  <h2 class="section-title">Social Responsibility</h2>
+                  <p class="section-description">We're committed to making a positive impact on society and the environment through our initiatives and partnerships.</p>
+                  
+                  <div class="csr-initiatives">
+                    @for (initiative of csrInitiatives(); track initiative.title) {
+                      <div class="csr-card">
+                        <div class="csr-icon">
+                          <i [class]="initiative.icon"></i>
+                        </div>
+                        <div class="csr-content">
+                          <h4>{{ initiative.title }}</h4>
+                          <p>{{ initiative.description }}</p>
+                          <div class="impact-badge">
+                            <span>Impact: {{ initiative.impact }}</span>
+                          </div>
+                        </div>
+                      </div>
+                    }
+                  </div>
+                </div>
+              </div>
+            }
+
+            <!-- Open Roles Tab -->
+            <!-- @if (activeTab() === 'jobs') {
+              <div class="tab-content">
+                <div class="section">
+                  <div class="section-header">
+                    <h2 class="section-title">Open Job Opportunities</h2>
+                    <span class="job-count">{{ jobOpenings().length }} open positions</span>
+                  </div>
+                  
+                  <div class="jobs-grid">
+                    @for (job of jobOpenings(); track job.id) {
+                      <div class="job-card">
+                        <div class="job-header">
+                          <div class="job-title-section">
+                            <h4 class="job-title">{{ job.title }}</h4>
+                            <div class="job-meta">
+                              <span class="job-location">
+                                <i class="fas fa-map-marker-alt"></i>
+                                {{ job.location }}
+                              </span>
+                              <span class="job-mode" [ngClass]="getJobModeClass(job.mode)">
+                                {{ job.mode }}
+                              </span>
+                              <span class="job-posted">
+                                {{ getDaysAgo(job.postedDate) }} days ago
+                              </span>
+                            </div>
+                          </div>
+                          <button class="apply-btn" (click)="applyToJob(job.id)">
+                            Apply Now
+                          </button>
+                        </div>
+                        
+                        <div class="job-skills">
+                          @for (skill of job.skills; track skill) {
+                            <span class="skill-tag">
+                              {{ skill }}
+                            </span>
+                          }
+                        </div>
+                        
+                        <div class="job-department">
+                          <i class="fas fa-building"></i>
+                          {{ job.department }} Department
+                        </div>
+                      </div>
+                    }
+                  </div>
+                </div>
+              </div>
+            }
+          </div> -->
+
+          <!-- AI Insights Sidebar -->
+          <!-- <div class="ai-sidebar">
+            <div class="ai-widget">
+              <div class="ai-header">
+                <i class="fas fa-robot"></i>
+                <h3>AI Insights</h3>
+              </div>
+              
+              <div class="ai-metric">
+                <div class="metric-label">Skill Match</div>
+                <div class="metric-progress">
+                  <div class="progress-bar">
+                    <div class="progress-fill" [style.width.%]="aiInsights().skillMatch"></div>
+                  </div>
+                  <span class="metric-value">{{ aiInsights().skillMatch }}%</span>
+                </div>
+              </div>
+
+              <div class="ai-metric">
+                <div class="metric-label">Company Fit Score</div>
+                <div class="metric-progress">
+                  <div class="progress-bar">
+                    <div class="progress-fill" [style.width.%]="aiInsights().companyFitScore"></div>
+                  </div>
+                  <span class="metric-value">{{ aiInsights().companyFitScore }}%</span>
+                </div>
+              </div>
+
+              <div class="recommended-training">
+                <h4>Recommended Training</h4>
+                <ul>
+                  @for (training of aiInsights().recommendedTraining; track training) {
+                    <li>
+                      <i class="fas fa-graduation-cap"></i>
+                      {{ training }}
+                    </li>
+                  }
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div> -->

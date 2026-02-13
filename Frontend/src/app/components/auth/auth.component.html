@@ -1,0 +1,435 @@
+<div class="auth-container">
+  <div class="left-section" [ngClass]="activeUserType">
+    <div class="overlay">
+      <div class="content">
+        <h1 class="main-heading">{{ getRoleContent().heading }}</h1>
+        <p class="sub-heading">{{ getRoleContent().subheading }}</p>
+        
+        <div class="user-type-selection">
+          <button class="user-type-btn" 
+                  [class.active]="activeUserType === 'jobseeker'"
+                  (click)="setActiveUserType('jobseeker')"
+                  [disabled]="loading || submitted">
+            JOBSEEKER
+          </button>
+          <button class="user-type-btn" 
+                  [class.active]="activeUserType === 'employer'"
+                  (click)="setActiveUserType('employer')"
+                  [disabled]="loading || submitted">
+            EMPLOYER
+          </button>
+          <button class="user-type-btn" 
+                  [class.active]="activeUserType === 'admin'"
+                  (click)="setActiveUserType('admin')"
+                  [disabled]="loading || submitted">
+            ADMIN
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="right-section">
+    <div class="header">
+      <div class="logo">
+        <i class="fas fa-leaf"></i>
+        <span class="logo-text">Digital Skilling App</span>
+      </div>
+      
+      <div class="welcome-section">
+        <h2>Welcome To Digital Skilling App</h2>
+        <p>Your Skills. Your future. One Platform</p>
+      </div>
+
+      <div class="messages" *ngIf="error || success">
+        <div *ngIf="success" class="success-message">
+          <i class="fas fa-check-circle"></i>
+          {{ success }}
+        </div>
+        <div *ngIf="error" class="error-message">
+          <i class="fas fa-exclamation-circle"></i>
+          {{ error }}
+        </div>
+      </div>
+
+      <div class="top-user-tabs">
+        <button class="tab-btn job-seeker-tab" 
+                [class.active]="activeUserType === 'jobseeker'"
+                (click)="setActiveUserType('jobseeker')"
+                [disabled]="loading || submitted">
+          <i class="fas fa-search"></i>
+          Job Seeker
+        </button>
+        <button class="tab-btn employer-tab" 
+                [class.active]="activeUserType === 'employer'"
+                (click)="setActiveUserType('employer')"
+                [disabled]="loading || submitted">
+          <i class="fas fa-building"></i>
+          Employer
+        </button>
+        <button class="tab-btn admin-tab" 
+                [class.active]="activeUserType === 'admin'"
+                (click)="setActiveUserType('admin')"
+                [disabled]="loading || submitted">
+          <i class="fas fa-user-tie"></i>
+          Admin
+        </button>
+      </div>
+
+      <div class="auth-toggle">
+        <span class="toggle-link" 
+              [class.active]="activeForm === 'login'"
+              [class.disabled]="loading || submitted"
+              (click)="!loading && !submitted && setActiveForm('login')">Login</span>
+        <span class="toggle-link" 
+              [class.active]="activeForm === 'signup'"
+              [class.disabled]="loading || submitted"
+              (click)="!loading && !submitted && setActiveForm('signup')">SignUp</span>
+      </div>
+    </div>
+
+    <!-- ============================================ -->
+    <!-- LOGIN FORM -->
+    <!-- ============================================ -->
+    <form class="auth-form" *ngIf="activeForm === 'login'" (ngSubmit)="onLogin()">
+      <div class="input-group">
+        <div class="input-wrapper">
+          <i class="fas fa-envelope input-icon"></i>
+          <input type="email" 
+                 [(ngModel)]="loginEmail" 
+                 name="loginEmail"
+                 placeholder="Enter your Email" 
+                 class="form-input" 
+                 [disabled]="loading"
+                 required>
+        </div>
+      </div>
+      <div class="input-group">
+        <div class="input-wrapper">
+          <i class="fas fa-lock input-icon"></i>
+          <input [type]="showLoginPassword ? 'text' : 'password'" 
+                 [(ngModel)]="loginPassword" 
+                 name="loginPassword"
+                 placeholder="Enter your Password" 
+                 class="form-input" 
+                 [disabled]="loading"
+                 required>
+          <button type="button" 
+                  class="password-toggle"
+                  (click)="toggleLoginPassword()"
+                  [disabled]="loading">
+            <i [class]="showLoginPassword ? 'fas fa-eye-slash' : 'fas fa-eye'"></i>
+          </button>
+        </div>
+      </div>
+
+      <div class="form-options">
+        <label class="remember-me">
+          <input type="checkbox" 
+                 [(ngModel)]="rememberMe" 
+                 name="rememberMe"
+                 [disabled]="loading">
+          <span class="checkmark"></span>
+          Remember Me?
+        </label>
+        <p><a (click)="onForgotPassword()" routerLink="/reset-password" class="forgot-password">Forgot your password?</a></p>
+      </div>
+      <button type="submit" 
+              class="auth-btn"
+              [disabled]="loading || !loginEmail || !loginPassword">
+        <span *ngIf="!loading">LOGIN</span>
+        <span *ngIf="loading">
+          <i class="fas fa-spinner fa-spin"></i> Logging in...
+        </span>
+      </button>
+    </form>
+
+    <!-- ============================================ -->
+    <!-- JOBSEEKER SIGNUP FORM -->
+    <!-- ============================================ -->
+    <form class="auth-form" 
+          *ngIf="activeForm === 'signup' && activeUserType === 'jobseeker'" 
+          (ngSubmit)="onSignUp()">
+      <div class="input-group">
+        <div class="input-wrapper">
+          <i class="fas fa-user input-icon"></i>
+          <input type="text" 
+                 [(ngModel)]="signupName" 
+                 name="signupName"
+                 placeholder="Enter your Name" 
+                 class="form-input" 
+                 [disabled]="loading || submitted"
+                 required>
+        </div>
+      </div>
+      <div class="input-group">
+        <div class="input-wrapper">
+          <i class="fas fa-envelope input-icon"></i>
+          <input type="email" 
+                 [(ngModel)]="signupEmail" 
+                 name="signupEmail"
+                 placeholder="Enter your Email" 
+                 class="form-input" 
+                 [disabled]="loading || submitted"
+                 required>
+        </div>
+      </div>
+      <div class="input-group">
+        <div class="input-wrapper">
+          <i class="fas fa-lock input-icon"></i>
+          <input [type]="showSignupPassword ? 'text' : 'password'" 
+                 [(ngModel)]="signupPassword" 
+                 name="signupPassword"
+                 placeholder="Enter your Password" 
+                 class="form-input" 
+                 [disabled]="loading || submitted"
+                 required>
+          <button type="button" 
+                  class="password-toggle"
+                  (click)="toggleSignupPassword()"
+                  [disabled]="loading || submitted">
+            <i [class]="showSignupPassword ? 'fas fa-eye-slash' : 'fas fa-eye'"></i>
+          </button>
+        </div>
+      </div>
+      <div class="input-group">
+        <div class="input-wrapper">
+          <i class="fas fa-location input-icon"></i>
+          <input type="text"
+                 [(ngModel)]="signupLocation" 
+                 name="signupLocation"
+                 placeholder="Enter your Location" 
+                 class="form-input" 
+                 [disabled]="loading || submitted"
+                 required> 
+        </div>
+      </div>
+      <div class="input-group">
+        <div class="input-wrapper">
+          <i class="fas fa-phone input-icon"></i>
+          <input type="tel" 
+                 [(ngModel)]="contactNumber" 
+                 name="contactNumber"
+                 placeholder="Enter your Contact Number" 
+                 class="form-input" 
+                 [disabled]="loading || submitted"
+                 required>
+        </div>
+      </div>
+      
+      <!-- ✅ IMPROVED BUTTON with loading state -->
+      <button type="submit" 
+              class="auth-btn"
+              [disabled]="loading || submitted || !signupName || !signupEmail || !signupPassword || !signupLocation || !contactNumber">
+        <span *ngIf="!loading && !submitted">SIGN UP</span>
+        <span *ngIf="loading">
+          <i class="fas fa-spinner fa-spin"></i> Creating account...
+        </span>
+        <span *ngIf="submitted && !loading">
+          <i class="fas fa-check"></i> Registered!
+        </span>
+      </button>
+      
+      <!-- ✅ NEW: Show login suggestion -->
+      <div class="form-footer" *ngIf="!loading && !submitted">
+        <p class="small-text">Already have an account? 
+          <a (click)="setActiveForm('login')" class="link-primary">Login here</a>
+        </p>
+      </div>
+    </form>
+
+    <!-- ============================================ -->
+    <!-- EMPLOYER SIGNUP FORM -->
+    <!-- ============================================ -->
+    <form class="auth-form" 
+          *ngIf="activeForm === 'signup' && activeUserType === 'employer'" 
+          (ngSubmit)="onSignUp()">
+      <div class="input-group">
+        <div class="input-wrapper">
+          <i class="fas fa-user input-icon"></i>
+          <input type="text" 
+                 [(ngModel)]="signupName" 
+                 name="signupName"
+                 placeholder="Enter your Name" 
+                 class="form-input" 
+                 [disabled]="loading || submitted"
+                 required>
+        </div>
+      </div>
+      <div class="input-group">
+        <div class="input-wrapper">
+          <i class="fas fa-envelope input-icon"></i>
+          <input type="email" 
+                 [(ngModel)]="signupEmail" 
+                 name="signupEmail"
+                 placeholder="Enter your Email" 
+                 class="form-input" 
+                 [disabled]="loading || submitted"
+                 required>
+        </div>
+      </div>
+      <div class="input-group">
+        <div class="input-wrapper">
+          <i class="fas fa-lock input-icon"></i>
+          <input [type]="showSignupPassword ? 'text' : 'password'" 
+                 [(ngModel)]="signupPassword" 
+                 name="signupPassword"
+                 placeholder="Enter your Password" 
+                 class="form-input" 
+                 [disabled]="loading || submitted"
+                 required>
+          <button type="button" 
+                  class="password-toggle"
+                  (click)="toggleSignupPassword()"
+                  [disabled]="loading || submitted">
+            <i [class]="showSignupPassword ? 'fas fa-eye-slash' : 'fas fa-eye'"></i>
+          </button>
+        </div>
+      </div>
+      <div class="input-group">
+        <div class="input-wrapper">
+          <i class="fas fa-building input-icon"></i>
+          <input type="text" 
+                 [(ngModel)]="companyName" 
+                 name="companyName"
+                 placeholder="Enter your Company Name" 
+                 class="form-input"
+                 [disabled]="loading || submitted"
+                 required>
+        </div>
+      </div>
+      <div class="input-group">
+        <div class="input-wrapper">
+          <i class="fas fa-key input-icon"></i>
+          <input [type]="showCompanyPassword ? 'text' : 'password'" 
+                 [(ngModel)]="companyPassword" 
+                 name="companyPassword"
+                 placeholder="Enter your Company Password" 
+                 class="form-input"
+                 [disabled]="loading || submitted"
+                 required>
+          <button type="button" 
+                  class="password-toggle"
+                  (click)="toggleCompanyPassword()"
+                  [disabled]="loading || submitted">
+            <i [class]="showCompanyPassword ? 'fas fa-eye-slash' : 'fas fa-eye'"></i>
+          </button>
+        </div>
+      </div>
+      <div class="input-group">
+        <div class="input-wrapper">
+          <i class="fas fa-user-alt input-icon"></i>
+          <input type="text" 
+                 [(ngModel)]="RoleInTheCompany" 
+                 name="RoleInTheCompany"
+                 placeholder="Enter your Role" 
+                 class="form-input"
+                 [disabled]="loading || submitted"
+                 required>
+        </div>
+      </div>
+      
+      <!-- ✅ IMPROVED BUTTON -->
+      <button type="submit" 
+              class="auth-btn"
+              [disabled]="loading || submitted || !signupName || !signupEmail || !signupPassword || !companyName || !companyPassword || !RoleInTheCompany">
+        <span *ngIf="!loading && !submitted">SIGN UP</span>
+        <span *ngIf="loading">
+          <i class="fas fa-spinner fa-spin"></i> Creating account...
+        </span>
+        <span *ngIf="submitted && !loading">
+          <i class="fas fa-check"></i> Registered!
+        </span>
+      </button>
+      
+      <!-- ✅ NEW: Show login suggestion -->
+      <div class="form-footer" *ngIf="!loading && !submitted">
+        <p class="small-text">Already have an account? 
+          <a (click)="setActiveForm('login')" class="link-primary">Login here</a>
+        </p>
+      </div>
+    </form>
+
+    <!-- ============================================ -->
+    <!-- ADMIN SIGNUP FORM -->
+    <!-- ============================================ -->
+    <form class="auth-form" 
+          *ngIf="activeForm === 'signup' && activeUserType === 'admin'" 
+          (ngSubmit)="onSignUp()">
+      <div class="input-group">
+        <div class="input-wrapper">
+          <i class="fas fa-user input-icon"></i>
+          <input type="text" 
+                 [(ngModel)]="signupName" 
+                 name="signupName"
+                 placeholder="Enter your Name" 
+                 class="form-input" 
+                 [disabled]="loading || submitted"
+                 required>
+        </div>
+      </div>
+      <div class="input-group">
+        <div class="input-wrapper">
+          <i class="fas fa-envelope input-icon"></i>
+          <input type="email" 
+                 [(ngModel)]="signupEmail" 
+                 name="signupEmail"
+                 placeholder="Enter your Email" 
+                 class="form-input" 
+                 [disabled]="loading || submitted"
+                 required>
+        </div>
+      </div>
+      <div class="input-group">
+        <div class="input-wrapper">
+          <i class="fas fa-lock input-icon"></i>
+          <input [type]="showSignupPassword ? 'text' : 'password'" 
+                 [(ngModel)]="signupPassword" 
+                 name="signupPassword"
+                 placeholder="Enter your Password" 
+                 class="form-input" 
+                 [disabled]="loading || submitted"
+                 required>
+          <button type="button" 
+                  class="password-toggle"
+                  (click)="toggleSignupPassword()"
+                  [disabled]="loading || submitted">
+            <i [class]="showSignupPassword ? 'fas fa-eye-slash' : 'fas fa-eye'"></i>
+          </button>
+        </div>
+      </div>
+      <div class="input-group">
+        <div class="input-wrapper">
+          <i class="fas fa-phone input-icon"></i>
+          <input type="tel" 
+                 [(ngModel)]="contactNumber" 
+                 name="contactNumber"
+                 placeholder="Enter your Contact Number" 
+                 class="form-input" 
+                 [disabled]="loading || submitted"
+                 required>
+        </div>
+      </div>
+      
+      <!-- ✅ IMPROVED BUTTON -->
+      <button type="submit" 
+              class="auth-btn"
+              [disabled]="loading || submitted || !signupName || !signupEmail || !signupPassword || !contactNumber">
+        <span *ngIf="!loading && !submitted">SIGN UP</span>
+        <span *ngIf="loading">
+          <i class="fas fa-spinner fa-spin"></i> Creating account...
+        </span>
+        <span *ngIf="submitted && !loading">
+          <i class="fas fa-check"></i> Registered!
+        </span>
+      </button>
+      
+      <!-- ✅ NEW: Show login suggestion -->
+      <div class="form-footer" *ngIf="!loading && !submitted">
+        <p class="small-text">Already have an account? 
+          <a (click)="setActiveForm('login')" class="link-primary">Login here</a>
+        </p>
+      </div>
+    </form>
+  </div>
+</div>

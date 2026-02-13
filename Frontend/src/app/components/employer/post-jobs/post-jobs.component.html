@@ -1,0 +1,716 @@
+<div class="job-posts-container">
+  <!-- Loading Overlay -->
+  <div class="loading-overlay" *ngIf="isLoading">
+    <div class="spinner"></div>
+    <p>Loading job posts...</p>
+  </div>
+
+  <!-- Notification System -->
+  <div class="notification-container" *ngIf="toasts.length > 0">
+    <div class="notification" *ngFor="let notification of toasts" [ngClass]="notification.type">
+      <i class="fas" [ngClass]="{
+        'fa-check-circle': notification.type === 'success',
+        'fa-exclamation-circle': notification.type === 'error',
+        'fa-info-circle': notification.type === 'info'
+      }"></i>
+      <span>{{ notification.message }}</span>
+      <button class="btn-notification-close" (click)="dismissToast(notification.id)">
+        <i class="fas fa-times"></i>
+      </button>
+    </div>
+  </div>
+
+  <!-- Sidebar Overlay (Mobile) -->
+  <div class="sidebar-overlay" (click)="closeSidebar()"></div>
+
+  <!-- Sidebar -->
+  <app-sidebar [userType]="'employer'"></app-sidebar>
+
+  <!-- Main Content -->
+  <div class="main-content">
+    <!-- Hamburger Menu (Mobile Only) -->
+    <button class="hamburger" (click)="toggleSidebar()" aria-label="Toggle Menu">
+      <i class="fas fa-bars"></i>
+    </button>
+
+    <!-- Header -->
+    <div class="page-header">
+      <div class="header-content">
+        <h1 class="page-title">
+          <i class="fas fa-briefcase"></i>
+          Job Posts
+        </h1>
+        <p class="page-description">Manage your job listings ({{ totalJobs }} posts)</p>
+      </div>
+      <div class="header-actions">
+        <div class="search-container">
+          <i class="fas fa-search search-icon"></i>
+          <input
+            type="text"
+            class="search-bar"
+            placeholder="Search job posts..."
+            [(ngModel)]="searchQuery"
+            (input)="filterJobPosts()"
+            (keyup.enter)="onSearchSubmit()">
+          <button class="search-submit-btn" (click)="onSearchSubmit()" *ngIf="searchQuery">
+            <i class="fas fa-arrow-right"></i>
+          </button>
+        </div>
+        <button class="btn-primary" (click)="toggleForm()" [disabled]="isSubmitting">
+          <i class="fas fa-plus"></i>
+          <span>Create Job Post</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Notification Bell -->
+    <div class="notification-wrapper" *ngIf="!showAddForm">
+      <button class="notification-bell" (click)="toggleNotifications()">
+        <i class="fas fa-bell" [class.ringing]="unreadNotificationCount > 0"></i>
+        <span class="notification-badge" *ngIf="unreadNotificationCount > 0">
+          {{ unreadNotificationCount }}
+        </span>
+      </button>
+     
+      <!-- Notification Dropdown -->
+      <div class="notification-dropdown" *ngIf="showNotifications">
+        <div class="notification-header">
+          <h3>
+            <i class="fas fa-bell"></i>
+            Notifications
+            <span class="unread-count" *ngIf="unreadNotificationCount > 0">
+              ({{ unreadNotificationCount }} new)
+            </span>
+          </h3>
+          <button class="close-btn" (click)="toggleNotifications()">
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+       
+        <div class="notification-list">
+          <!-- Notification Items -->
+          <div class="notification-item"
+               *ngFor="let notification of jobNotifications"
+               [class.unread]="!notification.read"
+               (click)="handleNotificationClick(notification)">
+ 
+            <!-- Type Badge -->
+            <span class="notification-type-badge" [ngClass]="{
+              'badge-job': isJobNotification(notification.type),
+              'badge-training': isTrainingNotification(notification.type),
+              'badge-application': isApplicationNotification(notification.type)
+            }">
+              {{ getNotificationCategory(notification.type) }}
+            </span>
+ 
+            <!-- Notification Icon -->
+            <div class="notification-icon" [ngClass]="'icon-' + notification.type">
+              <i class="fas" [ngClass]="getNotificationIcon(notification.type)"></i>
+            </div>
+ 
+            <!-- Notification Content -->
+            <div class="notification-content">
+              <!-- Enhanced Title with Applicant Name for application_received -->
+              <h4 class="notification-title">
+                <ng-container *ngIf="notification.type === 'application_received'">
+                  <span class="applicant-name">
+                    {{ notification.metadata?.applicant_name || 'A candidate' }}
+                  </span>
+                  applied for
+                  <span class="job-title">
+                    {{ notification.metadata?.job_title || 'a position' }}
+                  </span>
+                </ng-container>
+                
+                <!-- Default title for other notification types -->
+                <ng-container *ngIf="notification.type !== 'application_received'">
+                  {{ notification.title || getNotificationTitle(notification.type) }}
+                </ng-container>
+              </h4>
+              
+              <!-- Message -->
+              <p class="notification-message">{{ notification.message }}</p>
+              
+              <!-- Additional metadata for application_received -->
+              <div class="notification-metadata" *ngIf="notification.type === 'application_received'">
+                <span class="metadata-item" *ngIf="notification.metadata?.job_title">
+                  <i class="fas fa-briefcase"></i>
+                  Job: {{ notification.metadata.job_title }}
+                </span>
+                <span class="metadata-item" *ngIf="notification.metadata?.applicant_name">
+                  <i class="fas fa-user"></i>
+                  Applicant: {{ notification.metadata.applicant_name }}
+                </span>
+              </div>
+              
+              <!-- Timestamp -->
+              <span class="notification-time">
+                <i class="fas fa-clock"></i>
+                {{ getTimeSince(notification.created_at) }}
+              </span>
+            </div>
+ 
+            <!-- Notification Actions -->
+            <div class="notification-actions">
+              <!-- View Application Button for application_received -->
+              <button
+                *ngIf="notification.type === 'application_received'"
+                class="btn-notification-action btn-view-application"
+                title="View Application">
+                <i class="fas fa-folder-open"></i>
+              </button>
+              
+              <!-- Mark as Read -->
+              <button
+                *ngIf="!notification.read"
+                class="btn-notification-action btn-mark-read"
+                (click)="markNotificationAsRead(notification.id); $event.stopPropagation()"
+                title="Mark as Read">
+                <i class="fas fa-check"></i>
+              </button>
+             
+              <!-- View Details -->
+              <button
+                class="btn-notification-action btn-view"
+                title="View Details">
+                <i class="fas fa-eye"></i>
+              </button>
+            </div>
+
+            <!-- Unread Indicator -->
+            <span *ngIf="!notification.read" class="unread-dot"></span>
+          </div>
+         
+          <!-- Empty State -->
+          <div class="no-notifications" *ngIf="jobNotifications.length === 0">
+            <i class="fas fa-inbox"></i>
+            <p>No new notifications</p>
+            <small>You'll be notified about applications and job updates</small>
+          </div>
+        </div>
+       
+        <!-- Notification Footer -->
+        <div class="notification-footer" *ngIf="jobNotifications.length > 0">
+          <button class="btn-view-all" (click)="viewAllNotifications()">
+            <i class="fas fa-list"></i>
+            View All Notifications
+          </button>
+        </div>
+      </div>
+    </div>
+ 
+    <!-- Add Job Form -->
+    <div class="job-post-form" *ngIf="showAddForm">
+      <div class="form-card">
+        <div class="form-header">
+          <h3><i class="fas" [class]="isEditing ? 'fa-edit' : 'fa-plus-circle'"></i> {{ isEditing ? 'Edit Job Post' : 'New Job Post' }}</h3>
+          <button class="btn-close" (click)="toggleForm()" [disabled]="isSubmitting">
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+       
+        <form [formGroup]="jobForm" (ngSubmit)="onSubmit()">
+          <div class="form-row">
+            <div class="form-group">
+              <label for="job-title">Job Title *</label>
+              <input
+                type="text"
+                id="job-title"
+                formControlName="title"
+                placeholder="e.g., Software Engineer"
+                [class.error]="jobForm.get('title')?.touched && jobForm.get('title')?.invalid">
+              <div class="error-message" *ngIf="jobForm.get('title')?.touched && jobForm.get('title')?.hasError('required')">
+                Job title is required
+              </div>
+              <div class="error-message" *ngIf="jobForm.get('title')?.touched && jobForm.get('title')?.hasError('minlength')">
+                Job title must be at least 3 characters long
+              </div>
+            </div>
+            <div class="form-group">
+              <label for="location">Location *</label>
+              <input
+                type="text"
+                id="location"
+                formControlName="location"
+                placeholder="e.g., Remote"
+                [class.error]="jobForm.get('location')?.touched && jobForm.get('location')?.invalid">
+              <div class="error-message" *ngIf="jobForm.get('location')?.touched && jobForm.get('location')?.hasError('required')">
+                Location is required
+              </div>
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="employment-type">Employment Type *</label>
+              <select id="employment-type" formControlName="employment_type" class="form-select"
+                      [class.error]="jobForm.get('employment_type')?.touched && jobForm.get('employment_type')?.invalid">
+                <option value="">Select employment type</option>
+                <option value="Full-time">Full-time</option>
+                <option value="Part-time">Part-time</option>
+                <option value="Contract">Contract</option>
+                <option value="Internship">Internship</option>
+              </select>
+              <div class="error-message" *ngIf="jobForm.get('employment_type')?.touched && jobForm.get('employment_type')?.hasError('required')">
+                Employment type is required
+              </div>
+            </div>
+            <div class="form-group">
+              <label for="work-arrangement">Work Arrangement *</label>
+              <select id="work-arrangement" formControlName="work_arrangement" class="form-select"
+                      [class.error]="jobForm.get('work_arrangement')?.touched && jobForm.get('work_arrangement')?.invalid">
+                <option value="">Select work arrangement</option>
+                <option value="Remote">Remote</option>
+                <option value="Hybrid">Hybrid</option>
+                <option value="On-site">On-site</option>
+              </select>
+              <div class="error-message" *ngIf="jobForm.get('work_arrangement')?.touched && jobForm.get('work_arrangement')?.hasError('required')">
+                Work arrangement is required
+              </div>
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="salary-min">Minimum Salary</label>
+              <input
+                type="number"
+                id="salary-min"
+                formControlName="salary_min"
+                placeholder="e.g., 50000">
+            </div>
+            <div class="form-group">
+              <label for="salary-max">Maximum Salary</label>
+              <input
+                type="number"
+                id="salary-max"
+                formControlName="salary_max"
+                placeholder="e.g., 80000">
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="skills">Required Skills (comma-separated) *</label>
+            <input
+              type="text"
+              id="skills"
+              formControlName="skills_required"
+              placeholder="e.g., JavaScript, Python, React"
+              [class.error]="jobForm.get('skills_required')?.touched && jobForm.get('skills_required')?.invalid">
+            <div class="error-message" *ngIf="jobForm.get('skills_required')?.touched && jobForm.get('skills_required')?.hasError('required')">
+              Skills are required
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="description">Job Description *</label>
+            <textarea
+              id="description"
+              formControlName="description"
+              placeholder="Describe the job role, responsibilities, and requirements..."
+              rows="6"
+              [class.error]="jobForm.get('description')?.touched && jobForm.get('description')?.invalid"></textarea>
+            <div class="error-message" *ngIf="jobForm.get('description')?.touched && jobForm.get('description')?.hasError('required')">
+              Description is required
+            </div>
+            <div class="error-message" *ngIf="jobForm.get('description')?.touched && jobForm.get('description')?.hasError('minlength')">
+              Description must be at least 10 characters long
+            </div>
+          </div>
+          <!-- Advanced Fields -->
+          <div class="advanced-fields">
+            <div class="form-group">
+              <label for="requirements">Requirements</label>
+              <textarea
+                id="requirements"
+                formControlName="requirements"
+                placeholder="List specific requirements for this position..."
+                rows="4"></textarea>
+            </div>
+            <div class="form-group">
+              <label for="responsibilities">Responsibilities</label>
+              <textarea
+                id="responsibilities"
+                formControlName="responsibilities"
+                placeholder="Describe key responsibilities..."
+                rows="4"></textarea>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label for="experience-level">Experience Level</label>
+                <select id="experience-level" formControlName="experience_level" class="form-select">
+                  <option value="">Select experience level</option>
+                  <option value="Entry Level">Entry Level</option>
+                  <option value="Mid Level">Mid Level</option>
+                  <option value="Senior Level">Senior Level</option>
+                  <option value="Executive">Executive</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label for="education-level">Education Level</label>
+                <select id="education-level" formControlName="education_level" class="form-select">
+                  <option value="">Select education level</option>
+                  <option value="High School">High School</option>
+                  <option value="Associate Degree">Associate Degree</option>
+                  <option value="Bachelor's Degree">Bachelor's Degree</option>
+                  <option value="Master's Degree">Master's Degree</option>
+                  <option value="PhD">PhD</option>
+                </select>
+              </div>
+            </div>
+            <div class="form-group">
+              <label for="benefits">Benefits (comma-separated)</label>
+              <input
+                type="text"
+                id="benefits"
+                formControlName="benefits"
+                placeholder="e.g., Health Insurance, 401k, Remote Work">
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label for="department">Department</label>
+                <input
+                  type="text"
+                  id="department"
+                  formControlName="department"
+                  placeholder="e.g., Engineering">
+              </div>
+              <div class="form-group">
+                <label for="application-deadline">Application Deadline</label>
+                <input
+                  type="date"
+                  id="application-deadline"
+                  formControlName="application_deadline">
+              </div>
+            </div>
+            <div class="form-group">
+              <label class="checkbox-label">
+                <input type="checkbox" formControlName="is_featured">
+                <span class="checkbox-custom"></span>
+                Featured Job (will appear in featured section)
+              </label>
+            </div>
+          </div>
+          <div class="form-actions">
+            <button type="button" class="btn-secondary" (click)="toggleForm()" [disabled]="isSubmitting">Cancel</button>
+            <button type="submit" class="btn-primary" [disabled]="jobForm.invalid || isSubmitting">
+              <i class="fas fa-spinner fa-spin" *ngIf="isSubmitting"></i>
+              <i class="fas fa-save" *ngIf="!isSubmitting"></i>
+              <span>{{ isSubmitting ? (isEditing ? 'Updating...' : 'Posting...') : (isEditing ? 'Update Job' : 'Post Job') }}</span>
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Job List -->
+    <div class="job-grid" *ngIf="filteredJobPosts.length > 0 && !isLoading">
+      <div class="job-card" *ngFor="let job of filteredJobPosts">
+        <div class="card-header">
+          <div class="job-icon">
+            <i class="fas fa-briefcase"></i>
+          </div>
+          <div class="job-status" [class]="job.status.toLowerCase()">
+            {{ job.status }}
+          </div>
+          <div class="job-featured" *ngIf="job.is_featured">
+            <i class="fas fa-star"></i>
+          </div>
+        </div>
+        <div class="card-content">
+          <h3 class="job-title">{{ job.title }}</h3>
+          <p class="job-description">{{ job.description | slice:0:100 }}...</p>
+         
+          <div class="job-meta">
+            <div class="meta-item">
+              <i class="fas fa-map-marker-alt"></i>
+              <span>{{ job.location }}</span>
+            </div>
+            <div class="meta-item">
+              <i class="fas fa-briefcase"></i>
+              <span>{{ formatJobType(job) }}</span>
+            </div>
+            <div class="meta-item" *ngIf="job.salary_min || job.salary_max">
+              <i class="fas fa-money-bill-wave"></i>
+              <span>{{ formatSalary(job) }}</span>
+            </div>
+            <div class="meta-item">
+              <i class="fas fa-users"></i>
+              <span>{{ job.applications_count }} Applications</span>
+            </div>
+            <div class="meta-item">
+              <i class="fas fa-eye"></i>
+              <span>{{ job.views_count }} Views</span>
+            </div>
+          </div>
+          <div class="job-skills">
+            <span class="skill-tag" *ngFor="let skill of getSkillsArray(job)">{{ skill }}</span>
+          </div>
+          <div class="job-dates">
+            <small>Posted: {{ job.created_at | date:'mediumDate' }}</small>
+            <small *ngIf="job.application_deadline">Deadline: {{ job.application_deadline | date:'mediumDate' }}</small>
+          </div>
+        </div>
+        <div class="card-actions">
+          <button class="btn-view" (click)="viewJobDetails(job)">
+            <i class="fas fa-eye"></i>
+            <span>View Details</span>
+          </button>
+          <div class="action-buttons">
+            <button class="btn-edit" (click)="editJob(job)" title="Edit Job">
+              <i class="fas fa-edit"></i>
+            </button>
+            <button class="btn-toggle"
+                    (click)="toggleJobStatus(job)"
+                    [disabled]="isToggling === job.id"
+                    [title]="job.status === 'Open' ? 'Pause Job' : 'Open Job'">
+              <i class="fas fa-spinner fa-spin" *ngIf="isToggling === job.id"></i>
+              <i class="fas" [ngClass]="job.status === 'Open' ? 'fa-pause' : 'fa-play'" *ngIf="isToggling !== job.id"></i>
+            </button>
+            <button class="btn-duplicate" (click)="duplicateJob(job)" title="Duplicate Job">
+              <i class="fas fa-copy"></i>
+            </button>
+            <button class="btn-filled"
+                    (click)="markJobAsFilled(job)"
+                    *ngIf="job.status === 'Open'"
+                    title="Mark as Filled">
+              <i class="fas fa-check"></i>
+            </button>
+            <button class="btn-delete"
+                    (click)="deleteJobPost(job.id)"
+                    [disabled]="isDeleting === job.id"
+                    title="Delete Job">
+              <i class="fas fa-spinner fa-spin" *ngIf="isDeleting === job.id"></i>
+              <i class="fas fa-trash" *ngIf="isDeleting !== job.id"></i>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Pagination -->
+    <div class="pagination" *ngIf="totalPages > 1 && !isLoading">
+      <button class="pagination-btn"
+              (click)="previousPage()"
+              [disabled]="currentPage === 1">
+        <i class="fas fa-chevron-left"></i>
+        <span>Previous</span>
+      </button>
+     
+      <div class="pagination-info">
+        <span>Page {{ currentPage }} of {{ totalPages }}</span>
+        <span class="total-items">({{ totalJobs }} total jobs)</span>
+      </div>
+     
+      <button class="pagination-btn"
+              (click)="nextPage()"
+              [disabled]="currentPage === totalPages">
+        <span>Next</span>
+        <i class="fas fa-chevron-right"></i>
+      </button>
+    </div>
+
+    <!-- Empty State -->
+    <div class="empty-state" *ngIf="filteredJobPosts.length === 0 && !isLoading">
+      <i class="fas fa-briefcase"></i>
+      <h3>No Job Posts Found</h3>
+      <p *ngIf="searchQuery">No jobs match your search criteria. Try adjusting your search.</p>
+      <p *ngIf="!searchQuery">You haven't created any job posts yet. Create your first job post to get started.</p>
+      <button class="btn-primary" (click)="toggleForm()">
+        <i class="fas fa-plus"></i>
+        <span>Create Job Post</span>
+      </button>
+    </div>
+
+    <!-- Analytics Section -->
+    <div class="analytics-section" *ngIf="jobStats.overview.total_jobs > 0 && !isLoading">
+      <h3 class="section-title">
+        <i class="fas fa-chart-bar"></i>
+        Job Posts Analytics
+      </h3>
+     
+      <div class="analytics-grid">
+        <div class="analytics-card">
+          <div class="card-icon total">
+            <i class="fas fa-briefcase"></i>
+          </div>
+          <div class="card-data">
+            <h4>{{ jobStats.overview.total_jobs }}</h4>
+            <p>Total Job Posts</p>
+          </div>
+        </div>
+        <div class="analytics-card">
+          <div class="card-icon active">
+            <i class="fas fa-play"></i>
+          </div>
+          <div class="card-data">
+            <h4>{{ jobStats.overview.active_jobs }}</h4>
+            <p>Active Posts</p>
+          </div>
+        </div>
+        <div class="analytics-card">
+          <div class="card-icon applicants">
+            <i class="fas fa-users"></i>
+          </div>
+          <div class="card-data">
+            <h4>{{ jobStats.overview.total_applications }}</h4>
+            <p>Total Applications</p>
+          </div>
+        </div>
+        <div class="analytics-card">
+          <div class="card-icon featured">
+            <i class="fas fa-star"></i>
+          </div>
+          <div class="card-data">
+            <h4>{{ jobStats.overview.featured_jobs_count }}</h4>
+            <p>Featured Jobs</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Additional Analytics -->
+      <div class="additional-analytics" *ngIf="jobStats.recent_activity">
+        <h4 class="section-subtitle">Recent Activity</h4>
+        <div class="activity-grid">
+          <div class="activity-item">
+            <span class="activity-number">{{ jobStats.recent_activity.jobs_posted_last_30_days }}</span>
+            <span class="activity-label">Jobs Posted (30 days)</span>
+          </div>
+          <div class="activity-item">
+            <span class="activity-number">{{ jobStats.recent_activity.applications_last_30_days }}</span>
+            <span class="activity-label">Applications (30 days)</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Top Performing Jobs -->
+      <div class="top-jobs" *ngIf="jobStats.top_performing_jobs && jobStats.top_performing_jobs.length > 0">
+        <h4 class="section-subtitle">Top Performing Jobs</h4>
+        <div class="top-jobs-list">
+          <div class="top-job-item" *ngFor="let topJob of jobStats.top_performing_jobs | slice:0:3">
+            <div class="job-info">
+              <span class="job-name">{{ topJob.title }}</span>
+              <span class="job-stats">{{ topJob.applications_count }} applications • {{ topJob.views_count }} views</span>
+            </div>
+            <span class="job-status" [class]="topJob.status.toLowerCase()">{{ topJob.status }}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Job Details Modal -->
+    <div class="job-modal" *ngIf="showJobDetails && selectedJob">
+      <div class="modal-backdrop" (click)="closeJobDetails()"></div>
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3>{{ selectedJob.title }}</h3>
+          <div class="modal-badges">
+            <span class="badge" [class]="selectedJob.status.toLowerCase()">{{ selectedJob.status }}</span>
+            <span class="badge featured" *ngIf="selectedJob.is_featured">Featured</span>
+          </div>
+          <button class="btn-close" (click)="closeJobDetails()">
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+       
+        <div class="job-details">
+          <div class="job-detail-section">
+            <h4>Job Information</h4>
+            <div class="detail-grid">
+              <div class="detail-item">
+                <strong>Location:</strong> {{ selectedJob.location }}
+              </div>
+              <div class="detail-item">
+                <strong>Type:</strong> {{ formatJobType(selectedJob) }}
+              </div>
+              <div class="detail-item" *ngIf="selectedJob.salary_min || selectedJob.salary_max">
+                <strong>Salary:</strong> {{ formatSalary(selectedJob) }}
+              </div>
+              <div class="detail-item" *ngIf="selectedJob.experience_level">
+                <strong>Experience:</strong> {{ selectedJob.experience_level }}
+              </div>
+              <div class="detail-item" *ngIf="selectedJob.education_level">
+                <strong>Education:</strong> {{ selectedJob.education_level }}
+              </div>
+              <div class="detail-item" *ngIf="selectedJob.department">
+                <strong>Department:</strong> {{ selectedJob.department }}
+              </div>
+            </div>
+          </div>
+          <div class="job-detail-section">
+            <h4>Description</h4>
+            <p>{{ selectedJob.description }}</p>
+          </div>
+          <div class="job-detail-section" *ngIf="selectedJob.requirements">
+            <h4>Requirements</h4>
+            <p>{{ selectedJob.requirements }}</p>
+          </div>
+          <div class="job-detail-section" *ngIf="selectedJob.responsibilities">
+            <h4>Responsibilities</h4>
+            <p>{{ selectedJob.responsibilities }}</p>
+          </div>
+          <div class="job-detail-section">
+            <h4>Required Skills</h4>
+            <div class="skills-list">
+              <span class="skill-tag" *ngFor="let skill of getSkillsArray(selectedJob)">{{ skill }}</span>
+            </div>
+          </div>
+          <div class="job-detail-section" *ngIf="selectedJob.benefits && selectedJob.benefits.length > 0">
+            <h4>Benefits</h4>
+            <ul class="benefits-list">
+              <li *ngFor="let benefit of selectedJob.benefits">{{ benefit }}</li>
+            </ul>
+          </div>
+          <div class="job-detail-section">
+            <h4>Statistics</h4>
+            <div class="stats-grid">
+              <div class="stat-item">
+                <strong>{{ selectedJob.applications_count }}</strong>
+                <span>Applications</span>
+              </div>
+              <div class="stat-item">
+                <strong>{{ selectedJob.views_count }}</strong>
+                <span>Views</span>
+              </div>
+              <div class="stat-item">
+                <strong>{{ selectedJob.created_at | date:'mediumDate' }}</strong>
+                <span>Posted</span>
+              </div>
+              <div class="stat-item" *ngIf="selectedJob.application_deadline">
+                <strong>{{ selectedJob.application_deadline | date:'mediumDate' }}</strong>
+                <span>Deadline</span>
+              </div>
+            </div>
+          </div>
+          <div class="modal-actions">
+            <button class="btn-secondary" (click)="closeJobDetails()">Close</button>
+            <button class="btn-edit" (click)="editJob(selectedJob!)">
+              <i class="fas fa-edit"></i>
+              <span>Edit</span>
+            </button>
+            <button class="btn-info" (click)="duplicateJob(selectedJob!)">
+              <i class="fas fa-copy"></i>
+              <span>Duplicate</span>
+            </button>
+            <button class="btn-primary"
+                    (click)="toggleJobStatus(selectedJob!)"
+                    [disabled]="isToggling === selectedJob!.id">
+              <i class="fas fa-spinner fa-spin" *ngIf="isToggling === selectedJob!.id"></i>
+              <i class="fas" [ngClass]="selectedJob!.status === 'Open' ? 'fa-pause' : 'fa-play'" *ngIf="isToggling !== selectedJob!.id"></i>
+              <span>{{ selectedJob!.status === 'Open' ? 'Pause Job' : 'Open Job' }}</span>
+            </button>
+            <button class="btn-success"
+                    (click)="markJobAsFilled(selectedJob!)"
+                    *ngIf="selectedJob!.status === 'Open'">
+              <i class="fas fa-check"></i>
+              <span>Mark as Filled</span>
+            </button>
+            <button class="btn-delete"
+                    (click)="deleteJobPost(selectedJob!.id)"
+                    [disabled]="isDeleting === selectedJob!.id">
+              <i class="fas fa-spinner fa-spin" *ngIf="isDeleting === selectedJob!.id"></i>
+              <i class="fas fa-trash" *ngIf="isDeleting !== selectedJob!.id"></i>
+              <span>Delete Job</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

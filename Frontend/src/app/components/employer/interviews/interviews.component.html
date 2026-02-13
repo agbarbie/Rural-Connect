@@ -1,0 +1,543 @@
+<div class="app-container">
+  <!-- Sidebar Navigation -->
+<app-sidebar [userType]="'employer'"></app-sidebar>
+
+  <!-- Main Content -->
+  <main class="main-content">
+    <!-- Top Header -->
+    <header class="page-header">
+      <div class="header-left">
+        <div class="page-title">
+          <h1>Interview Management</h1>
+          <p>Schedule, manage and organize your candidate interviews</p>
+        </div>
+      </div>
+    </header>
+
+    <!-- Dashboard Stats -->
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-header">
+          <span class="stat-label">Upcoming Interviews</span>
+          <div class="stat-icon">
+            <i class="fas fa-calendar-plus"></i>
+          </div>
+        </div>
+        <div class="stat-number">{{ stats.upcomingInterviews }}</div>
+        <div class="stat-trend positive">
+          <i class="fas fa-arrow-up"></i>
+          {{ stats.upcomingIncrease }}% increase this week
+        </div>
+      </div>
+
+      <div class="stat-card">
+        <div class="stat-header">
+          <span class="stat-label">Completed</span>
+          <div class="stat-icon completed">
+            <i class="fas fa-check-circle"></i>
+          </div>
+        </div>
+        <div class="stat-number">{{ stats.completedInterviews }}</div>
+        <div class="stat-subtitle">
+          {{ stats.completedThisWeek }} this week, {{ stats.completedInterviews - stats.completedThisWeek }} previously
+        </div>
+      </div>
+
+      <div class="stat-card">
+        <div class="stat-header">
+          <span class="stat-label">Feedback Pending</span>
+          <div class="stat-icon pending">
+            <i class="fas fa-clock"></i>
+          </div>
+        </div>
+        <div class="stat-number">{{ stats.feedbackPending }}</div>
+        <div class="stat-trend urgent">
+          <i class="fas fa-exclamation-triangle"></i>
+          3 urgent (>48h)
+        </div>
+      </div>
+
+      <div class="stat-card">
+        <div class="stat-header">
+          <span class="stat-label">Avg. Rating</span>
+          <div class="stat-icon rating">
+            <i class="fas fa-star"></i>
+          </div>
+        </div>
+        <div class="stat-number">{{ stats.averageRating }}/5</div>
+        <div class="stat-rating">
+          <div class="stars">
+            <i class="fas fa-star" *ngFor="let star of [1,2,3,4]"></i>
+            <i class="fas fa-star-half-alt"></i>
+          </div>
+          <span>(28 reviews)</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tabs Navigation -->
+    <div class="tabs-container">
+      <div class="tabs">
+        <button 
+          class="tab" 
+          [class.active]="activeTab === 'upcoming'"
+          (click)="setActiveTab('upcoming')">
+          <i class="fas fa-calendar-alt"></i>
+          Upcoming Interviews
+        </button>
+        <button 
+          class="tab" 
+          [class.active]="activeTab === 'panel'"
+          (click)="setActiveTab('panel')">
+          <i class="fas fa-users-cog"></i>
+          Panel Coordination
+        </button>
+        <button 
+          class="tab" 
+          [class.active]="activeTab === 'feedback'"
+          (click)="setActiveTab('feedback')">
+          <i class="fas fa-comment-dots"></i>
+          Feedback Management
+        </button>
+        <button 
+          class="tab" 
+          [class.active]="activeTab === 'types'"
+          (click)="setActiveTab('types')">
+          <i class="fas fa-layer-group"></i>
+          Interview Types
+        </button>
+      </div>
+    </div>
+
+    <!-- Search and Filters -->
+    <div class="filters-section">
+      <div class="search-container">
+        <i class="fas fa-search"></i>
+        <input 
+          type="text" 
+          placeholder="Search candidates..."
+          [(ngModel)]="searchTerm"
+          class="search-input">
+      </div>
+
+      <div class="filters">
+        <select [(ngModel)]="selectedStatus" class="filter-select">
+          <option value="all">All Statuses</option>
+          <option value="Upcoming">Upcoming</option>
+          <option value="Completed">Completed</option>
+          <option value="Pending Feedback">Pending Feedback</option>
+        </select>
+
+        <button class="btn btn-primary schedule-btn" (click)="openScheduleModal()">
+          <i class="fas fa-plus"></i>
+          Schedule New Interview
+        </button>
+      </div>
+    </div>
+
+    <!-- View Toggle -->
+    <div class="view-controls">
+      <div class="view-toggle">
+        <button 
+          class="view-btn" 
+          [class.active]="viewMode === 'calendar'"
+          (click)="viewMode = 'calendar'">
+          <i class="fas fa-calendar"></i>
+          Calendar
+        </button>
+        <button 
+          class="view-btn" 
+          [class.active]="viewMode === 'list'"
+          (click)="viewMode = 'list'">
+          <i class="fas fa-list"></i>
+          List
+        </button>
+      </div>
+    </div>
+
+    <!-- Calendar View -->
+    <div class="content-container" *ngIf="viewMode === 'calendar'">
+      <div class="calendar-header">
+        <div class="calendar-navigation">
+          <button class="nav-btn">
+            <i class="fas fa-chevron-left"></i>
+          </button>
+          <h2>April 2025</h2>
+          <button class="nav-btn">
+            <i class="fas fa-chevron-right"></i>
+          </button>
+        </div>
+        <div class="calendar-view-options">
+          <button class="view-option active">Month</button>
+          <button class="view-option">Week</button>
+          <button class="view-option">Day</button>
+        </div>
+      </div>
+
+      <div class="calendar-wrapper">
+        <div class="calendar-grid">
+          <div class="calendar-header-row">
+            <div class="calendar-day-header">Sun</div>
+            <div class="calendar-day-header">Mon</div>
+            <div class="calendar-day-header">Tue</div>
+            <div class="calendar-day-header">Wed</div>
+            <div class="calendar-day-header">Thu</div>
+            <div class="calendar-day-header">Fri</div>
+            <div class="calendar-day-header">Sat</div>
+          </div>
+          
+          <!-- Calendar Days -->
+          <div class="calendar-day other-month">
+            <span class="day-number">29</span>
+          </div>
+          <div class="calendar-day other-month">
+            <span class="day-number">30</span>
+          </div>
+          <div class="calendar-day">
+            <span class="day-number">1</span>
+          </div>
+          <div class="calendar-day">
+            <span class="day-number">2</span>
+            <div class="calendar-event green">
+              <span class="event-time">11:30 AM</span>
+              <span class="event-title">Michael Brown</span>
+            </div>
+            <div class="calendar-event green">
+              <span class="event-time">11:30 AM</span>
+              <span class="event-title">Michael Brown</span>
+            </div>
+          </div>
+          <div class="calendar-day today">
+            <span class="day-number">3</span>
+          </div>
+          <div class="calendar-day">
+            <span class="day-number">4</span>
+          </div>
+          <div class="calendar-day">
+            <span class="day-number">5</span>
+            <div class="calendar-event blue">
+              <span class="event-time">02:00 PM</span>
+              <span class="event-title">Sarah Davis</span>
+            </div>
+            <div class="calendar-event green">
+              <span class="event-time">11:30 AM</span>
+              <span class="event-title">Emma Johnson</span>
+            </div>
+          </div>
+
+          <div class="calendar-day">
+            <span class="day-number">6</span>
+          </div>
+          <div class="calendar-day">
+            <span class="day-number">7</span>
+          </div>
+          <div class="calendar-day">
+            <span class="day-number">8</span>
+          </div>
+          <div class="calendar-day">
+            <span class="day-number">9</span>
+            <div class="calendar-event blue">
+              <span class="event-time">02:00 PM</span>
+              <span class="event-title">Michael Brown</span>
+            </div>
+            <div class="calendar-event green">
+              <span class="event-time">02:00 PM</span>
+              <span class="event-title">Emma Johnson</span>
+            </div>
+          </div>
+          <div class="calendar-day">
+            <span class="day-number">10</span>
+          </div>
+          <div class="calendar-day">
+            <span class="day-number">11</span>
+          </div>
+          <div class="calendar-day">
+            <span class="day-number">12</span>
+            <div class="calendar-event orange">
+              <span class="event-time">02:00 PM</span>
+              <span class="event-title">Sarah Davis</span>
+            </div>
+          </div>
+
+          <div class="calendar-day">
+            <span class="day-number">13</span>
+          </div>
+          <div class="calendar-day">
+            <span class="day-number">14</span>
+          </div>
+          <div class="calendar-day">
+            <span class="day-number">15</span>
+          </div>
+          <div class="calendar-day">
+            <span class="day-number">16</span>
+          </div>
+          <div class="calendar-day">
+            <span class="day-number">17</span>
+          </div>
+          <div class="calendar-day">
+            <span class="day-number">18</span>
+          </div>
+          <div class="calendar-day">
+            <span class="day-number">19</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- List View -->
+    <div class="content-container" *ngIf="viewMode === 'list'">
+      <div class="table-container">
+        <table class="interviews-table">
+          <thead>
+            <tr>
+              <th>Candidate</th>
+              <th>Job Role</th>
+              <th>Interviewer(s)</th>
+              <th>Date & Time</th>
+              <th>Mode</th>
+              <th>Status</th>
+              <th>AI Score</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let interview of filteredInterviews" (click)="openDetailsPanel(interview)">
+              <td>
+                <div class="candidate-cell">
+                  <img [src]="interview.candidatePhoto" [alt]="interview.candidateName" class="candidate-avatar-small">
+                  <span>{{ interview.candidateName }}</span>
+                </div>
+              </td>
+              <td>{{ interview.jobRole }}</td>
+              <td>
+                <div class="interviewers-list">
+                  <span *ngFor="let interviewer of interview.interviewers; let last = last">
+                    {{ interviewer }}<span *ngIf="!last">, </span>
+                  </span>
+                </div>
+              </td>
+              <td>
+                <div class="datetime-cell">
+                  <div>{{ formatDate(interview.date) }}</div>
+                  <div class="time">{{ interview.time }}</div>
+                </div>
+              </td>
+              <td>
+                <span class="mode-badge">
+                  <i [class]="getModeIcon(interview.mode)"></i>
+                  {{ interview.mode }}
+                </span>
+              </td>
+              <td>
+                <span class="status-badge" [style.background-color]="getStatusColor(interview.status)">
+                  {{ interview.status }}
+                </span>
+              </td>
+              <td>
+                <div class="ai-score-cell">{{ interview.aiScore }}%</div>
+              </td>
+              <td>
+                <div class="actions-cell" (click)="$event.stopPropagation()">
+                  <button class="btn-icon-small" (click)="rescheduleInterview(interview)" title="Reschedule">
+                    <i class="fas fa-calendar-alt"></i>
+                  </button>
+                  <button class="btn-icon-small" (click)="markAsCompleted(interview)" title="Mark Complete">
+                    <i class="fas fa-check"></i>
+                  </button>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+
+  <!-- Interview Details Panel -->
+  <div class="details-panel" [class.open]="showDetailsPanel" *ngIf="selectedInterview">
+    <div class="panel-header">
+      <h3>Interview Details</h3>
+      <button class="btn-close" (click)="closeDetailsPanel()">
+        <i class="fas fa-times"></i>
+      </button>
+    </div>
+
+    <div class="panel-content">
+      <!-- Candidate Profile -->
+      <div class="candidate-profile">
+        <img [src]="selectedInterview.candidatePhoto" [alt]="selectedInterview.candidateName" class="profile-photo">
+        <div class="profile-details">
+          <h4>{{ selectedInterview.candidateName }}</h4>
+          <p>{{ selectedInterview.jobRole }}</p>
+          <div class="ai-fit-score">
+            <span>AI Fit Score: </span>
+            <strong>{{ selectedInterview.aiScore }}%</strong>
+          </div>
+        </div>
+      </div>
+
+      <!-- Interview Info -->
+      <div class="interview-info">
+        <div class="info-row">
+          <label>Date & Time:</label>
+          <span>{{ formatDate(selectedInterview.date) }} at {{ selectedInterview.time }}</span>
+        </div>
+        <div class="info-row">
+          <label>Mode:</label>
+          <span>
+            <i [class]="getModeIcon(selectedInterview.mode)"></i>
+            {{ selectedInterview.mode }}
+          </span>
+        </div>
+        <div class="info-row">
+          <label>Interviewers:</label>
+          <span>{{ selectedInterview.interviewers.join(', ') }}</span>
+        </div>
+        <div class="info-row">
+          <label>Status:</label>
+          <span class="status-badge" [style.background-color]="getStatusColor(selectedInterview.status)">
+            {{ selectedInterview.status }}
+          </span>
+        </div>
+      </div>
+
+      <!-- AI Suggestions -->
+      <div class="ai-suggestions">
+        <h5><i class="fas fa-robot"></i> AI Interview Suggestions</h5>
+        <ul>
+          <li *ngFor="let suggestion of aiSuggestions">{{ suggestion }}</li>
+        </ul>
+      </div>
+
+      <!-- Notes Section -->
+      <div class="notes-section">
+        <label for="notes">Interview Notes:</label>
+        <textarea 
+          id="notes" 
+          [(ngModel)]="selectedInterview.notes"
+          placeholder="Add your notes here..."
+          rows="4"></textarea>
+      </div>
+
+      <!-- Feedback Section (for completed interviews) -->
+      <div class="feedback-section" *ngIf="selectedInterview.status === 'Completed' || selectedInterview.status === 'Pending Feedback'">
+        <label for="feedback">Feedback:</label>
+        <textarea 
+          id="feedback" 
+          [(ngModel)]="selectedInterview.feedback"
+          placeholder="Add feedback about the candidate..."
+          rows="3"></textarea>
+        
+        <div class="rating-section">
+          <label>Rating:</label>
+          <div class="star-rating">
+            <i class="fas fa-star" *ngFor="let star of [1,2,3,4,5]" 
+               [class.active]="star <= (selectedInterview.rating || 0)"></i>
+          </div>
+        </div>
+      </div>
+
+      <!-- Action Buttons -->
+      <div class="panel-actions">
+        <button class="btn btn-secondary" (click)="rescheduleInterview(selectedInterview)">
+          <i class="fas fa-calendar-alt"></i>
+          Reschedule
+        </button>
+        <button class="btn btn-success" (click)="markAsCompleted(selectedInterview)" 
+                *ngIf="selectedInterview.status === 'Upcoming'">
+          <i class="fas fa-check"></i>
+          Mark Complete
+        </button>
+        <button class="btn btn-danger" (click)="cancelInterview(selectedInterview)">
+          <i class="fas fa-times"></i>
+          Cancel
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- AI Assistant Panel -->
+  <div class="ai-panel" [class.open]="showAIPanel">
+    <div class="ai-header">
+      <h4><i class="fas fa-robot"></i> AI Assistant</h4>
+      <button class="btn-close" (click)="toggleAIPanel()">
+        <i class="fas fa-times"></i>
+      </button>
+    </div>
+    <div class="ai-content">
+      <div class="ai-quick-actions">
+        <button class="ai-action-btn">Show pending interviews</button>
+        <button class="ai-action-btn">Suggest questions for {{ selectedInterview?.candidateName || 'candidate' }}</button>
+        <button class="ai-action-btn">Show highest AI scores</button>
+        <button class="ai-action-btn">Generate interview report</button>
+      </div>
+      <div class="ai-chat">
+        <div class="chat-input">
+          <input type="text" placeholder="Ask me anything about interviews...">
+          <button class="send-btn"><i class="fas fa-paper-plane"></i></button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Schedule Modal -->
+  <div class="modal-overlay" *ngIf="showScheduleModal" (click)="closeScheduleModal()">
+    <div class="modal" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <h3>Schedule New Interview</h3>
+        <button class="btn-close" (click)="closeScheduleModal()">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+      <div class="modal-content">
+        <form>
+          <div class="form-group">
+            <label for="candidate">Select Candidate:</label>
+            <select id="candidate" class="form-control">
+              <option>Emma Johnson - Frontend Developer</option>
+              <option>Michael Chen - Data Analyst</option>
+              <option>Lisa Rodriguez - UX Designer</option>
+            </select>
+          </div>
+          
+          <div class="form-row">
+            <div class="form-group">
+              <label for="date">Date:</label>
+              <input type="date" id="date" class="form-control">
+            </div>
+            <div class="form-group">
+              <label for="time">Time:</label>
+              <input type="time" id="time" class="form-control">
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="mode">Interview Mode:</label>
+            <select id="mode" class="form-control">
+              <option value="Online">Online (Zoom/Meet)</option>
+              <option value="Phone">Phone</option>
+              <option value="In-Person">In-Person</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label for="interviewers">Assign Interviewers:</label>
+            <div class="checkbox-group">
+              <label><input type="checkbox"> John Smith</label>
+              <label><input type="checkbox"> Sarah Wilson</label>
+              <label><input type="checkbox"> Alice Brown</label>
+              <label><input type="checkbox"> Tom Davis</label>
+            </div>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" (click)="closeScheduleModal()">Cancel</button>
+        <button class="btn btn-primary">Schedule Interview</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Overlay for panels -->
+  <div class="overlay" [class.active]="showDetailsPanel || showAIPanel" (click)="closeDetailsPanel(); showAIPanel = false"></div>
+</div>

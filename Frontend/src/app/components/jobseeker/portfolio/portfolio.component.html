@@ -1,0 +1,221 @@
+<!-- Hamburger Menu Button -->
+<button class="hamburger" (click)="toggleSidebar()">
+  <i class="fas fa-bars"></i>
+</button>
+
+<!-- Sidebar Overlay -->
+<div class="sidebar-overlay" (click)="closeSidebar()"></div>
+
+<div class="portfolio-container">
+  <!-- Sidebar -->
+  <app-sidebar [userType]="'jobseeker'"></app-sidebar>
+
+  <!-- Main Content -->
+  <div class="main-content">
+    <!-- Header / Hero Section -->
+    <section class="hero-section">
+      <div class="cover-banner" [style.background-image]="'url(' + profileData.coverBanner + ')'">
+        <div class="hero-overlay">
+          <div class="hero-content">
+            <div class="profile-info">
+              <div class="profile-picture">
+                <!-- FIXED: Use dynamic profile image from CV data -->
+                <img [src]="profileData.profilePicture" 
+                     [alt]="profileData.fullName" 
+                     (error)="onImageError($event)"
+                     class="profile-img" />
+              </div>
+              <div class="profile-details">
+                <h1 class="full-name">{{ profileData.fullName }}</h1>
+                <p class="tagline">{{ profileData.title }}</p>
+                <div class="quick-info">
+                  <span class="location">
+                    <i class="fas fa-map-marker-alt"></i>
+                    {{ profileData.location }}
+                  </span>
+                  <div class="action-buttons">
+                    <button class="btn btn-primary" (click)="openContact()">
+                      <i class="fas fa-envelope"></i>
+                      Contact
+                    </button>
+                    <button class="btn btn-secondary" (click)="downloadCV()">
+                      <i class="fas fa-download"></i>
+                      Download CV
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="view-count">
+              <i class="fas fa-eye"></i>
+              {{ viewCount }} profile views
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Personal Overview -->
+    <section class="section personal-overview">
+      <div class="container">
+        <h2 class="section-title">About Me</h2>
+        <p class="bio">{{ profileData.bio }}</p>
+      </div>
+    </section>
+
+    <!-- Training Experiences -->
+    <section class="section training-section">
+      <div class="container">
+        <h2 class="section-title">Training Experiences</h2>
+        <div class="training-timeline">
+          <div class="training-item" *ngFor="let training of trainingExperiences">
+            <div class="training-status">
+              <i class="fas" [class.fa-check-circle]="training.status === 'completed'" 
+                 [class.fa-clock]="training.status === 'in-progress'"
+                 [class.completed]="training.status === 'completed'"
+                 [class.in-progress]="training.status === 'in-progress'"></i>
+            </div>
+            <div class="training-content">
+              <h3 class="training-title">{{ training.title }}</h3>
+              <div class="training-meta">
+                <span class="trainer">{{ training.trainer }}</span>
+                <span class="completion-date" *ngIf="training.completionDate">
+                  • Completed: {{ training.completionDate | date:'MMM yyyy' }}
+                </span>
+                <span class="status-badge" [class]="training.status">
+                  {{ training.status === 'completed' ? 'Completed' : 'In Progress' }}
+                </span>
+              </div>
+              <p class="training-description">{{ training.description }}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Certifications -->
+    <section class="section certifications-section">
+      <div class="container">
+        <h2 class="section-title">Certifications</h2>
+        <div class="certificates-grid">
+          <div class="certificate-card" *ngFor="let certificate of certificates">
+            <div class="certificate-icon">
+              <i class="fas fa-certificate"></i>
+            </div>
+            <div class="certificate-content">
+              <h3 class="certificate-name">{{ certificate.name }}</h3>
+              <p class="certificate-issuer">{{ certificate.issuer }}</p>
+              <p class="certificate-date">{{ certificate.completionDate | date:'MMM yyyy' }}</p>
+            </div>
+            <div class="certificate-actions">
+              <button class="btn btn-icon" (click)="downloadCertificate(certificate)" 
+                      *ngIf="certificate.downloadUrl" title="Download Certificate">
+                <i class="fas fa-download"></i>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Projects -->
+    <section class="section projects-section">
+      <div class="container">
+        <h2 class="section-title">Projects</h2>
+        
+        <!-- Project Filters -->
+        <div class="project-filters">
+          <button class="filter-btn" 
+                  *ngFor="let category of projectCategories"
+                  [class.active]="selectedProjectCategory === category"
+                  (click)="filterProjects(category)">
+            {{ category }}
+          </button>
+        </div>
+
+        <!-- Projects Grid -->
+        <div class="projects-grid">
+          <div class="project-card" *ngFor="let project of filteredProjects" (click)="openProject(project)">
+            <div class="project-thumbnail">
+              <img [src]="project.thumbnail" [alt]="project.title" />
+              <div class="project-overlay">
+                <div class="project-actions">
+                  <button class="btn btn-icon" *ngIf="project.liveDemo" title="Live Demo">
+                    <i class="fas fa-external-link-alt"></i>
+                  </button>
+                  <button class="btn btn-icon" *ngIf="project.githubLink" 
+                          (click)="$event.stopPropagation(); openGithub(project)" title="View Code">
+                    <i class="fab fa-github"></i>
+                  </button>
+                </div>
+              </div>
+            </div>
+            <div class="project-content">
+              <h3 class="project-title">{{ project.title }}</h3>
+              <p class="project-description">{{ project.description }}</p>
+              <div class="tech-stack">
+                <span class="tech-tag" *ngFor="let tech of project.techStack">{{ tech }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Skills -->
+    <section class="section skills-section">
+      <div class="container">
+        <h2 class="section-title">Skills</h2>
+        <div class="skills-grid">
+          <div class="skill-item" *ngFor="let skill of skills">
+            <div class="skill-content">
+              <h3 class="skill-name">{{ skill.name }}</h3>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Testimonials -->
+    <section class="section testimonials-section">
+      <div class="container">
+        <h2 class="section-title">Recommendations</h2>
+        <div class="testimonials-carousel">
+          <div class="testimonial-item" 
+               *ngFor="let testimonial of testimonials; let i = index"
+               [class.active]="i === currentTestimonialIndex">
+            <div class="testimonial-content">
+              <p class="testimonial-text">"{{ testimonial.text }}"</p>
+              <div class="testimonial-author">
+                <strong>{{ testimonial.author }}</strong>
+                <span>{{ testimonial.position }}</span>
+              </div>
+            </div>
+          </div>
+          <div class="testimonial-indicators">
+            <button class="indicator" 
+                    *ngFor="let testimonial of testimonials; let i = index"
+                    [class.active]="i === currentTestimonialIndex"
+                    (click)="currentTestimonialIndex = i"></button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Download & Share -->
+    <section class="section actions-section">
+      <div class="container">
+        <div class="action-buttons-container">
+          <button class="btn btn-primary btn-large" (click)="downloadPortfolioPDF()">
+            <i class="fas fa-file-pdf"></i>
+            Download Portfolio PDF
+          </button>
+          <button class="btn btn-secondary btn-large" (click)="sharePortfolio()">
+            <i class="fas fa-share-alt"></i>
+            Share Portfolio
+          </button>
+        </div>
+      </div>
+    </section>
+  </div>
+</div>

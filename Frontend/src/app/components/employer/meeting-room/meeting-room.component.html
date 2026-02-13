@@ -1,0 +1,115 @@
+    <div class="meeting-loading" *ngIf="isLoading">
+      <div class="loading-spinner"></div>
+      <p>Loading meeting room...</p>
+    </div>
+
+    <!-- Error State -->
+    <div class="meeting-error" *ngIf="error">
+      <div class="error-icon">
+        <i class="fas fa-exclamation-triangle"></i>
+      </div>
+      <h2>Unable to Join Meeting</h2>
+      <p>{{ error }}</p>
+      <button class="btn-primary" (click)="goBack()">
+        <i class="fas fa-arrow-left"></i>
+        Go Back
+      </button>
+    </div>
+
+    <!-- Meeting Room -->
+    <div class="meeting-container" *ngIf="meetingDetails && !error">
+      <!-- Meeting Header -->
+      <div class="meeting-header">
+        <div class="meeting-info">
+          <h1>{{ meetingDetails.session.training_title }}</h1>
+          <h2>{{ meetingDetails.session.title }}</h2>
+          <div class="meeting-meta">
+            <span class="meta-item">
+              <i class="fas fa-clock"></i>
+              {{ meetingDetails.session.duration_minutes }} minutes
+            </span>
+            <span class="meta-item">
+              <i class="fas fa-user"></i>
+              {{ meetingDetails.session.provider_name }}
+            </span>
+            <span class="meta-item">
+              <i class="fas fa-calendar"></i>
+              {{ meetingDetails.session.scheduled_at | date:'medium' }}
+            </span>
+          </div>
+        </div>
+        <div class="meeting-password-display">
+          <i class="fas fa-lock"></i>
+          <div>
+            <span class="label">Meeting Password</span>
+            <strong>{{ meetingDetails.session.meeting_password }}</strong>
+          </div>
+        </div>
+      </div>
+
+      <!-- Video Container -->
+      <div class="video-container">
+        <div id="jitsi-meet-container"></div>
+        
+        <!-- Fallback message while Jitsi loads -->
+        <div class="video-loading" *ngIf="!jitsiLoaded">
+          <div class="loading-spinner"></div>
+          <p>Initializing video call...</p>
+        </div>
+      </div>
+
+      <!-- Meeting Controls -->
+      <div class="meeting-controls">
+        <div class="controls-left">
+          <button 
+            class="control-btn" 
+            [class.active]="!isMuted"
+            (click)="toggleMute()"
+            [title]="isMuted ? 'Unmute' : 'Mute'">
+            <i class="fas" [ngClass]="isMuted ? 'fa-microphone-slash' : 'fa-microphone'"></i>
+          </button>
+          
+          <button 
+            class="control-btn" 
+            [class.active]="!isVideoOff"
+            (click)="toggleVideo()"
+            [title]="isVideoOff ? 'Turn on camera' : 'Turn off camera'">
+            <i class="fas" [ngClass]="isVideoOff ? 'fa-video-slash' : 'fa-video'"></i>
+          </button>
+          
+          <button 
+            class="control-btn"
+            (click)="toggleScreenShare()"
+            title="Share screen">
+            <i class="fas fa-desktop"></i>
+          </button>
+        </div>
+
+        <div class="controls-center">
+          <button 
+            class="control-btn btn-leave" 
+            (click)="leaveMeeting()"
+            title="Leave meeting">
+            <i class="fas fa-phone-slash"></i>
+            <span>Leave</span>
+          </button>
+        </div>
+
+        <div class="controls-right">
+          <button 
+            class="control-btn"
+            (click)="toggleChat()"
+            title="Toggle chat">
+            <i class="fas fa-comment"></i>
+          </button>
+          
+          <button 
+            class="control-btn"
+            (click)="toggleParticipants()"
+            title="View participants">
+            <i class="fas fa-users"></i>
+            <span class="participant-count" *ngIf="participantCount > 0">{{ participantCount }}</span>
+          </button>
+        </div>
+      </div>
+    </div>

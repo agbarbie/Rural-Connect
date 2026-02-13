@@ -1,0 +1,267 @@
+<div class="app-container">
+      <app-sidebar [userType]="'employer'"></app-sidebar>
+
+      <div class="main-content">
+        @if (isLoading) {
+        <div class="loading-container">
+          <div class="spinner"></div>
+          <p>Loading candidate profile...</p>
+        </div>
+        } @else if (candidate) {
+        
+        <!-- Header -->
+        <div class="profile-header">
+          <button class="back-button" (click)="goBack()">
+            <i class="fas fa-arrow-left"></i>
+            Back to Candidates
+          </button>
+          
+          <div class="header-actions">
+            <button class="btn btn-outline" (click)="toggleShortlist()">
+              <i class="fas" [class.fa-heart]="candidate.application?.status === 'shortlisted'" 
+                 [class.fa-heart-o]="candidate.application?.status !== 'shortlisted'"></i>
+              {{ candidate.application?.status === 'shortlisted' ? 'Shortlisted' : 'Shortlist' }}
+            </button>
+            <button class="btn btn-primary" (click)="scheduleInterview()">
+              <i class="fas fa-calendar"></i>
+              Schedule Interview
+            </button>
+          </div>
+        </div>
+
+        <!-- Profile Overview -->
+        <div class="profile-overview">
+          <div class="profile-left">
+            <img 
+              [src]="getFullImageUrl(candidate.profile_image, candidate.name)" 
+              [alt]="candidate.name"
+              class="profile-image-large"
+              (error)="handleImageError($event, candidate.name)"
+            />
+            <h1>{{ candidate.name }}</h1>
+            <p class="candidate-title">{{ candidate.title }}</p>
+            <p class="candidate-location">
+              <i class="fas fa-map-marker-alt"></i>
+              {{ candidate.location }}
+            </p>
+
+            <!-- Contact Info -->
+            <div class="contact-card">
+              <h3><i class="fas fa-address-book"></i> Contact</h3>
+              <div class="contact-item">
+                <i class="fas fa-envelope"></i>
+                <a [href]="'mailto:' + candidate.email">{{ candidate.email }}</a>
+              </div>
+              @if (candidate.phone) {
+              <div class="contact-item">
+                <i class="fas fa-phone"></i>
+                <a [href]="'tel:' + candidate.phone">{{ candidate.phone }}</a>
+              </div>
+              }
+            </div>
+
+            <!-- Social Links -->
+            @if (hasSocialLinks()) {
+            <div class="social-card">
+              <h3><i class="fas fa-link"></i> Links</h3>
+              @if (candidate.social_links.linkedin) {
+              <a [href]="candidate.social_links.linkedin" target="_blank" class="social-link">
+                <i class="fab fa-linkedin"></i>
+                LinkedIn Profile
+              </a>
+              }
+              @if (candidate.social_links.github) {
+              <a [href]="candidate.social_links.github" target="_blank" class="social-link">
+                <i class="fab fa-github"></i>
+                GitHub Profile
+              </a>
+              }
+              @if (candidate.social_links.portfolio) {
+              <a [href]="candidate.social_links.portfolio" target="_blank" class="social-link">
+                <i class="fas fa-globe"></i>
+                Portfolio Website
+              </a>
+              }
+            </div>
+            }
+          </div>
+
+          <div class="profile-right">
+            <!-- About -->
+            @if (candidate.bio) {
+            <section class="profile-section">
+              <h2><i class="fas fa-user"></i> About</h2>
+              <p class="bio-text">{{ candidate.bio }}</p>
+            </section>
+            }
+
+            <!-- Application Details -->
+            @if (candidate.application) {
+            <section class="profile-section">
+              <h2><i class="fas fa-file-alt"></i> Application Details</h2>
+              <div class="info-grid">
+                <div class="info-item">
+                  <span class="label">Status</span>
+                  <span class="value">
+                    <span class="status-badge" [class]="candidate.application.status">
+                      {{ candidate.application.status }}
+                    </span>
+                  </span>
+                </div>
+                <div class="info-item">
+                  <span class="label">Applied</span>
+                  <span class="value">{{ formatDate(candidate.application.applied_at) }}</span>
+                </div>
+                @if (candidate.application.expected_salary) {
+                <div class="info-item">
+                  <span class="label">Expected Salary</span>
+                  <span class="value">{{ candidate.application.expected_salary | currency }}</span>
+                </div>
+                }
+                @if (candidate.application.availability_date) {
+                <div class="info-item">
+                  <span class="label">Available From</span>
+                  <span class="value">{{ formatDate(candidate.application.availability_date) }}</span>
+                </div>
+                }
+              </div>
+              @if (candidate.application.cover_letter) {
+              <div class="cover-letter">
+                <h4>Cover Letter</h4>
+                <p>{{ candidate.application.cover_letter }}</p>
+              </div>
+              }
+            </section>
+            }
+
+            <!-- Skills -->
+            @if (candidate.skills.length > 0) {
+            <section class="profile-section">
+              <h2><i class="fas fa-cogs"></i> Skills</h2>
+              <div class="skills-container">
+                @for (skill of candidate.skills; track skill) {
+                <span class="skill-tag">{{ skill }}</span>
+                }
+              </div>
+            </section>
+            }
+
+            <!-- Work Experience -->
+            @if (candidate.work_experience.length > 0) {
+            <section class="profile-section">
+              <h2><i class="fas fa-briefcase"></i> Work Experience</h2>
+              @for (exp of candidate.work_experience; track $index) {
+              <div class="experience-item">
+                <div class="exp-header">
+                  <h3>{{ exp.position }}</h3>
+                  <span class="duration">{{ exp.duration }}</span>
+                </div>
+                <p class="company">{{ exp.company }}</p>
+                <p class="dates">
+                  {{ formatDate(exp.start_date) }} - {{ exp.is_current ? 'Present' : formatDate(exp.end_date) }}
+                </p>
+                @if (exp.responsibilities.length > 0) {
+                <div class="details">
+                  <h4>Responsibilities:</h4>
+                  <ul>
+                    @for (resp of exp.responsibilities; track resp) {
+                    <li>{{ resp }}</li>
+                    }
+                  </ul>
+                </div>
+                }
+                @if (exp.achievements.length > 0) {
+                <div class="details">
+                  <h4>Achievements:</h4>
+                  <ul>
+                    @for (ach of exp.achievements; track ach) {
+                    <li>{{ ach }}</li>
+                    }
+                  </ul>
+                </div>
+                }
+              </div>
+              }
+            </section>
+            }
+
+            <!-- Education -->
+            @if (candidate.education.length > 0) {
+            <section class="profile-section">
+              <h2><i class="fas fa-graduation-cap"></i> Education</h2>
+              @for (edu of candidate.education; track $index) {
+              <div class="education-item">
+                <h3>{{ edu.degree }}</h3>
+                @if (edu.field_of_study) {
+                <p class="field">{{ edu.field_of_study }}</p>
+                }
+                <p class="institution">{{ edu.institution }}</p>
+                <p class="year">{{ edu.start_year }} - {{ edu.end_year || 'Present' }}</p>
+              </div>
+              }
+            </section>
+            }
+
+            <!-- Certifications -->
+            @if (candidate.certifications.length > 0) {
+            <section class="profile-section">
+              <h2><i class="fas fa-certificate"></i> Certifications</h2>
+              @for (cert of candidate.certifications; track $index) {
+              <div class="certification-item">
+                <h3>{{ cert.name }}</h3>
+                <p class="issuer">{{ cert.issuer }}</p>
+                <p class="date">Issued: {{ formatDate(cert.date_issued) }}</p>
+                @if (cert.credential_id) {
+                <p class="credential">Credential ID: {{ cert.credential_id }}</p>
+                }
+              </div>
+              }
+            </section>
+            }
+
+            <!-- Projects -->
+            @if (candidate.projects.length > 0) {
+            <section class="profile-section">
+              <h2><i class="fas fa-code"></i> Projects</h2>
+              @for (project of candidate.projects; track $index) {
+              <div class="project-item">
+                <h3>{{ project.name }}</h3>
+                @if (project.description) {
+                <p class="description">{{ project.description }}</p>
+                }
+                @if (project.technologies.length > 0) {
+                <div class="tech-tags">
+                  @for (tech of project.technologies; track tech) {
+                  <span class="tech-tag">{{ tech }}</span>
+                  }
+                </div>
+                }
+                <div class="project-links">
+                  @if (project.github_link) {
+                  <a [href]="project.github_link" target="_blank">
+                    <i class="fab fa-github"></i> View Code
+                  </a>
+                  }
+                  @if (project.demo_link) {
+                  <a [href]="project.demo_link" target="_blank">
+                    <i class="fas fa-external-link-alt"></i> Live Demo
+                  </a>
+                  }
+                </div>
+              </div>
+              }
+            </section>
+            }
+          </div>
+        </div>
+
+        } @else {
+        <div class="error-state">
+          <i class="fas fa-exclamation-circle"></i>
+          <h2>Candidate Not Found</h2>
+          <p>The candidate profile you're looking for doesn't exist or you don't have access to it.</p>
+          <button class="btn btn-primary" (click)="goBack()">Go Back</button>
+        </div>
+        }
+      </div>
+    </div>

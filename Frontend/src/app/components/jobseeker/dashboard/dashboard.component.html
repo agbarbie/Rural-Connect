@@ -1,0 +1,326 @@
+<div class="app-container">
+  <!-- Sidebar -->
+
+   <app-sidebar [userType]="'jobseeker'"></app-sidebar>
+   
+  <!-- Main Content -->
+  <main class="main-content">
+    <!-- Header -->
+    <header class="header">
+      <button class="hamburger" (click)="toggleSidebar()">
+        <i class="fas fa-bars"></i>
+      </button>
+      <div class="search-bar">
+        <i class="fas fa-search search-icon"></i>
+        <input type="text" class="search-input" placeholder="Search jobs, companies, or skills..." (input)="onSearch($event)">
+      </div>
+      <div class="header-actions">
+        <div class="notification-icon" (click)="toggleNotifications()">
+          <i class="fas fa-bell"></i>
+          <span class="notification-badge">3</span>
+        </div>
+        <div class="notification-icon" (click)="toggleMessages()">
+          <i class="fas fa-envelope"></i>
+          <span class="notification-badge">5</span>
+        </div>
+        <img src="https://images.unsplash.com/photo-1494790108755-2616b612b786?w=40&h=40&fit=crop&crop=face" alt="User" class="user-avatar" (click)="openProfile()">
+      </div>
+    </header>
+
+    <div class="sidebar-overlay" (click)="closeSidebar()"></div>
+    <app-sidebar [userType]="'jobseeker'"></app-sidebar>
+
+    <!-- Dashboard Content -->
+    <div class="dashboard-content">
+      <!-- Welcome Section -->
+      <section class="welcome-section">
+        <div class="welcome-content">
+          <h1>Welcome to your Dashboard {{ userName }}!</h1>
+          <p>Here's what's happening with your career journey today.</p>
+          <a href="#" class="cta-button" (click)="findJobsNow($event)">
+            <i class="fas fa-search"></i>
+            Find Jobs Now
+          </a>
+          <a href="#" class="cta-button" (click)="findTrainingNow($event)">
+            <i class="fas fa-search"></i>
+            Find Training Now
+          </a>
+        </div>
+        <div class="welcome-illustration">
+          <img src="assets/jobseeker.svg" alt="Welcome Illustration">
+        </div>
+      </section>
+
+      <!-- Stats Grid -->
+      <div class="stats-grid">
+        <div class="stat-card blue">
+          <div class="stat-icon">
+            <i class="fas fa-eye"></i>
+          </div>
+          <div class="stat-number">{{ stats.profileViews }}</div>
+          <div class="stat-label">Profile Views</div>
+        </div>
+        <div class="stat-card red">
+          <div class="stat-icon">
+            <i class="fas fa-paper-plane"></i>
+          </div>
+          <div class="stat-number">{{ stats.applications }}</div>
+          <div class="stat-label">Applications</div>
+        </div>
+        <div class="stat-card green">
+          <div class="stat-icon">
+            <i class="fas fa-users"></i>
+          </div>
+          <div class="stat-number">{{ stats.interviews }}</div>
+          <div class="stat-label">Interviews</div>
+        </div>
+        <div class="stat-card yellow">
+          <div class="stat-icon">
+            <i class="fas fa-bookmark"></i>
+          </div>
+          <div class="stat-number">{{ stats.savedJobs }}</div>
+          <div class="stat-label">Saved Jobs</div>
+        </div>
+        <div class="stat-card purple">
+          <div class="stat-icon">
+            <i class="fas fa-play-circle"></i>
+          </div>
+          <div class="stat-number">{{ stats.trainingCompleted }}</div>
+          <div class="stat-label">Training Completed</div>
+        </div>
+      </div>
+
+      <!-- Main Content Grid -->
+      <div class="content-grid">
+        <!-- Recent Activity -->
+        <div class="content-section">
+          <div class="section-header">
+            <h2 class="section-title">Recent Activity</h2>
+          </div>
+          <div class="activity-list">
+            <div class="activity-item" *ngFor="let activity of recentActivity">
+              <div class="activity-icon" [class]="activity.icon">{{ activity.initial }}</div>
+              <div class="activity-content">
+                <div class="activity-title">{{ activity.company }}</div>
+                <div class="activity-subtitle">{{ activity.action | titlecase }}</div>
+              </div>
+              <div class="activity-time">{{ getTimeAgo(activity.timestamp) }}</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- AI Career Recommendations -->
+        <div class="content-section">
+          <div class="section-header">
+            <h2 class="section-title">AI Career Recommendations</h2>
+            <a href="#" class="view-all" (click)="viewMoreRecommendations($event)">View more recommendations →</a>
+          </div>
+          <div class="recommendations-list">
+            <div class="recommendation-item" [class]="getRelevanceClass(recommendation.relevance)" *ngFor="let recommendation of aiRecommendations">
+              <div class="recommendation-icon" [class]="recommendation.icon">{{ recommendation.initial }}</div>
+              <div class="recommendation-content">
+                <div class="recommendation-title">{{ recommendation.title }}</div>
+                <div class="recommendation-provider">{{ recommendation.provider }}</div>
+                <span class="relevance-badge" [class]="'relevance-' + recommendation.relevance.toLowerCase().replace(' ', '-')">{{ recommendation.relevance | titlecase }} Relevance</span>
+              </div>
+              <div class="recommendation-duration">{{ recommendation.duration }}</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Recent Applications -->
+        <div class="content-section">
+          <div class="section-header">
+            <h2 class="section-title">Recent Applications</h2>
+            <a href="#" class="view-all" (click)="viewAllApplications($event)">View All</a>
+          </div>
+          <div class="applications-grid">
+            <div class="application-card" *ngFor="let application of recentApplications">
+              <div class="company-info">
+                <div class="company-logo">{{ application.initial }}</div>
+                <div>
+                  <div class="job-title">{{ application.jobTitle }}</div>
+                  <div class="company-name">{{ application.company }}</div>
+                </div>
+              </div>
+              <div class="job-tags">
+                <span class="job-tag" *ngFor="let tag of application.tags" [class]="tag.toLowerCase().replace(' ', '-')">{{ tag }}</span>
+              </div>
+              <div class="application-footer">
+                <span class="application-date">Applied {{ getTimeAgo(application.appliedDate) }}</span>
+                <span class="application-status" [class]="'status-' + application.status.toLowerCase().replace(' ', '-')">{{ application.status | titlecase }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Best Job Matches -->
+        <div class="content-section">
+          <div class="section-header">
+            <h2 class="section-title">Best Job Matches</h2>
+            <a href="#" class="view-all" (click)="viewAllMatches($event)">View all matches</a>
+          </div>
+          <div class="job-matches">
+            <div class="job-match" *ngFor="let match of bestJobMatches">
+              <div class="match-info">
+                <div class="match-title">{{ match.title }}</div>
+                <div class="match-company">{{ match.company }}</div>
+              </div>
+              <div class="match-percentage">{{ match.matchPercentage }}% <i class="fas fa-arrow-up"></i></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Skills Progress -->
+        <div class="content-section skills-section">
+          <div class="section-header">
+            <h2 class="section-title">Skills Progress</h2>
+            <a href="#" class="view-all" (click)="manageSkills($event)">Manage Skills</a>
+          </div>
+          <div class="skills-list">
+            <div class="skill-item" *ngFor="let skill of skillsProgress">
+              <div class="skill-header">
+                <span class="skill-name">{{ skill.name }}</span>
+                <span class="skill-percentage">{{ skill.percentage }}%</span>
+              </div>
+              <div class="skill-bar">
+                <div class="skill-progress" [style.width.%]="skill.percentage"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Recommended Training -->
+        <div class="content-section">
+          <div class="section-header">
+            <h2 class="section-title">Recommended Training</h2>
+            <a href="#" class="view-all" (click)="browseTraining($event)">Browse All</a>
+          </div>
+          <div class="training-list">
+            <div class="recommendation-item" [class]="getRelevanceClass(training.relevance)" *ngFor="let training of recommendedTraining">
+              <div class="recommendation-icon" [style.background]="training.iconColor" [style.color]="training.iconTextColor">
+                <i class="fas fa-play"></i>
+              </div>
+              <div class="recommendation-content">
+                <div class="recommendation-title">{{ training.title }}</div>
+                <div class="recommendation-provider">{{ training.provider }}</div>
+                <span class="relevance-badge" [class]="'relevance-' + training.relevance.toLowerCase().replace(' ', '-')">{{ training.relevance }}</span>
+              </div>
+              <button class="cta-button" [style.background]="training.buttonColor" [style.border]="training.buttonBorder" (click)="openTrainingModal(training.title, $event)">Watch Now</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Upcoming Interviews -->
+        <div class="content-section">
+          <div class="section-header">
+            <h2 class="section-title">Upcoming Interviews</h2>
+            <a href="#" class="view-all" (click)="viewCalendar($event)">View Calendar</a>
+          </div>
+          <div class="interview-list">
+            <div class="activity-item" *ngFor="let interview of upcomingInterviews" [style.padding]="interview.padding" [style.border]="interview.border" [style.borderRadius]="interview.borderRadius" [style.marginBottom]="interview.marginBottom">
+              <div class="activity-icon" [style.background]="interview.iconColor" [style.color]="interview.iconTextColor" [style.borderRadius]="interview.iconBorderRadius">
+                <i [class]="'fa-' + interview.typeIcon"></i>
+              </div>
+              <div class="activity-content">
+                <div class="activity-title">{{ interview.position }}</div>
+                <div class="activity-subtitle">{{ interview.company }}</div>
+                <div [style.marginTop]="interview.marginTop1">
+                  <span [style.background]="interview.statusColor" [style.color]="interview.statusTextColor" [style.padding]="interview.statusPadding" [style.borderRadius]="interview.statusBorderRadius" [style.fontSize]="interview.statusFontSize">
+                    <i [class]="'fa-' + interview.typeIcon"></i> {{ interview.type | titlecase }}
+                  </span>
+                </div>
+                <div [style.marginTop]="interview.marginTop2" [style.color]="interview.interviewerColor" [style.fontSize]="interview.interviewerFontSize">
+                  <strong>Interviewers:</strong><br>
+                  <div *ngFor="let interviewer of interview.interviewers" class="interviewer">{{ interviewer }}</div>
+                </div>
+                <div [style.marginTop]="interview.marginTop3" [style.display]="interview.actionsDisplay" [style.gap]="interview.actionsGap">
+                  <button [style.background]="interview.prepareButtonColor" [style.color]="interview.prepareButtonTextColor" [style.border]="interview.prepareButtonBorder" [style.padding]="interview.prepareButtonPadding" [style.borderRadius]="interview.prepareButtonBorderRadius" [style.fontSize]="interview.prepareButtonFontSize" (click)="prepareForInterview(interview.id)">
+                    {{ interview.prepareButtonText }}
+                  </button>
+                  <button [style.background]="interview.rescheduleButtonColor" [style.color]="interview.rescheduleButtonTextColor" [style.border]="interview.rescheduleButtonBorder" [style.padding]="interview.rescheduleButtonPadding" [style.borderRadius]="interview.rescheduleButtonBorderRadius" [style.fontSize]="interview.rescheduleButtonFontSize" (click)="rescheduleInterview(interview.id)">
+                    {{ interview.rescheduleButtonText }}
+                  </button>
+                </div>
+              </div>
+              <div [style.textAlign]="interview.timeAlign">
+                <div [style.fontWeight]="interview.timeFontWeight" [style.color]="interview.timeColor">{{ interview.date }}</div>
+                <div [style.color]="interview.timeSubColor" [style.fontSize]="interview.timeFontSize">{{ interview.time }}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- AI Assistant Quick Actions -->
+        <div class="content-section">
+          <div class="section-header">
+            <h2 class="section-title">AI Career Assistant</h2>
+            <a href="#" class="view-all" (click)="openChat($event)">Open Chat</a>
+          </div>
+          <div [style.background]="aiAssistant.background" [style.borderRadius]="aiAssistant.borderRadius" [style.padding]="aiAssistant.padding" [style.color]="aiAssistant.color" [style.marginBottom]="aiAssistant.marginBottom">
+            <div [style.display]="aiAssistant.headerDisplay" [style.alignItems]="aiAssistant.headerAlignItems" [style.gap]="aiAssistant.headerGap" [style.marginBottom]="aiAssistant.headerMarginBottom">
+              <div [style.width]="aiAssistant.iconWidth" [style.height]="aiAssistant.iconHeight" [style.background]="aiAssistant.iconBackground" [style.borderRadius]="aiAssistant.iconBorderRadius" [style.display]="aiAssistant.iconDisplay" [style.alignItems]="aiAssistant.iconAlignItems" [style.justifyContent]="aiAssistant.iconJustifyContent">
+                <i class="fas fa-robot"></i>
+              </div>
+              <div>
+                <div [style.fontWeight]="aiAssistant.titleFontWeight">AI Assistant</div>
+                <div [style.opacity]="aiAssistant.subtitleOpacity" [style.fontSize]="aiAssistant.subtitleFontSize">Ready to help with your career</div>
+              </div>
+            </div>
+            <div [style.background]="aiAssistant.contentBackground" [style.borderRadius]="aiAssistant.contentBorderRadius" [style.padding]="aiAssistant.contentPadding" [style.marginBottom]="aiAssistant.contentMarginBottom" [style.fontSize]="aiAssistant.contentFontSize">
+              💡 Based on your profile, I recommend focusing on React skills to match 87% more job opportunities.
+            </div>
+            <button [style.background]="aiAssistant.buttonBackground" [style.border]="aiAssistant.buttonBorder" [style.color]="aiAssistant.buttonColor" [style.padding]="aiAssistant.buttonPadding" [style.borderRadius]="aiAssistant.buttonBorderRadius" [style.fontSize]="aiAssistant.buttonFontSize" (click)="getCareerAdvice($event)">
+              Get Career Advice
+            </button>
+          </div>
+
+          <!-- Quick Actions -->
+          <div [style.display]="quickActions.display" [style.gridTemplateColumns]="quickActions.gridTemplateColumns" [style.gap]="quickActions.gap">
+            <button [style.background]="quickActions.action1.background" [style.border]="quickActions.action1.border" [style.padding]="quickActions.action1.padding" [style.borderRadius]="quickActions.action1.borderRadius" [style.textAlign]="quickActions.action1.textAlign" [style.cursor]="quickActions.action1.cursor" (mouseover)="quickActions.action1.onMouseOver()" (mouseout)="quickActions.action1.onMouseOut()">
+              <div [style.color]="quickActions.action1.iconColor" [style.marginBottom]="quickActions.action1.iconMarginBottom">
+                <i class="fas fa-file-alt"></i>
+              </div>
+              <div [style.fontWeight]="quickActions.action1.titleFontWeight" [style.color]="quickActions.action1.titleColor" [style.fontSize]="quickActions.action1.titleFontSize">Resume Review</div>
+              <div [style.color]="quickActions.action1.subtitleColor" [style.fontSize]="quickActions.action1.subtitleFontSize">Get AI feedback</div>
+            </button>
+            <button [style.background]="quickActions.action2.background" [style.border]="quickActions.action2.border" [style.padding]="quickActions.action2.padding" [style.borderRadius]="quickActions.action2.borderRadius" [style.textAlign]="quickActions.action2.textAlign" [style.cursor]="quickActions.action2.cursor" (mouseover)="quickActions.action2.onMouseOver()" (mouseout)="quickActions.action2.onMouseOut()">
+              <div [style.color]="quickActions.action2.iconColor" [style.marginBottom]="quickActions.action2.iconMarginBottom">
+                <i class="fas fa-lightbulb"></i>
+              </div>
+              <div [style.fontWeight]="quickActions.action2.titleFontWeight" [style.color]="quickActions.action2.titleColor" [style.fontSize]="quickActions.action2.titleFontSize">Interview Prep</div>
+              <div [style.color]="quickActions.action2.subtitleColor" [style.fontSize]="quickActions.action2.subtitleFontSize">Practice questions</div>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- Training Video Modal -->
+<div id="trainingModal" class="modal" [style.display]="modal.display">
+  <div class="modal-content">
+    <span class="close" (click)="closeTrainingModal()">&times;</span>
+    <h2 id="modalTitle">{{ modal.title }}</h2>
+    <div class="video-container">
+      <div [style.textAlign]="modal.videoTextAlign">
+        <i class="fas fa-play-circle" [style.fontSize]="modal.playIconFontSize" [style.marginBottom]="modal.playIconMarginBottom"></i>
+        <div>{{ modal.videoPlaceholder }}</div>
+        <div [style.marginTop]="modal.videoSubTextMarginTop" [style.fontSize]="modal.videoSubTextFontSize" [style.opacity]="modal.videoSubTextOpacity">Click to start the training video</div>
+      </div>
+    </div>
+    <div [style.marginTop]="modal.overviewMarginTop">
+      <h3>Course Overview</h3>
+      <p id="courseDescription">{{ modal.description }}</p>
+      <div [style.marginTop]="modal.buttonsMarginTop" [style.display]="modal.buttonsDisplay" [style.gap]="modal.buttonsGap">
+        <button [style.background]="modal.startButtonBackground" [style.color]="modal.startButtonColor" [style.border]="modal.startButtonBorder" [style.padding]="modal.startButtonPadding" [style.borderRadius]="modal.startButtonBorderRadius" [style.cursor]="modal.startButtonCursor" (click)="startCourse()">
+          Start Course
+        </button>
+        <button [style.background]="modal.watchlistButtonBackground" [style.color]="modal.watchlistButtonColor" [style.border]="modal.watchlistButtonBorder" [style.padding]="modal.watchlistButtonPadding" [style.borderRadius]="modal.watchlistButtonBorderRadius" [style.cursor]="modal.watchlistButtonCursor" (click)="addToWatchlist()">
+          Add to Watchlist
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
