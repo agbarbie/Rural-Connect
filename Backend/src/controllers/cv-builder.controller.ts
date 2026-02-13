@@ -321,7 +321,7 @@ export class CVBuilderController {
 
     // 6. ✅ CRITICAL: Extract cv_data with null safety
     const cvData = result.cv_data;
-    const personalInfo = cvData.personal_info || {};
+    const personalInfo: any = cvData.personal_info || {};
     const education = cvData.education || [];
     const workExperience = cvData.work_experience || [];
     const skills = cvData.skills || [];
