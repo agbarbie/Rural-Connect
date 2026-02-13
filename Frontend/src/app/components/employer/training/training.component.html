@@ -217,10 +217,9 @@
     <div class="search-filters" *ngIf="!showAddForm">
       <div class="search-box">
         <input
-          #searchInput
           type="text"
           placeholder="Search trainings..."
-          (input)="onSearch(searchInput.value)"
+          (input)="onSearch($any($event.target).value)"
           class="search-input"
         />
         <i class="fas fa-search"></i>
@@ -354,6 +353,7 @@
                   (change)="onModeChange()"
                   required>
                   <option value="Online">Online</option>
+                  <option value="Offline">Offline (Physical Location)</option>
                 </select>
               </div>
               <div class="form-group">
@@ -406,7 +406,7 @@
                 type="file"
                 id="thumbnail"
                 accept="image/*"
-                (change)="onThumbnailSelected($any($event))"
+                (change)="onThumbnailSelected($event)"
               />
               <img
                 *ngIf="thumbnailPreview"
