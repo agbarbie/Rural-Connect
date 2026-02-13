@@ -32,7 +32,7 @@ export interface JoinResponse {
 })
 export class CloudflareMeetingService {
   // Change this to your backend URL
-  private apiUrl = 'https://rural-connect-2.onrender.com/api/meetings';
+  private apiUrl = 'https://rural-connect-3.onrender.com/api/meetings';
 
   constructor(
     private http: HttpClient,
