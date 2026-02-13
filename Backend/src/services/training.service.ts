@@ -1087,7 +1087,6 @@ if (data.sessions !== undefined) {
   /**
    * Get iframe URL for employer to start meeting directly
    */
-  // ✅ Make sure this method returns the correct structure:
 async getSessionIframeUrl(
   sessionId: string,
   employerId: string
@@ -1096,6 +1095,7 @@ async getSessionIframeUrl(
     const sessionResult = await this.db.query(
       `SELECT 
         ts.*, 
+        ts.meeting_id,  -- ✅ CRITICAL: Explicitly select meeting_id
         t.id as training_id,
         t.title as training_title,
         t.provider_id,
@@ -1113,6 +1113,11 @@ async getSessionIframeUrl(
 
     const session = sessionResult.rows[0];
     
+    // ✅ Check if meeting_id exists
+    if (!session.meeting_id) {
+      throw new Error('No meeting configured for this session. Please edit and save the training to generate meeting links.');
+    }
+    
     const isEmployer = session.employer_user_id === employerId || session.provider_id === employerId;
     
     if (!isEmployer) {
@@ -1126,10 +1131,7 @@ async getSessionIframeUrl(
 
     const moderatorName = `${employer.first_name} ${employer.last_name}`.trim() || employer.email;
 
-    // ✅ CRITICAL: Get meeting_id from session (stored during creation)
-    if (!session.meeting_id) {
-      throw new Error('Meeting not initialized for this session');
-    }
+    console.log('🎥 Adding employer as host to meeting:', session.meeting_id);
 
     // Add employer as moderator to the existing meeting
     const participant = await this.dyteService.addParticipant(

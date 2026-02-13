@@ -10,6 +10,7 @@ import {
   ShortlistDecisionRequest,
   MarkCompletionRequest,
 } from '../types/training.type';
+import dyteService from '../services/dyte.service';
 
 export class TrainingController {
   constructor(private trainingService: TrainingService) {}
@@ -442,47 +443,65 @@ export class TrainingController {
    * ✅ CRITICAL FIX: GET /api/trainings/sessions/:sessionId/iframe
    * Get iframe URL for employer to start meeting directly
    */
-  async getSessionIframeUrl(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
-    try {
-      const { sessionId } = req.params;
-      const employerId = req.user?.id;
-      const userType = req.user?.user_type;
+ async getSessionIframeUrl(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const { sessionId } = req.params;
+    const employerId = req.user?.id;
 
-      if (!employerId) {
-        res.status(401).json({ success: false, message: 'Unauthorized' });
-        return;
-      }
-
-      if (userType !== 'employer') {
-        res.status(403).json({ 
-          success: false, 
-          message: 'Only employers can start meetings directly' 
-        });
-        return;
-      }
-
-      console.log('🎥 Getting iframe URL for employer:', { sessionId, employerId });
-
-      const iframeUrl = await this.trainingService.getSessionIframeUrl(
-      // @ts-ignore
-        sessionId,
-        employerId
-      );
-
-      res.status(200).json({
-        success: true,
-        data: {
-          iframeUrl
-        }
+    if (!employerId || req.user?.user_type !== 'employer') {
+      res.status(403).json({ 
+        success: false, 
+        message: 'Only employers can start meetings' 
       });
-    } catch (error: any) {
-      console.error('❌ Error getting iframe URL:', error);
-      res.status(500).json({
-        success: false,
-        message: error.message || 'Failed to get iframe URL'
-      });
+      return;
     }
+
+    console.log('🎥 Getting iframe URL for employer:', { sessionId, employerId });
+
+    // Get session details
+    // @ts-ignore - method may exist at runtime though not declared on the TrainingService type
+    const session = await (this.trainingService as any).getSessionById(sessionId);
+    
+    if (!session || !session.meeting_id) {
+      res.status(404).json({
+        success: false,
+        message: 'Session or meeting not found'
+      });
+      return;
+    }
+
+    // Add employer as participant and get auth token
+    const userName = req.user?.email || 'Employer';
+    const participant = await dyteService.addParticipant(
+      session.meeting_id,
+      userName,
+      employerId,
+      'host'
+    );
+
+    // Generate iframe URL
+    const iframeUrl = dyteService.getIframeUrl(session.meeting_id, participant.authToken);
+
+    res.status(200).json({
+      success: true,
+      data: {
+        iframeUrl,
+        session: {
+          title: session.title,
+          training_title: session.training?.title,
+          scheduled_at: session.scheduled_at
+        }
+      }
+    });
+  } catch (error: any) {
+    console.error('❌ Error getting iframe URL:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to get iframe URL',
+      error: error.message
+    });
   }
+}
 
   /**
    * GET /api/trainings/meeting/:trainingId/:sessionId/:roomCode
