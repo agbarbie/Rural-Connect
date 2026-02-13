@@ -13,7 +13,6 @@ interface DyteMeetingConfig {
   moderatorName: string;
   moderatorEmail: string;
 }
-
 interface DyteMeeting {
   meetingUrl: string;
   roomName: string;
@@ -21,13 +20,11 @@ interface DyteMeeting {
   moderatorToken: string;
   meetingId: string;
 }
-
 interface DyteParticipant {
   authToken: string;
   participantId: string;
   role: 'host' | 'participant';
 }
-
 export class DyteService {
   private authHeader: string;
   private baseUrl: string;
