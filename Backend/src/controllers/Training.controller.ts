@@ -445,7 +445,7 @@ export class TrainingController {
    */
  async getSessionIframeUrl(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
   try {
-    const { sessionId } = req.params;
+    const { sessionId }: any = req.params;
     const employerId = req.user?.id;
 
     if (!employerId || req.user?.user_type !== 'employer') {
