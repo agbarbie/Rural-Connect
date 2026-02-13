@@ -56,19 +56,16 @@ export class DyteService {
     };
   }
 
-  /**
-   * Create a new Dyte meeting
-   */
   async createMeeting(config: DyteMeetingConfig): Promise<DyteMeeting> {
     try {
       const roomName = `training_${config.trainingId}_session_${config.sessionId}`;
       
       console.log('🎥 Creating Dyte meeting:', {
         roomName,
-        title: config.sessionTitle
+        title: config.sessionTitle,
+        moderator: config.moderatorName
       });
 
-      // ✅ CORRECT: Dyte API endpoint
       const createMeetingResponse = await axios.post(
         `${this.baseUrl}/meetings`,
         {
@@ -85,9 +82,8 @@ export class DyteService {
       const meetingData = createMeetingResponse.data.data;
       const meetingId = meetingData.id;
 
-      console.log('✅ Meeting created:', meetingId);
+      console.log('✅ Dyte meeting created:', meetingId);
 
-      // Add moderator
       const moderatorResponse = await axios.post(
         `${this.baseUrl}/meetings/${meetingId}/participants`,
         {
@@ -101,7 +97,7 @@ export class DyteService {
       );
 
       const moderatorToken = moderatorResponse.data.data.token;
-      const meetingUrl = `https://app.dyte.io/meeting?id=${meetingId}`;
+      const meetingUrl = `https://app.dyte.io/${meetingId}`;
       const password = this.generateMeetingPassword();
 
       console.log('✅ Dyte meeting created successfully');
@@ -116,6 +112,7 @@ export class DyteService {
     } catch (error: any) {
       console.error('❌ Dyte API Error:', {
         status: error.response?.status,
+        statusText: error.response?.statusText,
         message: error.response?.data?.message || error.message,
         data: error.response?.data
       });
@@ -128,9 +125,6 @@ export class DyteService {
     }
   }
 
-  /**
-   * Add participant to existing meeting
-   */
   async addParticipant(
     meetingId: string,
     userName: string,
@@ -160,14 +154,10 @@ export class DyteService {
         role: role
       };
     } catch (error: any) {
-      console.error('❌ Add participant error:', error.response?.data || error.message);
       throw new Error(`Failed to add participant: ${error.message}`);
     }
   }
 
-  /**
-   * Get meeting details
-   */
   async getMeeting(meetingId: string): Promise<any> {
     try {
       const response = await axios.get(
@@ -183,23 +173,14 @@ export class DyteService {
     }
   }
 
-  /**
-   * Get join URL
-   */
   getJoinUrl(meetingId: string, authToken: string): string {
     return `https://app.dyte.io/${meetingId}?authToken=${authToken}`;
   }
 
-  /**
-   * Get iframe URL
-   */
   getIframeUrl(meetingId: string, authToken: string): string {
     return `https://app.dyte.io/${meetingId}?authToken=${authToken}&embed=true`;
   }
 
-  /**
-   * Generate random meeting password
-   */
   private generateMeetingPassword(): string {
     return crypto.randomInt(100000, 999999).toString();
   }
