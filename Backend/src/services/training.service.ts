@@ -701,70 +701,48 @@ async getNotifications(
       const trainingTitle = tResult.rows[0].title;
       const providerName = tResult.rows[0].provider_name;
 
-      // ✅ CREATE BBB MEETINGS FOR SESSIONS
       if (sessions.length > 0) {
-        for (let i = 0; i < sessions.length; i++) {
-          const s = sessions[i];
-          const sessionId = uuidv4();
+  for (let i = 0; i < sessions.length; i++) {
+    const s = sessions[i];
+    const sessionId = uuidv4();
 
-          // ✅ Create BBB meeting (uses BigBlueButton service)
-          // In createTraining method, store the meeting_id:
-const meeting = await this.generateMeetingUrl(
-  trainingId,
-  sessionId,
-  s.title ?? `Session ${i + 1}`,
-  trainingTitle,
-  providerName,
-  s.duration_minutes ?? 60,
-  employerId
-);
+    // Create Dyte meeting
+    const meeting = await this.generateMeetingUrl(
+      trainingId,
+      sessionId,
+      s.title ?? `Session ${i + 1}`,
+      trainingTitle,
+      providerName,
+      s.duration_minutes ?? 60,
+      employerId
+    );
 
-await client.query(
-  `INSERT INTO training_sessions (
-     id, training_id, title, description, scheduled_at, duration_minutes, 
-     meeting_url, meeting_password, moderator_password, room_name, 
-     meeting_id, order_index, created_at, updated_at
-   ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,NOW(),NOW())`,
-  [
-    sessionId,
-    trainingId,
-    s.title?.trim(),
-    s.description?.trim() ?? null,
-    s.scheduled_at ?? null,
-    s.duration_minutes ?? null,
-    meeting.meetingUrl,
-    meeting.meetingPassword,
-    meeting.moderatorPassword,
-    meeting.roomName,
-    meeting.meetingId, // ✅ CRITICAL: Store meeting_id
-    s.order_index ?? i + 1,
-  ]
-);
+    // ✅ SINGLE INSERT - with meeting_id
+    await client.query(
+      `INSERT INTO training_sessions (
+         id, training_id, title, description, scheduled_at, duration_minutes, 
+         meeting_url, meeting_password, moderator_password, room_name, 
+         meeting_id, order_index, created_at, updated_at
+       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,NOW(),NOW())`,
+      [
+        sessionId,
+        trainingId,
+        s.title?.trim(),
+        s.description?.trim() ?? null,
+        s.scheduled_at ?? null,
+        s.duration_minutes ?? null,
+        meeting.meetingUrl,
+        meeting.meetingPassword,
+        meeting.moderatorPassword,
+        meeting.roomName,
+        meeting.meetingId,
+        s.order_index ?? i + 1,
+      ]
+    );
 
-          await client.query(
-            `INSERT INTO training_sessions (
-               id, training_id, title, description, scheduled_at, duration_minutes, 
-               meeting_url, meeting_password, moderator_password, room_name, order_index, created_at, updated_at
-             ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,NOW(),NOW())`,
-            [
-              sessionId,
-              trainingId,
-              s.title?.trim(),
-              s.description?.trim() ?? null,
-              s.scheduled_at ?? null,
-              s.duration_minutes ?? null,
-              meeting.meetingUrl,
-              meeting.meetingPassword,
-              meeting.moderatorPassword,
-              meeting.roomName,
-              s.order_index ?? i + 1,
-            ]
-          );
-
-          console.log(`✅ BBB meeting created for session: ${s.title ?? sessionId}`);
-        }
-      }
-
+    console.log(`✅ Dyte meeting created for session: ${s.title ?? sessionId}`);
+  }
+}
       if (outcomes.length > 0) {
         for (const o of outcomes) {
           await client.query(
