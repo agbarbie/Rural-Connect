@@ -47,7 +47,8 @@ export class DyteService {
   constructor() {
     this.apiKey = process.env.DYTE_API_KEY || '';
     this.orgId = process.env.DYTE_ORG_ID || '';
-    this.baseUrl = process.env.DYTE_API_URL || 'https://api.dyte.io/v2';
+    // this.baseUrl = process.env.DYTE_API_URL || 'https://api.dyte.io/v2';
+    this.baseUrl = 'https://api.dyte.io/v2';
     
     // ✅ FIX: Use environment variables for preset names with fallbacks
     // Common preset names: 'host', 'moderator', 'webinar_presenter', 'group_call_host'

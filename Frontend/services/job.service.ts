@@ -3,7 +3,7 @@ import { Injectable } from '@angular/core';
 import { HttpClient, HttpHeaders, HttpParams } from '@angular/common/http';
 import { Observable, BehaviorSubject, throwError, of } from 'rxjs';
 import { catchError, tap, map } from 'rxjs/operators';
-import { environment } from '../src/environments/environment.prod';
+import { environment } from '../src/environments/environments';
 import { AuthService } from './auth.service';
 
 interface User {

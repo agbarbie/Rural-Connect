@@ -1,7 +1,7 @@
 // src/routes/jobs.routes.ts - FIXED VERSION
 import { Router } from 'express';
 import { PostJobsController } from '../controllers/postjobs.controller';
-import { JobseekerJobController } from '../controllers/Jobseeker job.controller';
+import { JobseekerJobController } from '../controllers/jobseeker-job.controller';
 import { JobNotificationController } from '../controllers/job-notification.controller';
 import { authenticate, AuthenticatedRequest } from '../middleware/auth.middleware';
 import { authorize, requireEmployer, requireJobseeker } from '../middleware/role.middleware';
