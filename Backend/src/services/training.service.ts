@@ -2912,6 +2912,53 @@ async getTrainingEnrollments(
     );
   }
 
+  async getSessionById(sessionId: string): Promise<any | null> {
+    try {
+      const q = `
+        SELECT 
+          ts.*,
+          ts.meeting_id,
+          t.id AS training_id,
+          t.title AS training_title,
+          t.provider_id,
+          e.user_id AS employer_user_id
+        FROM training_sessions ts
+        JOIN trainings t ON ts.training_id = t.id
+        LEFT JOIN employers e ON e.id = t.provider_id
+        WHERE ts.id = $1
+        LIMIT 1
+      `;
+      const result = await this.db.query(q, [sessionId]);
+      if (result.rows.length === 0) return null;
+
+      const s = result.rows[0];
+      return {
+        id: s.id,
+        title: s.title,
+        description: s.description,
+        scheduled_at: s.scheduled_at,
+        duration_minutes: s.duration_minutes,
+        meeting_url: s.meeting_url,
+        meeting_password: s.meeting_password,
+        moderator_password: s.moderator_password,
+        room_name: s.room_name,
+        meeting_id: s.meeting_id,
+        order_index: s.order_index,
+        created_at: s.created_at,
+        updated_at: s.updated_at,
+        training: {
+          id: s.training_id,
+          title: s.training_title,
+          provider_id: s.provider_id,
+          provider_user_id: s.employer_user_id
+        }
+      };
+    } catch (err: any) {
+      console.error('❌ Error in getSessionById:', err.message);
+      throw err;
+    }
+  }
+
   async getSessionAttendance(sessionId: string, employerId: string): Promise<any> {
     const epRow = await this.db.query('SELECT id FROM employers WHERE user_id = $1', [employerId]);
     const epId = epRow.rows.length > 0 ? epRow.rows[0].id : null;
