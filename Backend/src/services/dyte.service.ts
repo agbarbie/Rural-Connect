@@ -100,6 +100,23 @@ export class DyteService {
         throw new Error('Dyte access forbidden. Check organization permissions');
       }
 
+      // Handle 422 Unprocessable Content - often due to invalid preset names
+      if (axiosError.response?.status === 422) {
+        const errorData = axiosError.response?.data as any;
+        const errorMessage = errorData?.error?.message || errorData?.message || 'Unprocessable Content';
+        
+        if (errorMessage.includes('preset') || errorMessage.includes('userpreset')) {
+          throw new Error(
+            `Dyte preset error (422): "${errorMessage}". ` +
+            `Current presets: host="${this.hostPresetName}", participant="${this.participantPresetName}". ` +
+            `Run: node Backend/check-dyte-presets.js to see available presets in your organization, ` +
+            `then update DYTE_HOST_PRESET and DYTE_PARTICIPANT_PRESET in .env file. ` +
+            `See Backend/DYTE_SETUP.md for detailed instructions.`
+          );
+        }
+        throw new Error(`Dyte validation error (422): ${errorMessage}`);
+      }
+
       const errorData = axiosError.response?.data as any;
       throw new Error(errorData?.error?.message || `Dyte ${context} failed: ${axiosError.message}`);
     }
