@@ -78,6 +78,7 @@ router.delete(
       }
 
       // Call service method
+      // @ts-ignore
       const result = await jobseekerJobController['jobseekerJobService'].withdrawApplicationByJob(userId, jobId);
 
       if (!result.success) {

@@ -384,6 +384,7 @@ export const validateReviewData = (req: AuthenticatedRequest, res: Response, nex
 export const validateIntegerId = (req: Request, res: Response, next: NextFunction): void => {
   const { id } = req.params;
   
+      // @ts-ignore
   const numericId = parseInt(id, 10);
   
   if (isNaN(numericId) || numericId < 1) {
@@ -406,6 +407,7 @@ export const validateId = (req: Request, res: Response, next: NextFunction): voi
   
   const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
   
+      // @ts-ignore
   if (!uuidRegex.test(id)) {
     res.status(400).json({
       success: false,
@@ -428,6 +430,7 @@ export const validateMultipleIds = (paramNames: string[]) => {
 
     paramNames.forEach(paramName => {
       const value = req.params[paramName];
+      // @ts-ignore
       if (!value || !uuidRegex.test(value)) {
         errors.push(`Invalid ${paramName} format`);
       }

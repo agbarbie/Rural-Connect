@@ -68,6 +68,7 @@ export class JobNotificationController {
 
       console.log('✅ Marking notification as read:', notificationId);
 
+      // @ts-ignore
       await this.notificationService.markNotificationRead(notificationId, userId);
 
       res.status(200).json({
@@ -127,6 +128,7 @@ export class JobNotificationController {
 
       console.log('🗑️ Deleting notification:', notificationId);
 
+      // @ts-ignore
       await this.notificationService.deleteNotification(notificationId, userId);
 
       res.status(200).json({

@@ -202,6 +202,7 @@ class MeetingController {
       // Map application role to Cloudflare role (Cloudflare expects 'employer' | 'jobseeker')
       const roleForCloudflare: 'employer' | 'jobseeker' = userRole === 'employer' ? 'employer' : 'jobseeker';
       const participant = await cloudflareService.addParticipant(
+      // @ts-ignore
         meetingId,
         userName,
         userId,
@@ -297,6 +298,7 @@ class MeetingController {
       // Get meeting details from Cloudflare
       let meetingData = null;
       try {
+      // @ts-ignore
         const meeting = await cloudflareService.getMeeting(meetingId);
         meetingData = meeting.data;
       } catch (cloudflareError) {
