@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "scripts": {
     "ng": "ng",
-  "start": "ng serve --proxy-config proxy.conf.json",
+    "start": "ng serve --proxy-config proxy.conf.json",
     "build": "ng build && node copy-200.js",
     "watch": "ng build --watch --configuration development",
     "test": "ng test"
@@ -28,6 +28,7 @@
     "@angular/compiler-cli": "^19.2.0",
     "@types/chart.js": "^2.9.41",
     "@types/jasmine": "~5.1.0",
+    "@types/jasminewd2": "^2.0.13",
     "@types/uuid": "^10.0.0",
     "angular-in-memory-web-api": "^0.19.0",
     "jasmine-core": "~5.6.0",

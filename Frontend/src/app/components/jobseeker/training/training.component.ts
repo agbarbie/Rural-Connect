@@ -409,21 +409,33 @@ joinMeeting(sessionId: string): void {
   }
   
   handleNotificationClick(notification: any): void {
-    console.log('🔔 Notification clicked:', notification);
-    
-    if (!notification.read) {
-      this.markNotificationAsRead(notification.id);
-    }
-    
+  console.log('🔔 Notification clicked:', notification);
+  
+  if (!notification.read && notification.id) {
+    this.markNotificationAsRead(notification.id);
+  }
+  
+  try {
     switch (notification.type) {
       case 'certificate_issued':
-        const enrollmentId = notification.related_id || notification.metadata?.enrollment_id;
-        if (enrollmentId) {
-          const trainingTitle = notification.metadata?.training_title || 'Training';
+        // ✅ CRITICAL: Safe metadata access
+        const metadata = notification.metadata || {};
+        const enrollmentId = notification.related_id || 
+                            metadata.enrollment_id || 
+                            notification.enrollment_id;
+        
+        const trainingTitle = metadata.training_title || 
+                             notification.training_title || 
+                             'Training';
+        
+        if (enrollmentId && enrollmentId !== 'undefined' && enrollmentId !== 'null') {
           if (confirm(`Download certificate for "${trainingTitle}"?`)) {
             this.downloadCertificate(enrollmentId, trainingTitle);
           }
           this.showNotifications = false;
+        } else {
+          console.error('❌ No valid enrollment ID in notification:', notification);
+          alert('Certificate download information is missing. Please refresh the page and try again.');
         }
         break;
       
@@ -431,8 +443,11 @@ joinMeeting(sessionId: string): void {
       case 'shortlisted':
       case 'training_starting_soon':
       case 'session_reminder':
-        if (notification.metadata?.training_id) {
-          this.viewTrainingFromNotification(notification.metadata.training_id);
+        const trainingId = notification.metadata?.training_id || 
+                          notification.training_id;
+        
+        if (trainingId) {
+          this.viewTrainingFromNotification(trainingId);
         }
         break;
       
@@ -440,7 +455,12 @@ joinMeeting(sessionId: string): void {
         this.showNotifications = false;
         break;
     }
+  } catch (error) {
+    console.error('❌ Error handling notification click:', error);
+    alert('Failed to process notification. Please try again.');
   }
+}
+
   
   viewTrainingFromNotification(trainingId: string): void {
     console.log('👀 Viewing training from notification:', trainingId);
@@ -616,73 +636,112 @@ joinMeeting(sessionId: string): void {
     }
   }
 
-  downloadCertificate(enrollmentId: string, trainingTitle: string): void {
-    console.log('📥 Downloading certificate:', { enrollmentId, trainingTitle });
-    
-    if (!enrollmentId) {
-      console.error('❌ No enrollment ID provided');
-      alert('Cannot download certificate: Enrollment ID is missing');
-      return;
-    }
+  downloadCertificate(enrollmentId: string, trainingTitle: string = 'Training'): void {
+  console.log('📥 Downloading certificate:', { enrollmentId, trainingTitle });
+  
+  // ✅ CRITICAL: Validate enrollmentId
+  if (!enrollmentId || enrollmentId === 'undefined' || enrollmentId === 'null') {
+    console.error('❌ Invalid enrollment ID:', enrollmentId);
+    alert('Cannot download certificate: Invalid enrollment ID. Please refresh the page and try again.');
+    return;
+  }
 
-    this.loading = true;
-    
-    this.trainingService.downloadCertificate(enrollmentId).subscribe({
-      next: (blob: Blob) => {
-        this.loading = false;
+  // ✅ Sanitize training title for filename
+  const sanitizedTitle = (trainingTitle || 'Training')
+    .replace(/[^a-z0-9\s-]/gi, '') // Remove special chars
+    .replace(/\s+/g, '_')          // Replace spaces with underscores
+    .substring(0, 50);              // Limit length
+
+  this.loading = true;
+  
+  this.trainingService.downloadCertificate(enrollmentId).subscribe({
+    next: (blob: Blob) => {
+      this.loading = false;
+      
+      // ✅ Validate blob
+      if (!blob || blob.size === 0) {
+        console.error('❌ Empty certificate blob received');
+        alert('Certificate file is empty. Please contact the training provider.');
+        return;
+      }
+      
+      console.log('✅ Certificate blob received:', {
+        size: blob.size,
+        type: blob.type
+      });
+      
+      // ✅ Create download
+      try {
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `${sanitizedTitle}_Certificate.pdf`;
+        document.body.appendChild(link);
+        link.click();
         
-        if (blob.size > 0) {
-          const url = window.URL.createObjectURL(blob);
-          const link = document.createElement('a');
-          link.href = url;
-          link.download = `${trainingTitle.replace(/[^a-z0-9]/gi, '_')}_Certificate.pdf`;
-          document.body.appendChild(link);
-          link.click();
+        // Cleanup
+        setTimeout(() => {
           document.body.removeChild(link);
           window.URL.revokeObjectURL(url);
-          
-          alert(`Certificate for "${trainingTitle}" downloaded successfully!`);
-        } else {
-          alert('Certificate file is empty. Please contact the training provider.');
-        }
-      },
-      error: (error) => {
-        this.loading = false;
-        console.error('❌ Error downloading certificate:', error);
+        }, 100);
         
-        let errorMessage = 'Failed to download certificate. ';
+        alert(`Certificate for "${trainingTitle}" downloaded successfully!`);
         
-        if (error.status === 404) {
-          errorMessage += 'Certificate not found.';
-        } else if (error.status === 401) {
-          errorMessage += 'You are not authorized. Please log in again.';
-        } else if (error.status === 403) {
-          errorMessage += 'Access denied.';
-        } else {
-          errorMessage += 'Please try again or contact support.';
-        }
-        
-        alert(errorMessage);
+      } catch (downloadError) {
+        console.error('❌ Error creating download:', downloadError);
+        alert('Failed to download certificate. Please try again.');
       }
-    });
-  }
+    },
+    error: (error) => {
+      this.loading = false;
+      console.error('❌ Certificate download error:', error);
+      
+      let errorMessage = 'Failed to download certificate. ';
+      
+      if (error.status === 404) {
+        errorMessage += 'Certificate not found. It may not have been issued yet.';
+      } else if (error.status === 401) {
+        errorMessage += 'You are not authorized. Please log in again.';
+      } else if (error.status === 403) {
+        errorMessage += 'Access denied. You may not have permission to download this certificate.';
+      } else if (error.status === 0) {
+        errorMessage += 'Network error. Please check your internet connection and try again.';
+      } else {
+        errorMessage += 'Please try again or contact support.';
+      }
+      
+      alert(errorMessage);
+    }
+  });
+}
 
   downloadCertificateFromCard(training: Training): void {
-    if (!training.enrollment_id) {
-      alert('Enrollment ID is missing. Please contact support.');
-      return;
-    }
-    this.downloadCertificate(training.enrollment_id, training.title);
+  // ✅ CRITICAL: Validate enrollment_id
+  if (!training.enrollment_id || 
+      training.enrollment_id === 'undefined' || 
+      training.enrollment_id === 'null') {
+    console.error('❌ Invalid enrollment ID for training:', training);
+    alert('Enrollment ID is missing. Please refresh the page and try again.');
+    return;
   }
+  
+  this.downloadCertificate(training.enrollment_id, training.title);
+}
 
   canDownloadCertificate(training: Training): boolean {
-    return !!(
-      training.enrolled && 
-      training.status === 'completed' &&
-      training.certificate_issued &&
-      training.enrollment_id
-    );
-  }
+  // ✅ All conditions must be met
+  const hasValidEnrollmentId = training.enrollment_id && 
+                               training.enrollment_id !== 'undefined' && 
+                               training.enrollment_id !== 'null';
+  
+  return !!(
+    training.enrolled && 
+    training.status === 'completed' &&
+    training.certificate_issued &&
+    hasValidEnrollmentId
+  );
+}
+
 
   getCertificateStatusMessage(training: Training): string {
     if (!training.enrolled) {

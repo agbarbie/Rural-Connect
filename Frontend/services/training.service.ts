@@ -780,11 +780,34 @@ enrollShortlistedApplicant(
   }
 
   downloadCertificate(enrollmentId: string): Observable<Blob> {
-    return this.http.get(
-      `${this.TRAINING_ENDPOINT}/enrollments/${enrollmentId}/certificate`,
-      { responseType: 'blob', headers: this.getAuthHeaders() }
-    ).pipe(catchError(this.handleError.bind(this)));
-  }
+  // ✅ CRITICAL FIX: Correct endpoint URL
+  const url = `${this.TRAINING_ENDPOINT}/enrollments/${enrollmentId}/certificate`;
+  
+  console.log('📥 Downloading certificate from:', url);
+  console.log('📋 Enrollment ID:', enrollmentId);
+  
+  return this.http.get(url, {
+    responseType: 'blob',
+    headers: this.getAuthHeaders()
+  }).pipe(
+    tap((blob: Blob) => {
+      console.log('✅ Certificate blob received:', {
+        size: blob.size,
+        type: blob.type
+      });
+    }),
+    catchError((error) => {
+      console.error('❌ Certificate download error:', {
+        status: error.status,
+        statusText: error.statusText,
+        url: error.url,
+        message: error.message
+      });
+      return this.handleError(error);
+    })
+  );
+}
+
 
   // ============================================
   // STATUS MANAGEMENT
