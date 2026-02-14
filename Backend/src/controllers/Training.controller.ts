@@ -609,6 +609,44 @@ export class TrainingController {
   }
 
   /**
+   * GET /api/trainings/enrollments/:enrollmentId/certificate
+   * Authenticated endpoint: jobseeker or employer downloads the certificate PDF
+   */
+  async downloadCertificate(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const { enrollmentId } = req.params;
+      const userId = req.user?.id;
+
+      if (!userId) {
+        res.status(401).json({ success: false, message: 'Unauthorized' });
+        return;
+      }
+
+      // service returns { path, fileName, contentType }
+      // @ts-ignore
+      const fileInfo = await this.trainingService.getCertificateForDownload(enrollmentId, userId);
+
+      if (!fileInfo || !fileInfo.path) {
+        res.status(404).json({ success: false, message: 'Certificate not found or access denied' });
+        return;
+      }
+
+      // Stream the file
+      res.setHeader('Content-Type', fileInfo.contentType || 'application/pdf');
+      res.setHeader('Content-Disposition', `attachment; filename="${fileInfo.fileName || 'certificate.pdf'}"`);
+
+      const fs = require('fs');
+      const stream = fs.createReadStream(fileInfo.path);
+      stream.on('error', (err: any) => {
+        next(err);
+      });
+      stream.pipe(res);
+    } catch (error: any) {
+      next(error);
+    }
+  }
+
+  /**
    * GET /api/certificates/verify/:code
    * Public endpoint: verify a certificate by its verification code
    */

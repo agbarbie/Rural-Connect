@@ -300,6 +300,14 @@ export function createTrainingRoutes(db: Pool): Router {
     bind(trainingController.issueCertificate)
   );
 
+  // Download certificate for an enrollment (jobseeker or provider)
+  // e.g. GET /api/trainings/enrollments/:enrollmentId/certificate
+  router.get(
+    '/enrollments/:enrollmentId/certificate',
+    authenticate,
+    bind(trainingController.downloadCertificate)
+  );
+
   // ==========================================================================
   // EMPLOYER ROUTES - Analytics
   // ==========================================================================

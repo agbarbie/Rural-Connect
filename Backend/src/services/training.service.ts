@@ -2342,6 +2342,43 @@ async issueCertificate(enrollmentId: string, employerId: string): Promise<any> {
     };
   }
 
+  /**
+   * Return certificate file path and metadata for an enrollment if the requesting user is authorized
+   */
+  async getCertificateForDownload(enrollmentId: string, requesterUserId: string): Promise<{ path?: string; fileName?: string; contentType?: string } | null> {
+    try {
+      const row = await this.db.query(
+        `SELECT e.*, e.certificate_url, e.certificate_issued, e.user_id as trainee_user_id, t.provider_id, e.training_id
+         FROM training_enrollments e
+         JOIN trainings t ON e.training_id = t.id
+         WHERE e.id = $1`,
+        [enrollmentId]
+      );
+
+      if (row.rows.length === 0) return null;
+      const enr = row.rows[0];
+
+      if (!enr.certificate_issued || !enr.certificate_url) return null;
+
+      // requester can be trainee or provider user
+      const epRow = await this.db.query('SELECT user_id FROM employers WHERE id = $1', [enr.provider_id]);
+      const providerUserId = epRow.rows.length > 0 ? epRow.rows[0].user_id : null;
+
+      if (requesterUserId !== enr.trainee_user_id && requesterUserId !== providerUserId) {
+        return null; // not authorized
+      }
+
+      const path = require('path');
+      const base = path.join(__dirname, '../../uploads', 'certificates');
+      const filePath = path.join(base, enr.certificate_url);
+
+      return { path: filePath, fileName: enr.certificate_url, contentType: 'application/pdf' };
+    } catch (error: any) {
+      console.error('❌ getCertificateForDownload error:', error.message);
+      return null;
+    }
+  }
+
   private async generateCertificatePDF(
     enrollmentId: string,
     userId: string,
