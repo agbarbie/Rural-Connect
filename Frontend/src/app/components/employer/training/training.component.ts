@@ -1681,8 +1681,8 @@ ${notification.motivation_letter || metadata.motivation || 'Not available'}
           }
 
           // fallback: backend may return enrollments at top-level
-          if (response && response.enrollments) {
-            this.enrollments = response.enrollments;
+          if (response && (response as any).enrollments) {
+            this.enrollments = (response as any).enrollments;
             console.log('Enrollments loaded (fallback):', this.enrollments.length);
             return;
           }
