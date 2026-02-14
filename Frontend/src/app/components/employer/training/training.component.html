@@ -1438,8 +1438,8 @@
           <div class="enrollments-list">
             <div class="enrollment-item" *ngFor="let enrollment of enrollments">
               <div class="trainee-info">
-                <h5>{{ enrollment.user_name }}</h5>
-                <p>{{ enrollment.user_email }}</p>
+                <h5>{{ enrollment.user.email }}</h5>
+                <p>{{ enrollment.user.first_name }} {{ enrollment.user.last_name }}</p>
               </div>
 
               <div class="completion-status">
