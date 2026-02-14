@@ -1657,7 +1657,10 @@ ${notification.motivation_letter || metadata.motivation || 'Not available'}
   // ============================================
   // ENROLLMENT MANAGEMENT
   // ============================================
-  
+  // Optimistic/loading states
+  isLoadingEnrollments: Record<string, boolean> = {};
+  isProcessingEnrollment: Record<string, boolean> = {};
+
   viewEnrollments(training: Training): void {
     console.log('Viewing enrollments for training:', training.id);
     
@@ -1694,6 +1697,8 @@ ${notification.motivation_letter || metadata.motivation || 'Not available'}
 
     const action = completed ? 'complete' : 'incomplete';
     if (confirm(`Mark this trainee as ${action}?`)) {
+      // optimistic UI
+      this.isProcessingEnrollment[enrollment.id] = true;
       this.trainingService.markCompletion(
         this.selectedTraining.id,
         enrollment.id,
@@ -1701,15 +1706,14 @@ ${notification.motivation_letter || metadata.motivation || 'Not available'}
       ).pipe(takeUntil(this.destroy$))
         .subscribe({
           next: (response) => {
+            this.isProcessingEnrollment[enrollment.id] = false;
             if (response.success) {
               enrollment.completed = completed;
               alert(`Trainee marked as ${action}!`);
-              if (completed) {
-                alert('You can now issue a certificate for this trainee.');
-              }
             }
           },
           error: (error) => {
+            this.isProcessingEnrollment[enrollment.id] = false;
             console.error('Error updating completion:', error);
             alert('Failed to update completion status.');
           }
@@ -1719,16 +1723,19 @@ ${notification.motivation_letter || metadata.motivation || 'Not available'}
 
   issueCertificate(enrollment: any): void {
     if (confirm('Issue certificate for this trainee?')) {
+      this.isProcessingEnrollment[enrollment.id] = true;
       this.trainingService.issueCertificate(this.selectedTraining!.id, enrollment.id)
         .pipe(takeUntil(this.destroy$))
         .subscribe({
           next: (response) => {
+            this.isProcessingEnrollment[enrollment.id] = false;
             if (response.success) {
               enrollment.certificate_issued = true;
               alert('Certificate issued successfully! Trainee will be notified.');
             }
           },
           error: (error) => {
+            this.isProcessingEnrollment[enrollment.id] = false;
             console.error('Error issuing certificate:', error);
             alert('Failed to issue certificate. Please try again.');
           }

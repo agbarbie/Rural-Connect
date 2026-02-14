@@ -2,6 +2,7 @@ import { Component, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterModule } from '@angular/router';
+import { TrainingService } from '../../../../../services/training.service';
 import { Subscription } from 'rxjs';
 import { AuthService } from '../../../../../services/auth.service';
 import { SidebarComponent } from '../../shared/sidebar/sidebar.component';
@@ -94,6 +95,12 @@ export class EmployerDashboardComponent implements OnInit, OnDestroy {
   showNotifications = false;
   enrollmentNotifications: EnrollmentNotification[] = [];
   hasMoreEnrollmentNotifications = false;
+
+  // Enrollments modal
+  showEnrollmentsModal: boolean = false;
+  selectedTrainingId: string | null = null;
+  selectedTrainingTitle: string | null = null;
+  enrollments: any[] = [];
   
   // Top applicants with AI matching
   topApplicants: JobApplicant[] = [
@@ -202,7 +209,8 @@ export class EmployerDashboardComponent implements OnInit, OnDestroy {
 
   constructor(
     private router: Router,
-    private authService: AuthService
+  private authService: AuthService,
+  private trainingService: TrainingService
   ) { }
 
   // ============================================
@@ -364,6 +372,75 @@ export class EmployerDashboardComponent implements OnInit, OnDestroy {
       console.log('Notifications panel opened');
       this.loadEnrollmentNotifications();
     }
+  }
+
+  // ============================================
+  // ENROLLMENTS MODAL (Employer)
+  // ============================================
+
+  openEnrollmentsModal(trainingId: string, trainingTitle: string): void {
+    this.selectedTrainingId = trainingId;
+    this.selectedTrainingTitle = trainingTitle;
+    this.showEnrollmentsModal = true;
+    this.loadEnrollments(trainingId);
+  }
+
+  closeEnrollmentsModal(): void {
+    this.showEnrollmentsModal = false;
+    this.selectedTrainingId = null;
+    this.selectedTrainingTitle = null;
+    this.enrollments = [];
+  }
+
+  loadEnrollments(trainingId: string): void {
+    this.trainingService.getTrainingEnrollments(trainingId, { page: 1, limit: 100 })
+      .subscribe({
+        next: (res: any) => {
+          if (res.success && res.data) {
+            this.enrollments = res.data.enrollments || res.data;
+          }
+        },
+        error: (err: any) => {
+          console.error('Failed to load enrollments', err);
+          this.enrollments = [];
+        }
+      });
+  }
+
+  markEnrollmentCompletion(enrollment: any, completed: boolean): void {
+    if (!this.selectedTrainingId) return;
+    if (!confirm(`Mark ${enrollment.user_name || enrollment.user?.first_name || 'trainee'} as ${completed ? 'completed' : 'not completed'}?`)) return;
+    this.trainingService.markCompletion(this.selectedTrainingId, enrollment.id, completed)
+      .subscribe({
+        next: (res: any) => {
+          if (res.success) {
+            enrollment.completed = completed;
+            alert('Completion updated');
+          }
+        },
+        error: (err: any) => {
+          console.error('Failed to update completion', err);
+          alert('Failed to update completion status');
+        }
+      });
+  }
+
+  issueCertificateForEnrollment(enrollment: any): void {
+    if (!this.selectedTrainingId) return;
+    if (!confirm('Issue certificate for this trainee?')) return;
+    this.trainingService.issueCertificate(this.selectedTrainingId, enrollment.id)
+      .subscribe({
+        next: (res: any) => {
+          if (res.success) {
+            enrollment.certificate_issued = true;
+            alert('Certificate issued successfully');
+          }
+        },
+        error: (err: any) => {
+          console.error('Failed to issue certificate', err);
+          alert('Failed to issue certificate');
+        }
+      });
   }
 
   loadEnrollmentNotifications(): void {

@@ -1447,6 +1447,7 @@
                   <input
                     type="checkbox"
                     [checked]="enrollment.completed"
+                    [disabled]="isProcessingEnrollment[enrollment.id]"
                     (change)="markCompletion(enrollment, !enrollment.completed)"
                   />
                   <span>Completed Training</span>
@@ -1457,9 +1458,11 @@
                 <button
                   class="btn-certificate"
                   *ngIf="!enrollment.certificate_issued && selectedTraining?.has_certificate"
+                  [disabled]="isProcessingEnrollment[enrollment.id]"
                   (click)="issueCertificate(enrollment)">
                   <i class="fas fa-certificate"></i>
-                  Issue Certificate
+                  <span *ngIf="!isProcessingEnrollment[enrollment.id]">Issue Certificate</span>
+                  <span *ngIf="isProcessingEnrollment[enrollment.id]">Processing...</span>
                 </button>
                 <span
                   class="certificate-badge"

@@ -159,6 +159,48 @@
             <div class="metric-label">Avg Rating</div>
             <div class="metric-change positive">+0.3</div>
           </div>
+          <!-- Enrollments Modal (Employer quick view) -->
+          <div class="modal-overlay" *ngIf="showEnrollmentsModal" (click)="closeEnrollmentsModal()">
+            <div class="modal-content modal-lg" (click)="$event.stopPropagation()">
+              <div class="modal-header">
+                <h3>Enrollments for "{{ selectedTrainingTitle }}"</h3>
+                <button class="close-btn" (click)="closeEnrollmentsModal()"><i class="fas fa-times"></i></button>
+              </div>
+
+              <div class="modal-body">
+                <div class="enrollments-list">
+                  <div class="enrollment-item" *ngFor="let enr of enrollments">
+                    <div class="trainee-info">
+                      <h5>{{ enr.user_name || enr.user?.first_name + ' ' + enr.user?.last_name }}</h5>
+                      <p>{{ enr.user_email || enr.user?.email }}</p>
+                    </div>
+
+                    <div class="completion-status">
+                      <label class="checkbox-label">
+                        <input type="checkbox" [checked]="enr.completed" (change)="markEnrollmentCompletion(enr, !enr.completed)" />
+                        <span>Completed</span>
+                      </label>
+                    </div>
+
+                    <div class="certificate-actions">
+                      <button class="btn-certificate" *ngIf="!enr.certificate_issued" (click)="issueCertificateForEnrollment(enr)">
+                        <i class="fas fa-certificate"></i> Issue Certificate
+                      </button>
+                      <span class="certificate-badge" *ngIf="enr.certificate_issued"><i class="fas fa-check-circle"></i> Issued</span>
+                    </div>
+                  </div>
+                  <div *ngIf="enrollments.length === 0" class="no-enrollments">
+                    <i class="fas fa-user-slash"></i>
+                    <p>No enrollments yet</p>
+                  </div>
+                </div>
+              </div>
+
+              <div class="modal-footer">
+                <button class="btn-secondary" (click)="closeEnrollmentsModal()">Close</button>
+              </div>
+            </div>
+          </div>
         </div>
         <div class="training-progress">
           <div class="progress-item">
