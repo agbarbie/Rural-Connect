@@ -40,8 +40,8 @@ export interface NewTrainingNotificationData {
 export class EmailService {
   private transporter = createEmailTransporter();
   private fromEmail = process.env.EMAIL_FROM || 'Digital Skilling App <noreply@digitalskilling.com>';
-  private appUrl = process.env.FRONTEND_URL || 'http://localhost:4200';
-  private apiUrl = process.env.API_URL || 'http://localhost:5000';
+  private appUrl = process.env.FRONTEND_URL!;
+  private apiUrl = process.env.API_URL!;
 
   /**
    * Send generic email
