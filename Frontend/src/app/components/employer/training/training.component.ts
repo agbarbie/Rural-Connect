@@ -1718,11 +1718,6 @@ ${notification.motivation_letter || metadata.motivation || 'Not available'}
   }
 
   issueCertificate(enrollment: any): void {
-    if (!enrollment.completed) {
-      alert('Trainee must complete the training first');
-      return;
-    }
-
     if (confirm('Issue certificate for this trainee?')) {
       this.trainingService.issueCertificate(this.selectedTraining!.id, enrollment.id)
         .pipe(takeUntil(this.destroy$))

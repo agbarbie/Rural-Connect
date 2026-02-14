@@ -1456,7 +1456,7 @@
               <div class="certificate-actions">
                 <button
                   class="btn-certificate"
-                  *ngIf="enrollment.completed && !enrollment.certificate_issued"
+                  *ngIf="!enrollment.certificate_issued && selectedTraining?.has_certificate"
                   (click)="issueCertificate(enrollment)">
                   <i class="fas fa-certificate"></i>
                   Issue Certificate

@@ -2232,33 +2232,39 @@ async issueCertificate(enrollmentId: string, employerId: string): Promise<any> {
   }
   
   if (!enr.has_certificate) throw new Error('This training does not provide certificates');
-  if (enr.status !== 'completed') throw new Error('Certificate can only be issued for completed enrollments');
-  
+
+  // Allow the provider to issue a certificate at any time. If already issued, return existing URL.
   if (enr.certificate_issued) {
-    return { 
-      success: true, 
-      message: 'Certificate already issued', 
-      certificate_url: enr.certificate_url, 
-      enrollment_id: enrollmentId 
+    return {
+      success: true,
+      message: 'Certificate already issued',
+      certificate_url: enr.certificate_url,
+      enrollment_id: enrollmentId
     };
   }
 
-  const userName = `${enr.first_name || ''} ${enr.last_name || ''}`.trim() || 
+  const userName = `${enr.first_name || ''} ${enr.last_name || ''}`.trim() ||
                    (enr.email ? enr.email.split('@')[0] : 'User');
 
+  // Generate certificate PDF and verification code
   const cert = await this.generateCertificatePDF(
-    enrollmentId, 
-    enr.user_id, 
-    enr.training_id, 
-    enr.training_title, 
+    enrollmentId,
+    enr.user_id,
+    enr.training_id,
+    enr.training_title,
     enr.duration_hours
   );
 
+  // Mark enrollment as completed and store certificate details. Trainer decides completion.
   await this.db.query(
     `UPDATE training_enrollments 
-     SET certificate_issued = true, 
-         certificate_url = $1, 
-         certificate_issued_at = NOW() 
+     SET certificate_issued = true,
+         certificate_url = $1,
+         certificate_issued_at = NOW(),
+         completion_marked = true,
+         status = 'completed',
+         completed_at = NOW(),
+         updated_at = NOW()
      WHERE id = $2`,
     [cert.certificate_url, enrollmentId]
   );
@@ -2270,40 +2276,41 @@ async issueCertificate(enrollmentId: string, employerId: string): Promise<any> {
     [enrollmentId, cert.verification_code, cert.certificate_url]
   );
 
+  // Notify trainee and provider
   this.createNotification(
-    enr.user_id, 
+    enr.user_id,
     'certificate_issued',
     `🎉 Your certificate for "${enr.training_title}" is ready! Click to download.`,
-    { 
-      training_id: enr.training_id, 
-      enrollment_id: enrollmentId, 
+    {
+      training_id: enr.training_id,
+      enrollment_id: enrollmentId,
       certificate_url: cert.certificate_url,
       user_id: enr.user_id,
       applicant_name: userName,
-      profile_image: enr.profile_image || ''  // ✅ Actual column
-    }
-  );
-  
-  this.createNotification(
-    enr.provider_id, 
-    'certificate_issued',
-    `Certificate issued to ${userName} for "${enr.training_title}".`,
-    { 
-      training_id: enr.training_id, 
-      enrollment_id: enrollmentId, 
-      user_id: enr.user_id,
-      applicant_name: userName,
-      jobseeker_name: userName,
-      profile_image: enr.profile_image || ''  // ✅ Actual column
+      profile_image: enr.profile_image || ''
     }
   );
 
-  return { 
-    success: true, 
-    message: 'Certificate issued successfully', 
-    certificate_url: cert.certificate_url, 
-    verification_code: cert.verification_code, 
-    enrollment_id: enrollmentId 
+  this.createNotification(
+    enr.provider_id,
+    'certificate_issued',
+    `Certificate issued to ${userName} for "${enr.training_title}".`,
+    {
+      training_id: enr.training_id,
+      enrollment_id: enrollmentId,
+      user_id: enr.user_id,
+      applicant_name: userName,
+      jobseeker_name: userName,
+      profile_image: enr.profile_image || ''
+    }
+  );
+
+  return {
+    success: true,
+    message: 'Certificate issued successfully',
+    certificate_url: cert.certificate_url,
+    verification_code: cert.verification_code,
+    enrollment_id: enrollmentId
   };
 }
 
