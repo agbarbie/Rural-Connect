@@ -1666,19 +1666,34 @@ ${notification.motivation_letter || metadata.motivation || 'Not available'}
     
     this.selectedTraining = training;
     this.showEnrollmentsModal = true;
-    
+    this.isLoadingEnrollments[training.id] = true;
+
     this.trainingService.getTrainingEnrollments(training.id, { page: 1, limit: 50 })
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: (response) => {
-          if (response.success && response.data) {
-            this.enrollments = response.data.enrollments || response.data;
+          this.isLoadingEnrollments[training.id] = false;
+          // handle normalized response from service
+          if (response && response.success && response.data) {
+            this.enrollments = response.data.enrollments || [];
             console.log('Enrollments loaded:', this.enrollments.length);
+            return;
           }
+
+          // fallback: backend may return enrollments at top-level
+          if (response && response.enrollments) {
+            this.enrollments = response.enrollments;
+            console.log('Enrollments loaded (fallback):', this.enrollments.length);
+            return;
+          }
+
+          this.enrollments = [];
         },
         error: (error) => {
+          this.isLoadingEnrollments[training.id] = false;
           console.error('Error loading enrollments:', error);
           this.error = 'Failed to load enrollments.';
+          this.enrollments = [];
         }
       });
   }

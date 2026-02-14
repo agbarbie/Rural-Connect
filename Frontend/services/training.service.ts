@@ -646,11 +646,47 @@ enrollShortlistedApplicant(
 
   getTrainingEnrollments(trainingId: string, params: any = {}): Observable<ApiResponse<any>> {
     const httpParams = this.buildParams(params);
-    
-    return this.http.get<ApiResponse<any>>(
+
+    return this.http.get<any>(
       `${this.TRAINING_ENDPOINT}/${trainingId}/enrollments`,
       { headers: this.getAuthHeaders(), params: httpParams }
-    ).pipe(catchError(this.handleError.bind(this)));
+    ).pipe(
+      map(response => {
+        // Normalize possible backend shapes:
+        // 1) { success: true, enrollments: [...], pagination: {...} }
+        // 2) { success: true, data: { enrollments: [...], pagination: {...} } }
+        // 3) { enrollments: [...] }
+        // 4) Array response [...]
+
+        if (response?.enrollments) {
+          return {
+            success: true,
+            data: { enrollments: response.enrollments },
+            pagination: response.pagination || response.data?.pagination
+          };
+        }
+
+        if (response?.success && response?.data?.enrollments) {
+          return {
+            success: true,
+            data: { enrollments: response.data.enrollments },
+            pagination: response.data.pagination
+          };
+        }
+
+        if (response?.success && Array.isArray(response.data)) {
+          return { success: true, data: { enrollments: response.data } };
+        }
+
+        if (Array.isArray(response)) {
+          return { success: true, data: { enrollments: response } };
+        }
+
+        console.error('❌ Unexpected enrollments response structure:', response);
+        return { success: false, data: { enrollments: [] }, message: 'Invalid response format' };
+      }),
+      catchError(this.handleError.bind(this))
+    );
   }
 
   markCompletion(

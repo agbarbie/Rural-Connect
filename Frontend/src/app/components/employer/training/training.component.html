@@ -931,21 +931,48 @@
     <!-- Session Form Modal -->
     <div class="modal-overlay" *ngIf="showSessionForm" (click)="showSessionForm = false">
       <div class="modal-content" (click)="$event.stopPropagation()">
-        <div class="modal-header">
-          <h3>
-            <i class="fas fa-calendar-plus"></i>
-            {{ editingSessionId ? "Edit Session" : "Add New Session" }}
-          </h3>
-          <button class="close-btn" (click)="showSessionForm = false">
-            <i class="fas fa-times"></i>
-          </button>
-        </div>
-
         <div class="modal-body">
-          <form (ngSubmit)="addSession()">
-            <div class="form-group">
-              <label for="sessionTitle">Session Title *</label>
-              <input
+          <div class="enrollments-list">
+            <div class="enrollment-item" *ngFor="let enrollment of enrollments">
+              <div class="trainee-info">
+                <img [src]="enrollment.user?.profile_image || enrollment.user?.profile_picture || 'https://ui-avatars.com/api/?name=' + (enrollment.user?.email || 'User')" class="trainee-avatar" />
+                <div class="trainee-meta">
+                  <h4>{{ (enrollment.user?.first_name || enrollment.user?.email || enrollment.user?.user_name) }}</h4>
+                  <p class="trainee-email"><i class="fas fa-envelope"></i> {{ enrollment.user?.email }}</p>
+                  <p class="trainee-phone" *ngIf="enrollment.user?.phone_number || enrollment.user?.contact_number"><i class="fas fa-phone"></i> {{ enrollment.user?.phone_number || enrollment.user?.contact_number }}</p>
+                  <small class="enrolled-at">Enrolled: {{ formatDate(enrollment.enrolled_at) }}</small>
+                </div>
+              </div>
+
+              <div class="completion-status">
+                <div class="status">
+                  <span *ngIf="enrollment.completion_marked || enrollment.completed_at">✅ Completed</span>
+                  <span *ngIf="!enrollment.completion_marked && !enrollment.completed_at">⏳ Not completed</span>
+                </div>
+
+                <div class="enrollment-actions">
+                  <button class="btn-small btn-secondary" [disabled]="isProcessingEnrollment[enrollment.id]" (click)="markCompletion(enrollment, true)">
+                    <span *ngIf="!isProcessingEnrollment[enrollment.id]">Mark Complete</span>
+                    <span *ngIf="isProcessingEnrollment[enrollment.id]">Processing...</span>
+                  </button>
+
+                  <button class="btn-small btn-primary" [disabled]="isProcessingEnrollment[enrollment.id] || enrollment.certificate_issued" (click)="issueCertificate(enrollment)">
+                    <span *ngIf="!isProcessingEnrollment[enrollment.id] && !enrollment.certificate_issued">Issue Certificate</span>
+                    <span *ngIf="!isProcessingEnrollment[enrollment.id] && enrollment.certificate_issued">Issued</span>
+                    <span *ngIf="isProcessingEnrollment[enrollment.id]">Processing...</span>
+                  </button>
+                </div>
+              </div>
+
+            </div>
+
+            <div class="no-enrollments" *ngIf="enrollments.length === 0">
+              <i class="fas fa-user-times"></i>
+              <p>No enrollments for this training yet.</p>
+              <small>Enrolled trainees will appear here.</small>
+            </div>
+          </div>
+        </div>
                 type="text"
                 id="sessionTitle"
                 [(ngModel)]="newSession.title"
