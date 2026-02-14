@@ -322,9 +322,8 @@ checkProfileCompletion(): void {
     let observable;
     switch(this.activeTab) {
       case 'recommended':
-      // ✅ FIX: Use getAllJobs instead of getRecommendedJobs
-      observable = this.jobService.getAllJobs(query);
-      break;
+        observable = this.jobService.getRecommendedJobs(query);
+        break;
       case 'saved':
         observable = this.jobService.getSavedJobs(query);
         break;
