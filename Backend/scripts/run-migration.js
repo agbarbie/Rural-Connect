@@ -26,6 +26,8 @@ async function runMigration() {
     console.log(`📍 Connecting to database: ${process.env.DB_NAME || 'production'} on ${process.env.DB_HOST || 'render'}`);
     
     await client.query('BEGIN');
+    await client.query('SET search_path = public;');
+    console.log('✓ Schema set to public');
 
     // STEP 1: Check if trainings table exists
     const trainingExists = await client.query(`
@@ -224,33 +226,31 @@ async function runMigration() {
       console.log('  ✓ Created training_enrollments table');
     }
 
-    // Add this after STEP 3 (around line 130, after the training_enrollments check)
+    // STEP 3.5: Add missing columns to trainings table
+    console.log('🔧 Checking trainings table for missing columns...');
 
-// STEP 3.5: Add missing columns to trainings table
-console.log('🔧 Checking trainings table for missing columns...');
+    const trainingColumnsToAdd = [
+      { name: 'eligibility_requirements', type: 'TEXT' },
+      { name: 'application_url', type: 'TEXT' },
+      { name: 'application_deadline', type: 'TIMESTAMP' },
+      { name: 'start_date', type: 'TIMESTAMP' },
+      { name: 'end_date', type: 'TIMESTAMP' }
+    ];
 
-const trainingColumnsToAdd = [
-  { name: 'eligibility_requirements', type: 'TEXT' },
-  { name: 'application_url', type: 'TEXT' },
-  { name: 'application_deadline', type: 'TIMESTAMP' },
-  { name: 'start_date', type: 'TIMESTAMP' },
-  { name: 'end_date', type: 'TIMESTAMP' }
-];
+    for (const col of trainingColumnsToAdd) {
+      const exists = await client.query(`
+        SELECT column_name
+        FROM information_schema.columns
+        WHERE table_name = 'trainings' AND column_name = $1;
+      `, [col.name]);
 
-for (const col of trainingColumnsToAdd) {
-  const exists = await client.query(`
-    SELECT column_name
-    FROM information_schema.columns
-    WHERE table_name = 'trainings' AND column_name = $1;
-  `, [col.name]);
-
-  if (exists.rows.length === 0) {
-    await client.query(`ALTER TABLE trainings ADD COLUMN ${col.name} ${col.type};`);
-    console.log(`  ✓ Added column to trainings: ${col.name}`);
-  } else {
-    console.log(`  ✓ Column already exists: ${col.name}`);
-  }
-}
+      if (exists.rows.length === 0) {
+        await client.query(`ALTER TABLE trainings ADD COLUMN ${col.name} ${col.type};`);
+        console.log(`  ✓ Added column to trainings: ${col.name}`);
+      } else {
+        console.log(`  ✓ Column already exists: ${col.name}`);
+      }
+    }
 
     // STEP 4: Drop old video tables
     console.log('🗑️  Dropping old video-based tables...');
