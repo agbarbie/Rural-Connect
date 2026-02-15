@@ -52,6 +52,32 @@
         </div>
       </div>
 
+      <!-- Mobile Role Selection -->
+      <div class="mobile-role-tabs">
+        <button class="mobile-role-btn" 
+                [class.active]="activeUserType === 'jobseeker'"
+                (click)="setActiveUserType('jobseeker')"
+                [disabled]="loading || submitted">
+          <i class="fas fa-search"></i>
+          <span>Job Seeker</span>
+        </button>
+        <button class="mobile-role-btn" 
+                [class.active]="activeUserType === 'employer'"
+                (click)="setActiveUserType('employer')"
+                [disabled]="loading || submitted">
+          <i class="fas fa-building"></i>
+          <span>Employer</span>
+        </button>
+        <button class="mobile-role-btn" 
+                [class.active]="activeUserType === 'admin'"
+                (click)="setActiveUserType('admin')"
+                [disabled]="loading || submitted">
+          <i class="fas fa-user-tie"></i>
+          <span>Admin</span>
+        </button>
+      </div>
+
+      <!-- Desktop Role Tabs -->
       <div class="top-user-tabs">
         <button class="tab-btn job-seeker-tab" 
                 [class.active]="activeUserType === 'jobseeker'"
@@ -76,15 +102,21 @@
         </button>
       </div>
 
+      <!-- Auth Toggle (Login/Signup) -->
       <div class="auth-toggle">
-        <span class="toggle-link" 
-              [class.active]="activeForm === 'login'"
-              [class.disabled]="loading || submitted"
-              (click)="!loading && !submitted && setActiveForm('login')">Login</span>
-        <span class="toggle-link" 
-              [class.active]="activeForm === 'signup'"
-              [class.disabled]="loading || submitted"
-              (click)="!loading && !submitted && setActiveForm('signup')">SignUp</span>
+        <button class="toggle-btn" 
+                [class.active]="activeForm === 'login'"
+                [class.disabled]="loading || submitted"
+                (click)="!loading && !submitted && setActiveForm('login')">
+          Login
+        </button>
+        <button class="toggle-btn" 
+                [class.active]="activeForm === 'signup'"
+                [class.disabled]="loading || submitted"
+                (click)="!loading && !submitted && setActiveForm('signup')">
+                <p>Sign Up</p>
+          
+        </button>
       </div>
     </div>
 
@@ -132,7 +164,7 @@
           <span class="checkmark"></span>
           Remember Me?
         </label>
-        <p><a (click)="onForgotPassword()" routerLink="/reset-password" class="forgot-password">Forgot your password?</a></p>
+        <p><a (click)="onForgotPassword()" routerLink="/reset-password" class="forgot-password">Forgot password?</a></p>
       </div>
       <button type="submit" 
               class="auth-btn"
@@ -217,7 +249,6 @@
         </div>
       </div>
       
-      <!-- ✅ IMPROVED BUTTON with loading state -->
       <button type="submit" 
               class="auth-btn"
               [disabled]="loading || submitted || !signupName || !signupEmail || !signupPassword || !signupLocation || !contactNumber">
@@ -230,7 +261,6 @@
         </span>
       </button>
       
-      <!-- ✅ NEW: Show login suggestion -->
       <div class="form-footer" *ngIf="!loading && !submitted">
         <p class="small-text">Already have an account? 
           <a (click)="setActiveForm('login')" class="link-primary">Login here</a>
@@ -329,7 +359,6 @@
         </div>
       </div>
       
-      <!-- ✅ IMPROVED BUTTON -->
       <button type="submit" 
               class="auth-btn"
               [disabled]="loading || submitted || !signupName || !signupEmail || !signupPassword || !companyName || !companyPassword || !RoleInTheCompany">
@@ -342,7 +371,6 @@
         </span>
       </button>
       
-      <!-- ✅ NEW: Show login suggestion -->
       <div class="form-footer" *ngIf="!loading && !submitted">
         <p class="small-text">Already have an account? 
           <a (click)="setActiveForm('login')" class="link-primary">Login here</a>
@@ -411,7 +439,6 @@
         </div>
       </div>
       
-      <!-- ✅ IMPROVED BUTTON -->
       <button type="submit" 
               class="auth-btn"
               [disabled]="loading || submitted || !signupName || !signupEmail || !signupPassword || !contactNumber">
@@ -424,7 +451,6 @@
         </span>
       </button>
       
-      <!-- ✅ NEW: Show login suggestion -->
       <div class="form-footer" *ngIf="!loading && !submitted">
         <p class="small-text">Already have an account? 
           <a (click)="setActiveForm('login')" class="link-primary">Login here</a>

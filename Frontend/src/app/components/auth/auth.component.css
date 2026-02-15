@@ -7,15 +7,18 @@
 }
 
 body {
-  overflow-x: hidden; /* Prevent horizontal scroll on mobile */
+  overflow-x: hidden;
 }
 
 .auth-container {
   display: flex;
-  min-height: 100vh; /* Use min-height for flexibility */
+  min-height: 100vh;
   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
 }
 
+/* ========================================== */
+/* LEFT SECTION (Desktop) */
+/* ========================================== */
 .left-section {
   flex: 1;
   background-size: cover;
@@ -49,15 +52,15 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: clamp(0.5rem, 2vw, 2rem);
+  padding: 2rem;
 }
 
 .content {
   text-align: center;
   color: white;
-  max-width: clamp(250px, 60vw, 500px);
+  max-width: 500px;
   width: 100%;
-  padding: 0 clamp(1rem, 3vw, 2rem);
+  padding: 0 2rem;
 }
 
 .main-heading {
@@ -78,7 +81,7 @@ body {
 
 .user-type-selection {
   display: flex;
-  gap: clamp(0.5rem, 2vw, 0.8rem);
+  gap: 0.8rem;
   justify-content: center;
   margin-top: 1.5rem;
   flex-wrap: wrap;
@@ -88,17 +91,17 @@ body {
   background: rgba(32, 28, 17, 0.2);
   border: 2px solid rgba(255, 255, 255, 0.3);
   color: white;
-  padding: clamp(6px, 1.5vw, 12px) clamp(12px, 2.5vw, 24px);
+  padding: 12px 24px;
   border-radius: 25px;
   font-weight: 600;
-  font-size: clamp(0.6rem, 1.5vw, 0.9rem);
+  font-size: 0.9rem;
   cursor: pointer;
   transition: all 0.3s ease;
   backdrop-filter: blur(10px);
   white-space: nowrap;
   flex: 1;
   min-width: 90px;
-  max-width: 150px; /* Cap width on small screens to prevent overflow */
+  max-width: 150px;
 }
 
 .user-type-btn:hover,
@@ -109,10 +112,13 @@ body {
   box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
 }
 
+/* ========================================== */
+/* RIGHT SECTION */
+/* ========================================== */
 .right-section {
   flex: 1;
   background: linear-gradient(135deg, #f0f8f0, #e8f5e8);
-  padding: clamp(0.5rem, 2vw, 2rem);
+  padding: 2rem;
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -120,7 +126,7 @@ body {
 }
 
 .header {
-  margin-bottom: clamp(1rem, 3vw, 1.5rem);
+  margin-bottom: 1.5rem;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -130,24 +136,24 @@ body {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  font-size: clamp(1rem, 2.5vw, 1.4rem);
+  font-size: 1.4rem;
   font-weight: 700;
   color: #22c55e;
   margin-bottom: 1rem;
 }
 
 .logo i {
-  font-size: clamp(1.2rem, 3vw, 1.8rem);
+  font-size: 1.8rem;
 }
 
 .logo-text {
-  font-size: clamp(1.4rem, 3.5vw, 2.2rem);
+  font-size: 2.2rem;
   font-weight: 700;
   color: #2e7d32;
 }
 
 .welcome-section h2 {
-  font-size: clamp(1.1rem, 3vw, 1.7rem);
+  font-size: 1.7rem;
   font-weight: 700;
   color: #000500;
   margin-bottom: 0.5rem;
@@ -155,21 +161,26 @@ body {
 }
 
 .welcome-section p {
-  font-size: clamp(0.8rem, 2.2vw, 1.1rem);
+  font-size: 1.1rem;
   color: #666;
   margin-bottom: 1.5rem;
   text-align: center;
 }
 
+/* Hide mobile role tabs on desktop */
+.mobile-role-tabs {
+  display: none;
+}
+
+/* Desktop role tabs */
 .top-user-tabs {
   display: flex;
   gap: 0;
-  margin-bottom: clamp(1rem, 3vw, 1.5rem);
+  margin-bottom: 1.5rem;
   border-radius: 25px;
   overflow: hidden;
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
   justify-content: center;
-  flex-wrap: wrap;
 }
 
 .tab-btn {
@@ -178,17 +189,17 @@ body {
   align-items: center;
   justify-content: center;
   gap: 0.5rem;
-  padding: clamp(6px, 1.5vw, 12px) clamp(10px, 2vw, 20px);
+  padding: 12px 20px;
   border: none;
   background: #f5f5f5;
   color: #666;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.3s ease;
-  font-size: clamp(0.6rem, 1.5vw, 0.9rem);
+  font-size: 0.9rem;
   white-space: nowrap;
   min-width: 100px;
-  max-width: 200px; /* Prevent tabs from exploding on small screens */
+  max-width: 200px;
 }
 
 .tab-btn.job-seeker-tab.active {
@@ -210,41 +221,54 @@ body {
   background: #e0e0e0;
 }
 
+/* Auth Toggle (Login/Signup) */
 .auth-toggle {
   display: flex;
-  gap: clamp(0.8rem, 2vw, 2rem);
+  gap: 0;
   margin-bottom: 1.5rem;
-  border-bottom: 1px solid #ddd;
-  padding-bottom: 1rem;
+  border-radius: 25px;
+  overflow: hidden;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
   justify-content: center;
-  flex-wrap: wrap;
+  background: #f5f5f5;
 }
 
-.toggle-link {
-  font-size: clamp(0.8rem, 2vw, 1rem);
-  font-weight: 600;
+.toggle-btn {
+  flex: 1;
+  padding: 12px 56px;
+  border: none;
+  background: transparent;
   color: #666;
+  font-weight: 600;
+  font-size: 1rem;
   cursor: pointer;
-  padding-bottom: 0.5rem;
+  transition: all 0.3s ease;
   position: relative;
 }
-
-.toggle-link.active {
-  color: #4caf50;
+.toggle-btn p{
+  margin: 0;
+  width: 100px;
+  
 }
-
-.toggle-link.active::after {
-  content: '';
-  position: absolute;
-  bottom: -1px;
-  left: 0;
-  right: 0;
-  height: 2px;
+.toggle-btn.active {
   background: #4caf50;
+  color: white;
 }
 
+.toggle-btn:hover:not(.active) {
+  background: #e0e0e0;
+}
+
+.toggle-btn.disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* ========================================== */
+/* FORM STYLES */
+/* ========================================== */
 .auth-form {
-  max-width: clamp(250px, 80vw, 400px);
+  max-width: 400px;
   width: 100%;
   margin: 0 auto;
 }
@@ -270,18 +294,18 @@ body {
 
 .input-icon {
   position: absolute;
-  left: clamp(8px, 1.5vw, 15px);
+  left: 15px;
   color: #666;
-  font-size: clamp(0.8rem, 1.8vw, 1rem);
+  font-size: 1rem;
   z-index: 2;
 }
 
 .form-input {
   width: 100%;
-  padding: clamp(8px, 2vw, 14px) clamp(30px, 6vw, 45px);
+  padding: 14px 45px;
   border: none;
   border-radius: 25px;
-  font-size: clamp(0.75rem, 1.8vw, 0.9rem);
+  font-size: 0.9rem;
   background: transparent;
   outline: none;
 }
@@ -292,12 +316,12 @@ body {
 
 .password-toggle {
   position: absolute;
-  right: clamp(8px, 1.5vw, 15px);
+  right: 15px;
   background: none;
   border: none;
   color: #666;
   cursor: pointer;
-  font-size: clamp(0.8rem, 1.8vw, 1rem);
+  font-size: 1rem;
   z-index: 2;
 }
 
@@ -310,9 +334,7 @@ body {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 1.5rem;
-  font-size: clamp(0.65rem, 1.5vw, 0.8rem);
-  flex-wrap: wrap;
-  gap: 0.5rem;
+  font-size: 0.8rem;
 }
 
 .remember-me {
@@ -321,9 +343,6 @@ body {
   gap: 0.5rem;
   cursor: pointer;
   color: #666;
-  flex: 1;
-  justify-content: flex-start;
-  min-width: 0; /* Allow wrapping */
 }
 
 .remember-me input[type="checkbox"] {
@@ -331,8 +350,8 @@ body {
 }
 
 .checkmark {
-  width: clamp(14px, 1.8vw, 18px);
-  height: clamp(14px, 1.8vw, 18px);
+  width: 18px;
+  height: 18px;
   border: 2px solid #ddd;
   border-radius: 3px;
   position: relative;
@@ -350,7 +369,7 @@ body {
   top: -2px;
   left: 2px;
   color: white;
-  font-size: clamp(9px, 1.2vw, 12px);
+  font-size: 12px;
   font-weight: bold;
 }
 
@@ -359,8 +378,6 @@ body {
   text-decoration: none;
   font-weight: 500;
   transition: color 0.3s ease;
-  flex-shrink: 0;
-  white-space: nowrap;
 }
 
 .forgot-password:hover {
@@ -372,9 +389,9 @@ body {
   background: linear-gradient(135deg, #4caf50, #66bb6a);
   color: white;
   border: none;
-  padding: clamp(8px, 2vw, 14px);
+  padding: 14px;
   border-radius: 25px;
-  font-size: clamp(0.8rem, 2vw, 1rem);
+  font-size: 1rem;
   font-weight: 700;
   cursor: pointer;
   transition: all 0.3s ease;
@@ -391,6 +408,12 @@ body {
   transform: translateY(0);
 }
 
+.auth-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none !important;
+}
+
 .messages {
   margin-bottom: 1rem;
   text-align: center;
@@ -400,30 +423,49 @@ body {
 .success-message {
   background: #d4edda;
   color: #155724;
-  padding: clamp(0.5rem, 1.5vw, 0.75rem);
+  padding: 0.75rem;
   border-radius: 8px;
   margin-bottom: 0.5rem;
   border: 1px solid #c3e6cb;
-  font-size: clamp(0.75rem, 1.8vw, 0.85rem);
+  font-size: 0.85rem;
 }
 
 .error-message {
   background: #f8d7da;
   color: #721c24;
-  padding: clamp(0.5rem, 1.5vw, 0.75rem);
+  padding: 0.75rem;
   border-radius: 8px;
   margin-bottom: 0.5rem;
   border: 1px solid #f5c6cb;
-  font-size: clamp(0.75rem, 1.8vw, 0.85rem);
+  font-size: 0.85rem;
+  white-space: pre-line;
 }
 
-.auth-btn:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-  transform: none !important;
+.form-footer {
+  margin-top: 1rem;
+  text-align: center;
 }
 
-/* Responsive Design */
+.small-text {
+  font-size: 0.85rem;
+  color: #666;
+}
+
+.link-primary {
+  color: #4caf50;
+  text-decoration: none;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.link-primary:hover {
+  color: #388e3c;
+  text-decoration: underline;
+}
+
+/* ========================================== */
+/* TABLET STYLES (1024px and below) */
+/* ========================================== */
 @media (max-width: 1024px) {
   .auth-container {
     flex-direction: column;
@@ -431,201 +473,384 @@ body {
 
   .left-section {
     min-height: 40vh;
-    order: 1; /* Left (heading + buttons) on top */
   }
 
   .right-section {
     min-height: 60vh;
-    order: 2; /* Form below */
-  }
-
-  .top-user-tabs {
-    flex-direction: column;
-    border-radius: 12px;
-  }
-
-  .tab-btn {
-    border-radius: 0;
-  }
-
-  .tab-btn:first-child {
-    border-radius: 12px 12px 0 0;
-  }
-
-  .tab-btn:last-child {
-    border-radius: 0 0 12px 12px;
   }
 }
 
+/* ========================================== */
+/* MOBILE STYLES (768px and below) */
+/* ========================================== */
 @media (max-width: 768px) {
   .auth-container {
     flex-direction: column;
+    background: #f0f8f0;
   }
 
+  /* Image section at top */
   .left-section {
-    min-height: 35vh;
-    background-size: cover !important; /* Force cover on tablets */
-    align-items: flex-start; /* Align content to top on mobile */
-    padding-top: 2rem;
+    min-height: 30vh;
+    max-height: 30vh;
+    background-size: cover !important;
+    background-position: center !important;
+    position: relative;
+    margin-bottom: -30px; /* Creates overlap effect */
   }
 
   .overlay {
+    padding: 1.5rem 1rem;
     align-items: flex-start;
-    padding-top: clamp(1rem, 3vw, 2rem);
+    padding-top: 2rem;
   }
 
   .content {
-    align-self: flex-start;
-    text-align: center;
-    width: 100%;
+    padding: 0 1rem;
   }
 
   .main-heading {
-    font-size: clamp(1.3rem, 4vw, 2.2rem);
+    font-size: 1.8rem;
+    margin-bottom: 0.5rem;
   }
 
   .sub-heading {
-    font-size: clamp(0.75rem, 2.2vw, 1.1rem);
+    font-size: 0.95rem;
+    margin-bottom: 1rem;
   }
 
+  /* Hide desktop role selection in left panel on mobile */
   .user-type-selection {
-    flex-direction: column;
-    gap: 0.5rem;
-    margin-top: 1rem;
+    display: none;
   }
 
-  .user-type-btn {
-    padding: clamp(6px, 1.5vw, 10px) clamp(10px, 2.5vw, 20px);
-    min-width: auto;
-  }
-
+  /* Form section with rounded top corners */
   .right-section {
-    padding: clamp(0.5rem, 2vw, 1rem);
-    min-height: 65vh;
+    background: white;
+    border-radius: 30px 30px 0 0;
+    padding: 1.5rem 1.25rem;
+    min-height: auto;
+    box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.1);
+    position: relative;
+    z-index: 10;
   }
 
-  .top-user-tabs {
-    flex-direction: column;
-    border-radius: 10px;
-  }
-
-  .tab-btn {
-    border-radius: 0;
-    padding: clamp(6px, 1.5vw, 10px);
-    min-width: auto;
-  }
-
-  .tab-btn:first-child {
-    border-radius: 10px 10px 0 0;
-  }
-
-  .tab-btn:last-child {
-    border-radius: 0 0 10px 10px;
-  }
-
-  .auth-toggle {
-    gap: 1rem;
-    flex-direction: column;
-  }
-
-  .toggle-link {
-    padding: 0.5rem;
-  }
-
-  .form-options {
-    flex-direction: column;
-    gap: 0.8rem;
-    align-items: flex-start;
-  }
-
-  .forgot-password {
-    align-self: flex-end;
-  }
-}
-
-@media (max-width: 480px) {
-  .main-heading {
-    font-size: clamp(1.2rem, 3.5vw, 1.8rem);
-  }
-
-  .sub-heading {
-    font-size: clamp(0.7rem, 2vw, 0.9rem);
-  }
-
-  .user-type-btn {
-    padding: clamp(5px, 1.2vw, 8px) clamp(8px, 2vw, 16px);
-    font-size: clamp(0.55rem, 1.2vw, 0.8rem);
+  .header {
+    margin-bottom: 1.25rem;
   }
 
   .logo {
-    font-size: clamp(0.8rem, 2vw, 1.1rem);
+    font-size: 1.1rem;
+    margin-bottom: 0.75rem;
   }
 
   .logo i {
-    font-size: clamp(1rem, 2.2vw, 1.4rem);
+    font-size: 1.4rem;
   }
 
   .logo-text {
-    font-size: clamp(1.2rem, 3vw, 1.8rem);
+    font-size: 1.6rem;
   }
 
   .welcome-section h2 {
-    font-size: clamp(1rem, 2.5vw, 1.4rem);
+    font-size: 1.3rem;
+    margin-bottom: 0.3rem;
   }
 
   .welcome-section p {
-    font-size: clamp(0.65rem, 1.8vw, 0.9rem);
+    font-size: 0.85rem;
+    margin-bottom: 1rem;
   }
 
-  .tab-btn {
-    font-size: clamp(0.55rem, 1.2vw, 0.8rem);
-    padding: clamp(5px, 1.2vw, 8px) clamp(8px, 1.8vw, 16px);
+  /* Hide desktop tabs on mobile */
+  .top-user-tabs {
+    display: none;
   }
 
+  /* Show mobile role tabs */
+  .mobile-role-tabs {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+    justify-content: space-between;
+  }
+
+  .mobile-role-btn {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
+    padding: 0.75rem 0.5rem;
+    border: 2px solid #e0e0e0;
+    background: #f9f9f9;
+    color: #666;
+    font-weight: 600;
+    font-size: 0.75rem;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    border-radius: 8px;
+    min-height: 70px;
+  }
+
+  .mobile-role-btn i {
+    font-size: 1.3rem;
+  }
+
+  .mobile-role-btn.active {
+    background: #4caf50;
+    color: white;
+    border-color: #4caf50;
+    transform: scale(1.02);
+    box-shadow: 0 4px 12px rgba(76, 175, 80, 0.3);
+  }
+
+  .mobile-role-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+
+  /* Auth toggle (Login/Signup) as tabs */
+  .auth-toggle {
+    display: flex;
+    gap: 0;
+    margin-bottom: 1.25rem;
+    border-radius: 8px;
+    background: #f5f5f5;
+    padding: 0.25rem;
+  }
+
+  .toggle-btn {
+    flex: 1;
+    padding: 0.75rem 1rem;
+    font-size: 0.9rem;
+    border-radius: 10px;
+  }
+
+  .toggle-btn.active {
+    background: #4caf50;
+    box-shadow: 0 2px 8px rgba(76, 175, 80, 0.3);
+  }
+
+  /* Form adjustments */
   .auth-form {
     max-width: 100%;
-    padding: 0 0.5rem;
+  }
+
+  .input-group {
+    margin-bottom: 0.85rem;
+  }
+
+  .input-wrapper {
+    border-radius: 8px;
+    min-height: 50px;
+  }
+
+  .input-icon {
+    left: 14px;
+    font-size: 0.95rem;
   }
 
   .form-input {
-    padding: clamp(6px, 1.5vw, 12px) clamp(25px, 5vw, 40px);
-    font-size: clamp(0.7rem, 1.5vw, 0.8rem);
+    padding: 15px 40px;
+    font-size: 0.9rem;
+    border-radius: 8px;
   }
 
-  .input-icon,
   .password-toggle {
-    font-size: clamp(0.7rem, 1.5vw, 0.9rem);
+    right: 14px;
+    font-size: 0.95rem;
+  }
+
+  .form-options {
+    flex-direction: row;
+    justify-content: space-between;
+    gap: 0;
+    margin-bottom: 1.25rem;
+    font-size: 0.8rem;
+  }
+
+  .remember-me {
+    font-size: 0.8rem;
+  }
+
+  .forgot-password {
+    font-size: 0.8rem;
+    white-space: nowrap;
   }
 
   .auth-btn {
-    padding: clamp(6px, 1.5vw, 12px);
-    font-size: clamp(0.75rem, 1.8vw, 0.9rem);
+    padding: 15px;
+    font-size: 0.95rem;
+    border-radius: 8px;
+    min-height: 50px;
+  }
+
+  .messages {
+    margin-bottom: 0.85rem;
+  }
+
+  .success-message,
+  .error-message {
+    padding: 0.65rem;
+    font-size: 0.8rem;
+    border-radius: 10px;
+  }
+
+  .form-footer {
+    margin-top: 0.85rem;
+  }
+
+  .small-text {
+    font-size: 0.8rem;
+  }
+}
+
+/* ========================================== */
+/* SMALL MOBILE STYLES (480px and below) */
+/* ========================================== */
+@media (max-width: 480px) {
+  .left-section {
+    min-height: 28vh;
+    max-height: 28vh;
+    margin-bottom: -25px;
+  }
+
+  .main-heading {
+    font-size: 1.5rem;
+  }
+
+  .sub-heading {
+    font-size: 0.85rem;
+  }
+
+  .right-section {
+    padding: 1.25rem 1rem;
+    border-radius: 25px 25px 0 0;
+  }
+
+  .logo-text {
+    font-size: 1.4rem;
+  }
+
+  .welcome-section h2 {
+    font-size: 1.15rem;
+  }
+
+  .welcome-section p {
+    font-size: 0.8rem;
+  }
+
+  .mobile-role-tabs {
+    gap: 0.4rem;
+  }
+
+  .mobile-role-btn {
+    padding: 0.65rem 0.4rem;
+    font-size: 0.7rem;
+    min-height: 65px;
+  }
+
+  .mobile-role-btn i {
+    font-size: 1.15rem;
+  }
+
+  .toggle-btn {
+    padding: 0.7rem 0.85rem;
+    font-size: 0.85rem;
+  }
+
+  .form-input {
+    padding: 13px 38px;
+    font-size: 0.85rem;
+  }
+
+  .input-wrapper {
+    min-height: 48px;
+  }
+
+  .auth-btn {
+    padding: 13px;
+    font-size: 0.9rem;
+    min-height: 48px;
+  }
+
+  .form-options {
+    font-size: 0.75rem;
   }
 
   .checkmark {
-    width: clamp(12px, 1.5vw, 16px);
-    height: clamp(12px, 1.5vw, 16px);
+    width: 16px;
+    height: 16px;
+  }
+}
+
+/* ========================================== */
+/* EXTRA SMALL MOBILE (360px and below) */
+/* ========================================== */
+@media (max-width: 360px) {
+  .left-section {
+    min-height: 25vh;
+    max-height: 25vh;
+    margin-bottom: -20px;
   }
 
-  /* Ultra-small screen fix (e.g., 320px) */
-  @media (max-width: 360px) {
-    .user-type-selection,
-    .top-user-tabs {
-      gap: 0.25rem;
-    }
+  .main-heading {
+    font-size: 1.3rem;
+  }
 
-    .user-type-btn,
-    .tab-btn {
-      font-size: 0.75rem;
-      padding: 0.5rem 0.75rem;
-    }
+  .sub-heading {
+    font-size: 0.8rem;
+  }
 
-    .form-options {
-      font-size: 0.7rem;
-    }
+  .right-section {
+    padding: 1rem 0.85rem;
+    border-radius: 20px 20px 0 0;
+  }
 
-    .remember-me {
-      font-size: 0.7rem;
-    }
+  .mobile-role-tabs {
+    gap: 0.3rem;
+  }
+
+  .mobile-role-btn {
+    padding: 0.6rem 0.3rem;
+    font-size: 0.65rem;
+    min-height: 60px;
+    border-radius: 12px;
+  }
+
+  .mobile-role-btn i {
+    font-size: 1.05rem;
+  }
+
+  .toggle-btn {
+    padding: 0.65rem 0.75rem;
+    font-size: 0.8rem;
+  }
+
+  .input-group {
+    margin-bottom: 0.75rem;
+  }
+
+  .form-input {
+    padding: 12px 36px;
+    font-size: 0.8rem;
+  }
+
+  .input-wrapper {
+    min-height: 45px;
+    border-radius: 10px;
+  }
+
+  .auth-btn {
+    padding: 12px;
+    font-size: 0.85rem;
+    min-height: 45px;
+    border-radius: 8px;
+  }
+
+  .form-options {
+    font-size: 0.7rem;
   }
 }
