@@ -509,12 +509,22 @@ export class JobseekerJobService {
       const application = result.rows[0] as JobApplication;
       console.log('✅ Application submitted successfully');
 
-      // Notify employer about new application
-      this.notificationService.notifyEmployerAboutNewApplication(
+      // Get applicant name for notification
+      const applicantResult = await this.db.query(
+        'SELECT first_name, last_name FROM users WHERE id = $1',
+        [userId]
+      );
+
+      const applicantName = applicantResult.rows.length > 0
+        ? `${applicantResult.rows[0].first_name} ${applicantResult.rows[0].last_name}`
+        : 'A candidate';
+
+      // Notify employer about new application (correct method name)
+      this.notificationService.notifyEmployerAboutApplication(
         job.employer_id,
         jobId,
         job.title,
-        userId,
+        applicantName,
         application.id
       ).catch((err: any) => console.error('❌ Failed to notify employer:', err));
 
@@ -803,7 +813,7 @@ export class JobseekerJobService {
     }
   }
 
-  // ✅ IMPLEMENTED: Get recommended jobs (basic implementation)
+  // ✅ IMPROVED: Get recommended jobs (handles missing columns gracefully)
   async getRecommendedJobs(userId: string, filters: RecommendationFilters): Promise<PaginatedResult<JobWithDetails>> {
     const page = filters?.page || 1;
     const limit = filters?.limit || 10;
@@ -812,16 +822,49 @@ export class JobseekerJobService {
     try {
       console.log(`🎯 Fetching recommended jobs for user ${userId}`);
 
-      // Get user's skills and preferences from their profile/applications
-      const userDataResult = await this.db.query(`
-        SELECT up.skills, up.location, up.experience_level
-        FROM user_profiles up
-        WHERE up.user_id = $1
-      `, [userId]);
+      // Get user's skills from profile if available
+      let userSkills: string[] = [];
+      try {
+        const userDataResult = await this.db.query(`
+          SELECT skills FROM user_profiles WHERE user_id = $1
+        `, [userId]);
+        
+        if (userDataResult.rows.length > 0 && userDataResult.rows[0].skills) {
+          userSkills = userDataResult.rows[0].skills;
+          console.log('👤 User skills:', userSkills);
+        }
+      } catch (profileError) {
+        console.log('⚠️ Could not fetch user profile, showing all jobs');
+      }
 
+      // Build recommendation query
       let recommendationQuery = `
         SELECT 
-          j.*,
+          j.id,
+          j.employer_id,
+          j.company_id,
+          j.title,
+          j.description,
+          j.requirements,
+          j.responsibilities,
+          j.location,
+          j.employment_type,
+          j.work_arrangement,
+          j.salary_min,
+          j.salary_max,
+          j.currency,
+          j.skills_required,
+          j.experience_level,
+          j.education_level,
+          j.benefits,
+          j.department,
+          j.status,
+          j.application_deadline,
+          j.is_featured,
+          j.applications_count,
+          j.views_count,
+          j.created_at,
+          j.updated_at,
           c.name as company_name,
           c.logo_url as company_logo,
           c.industry as company_industry,
@@ -842,28 +885,32 @@ export class JobseekerJobService {
 
       let queryParams: any[] = [userId];
 
-      // If user has profile data, use it for recommendations
-      if (userDataResult.rows.length > 0) {
-        const userData = userDataResult.rows[0];
-        
-        // Match by skills
-        if (userData.skills && userData.skills.length > 0) {
-          recommendationQuery += ` AND j.skills_required && $2`;
-          queryParams.push(userData.skills);
-        }
+      // If user has skills, filter by matching skills
+      if (userSkills.length > 0) {
+        recommendationQuery += ` AND j.skills_required && $2`;
+        queryParams.push(userSkills);
+        console.log('🔍 Filtering by skills:', userSkills);
       }
 
-      recommendationQuery += ` ORDER BY j.created_at DESC`;
+      // Add featured jobs boost
+      recommendationQuery += ` ORDER BY j.is_featured DESC, j.created_at DESC`;
 
       // Count query
-      const countResult = await this.db.query(
-        recommendationQuery.replace('SELECT j.*,', 'SELECT COUNT(*) as total FROM jobs j LEFT JOIN companies c ON j.company_id = c.id LEFT JOIN categories cat ON j.category_id = cat.id LEFT JOIN job_bookmarks jb ON j.id = jb.job_id AND jb.user_id = $1 LEFT JOIN job_applications ja ON j.id = ja.job_id AND ja.user_id = $1 WHERE j.status = \'Open\' AND ja.id IS NULL'),
-        [userId]
-      );
+      const countQuery = `
+        SELECT COUNT(*) as total
+        FROM jobs j
+        LEFT JOIN job_applications ja ON j.id = ja.job_id AND ja.user_id = $1
+        WHERE j.status = 'Open' AND ja.id IS NULL
+        ${userSkills.length > 0 ? 'AND j.skills_required && $2' : ''}
+      `;
+
+      const countResult = await this.db.query(countQuery, userSkills.length > 0 ? [userId, userSkills] : [userId]);
       const total = parseInt(countResult.rows[0]?.total || 0);
+      console.log(`📊 Total recommended jobs available: ${total}`);
 
       // Data query with pagination
-      recommendationQuery += ` LIMIT $${queryParams.length + 1} OFFSET $${queryParams.length + 2}`;
+      const dataParamIndex = queryParams.length + 1;
+      recommendationQuery += ` LIMIT $${dataParamIndex} OFFSET $${dataParamIndex + 1}`;
       queryParams.push(limit, offset);
 
       const result = await this.db.query(recommendationQuery, queryParams);
@@ -884,18 +931,105 @@ export class JobseekerJobService {
       };
     } catch (error) {
       console.error('❌ Error fetching recommended jobs:', error);
-      // Return empty results on error rather than throwing
-      return {
-        data: [],
-        pagination: {
-          total: 0,
-          page,
-          limit,
-          totalPages: 0,
-          hasNext: false,
-          hasPrev: false
-        }
-      };
+      
+      // FALLBACK: Return all open jobs that user hasn't applied to
+      try {
+        console.log('🔄 Falling back to basic job listing...');
+        
+        const fallbackQuery = `
+          SELECT 
+            j.id,
+            j.employer_id,
+            j.company_id,
+            j.title,
+            j.description,
+            j.requirements,
+            j.responsibilities,
+            j.location,
+            j.employment_type,
+            j.work_arrangement,
+            j.salary_min,
+            j.salary_max,
+            j.currency,
+            j.skills_required,
+            j.experience_level,
+            j.education_level,
+            j.benefits,
+            j.department,
+            j.status,
+            j.application_deadline,
+            j.is_featured,
+            j.applications_count,
+            j.views_count,
+            j.created_at,
+            j.updated_at,
+            c.name as company_name,
+            c.logo_url as company_logo,
+            c.industry as company_industry,
+            c.company_size,
+            c.website_url as company_website,
+            cat.name as category_name,
+            CASE WHEN jb.id IS NOT NULL THEN true ELSE false END as is_saved,
+            false as has_applied,
+            NULL as application_status
+          FROM jobs j
+          LEFT JOIN companies c ON j.company_id = c.id
+          LEFT JOIN categories cat ON j.category_id = cat.id
+          LEFT JOIN job_bookmarks jb ON j.id = jb.job_id AND jb.user_id = $1
+          WHERE j.status = 'Open'
+          AND NOT EXISTS (
+            SELECT 1 FROM job_applications ja 
+            WHERE ja.job_id = j.id AND ja.user_id = $1
+          )
+          ORDER BY j.is_featured DESC, j.created_at DESC
+          LIMIT $2 OFFSET $3
+        `;
+
+        const countQuery = `
+          SELECT COUNT(*) as total
+          FROM jobs j
+          WHERE j.status = 'Open'
+          AND NOT EXISTS (
+            SELECT 1 FROM job_applications ja 
+            WHERE ja.job_id = j.id AND ja.user_id = $1
+          )
+        `;
+
+        const countResult = await this.db.query(countQuery, [userId]);
+        const total = parseInt(countResult.rows[0]?.total || 0);
+
+        const result = await this.db.query(fallbackQuery, [userId, limit, offset]);
+        const totalPages = Math.ceil(total / limit);
+
+        console.log(`✅ Fallback successful: ${result.rows.length} jobs returned`);
+
+        return {
+          data: result.rows as JobWithDetails[],
+          pagination: {
+            total,
+            page,
+            limit,
+            totalPages,
+            hasNext: page < totalPages,
+            hasPrev: page > 1
+          }
+        };
+      } catch (fallbackError) {
+        console.error('❌ Fallback query also failed:', fallbackError);
+        
+        // Ultimate fallback: return empty results
+        return {
+          data: [],
+          pagination: {
+            total: 0,
+            page,
+            limit,
+            totalPages: 0,
+            hasNext: false,
+            hasPrev: false
+          }
+        };
+      }
     }
   }
 }
