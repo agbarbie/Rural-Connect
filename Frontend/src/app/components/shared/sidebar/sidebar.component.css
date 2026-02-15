@@ -1,3 +1,82 @@
+/* ===========================
+   Mobile Menu Toggle Button
+   =========================== */
+.mobile-menu-toggle {
+  position: fixed;
+  top: 20px;
+  left: 20px;
+  z-index: 1100;
+  width: 45px;
+  height: 45px;
+  background: linear-gradient(135deg, #038299 0%, #10e222 100%);
+  border: none;
+  border-radius: 10px;
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  transition: all 0.3s ease;
+}
+
+.mobile-menu-toggle:hover {
+  transform: scale(1.05);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
+}
+
+.mobile-menu-toggle:active {
+  transform: scale(0.95);
+}
+
+.hamburger-line {
+  width: 24px;
+  height: 3px;
+  background: white;
+  border-radius: 2px;
+  transition: all 0.3s ease;
+}
+
+.mobile-menu-toggle.open .hamburger-line:nth-child(1) {
+  transform: translateY(8px) rotate(45deg);
+}
+
+.mobile-menu-toggle.open .hamburger-line:nth-child(2) {
+  opacity: 0;
+  transform: translateX(-10px);
+}
+
+.mobile-menu-toggle.open .hamburger-line:nth-child(3) {
+  transform: translateY(-8px) rotate(-45deg);
+}
+
+/* ===========================
+   Mobile Overlay
+   =========================== */
+.mobile-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 999;
+  animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* ===========================
+   Sidebar Base Styles
+   =========================== */
 .sidebar {
   width: 260px;
   background: linear-gradient(180deg, #038299da 0%, #10e222a1 100%);
@@ -7,17 +86,70 @@
   left: 0;
   top: 0;
   overflow-y: auto;
-  transition: all 0.3s ease;
+  overflow-x: hidden;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   z-index: 1000;
   box-shadow: 2px 0 10px rgba(0, 0, 0, 0.1);
   display: flex;
   flex-direction: column;
 }
 
+/* ===========================
+   Collapsed State (Desktop)
+   =========================== */
+.sidebar.collapsed {
+  width: 80px;
+}
+
+.sidebar.collapsed .logo-text,
+.sidebar.collapsed .nav-title,
+.sidebar.collapsed .nav-label,
+.sidebar.collapsed .logout-text {
+  opacity: 0;
+  width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.sidebar.collapsed .logo {
+  justify-content: center;
+}
+
+.sidebar.collapsed .nav-item {
+  justify-content: center;
+  padding: 12px 10px;
+}
+
+.sidebar.collapsed .nav-badge {
+  position: absolute;
+  top: 8px;
+  right: 12px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  font-size: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.sidebar.collapsed .logout-btn {
+  justify-content: center;
+  padding: 12px;
+}
+
+.sidebar.collapsed .collapse-toggle {
+  right: 10px;
+}
+
+/* ===========================
+   Sidebar Header
+   =========================== */
 .sidebar-header {
   padding: 24px 20px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
   flex-shrink: 0;
+  position: relative;
 }
 
 .logo {
@@ -27,6 +159,7 @@
   font-size: 18px;
   font-weight: 700;
   color: white;
+  transition: all 0.3s ease;
 }
 
 .logo-icon {
@@ -38,12 +171,60 @@
   align-items: center;
   justify-content: center;
   font-size: 20px;
+  flex-shrink: 0;
+}
+
+.logo-text {
+  transition: all 0.3s ease;
+  white-space: nowrap;
+}
+
+/* Collapse Toggle Button */
+.collapse-toggle {
+  position: absolute;
+  right: 20px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 28px;
+  height: 28px;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 6px;
+  color: white;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s ease;
+  z-index: 10;
+}
+
+.collapse-toggle:hover {
+  background: rgba(255, 255, 255, 0.2);
+  transform: translateY(-50%) scale(1.1);
+}
+
+.collapse-toggle:active {
+  transform: translateY(-50%) scale(0.95);
+}
+
+.collapse-toggle i {
+  font-size: 14px;
+  transition: transform 0.3s ease;
+}
+
+/* ===========================
+   Sidebar Content
+   =========================== */
+.sidebar-content {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
 .nav-section {
   padding: 20px 0;
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-  flex-shrink: 0;
 }
 
 .nav-section:last-child {
@@ -57,8 +238,13 @@
   text-transform: uppercase;
   letter-spacing: 1px;
   color: rgba(255, 255, 255, 0.6);
+  transition: all 0.3s ease;
+  white-space: nowrap;
 }
 
+/* ===========================
+   Navigation Items
+   =========================== */
 .nav-item {
   display: flex;
   align-items: center;
@@ -97,11 +283,14 @@
   width: 20px;
   font-size: 16px;
   text-align: center;
+  flex-shrink: 0;
 }
 
-.nav-item span:not(.nav-badge) {
+.nav-label {
   flex: 1;
   font-size: 14px;
+  transition: all 0.3s ease;
+  white-space: nowrap;
 }
 
 .nav-badge {
@@ -113,9 +302,53 @@
   font-weight: 600;
   min-width: 20px;
   text-align: center;
+  transition: all 0.3s ease;
 }
 
-/* Sidebar Footer - Logout Button */
+/* ===========================
+   Tooltips for Collapsed State
+   =========================== */
+.nav-item .tooltip,
+.logout-btn .tooltip {
+  position: absolute;
+  left: 100%;
+  top: 50%;
+  transform: translateY(-50%);
+  background: rgba(0, 0, 0, 0.9);
+  color: white;
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  margin-left: 10px;
+  opacity: 0;
+  pointer-events: none;
+  transition: all 0.3s ease;
+  z-index: 1001;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.nav-item .tooltip::before,
+.logout-btn .tooltip::before {
+  content: '';
+  position: absolute;
+  right: 100%;
+  top: 50%;
+  transform: translateY(-50%);
+  border: 6px solid transparent;
+  border-right-color: rgba(0, 0, 0, 0.9);
+}
+
+.sidebar.collapsed .nav-item:hover .tooltip,
+.sidebar.collapsed .logout-btn:hover .tooltip {
+  opacity: 1;
+  margin-left: 15px;
+}
+
+/* ===========================
+   Sidebar Footer
+   =========================== */
 .sidebar-footer {
   margin-top: auto;
   padding: 20px;
@@ -138,6 +371,7 @@
   font-weight: 600;
   cursor: pointer;
   transition: all 0.3s ease;
+  position: relative;
 }
 
 .logout-btn:hover:not(:disabled) {
@@ -159,73 +393,196 @@
 
 .logout-btn i {
   font-size: 16px;
+  flex-shrink: 0;
 }
 
-.logout-btn span {
+.logout-text {
   font-size: 14px;
+  transition: all 0.3s ease;
+  white-space: nowrap;
 }
 
-/* Scrollbar styling */
-.sidebar::-webkit-scrollbar {
+/* ===========================
+   Scrollbar Styling
+   =========================== */
+.sidebar::-webkit-scrollbar,
+.sidebar-content::-webkit-scrollbar {
   width: 6px;
 }
 
-.sidebar::-webkit-scrollbar-track {
+.sidebar::-webkit-scrollbar-track,
+.sidebar-content::-webkit-scrollbar-track {
   background: rgba(0, 0, 0, 0.1);
 }
 
-.sidebar::-webkit-scrollbar-thumb {
+.sidebar::-webkit-scrollbar-thumb,
+.sidebar-content::-webkit-scrollbar-thumb {
   background: rgba(255, 255, 255, 0.3);
   border-radius: 3px;
 }
 
-.sidebar::-webkit-scrollbar-thumb:hover {
+.sidebar::-webkit-scrollbar-thumb:hover,
+.sidebar-content::-webkit-scrollbar-thumb:hover {
   background: rgba(255, 255, 255, 0.5);
 }
 
-/* Responsive */
+/* ===========================
+   Responsive - Tablet
+   =========================== */
 @media (max-width: 768px) {
-  .sidebar {
-    width: 70px;
+  .mobile-menu-toggle {
+    display: flex;
   }
 
-  .logo span,
-  .nav-title,
-  .nav-item span:not(.nav-badge),
-  .logout-btn span {
-    display: none;
-  }
-
-  .logo-icon {
-    margin: 0 auto;
-  }
-
-  .nav-item {
-    justify-content: center;
-  }
-
-  .nav-badge {
-    position: absolute;
-    top: 8px;
-    right: 10px;
-  }
-
-  .logout-btn {
-    padding: 12px;
-    justify-content: center;
-  }
-
-  .logout-btn i {
-    margin: 0;
-  }
-}
-
-@media (max-width: 480px) {
   .sidebar {
     transform: translateX(-100%);
   }
-  
-  .sidebar.open {
+
+  .sidebar.mobile-open {
     transform: translateX(0);
+  }
+
+  .collapse-toggle {
+    display: none;
+  }
+
+  /* Reset collapsed styles for mobile */
+  .sidebar.collapsed {
+    width: 260px;
+  }
+
+  .sidebar.collapsed .logo-text,
+  .sidebar.collapsed .nav-title,
+  .sidebar.collapsed .nav-label,
+  .sidebar.collapsed .logout-text {
+    opacity: 1;
+    width: auto;
+    overflow: visible;
+  }
+
+  .sidebar.collapsed .nav-item {
+    justify-content: flex-start;
+    padding: 12px 20px;
+  }
+
+  .sidebar.collapsed .nav-badge {
+    position: static;
+  }
+
+  .sidebar.collapsed .logout-btn {
+    justify-content: center;
+    padding: 12px 20px;
+  }
+
+  /* Hide tooltips on mobile */
+  .nav-item .tooltip,
+  .logout-btn .tooltip {
+    display: none;
+  }
+}
+
+/* ===========================
+   Responsive - Mobile Small
+   =========================== */
+@media (max-width: 480px) {
+  .sidebar {
+    width: 280px;
+    max-width: 85vw;
+  }
+
+  .sidebar-header {
+    padding: 20px 16px;
+  }
+
+  .nav-section {
+    padding: 16px 0;
+  }
+
+  .nav-title {
+    padding: 0 16px 10px;
+    font-size: 10px;
+  }
+
+  .nav-item {
+    padding: 12px 16px;
+  }
+
+  .sidebar-footer {
+    padding: 16px;
+  }
+
+  .logo {
+    font-size: 16px;
+  }
+
+  .logo-icon {
+    width: 36px;
+    height: 36px;
+    font-size: 18px;
+  }
+}
+
+/* ===========================
+   Animations
+   =========================== */
+@keyframes slideIn {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+@keyframes slideOut {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-100%);
+  }
+}
+
+/* ===========================
+   Print Styles
+   =========================== */
+@media print {
+  .sidebar,
+  .mobile-menu-toggle,
+  .mobile-overlay {
+    display: none;
+  }
+}
+
+/* ===========================
+   Accessibility
+   =========================== */
+.sidebar:focus-within {
+  outline: 2px solid rgba(96, 165, 250, 0.5);
+  outline-offset: -2px;
+}
+
+.nav-item:focus,
+.logout-btn:focus,
+.collapse-toggle:focus,
+.mobile-menu-toggle:focus {
+  outline: 2px solid rgba(96, 165, 250, 0.8);
+  outline-offset: 2px;
+}
+
+/* Reduce motion for accessibility */
+@media (prefers-reduced-motion: reduce) {
+  .sidebar,
+  .nav-item,
+  .logout-btn,
+  .collapse-toggle,
+  .mobile-menu-toggle,
+  .hamburger-line,
+  .tooltip,
+  .logo-text,
+  .nav-label,
+  .nav-title,
+  .logout-text {
+    transition: none;
   }
 }

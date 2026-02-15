@@ -1,39 +1,83 @@
-<nav class="sidebar">
+<!-- Mobile Menu Toggle Button -->
+<button 
+  class="mobile-menu-toggle" 
+  (click)="toggleMobileMenu()"
+  *ngIf="isMobileView"
+  [class.open]="isMobileMenuOpen">
+  <span class="hamburger-line"></span>
+  <span class="hamburger-line"></span>
+  <span class="hamburger-line"></span>
+</button>
+
+<!-- Mobile Overlay -->
+<div 
+  class="mobile-overlay" 
+  *ngIf="isMobileView && isMobileMenuOpen"
+  (click)="closeMobileMenu()">
+</div>
+
+<!-- Sidebar -->
+<nav 
+  class="sidebar" 
+  [class.collapsed]="isCollapsed && !isMobileView"
+  [class.mobile-open]="isMobileMenuOpen && isMobileView">
+  
+  <!-- Sidebar Header -->
   <div class="sidebar-header">
     <div class="logo">
       <div class="logo-icon">
         <i class="fas fa-graduation-cap"></i>
       </div>
-      <span>Digital Skilling App</span>
+      <span class="logo-text">Digital Skilling App</span>
+    </div>
+    
+    <!-- Desktop Toggle Button -->
+    <button 
+      class="collapse-toggle" 
+      (click)="toggleSidebar()"
+      *ngIf="!isMobileView"
+      [attr.aria-label]="isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'">
+      <i class="fas" [class.fa-angle-left]="!isCollapsed" [class.fa-angle-right]="isCollapsed"></i>
+    </button>
+  </div>
+
+  <!-- Navigation Sections -->
+  <div class="sidebar-content">
+    <div class="nav-section" *ngFor="let section of navSections">
+      <div class="nav-title">{{ section.title }}</div>
+      
+      <a 
+        *ngFor="let item of section.items" 
+        [routerLink]="item.route"
+        class="nav-item"
+        [class.active]="isActive(item.route)"
+        routerLinkActive="active"
+        [attr.data-tooltip]="item.label">
+        <i [class]="item.icon"></i>
+        <span class="nav-label">{{ item.label }}</span>
+        <span class="nav-badge" *ngIf="item.badge">{{ item.badge }}</span>
+        
+        <!-- Tooltip for collapsed state -->
+        <span class="tooltip" *ngIf="isCollapsed && !isMobileView">{{ item.label }}</span>
+      </a>
     </div>
   </div>
 
-  <div class="nav-section" *ngFor="let section of navSections">
-    <div class="nav-title">{{ section.title }}</div>
-    <a 
-      *ngFor="let item of section.items" 
-      [routerLink]="item.route"
-      class="nav-item"
-      [class.active]="isActive(item.route)"
-      routerLinkActive="active"
-    >
-      <i [class]="item.icon"></i>
-      <span>{{ item.label }}</span>
-      <span class="nav-badge" *ngIf="item.badge">{{ item.badge }}</span>
-    </a>
-  </div>
-
-  <!-- Functional Logout Button -->
+  <!-- Sidebar Footer - Logout Button -->
   <div class="sidebar-footer">
     <button 
       class="logout-btn" 
       (click)="logout()"
-      [disabled]="isLoggingOut">
+      [disabled]="isLoggingOut"
+      [attr.data-tooltip]="'Logout'">
       <i class="fas" 
          [class.fa-sign-out-alt]="!isLoggingOut" 
          [class.fa-spinner]="isLoggingOut" 
          [class.fa-spin]="isLoggingOut"></i>
-      <span>{{ isLoggingOut ? 'Logging out...' : 'Logout' }}</span>
+      <span class="logout-text">{{ isLoggingOut ? 'Logging out...' : 'Logout' }}</span>
+      
+      <!-- Tooltip for collapsed state -->
+      <span class="tooltip" *ngIf="isCollapsed && !isMobileView">Logout</span>
     </button>
   </div>
 </nav>

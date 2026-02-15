@@ -1,4 +1,4 @@
-import { Component, Input, OnInit } from '@angular/core';
+import { Component, Input, OnInit, HostListener } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule, Router, NavigationEnd } from '@angular/router';
 import { filter } from 'rxjs/operators';
@@ -9,7 +9,7 @@ interface NavItem {
   icon: string;
   route: string;
   badge?: number | string;
-  action?: string; // Add action property for special items
+  action?: string;
 }
 
 interface NavSection {
@@ -30,6 +30,9 @@ export class SidebarComponent implements OnInit {
   currentRoute: string = '';
   navSections: NavSection[] = [];
   isLoggingOut: boolean = false;
+  isCollapsed: boolean = false;
+  isMobileMenuOpen: boolean = false;
+  isMobileView: boolean = false;
 
   private jobseekerNav: NavSection[] = [
     {
@@ -100,6 +103,9 @@ export class SidebarComponent implements OnInit {
   ) {}
 
   ngOnInit(): void {
+    // Check initial screen size
+    this.checkScreenSize();
+    
     // Set navigation based on user type
     this.setNavigation();
 
@@ -111,7 +117,26 @@ export class SidebarComponent implements OnInit {
       .pipe(filter(event => event instanceof NavigationEnd))
       .subscribe((event: any) => {
         this.currentRoute = event.urlAfterRedirects || event.url;
+        // Close mobile menu on navigation
+        if (this.isMobileView) {
+          this.isMobileMenuOpen = false;
+        }
       });
+  }
+
+  @HostListener('window:resize', ['$event'])
+  onResize(event: any): void {
+    this.checkScreenSize();
+  }
+
+  private checkScreenSize(): void {
+    const width = window.innerWidth;
+    this.isMobileView = width <= 768;
+    
+    // Reset states based on screen size
+    if (!this.isMobileView) {
+      this.isMobileMenuOpen = false;
+    }
   }
 
   private setNavigation(): void {
@@ -140,8 +165,26 @@ export class SidebarComponent implements OnInit {
     this.router.navigate([route]);
   }
 
+  toggleSidebar(): void {
+    if (this.isMobileView) {
+      this.isMobileMenuOpen = !this.isMobileMenuOpen;
+    } else {
+      this.isCollapsed = !this.isCollapsed;
+    }
+  }
+
+  toggleMobileMenu(): void {
+    this.isMobileMenuOpen = !this.isMobileMenuOpen;
+  }
+
+  closeMobileMenu(): void {
+    if (this.isMobileView) {
+      this.isMobileMenuOpen = false;
+    }
+  }
+
   logout(): void {
-    if (this.isLoggingOut) return; // Prevent multiple clicks
+    if (this.isLoggingOut) return;
     
     console.log('🔓 Initiating logout...');
     this.isLoggingOut = true;
@@ -150,7 +193,6 @@ export class SidebarComponent implements OnInit {
       next: () => {
         console.log('✅ Logout successful');
         this.isLoggingOut = false;
-        // Navigate to auth page
         this.router.navigate(['/auth']).then(() => {
           console.log('✅ Redirected to auth page');
         });
@@ -158,7 +200,6 @@ export class SidebarComponent implements OnInit {
       error: (error: any) => {
         console.error('❌ Logout error:', error);
         this.isLoggingOut = false;
-        // Even if server logout fails, navigate to auth
         this.router.navigate(['/auth']);
       }
     });
