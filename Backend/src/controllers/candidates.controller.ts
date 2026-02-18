@@ -910,21 +910,21 @@ export class CandidatesController {
 
       // ✅ Send notification to the jobseeker
       await pool.query(
-        `INSERT INTO notifications (user_id, type, title, message, metadata, is_read, created_at)
-         VALUES ($1, 'application_shortlisted', $2, $3, $4, false, NOW())`,
-        [
-          candidateUserId,
-          '🎉 You have been shortlisted!',
-          `${companyName} has shortlisted your application for "${jobTitle}". Congratulations!`,
-          JSON.stringify({
-            job_id: jobId,
-            job_title: jobTitle,
-            employer_id: employerId,
-            company_name: companyName,
-            type: 'application_shortlisted'
-          })
-        ]
-      );
+  `INSERT INTO notifications (user_id, type, title, message, metadata, read, created_at)
+   VALUES ($1, 'application_shortlisted', $2, $3, $4, false, NOW())`,
+  [
+    candidateUserId,
+    '🎉 You have been shortlisted!',
+    `${companyName} has shortlisted your application for "${jobTitle}". Congratulations!`,
+    JSON.stringify({
+      job_id: jobId,
+      job_title: jobTitle,
+      employer_id: employerId,
+      company_name: companyName,
+      type: 'application_shortlisted'
+    })
+  ]
+);
 
       console.log(`✅ Shortlist notification sent to jobseeker ${candidateUserId} for job ${jobId}`);
 
