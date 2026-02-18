@@ -725,42 +725,41 @@ enrollShortlistedApplicant(
   // JOBSEEKER METHODS
   // ============================================
 
-  getJobseekerTrainings(params: TrainingSearchParams = {}): Observable<PaginatedResponse<{ trainings: Training[] }>> {
-    this.loadingSubject.next(true);
-    
-    const enhancedParams = {
-      ...params,
-      include_sessions: true,
-      include_outcomes: true,
-      status: 'published'
-    };
-    
-    const httpParams = this.buildParams(enhancedParams);
-    
-    return this.http.get<PaginatedResponse<{ trainings: Training[] }>>(
-      this.TRAINING_ENDPOINT,
-      { headers: this.getAuthHeaders(), params: httpParams }
-    ).pipe(
-      map(response => {
-        if (response.success && response.data?.trainings) {
-          response.data.trainings = response.data.trainings
-            .filter(t => t.status === 'published')
-            .map(t => this.processTrainingData(t));
-        }
-        return response;
-      }),
-      tap(response => {
-        if (response.success && response.data?.trainings) {
-          this.trainingsSubject.next(response.data.trainings);
-        }
-        this.loadingSubject.next(false);
-      }),
-      catchError(error => {
-        this.loadingSubject.next(false);
-        return this.handleError(error);
-      })
-    );
-  }
+ getJobseekerTrainings(params: TrainingSearchParams = {}): Observable<PaginatedResponse<{ trainings: Training[] }>> {
+  this.loadingSubject.next(true);
+  
+  const enhancedParams = {
+    ...params,
+    include_sessions: true,
+    include_outcomes: true
+    // ✅ NO status filter — backend handles visibility per user
+  };
+  
+  const httpParams = this.buildParams(enhancedParams);
+  
+  return this.http.get<PaginatedResponse<{ trainings: Training[] }>>(
+    this.TRAINING_ENDPOINT,
+    { headers: this.getAuthHeaders(), params: httpParams }
+  ).pipe(
+    map(response => {
+      if (response.success && response.data?.trainings) {
+        response.data.trainings = response.data.trainings
+          .map(t => this.processTrainingData(t)); // ✅ No status filter
+      }
+      return response;
+    }),
+    tap(response => {
+      if (response.success && response.data?.trainings) {
+        this.trainingsSubject.next(response.data.trainings);
+      }
+      this.loadingSubject.next(false);
+    }),
+    catchError(error => {
+      this.loadingSubject.next(false);
+      return this.handleError(error);
+    })
+  );
+}
 
   getEnrolledTrainings(params: TrainingSearchParams = {}): Observable<PaginatedResponse<{ trainings: Training[] }>> {
     const httpParams = this.buildParams(params);
