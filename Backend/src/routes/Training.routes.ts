@@ -130,11 +130,17 @@ export function createTrainingRoutes(db: Pool): Router {
   // ==========================================================================
 
   // Browse trainings (public view, but optional auth for personalization)
-  router.get(
-    '/',
-    optionalAuthenticate,
-    bind(trainingController.getAllTrainings)
-  );
+ router.get(
+  '/',
+  optionalAuthenticate,
+  (req: any, res: any, next: any) => {
+    // Route to correct controller based on user type
+    if (req.user?.userType === 'jobseeker') {
+      return bind(trainingController.getPublishedTrainingsForJobseeker)(req, res, next);
+    }
+    return bind(trainingController.getAllTrainings)(req, res, next);
+  }
+);
 
   // View single training detail (public, but optional auth)
   router.get(

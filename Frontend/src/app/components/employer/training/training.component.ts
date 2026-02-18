@@ -1267,43 +1267,37 @@ ${notification.motivation_letter || metadata.motivation || 'Not available'}
     }
   }
 
-  duplicateTraining(training: Training): void {
-    if (confirm('Create a copy of this training?')) {
-      const duplicatedTraining: CreateTrainingRequest = {
-        title: `${training.title} (Copy)`,
-        description: training.description,
-        category: training.category,
-        level: training.level,
-        duration_hours: training.duration_hours,
-        cost_type: training.cost_type,
-        price: training.price,
-        mode: training.mode,
-        provider_name: training.provider_name,
-        has_certificate: training.has_certificate,
-        thumbnail_url: training.thumbnail_url,
-        location: training.location,
-        max_participants: training.max_participants,
-        sessions: training.sessions || [],
-        outcomes: training.outcomes || []
-      };
-      
-      this.trainingService.createTraining(duplicatedTraining)
-        .pipe(takeUntil(this.destroy$))
-        .subscribe({
-          next: (response) => {
-            if (response.success) {
-              this.lastDataFetch = new Date(0);
-              this.loadTrainings();
-              alert('Training duplicated successfully!');
-            }
-          },
-          error: (error) => {
-            console.error('Error duplicating training:', error);
-            this.error = 'Failed to duplicate training. Please try again.';
-          }
-        });
-    }
+ duplicateTraining(training: Training): void {
+  if (confirm('Create a copy of this training?')) {
+    const duplicatedTraining: CreateTrainingRequest = {
+      title: `${training.title} (Copy)`,
+      description: training.description,
+      category: training.category,
+      level: training.level,
+      duration_hours: training.duration_hours,
+      cost_type: training.cost_type,
+      price: training.price,
+      mode: training.mode,
+      provider_name: training.provider_name,
+      has_certificate: training.has_certificate,
+      thumbnail_url: training.thumbnail_url,
+      location: training.location,
+      max_participants: training.max_participants,
+      // ✅ Convert dates to strings
+      application_deadline: training.application_deadline 
+        ? new Date(training.application_deadline).toISOString().split('T')[0] 
+        : undefined,
+      start_date: training.start_date 
+        ? new Date(training.start_date).toISOString().split('T')[0] 
+        : undefined,
+      end_date: training.end_date 
+        ? new Date(training.end_date).toISOString().split('T')[0] 
+        : undefined,
+      sessions: training.sessions || [],
+      outcomes: training.outcomes || []
+    };
   }
+}
 
   /**
    * Regenerate meeting if it was lost/deleted

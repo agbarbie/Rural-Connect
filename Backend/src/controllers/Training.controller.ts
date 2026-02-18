@@ -500,6 +500,28 @@ export class TrainingController {
   }
 }
 
+async getPublishedTrainingsForJobseeker(req: any, res: any): Promise<void> {
+  try {
+    const userId = req.user.userId;
+    const params = {
+      page: parseInt(req.query.page as string) || 1,
+      limit: parseInt(req.query.limit as string) || 10,
+      sort_by: (req.query.sort_by as string || 'created_at') as 'created_at' | 'title' | 'rating' | 'total_students' | 'start_date',
+      sort_order: (req.query.sort_order as string || 'desc') as 'asc' | 'desc',
+      category: req.query.category as string,
+      level: req.query.level as string,
+      search: req.query.search as string,
+      cost_type: req.query.cost_type as string,
+      mode: req.query.mode as string,
+    };
+
+    const result = await this.trainingService.getPublishedTrainingsForJobseeker(userId, params);
+    res.json({ success: true, ...result });
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+}
+
   /**
    * GET /api/trainings/meeting/:trainingId/:sessionId/:roomCode
    * Get meeting details for validation
