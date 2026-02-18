@@ -1366,15 +1366,23 @@ export class TrainingService {
          SELECT 1 FROM training_enrollments WHERE training_id = $1 AND user_id = $2`,
         [id, userId],
       );
-      if (
-        training.status !== "published" &&
-        training.status !== "applications_closed" &&
-        training.status !== "in_progress" &&
-        training.status !== "completed" &&
-        hasRelation.rows.length === 0
-      ) {
-        return null;
-      }
+      if (training.status === 'published') {
+  // visible to all jobseekers
+} else if (training.status === 'draft') {
+  return null; // never visible to jobseekers
+} else {
+  // applications_closed, in_progress, completed
+  // only visible if shortlisted or enrolled
+  const allowed = await this.db.query(
+    `SELECT 1 FROM training_applications 
+     WHERE training_id = $1 AND user_id = $2 AND status IN ('shortlisted','enrolled')
+     UNION
+     SELECT 1 FROM training_enrollments 
+     WHERE training_id = $1 AND user_id = $2`,
+    [id, userId]
+  );
+  if (allowed.rows.length === 0) return null;
+}
 
       const appRow = await this.db.query(
         "SELECT * FROM training_applications WHERE training_id = $1 AND user_id = $2 ORDER BY applied_at DESC LIMIT 1",
@@ -1399,97 +1407,111 @@ export class TrainingService {
   }
 
   async getPublishedTrainingsForJobseeker(
-    userId: string,
-    params: TrainingSearchParams,
-  ): Promise<TrainingListResponse> {
-    const {
-      page = 1,
-      limit = 10,
-      sort_by = "created_at",
-      sort_order = "desc",
-      filters = {},
-    } = params;
-    const offset = (page - 1) * limit;
+  userId: string,
+  params: TrainingSearchParams,
+): Promise<TrainingListResponse> {
+  const {
+    page = 1,
+    limit = 10,
+    sort_by = "created_at",
+    sort_order = "desc",
+    filters = {},
+  } = params;
+  const offset = (page - 1) * limit;
 
-    const conds: string[] = [
-      "t.status IN ('published','applications_closed','in_progress','completed')",
-      "t.provider_id IS NOT NULL",
-      "t.title IS NOT NULL",
-    ];
-    const qp: any[] = [];
-    let pi = 1;
+  const qp: any[] = [];
+  let pi = 1;
 
-    if (filters.category || params.category) {
-      conds.push(`t.category = $${pi++}`);
-      qp.push(filters.category || params.category);
-    }
-    if (params.level) {
-      conds.push(`t.level = $${pi++}`);
-      qp.push(params.level);
-    }
-    if (params.cost_type) {
-      conds.push(`t.cost_type = $${pi++}`);
-      qp.push(params.cost_type);
-    }
-    if (params.mode) {
-      conds.push(`t.mode = $${pi++}`);
-      qp.push(params.mode);
-    }
-    if (params.search) {
-      conds.push(`(t.title ILIKE $${pi} OR t.description ILIKE $${pi})`);
-      qp.push(`%${params.search}%`);
-      pi++;
-    }
+  // Push userId first — used in the visibility condition
+  qp.push(userId);
+  const userVisibilityIdx = pi++; // = 1
 
-    const where = `WHERE ${conds.join(" AND ")}`;
+  const conds: string[] = [
+    `(
+      t.status = 'published'
+      OR (
+        t.status IN ('applications_closed','in_progress','completed')
+        AND (
+          EXISTS (SELECT 1 FROM training_applications a WHERE a.training_id = t.id AND a.user_id = $${userVisibilityIdx} AND a.status IN ('shortlisted','enrolled'))
+          OR EXISTS (SELECT 1 FROM training_enrollments e WHERE e.training_id = t.id AND e.user_id = $${userVisibilityIdx})
+        )
+      )
+    )`,
+    "t.provider_id IS NOT NULL",
+    "t.title IS NOT NULL",
+  ];
 
-    const userIdx = pi++;
-    qp.push(userId);
-    const limitIdx = pi++;
-    qp.push(limit);
-    const offIdx = pi++;
-    qp.push(offset);
-
-    const query = `
-      SELECT
-        t.*,
-        CASE WHEN a.id IS NOT NULL THEN true ELSE false END AS has_applied,
-        CASE WHEN a.id IS NOT NULL THEN true ELSE false END AS applied,
-        a.status AS application_status,
-        a.applied_at,
-        CASE WHEN e.id IS NOT NULL THEN true ELSE false END AS is_enrolled,
-        CASE WHEN e.id IS NOT NULL THEN true ELSE false END AS enrolled,
-        e.status AS enrollment_status,
-        e.enrolled_at,
-        e.completed_at,
-        e.certificate_issued,
-        e.id AS enrollment_id,
-        COUNT(*) OVER() AS total_count
-      FROM trainings t
-      LEFT JOIN training_applications a ON a.training_id = t.id AND a.user_id = $${userIdx}
-      LEFT JOIN training_enrollments  e ON e.training_id = t.id AND e.user_id = $${userIdx}
-      ${where}
-      ORDER BY t.${sort_by} ${sort_order.toUpperCase()}
-      LIMIT $${limitIdx} OFFSET $${offIdx}
-    `;
-
-    const result = await this.db.query(query, qp);
-    const rows = result.rows;
-    const total = rows.length > 0 ? parseInt(rows[0].total_count) : 0;
-
-    return {
-      trainings: rows.map((r) => this.mapTrainingWithContext(r)),
-      pagination: {
-        current_page: page,
-        total_pages: Math.ceil(total / limit),
-        page_size: limit,
-        total_count: total,
-        has_next: page * limit < total,
-        has_previous: page > 1,
-      },
-      filters_applied: filters,
-    };
+  if (filters.category || params.category) {
+    conds.push(`t.category = $${pi++}`);
+    qp.push(filters.category || params.category);
   }
+  if (params.level) {
+    conds.push(`t.level = $${pi++}`);
+    qp.push(params.level);
+  }
+  if (params.cost_type) {
+    conds.push(`t.cost_type = $${pi++}`);
+    qp.push(params.cost_type);
+  }
+  if (params.mode) {
+    conds.push(`t.mode = $${pi++}`);
+    qp.push(params.mode);
+  }
+  if (params.search) {
+    conds.push(`(t.title ILIKE $${pi} OR t.description ILIKE $${pi})`);
+    qp.push(`%${params.search}%`);
+    pi++;
+  }
+
+  const where = `WHERE ${conds.join(" AND ")}`;
+
+  const userIdx = pi++;
+  qp.push(userId);
+  const limitIdx = pi++;
+  qp.push(limit);
+  const offIdx = pi++;
+  qp.push(offset);
+
+  const query = `
+    SELECT
+      t.*,
+      CASE WHEN a.id IS NOT NULL THEN true ELSE false END AS has_applied,
+      CASE WHEN a.id IS NOT NULL THEN true ELSE false END AS applied,
+      a.status AS application_status,
+      a.applied_at,
+      CASE WHEN e.id IS NOT NULL THEN true ELSE false END AS is_enrolled,
+      CASE WHEN e.id IS NOT NULL THEN true ELSE false END AS enrolled,
+      e.status AS enrollment_status,
+      e.enrolled_at,
+      e.completed_at,
+      e.certificate_issued,
+      e.id AS enrollment_id,
+      COUNT(*) OVER() AS total_count
+    FROM trainings t
+    LEFT JOIN training_applications a ON a.training_id = t.id AND a.user_id = $${userIdx}
+    LEFT JOIN training_enrollments  e ON e.training_id = t.id AND e.user_id = $${userIdx}
+    ${where}
+    ORDER BY t.${sort_by} ${sort_order.toUpperCase()}
+    LIMIT $${limitIdx} OFFSET $${offIdx}
+  `;
+
+  const result = await this.db.query(query, qp);
+  const rows = result.rows;
+  const total = rows.length > 0 ? parseInt(rows[0].total_count) : 0;
+
+  return {
+    trainings: rows.map((r) => this.mapTrainingWithContext(r)),
+    pagination: {
+      current_page: page,
+      total_pages: Math.ceil(total / limit),
+      page_size: limit,
+      total_count: total,
+      has_next: page * limit < total,
+      has_previous: page > 1,
+    },
+    filters_applied: filters,
+  };
+}
 
   // ✅ FIX 4: CRITICAL - Proper employer filtering in getAllTrainings
   // ============================================
