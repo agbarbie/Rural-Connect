@@ -2780,9 +2780,13 @@ export class TrainingService {
         : td.provider_name || "Training Provider";
 
     // Build employer personal name
-    let employerName =
-      `${td.employer_first_name || ""} ${td.employer_last_name || ""}`.trim();
-    if (!employerName && td.employer_email) {
+    const empFirst = (td.employer_first_name || "").trim();
+    const empLast = (td.employer_last_name || "").trim();
+
+    let employerName = "";
+    if (empFirst || empLast) {
+      employerName = `${empFirst} ${empLast}`.trim();
+    } else if (td.employer_email) {
       employerName = td.employer_email
         .split("@")[0]
         .replace(/[_.-]/g, " ")
