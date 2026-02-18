@@ -2755,22 +2755,22 @@ export class TrainingService {
     }
     if (!trainee) trainee = "Trainee";
 
-    // FIX 2: Get company name AND employer's personal name
     const tRow = await this.db.query(
-      `SELECT 
+  `SELECT 
      t.provider_name,
      t.provider_id,
-     u.first_name AS employer_first_name,
-     u.last_name  AS employer_last_name,
-     u.email      AS employer_email,
+     u.first_name  AS employer_first_name,
+     u.last_name   AS employer_last_name,
+     u.name        AS employer_name,
+     u.email       AS employer_email,
      COALESCE(c.name, '') AS company_name
    FROM trainings t
    LEFT JOIN employers e ON e.id = t.provider_id
    LEFT JOIN users u     ON u.id = e.user_id
    LEFT JOIN companies c ON c.id = e.company_id
    WHERE t.id = $1`,
-      [trainingId],
-    );
+  [trainingId]
+);
     const td = tRow.rows[0] || {};
 
     // Company name stays as main issuer
