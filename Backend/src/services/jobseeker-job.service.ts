@@ -447,100 +447,113 @@ export class JobseekerJobService {
     }
   }
 
-  // ✅ IMPLEMENTED: Apply to a job
   async applyToJob(userId: string, jobId: string, applicationData: ApplicationData): Promise<ServiceResponse<JobApplication>> {
-    const client = await this.db.connect();
-    try {
-      await client.query('BEGIN');
+  const client = await this.db.connect();
+  try {
+    await client.query('BEGIN');
 
-      console.log(`📝 Applying to job ${jobId} for user ${userId}`);
+    console.log(`📝 Applying to job ${jobId} for user ${userId}`);
 
-      // Check if already applied
-      const existingApplication = await client.query(
-        'SELECT id FROM job_applications WHERE user_id = $1 AND job_id = $2',
-        [userId, jobId]
-      );
+    // Check if already applied
+    const existingApplication = await client.query(
+      'SELECT id FROM job_applications WHERE user_id = $1 AND job_id = $2',
+      [userId, jobId]
+    );
 
-      if (existingApplication.rows.length > 0) {
-        await client.query('ROLLBACK');
-        return {
-          success: false,
-          message: 'You have already applied to this job'
-        };
-      }
+    if (existingApplication.rows.length > 0) {
+      await client.query('ROLLBACK');
+      return {
+        success: false,
+        message: 'You have already applied to this job'
+      };
+    }
 
-      // Check if job exists and is open
-      const jobResult = await client.query(
-        "SELECT id, title, employer_id FROM jobs WHERE id = $1 AND status = 'Open'",
-        [jobId]
-      );
+    // Check if job exists and is open
+    const jobResult = await client.query(
+      "SELECT id, title, employer_id FROM jobs WHERE id = $1 AND status = 'Open'",
+      [jobId]
+    );
 
-      if (jobResult.rows.length === 0) {
-        await client.query('ROLLBACK');
-        return {
-          success: false,
-          message: 'Job not found or not accepting applications'
-        };
-      }
+    if (jobResult.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return {
+        success: false,
+        message: 'Job not found or not accepting applications'
+      };
+    }
 
-      const job = jobResult.rows[0];
+    const job = jobResult.rows[0];
 
-      // Create application
-      const result = await client.query(`
-        INSERT INTO job_applications (
-          user_id, job_id, cover_letter, resume_id, portfolio_url, 
-          expected_salary, availability_date, status, applied_at
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, 'pending', NOW())
-        RETURNING *
-      `, [
-        userId, jobId, applicationData.coverLetter || null,
-        applicationData.resumeId || null, applicationData.portfolioUrl || null,
-        applicationData.expectedSalary || null, applicationData.availabilityDate || null
-      ]);
+    // Create application
+    const result = await client.query(`
+      INSERT INTO job_applications (
+        user_id, job_id, cover_letter, resume_id, portfolio_url, 
+        expected_salary, availability_date, status, applied_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, 'pending', NOW())
+      RETURNING *
+    `, [
+      userId, jobId, applicationData.coverLetter || null,
+      applicationData.resumeId || null, applicationData.portfolioUrl || null,
+      applicationData.expectedSalary || null, applicationData.availabilityDate || null
+    ]);
 
-      // Update job applications count
-      await client.query(
-        'UPDATE jobs SET applications_count = applications_count + 1 WHERE id = $1',
-        [jobId]
-      );
+    // Update job applications count
+    await client.query(
+      'UPDATE jobs SET applications_count = applications_count + 1 WHERE id = $1',
+      [jobId]
+    );
 
-      await client.query('COMMIT');
+    await client.query('COMMIT');
 
-      const application = result.rows[0] as JobApplication;
-      console.log('✅ Application submitted successfully');
+    const application = result.rows[0] as JobApplication;
+    console.log('✅ Application submitted successfully');
 
-      // Get applicant name for notification
-      const applicantResult = await this.db.query(
-        'SELECT first_name, last_name FROM users WHERE id = $1',
-        [userId]
-      );
+    // Get applicant name for notification
+    const applicantResult = await this.db.query(
+      'SELECT first_name, last_name FROM users WHERE id = $1',
+      [userId]
+    );
 
-      const applicantName = applicantResult.rows.length > 0
-        ? `${applicantResult.rows[0].first_name} ${applicantResult.rows[0].last_name}`
-        : 'A candidate';
+    const applicantName = applicantResult.rows.length > 0
+      ? `${applicantResult.rows[0].first_name} ${applicantResult.rows[0].last_name}`
+      : 'A candidate';
 
-      // Notify employer about new application (correct method name)
+    // ✅ FIX: Look up employer's user_id from employers table
+    // job.employer_id is the employers TABLE row id, NOT the users.id
+    // Notifications are stored/queried by user_id, so we need the correct one
+    const employerUserResult = await this.db.query(
+      'SELECT user_id FROM employers WHERE id = $1',
+      [job.employer_id]
+    );
+
+    if (employerUserResult.rows.length > 0) {
+      const employerUserId = employerUserResult.rows[0].user_id;
+      console.log(`🔔 Notifying employer (user_id: ${employerUserId}) about application from ${applicantName}`);
+
       this.notificationService.notifyEmployerAboutApplication(
-        job.employer_id,
+        employerUserId,  // ✅ Correct: users.id, not employers.id
         jobId,
         job.title,
         applicantName,
         application.id
       ).catch((err: any) => console.error('❌ Failed to notify employer:', err));
-
-      return {
-        success: true,
-        message: 'Application submitted successfully',
-        data: application
-      };
-    } catch (error) {
-      await client.query('ROLLBACK');
-      console.error('❌ Error applying to job:', error);
-      throw error;
-    } finally {
-      client.release();
+    } else {
+      console.error(`❌ Could not find employer user_id for employer_id: ${job.employer_id}`);
     }
+
+    return {
+      success: true,
+      message: 'Application submitted successfully',
+      data: application
+    };
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('❌ Error applying to job:', error);
+    throw error;
+  } finally {
+    client.release();
   }
+}
 
   // ✅ IMPLEMENTED: Get application status
   async getApplicationStatus(userId: string, jobId: string): Promise<JobApplication | null> {

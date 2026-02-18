@@ -503,9 +503,8 @@ checkProfileCompletion(): void {
     
     // ✅ FIX: Explicitly exclude withdrawn applications
     const appliedJobs$ = this.jobService.getAppliedJobs({ 
-      page: 1, 
-      limit: 1000,
-      status: 'active'
+  page: 1, 
+  limit: 1000
     }).pipe(
       catchError(error => {
         console.error('❌ Error loading applied jobs:', error);
@@ -1092,24 +1091,22 @@ checkProfileCompletion(): void {
    * Check if job is applied
    */
   isJobApplied(jobId: string): boolean {
-    // First check the appliedJobIds array
-    if (!this.appliedJobIds.includes(jobId)) {
+  if (!this.appliedJobIds.includes(jobId)) {
+    return false;
+  }
+  
+  // ✅ FIX: Only remove if EXPLICITLY withdrawn, not if null/undefined
+  const job = this.jobs.find(j => this.getJobId(j) === jobId);
+  if (job) {
+    const status = (job as any).application_status;
+    if (status === 'withdrawn') {
+      this.appliedJobIds = this.appliedJobIds.filter(id => id !== jobId);
       return false;
     }
-    
-    // ✅ Double-check: If job is in the jobs array, verify its status
-    const job = this.jobs.find(j => this.getJobId(j) === jobId);
-    if (job) {
-      const status = (job as any).application_status;
-      // If withdrawn, remove from appliedJobIds and return false
-      if (status === 'withdrawn') {
-        this.appliedJobIds = this.appliedJobIds.filter(id => id !== jobId);
-        return false;
-      }
-    }
-    
-    return true;
   }
+  // ✅ If job not found in current view OR status is null, trust appliedJobIds
+  return true;
+}
 
   /**
    * Check if job is saved
@@ -1327,25 +1324,43 @@ checkProfileCompletion(): void {
     return 'fa-paper-plane';
   }
 
-  loadNotifications(): void {
-    if (typeof (this.jobService as any).getNotifications !== 'function') {
-      console.warn('getNotifications method not found in JobService');
-      return;
-    }
-
-    (this.jobService as any).getNotifications({ read: false })
-      .pipe(takeUntil(this.destroy$))
-      .subscribe({
-        next: (response: any) => {
-          if (response && response.success && response.data) {
-            const allNotifications = response.data.notifications || [];
-            this.jobNotifications = Array.isArray(allNotifications) ? allNotifications : [];
-            this.unreadNotificationCount = this.jobNotifications.filter(n => !n.read).length;
-          }
-        },
-        error: (err: any) => console.error('Error loading notifications:', err)
-      });
+  // In job-explorer.component.ts
+loadNotifications(): void {
+  if (typeof (this.jobService as any).getNotifications !== 'function') {
+    console.warn('getNotifications method not found in JobService');
+    return;
   }
+
+  (this.jobService as any).getNotifications({ read: false })
+    .pipe(takeUntil(this.destroy$))
+    .subscribe({
+      next: (response: any) => {
+        if (response && response.success && response.data) {
+          const allNotifications = response.data.notifications || [];
+          
+          // ✅ FIX: Filter to job-related notifications only for jobseekers
+          const JOB_NOTIFICATION_TYPES = [
+            'new_job',
+            'job_updated', 
+            'job_deleted',
+            'job_closed',
+            'job_filled',
+            'application_reviewed',
+            'application_shortlisted',
+            'application_accepted',
+            'application_rejected',
+            'interview_scheduled'
+          ];
+          
+          this.jobNotifications = Array.isArray(allNotifications) 
+            ? allNotifications.filter((n: any) => JOB_NOTIFICATION_TYPES.includes(n.type))
+            : [];
+          this.unreadNotificationCount = this.jobNotifications.filter(n => !n.read).length;
+        }
+      },
+      error: (err: any) => console.error('Error loading notifications:', err)
+    });
+}
 
   private checkForNewNotifications(): void {
     const newNotifications = this.jobNotifications.filter(n => {
