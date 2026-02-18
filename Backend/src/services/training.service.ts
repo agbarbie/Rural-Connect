@@ -2756,7 +2756,7 @@ export class TrainingService {
     if (!trainee) trainee = "Trainee";
 
     const tRow = await this.db.query(
-  `SELECT 
+      `SELECT 
      t.provider_name,
      t.provider_id,
      u.first_name  AS employer_first_name,
@@ -2769,8 +2769,8 @@ export class TrainingService {
    LEFT JOIN users u     ON u.id = e.user_id
    LEFT JOIN companies c ON c.id = e.company_id
    WHERE t.id = $1`,
-  [trainingId]
-);
+      [trainingId],
+    );
     const td = tRow.rows[0] || {};
 
     // Company name stays as main issuer
@@ -2786,6 +2786,9 @@ export class TrainingService {
     let employerName = "";
     if (empFirst || empLast) {
       employerName = `${empFirst} ${empLast}`.trim();
+    } else if (td.employer_name && td.employer_name.trim()) {
+      // Fall back to the 'name' column which is always populated
+      employerName = td.employer_name.trim();
     } else if (td.employer_email) {
       employerName = td.employer_email
         .split("@")[0]
