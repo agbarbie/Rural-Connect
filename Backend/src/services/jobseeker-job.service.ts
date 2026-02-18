@@ -455,18 +455,29 @@ export class JobseekerJobService {
     console.log(`📝 Applying to job ${jobId} for user ${userId}`);
 
     // Check if already applied
-    const existingApplication = await client.query(
-      'SELECT id FROM job_applications WHERE user_id = $1 AND job_id = $2',
-      [userId, jobId]
-    );
+    // ✅ NEW - only blocks if application is active (not withdrawn/cancelled)
+const existingApplication = await client.query(
+  `SELECT id, status FROM job_applications 
+   WHERE user_id = $1 AND job_id = $2 
+   AND status NOT IN ('withdrawn', 'cancelled')`,
+  [userId, jobId]
+);
 
-    if (existingApplication.rows.length > 0) {
-      await client.query('ROLLBACK');
-      return {
-        success: false,
-        message: 'You have already applied to this job'
-      };
-    }
+if (existingApplication.rows.length > 0) {
+  await client.query('ROLLBACK');
+  return {
+    success: false,
+    message: 'You have already applied to this job'
+  };
+}
+
+// ✅ NEW - if a withdrawn application exists, delete it so INSERT works cleanly
+await client.query(
+  `DELETE FROM job_applications 
+   WHERE user_id = $1 AND job_id = $2 
+   AND status IN ('withdrawn', 'cancelled')`,
+  [userId, jobId]
+);
 
     // Check if job exists and is open
     const jobResult = await client.query(

@@ -488,81 +488,99 @@ checkProfileCompletion(): void {
       });
   }
 
+  // Add this property at the top of the class
+appliedJobs: any[] = [];
+
   /**
    * Load saved and applied jobs from backend to sync state on page refresh
    */
   loadSavedAndAppliedJobs(): void {
-    console.log('🔄 Loading saved and applied jobs from backend...');
-    
-    const savedJobs$ = this.jobService.getSavedJobs({ page: 1, limit: 1000 }).pipe(
-      catchError(error => {
-        console.error('❌ Error loading saved jobs:', error);
-        return of({ success: false, data: null });
-      })
-    );
-    
-    // ✅ FIX: Explicitly exclude withdrawn applications
-    const appliedJobs$ = this.jobService.getAppliedJobs({ 
-  page: 1, 
-  limit: 1000
-    }).pipe(
-      catchError(error => {
-        console.error('❌ Error loading applied jobs:', error);
-        return of({ success: false, data: null });
-      })
-    );
-    
-    forkJoin({
-      saved: savedJobs$,
-      applied: appliedJobs$
-    }).pipe(
-      takeUntil(this.destroy$),
-      finalize(() => {
-        console.log('✅ Saved/Applied jobs load completed');
-        this.loadJobs();
-      })
-    )
-    .subscribe({
-      next: (results) => {
-        console.log('📦 Raw responses:', { saved: results.saved, applied: results.applied });
-        
-        // Process saved jobs
-        if (results.saved && results.saved.success && results.saved.data) {
-          const savedData = results.saved.data.data || results.saved.data.jobs || results.saved.data;
-          
-          if (Array.isArray(savedData)) {
-            this.savedJobIds = savedData
-              .map((item: any) => item.job_id || item.id || item.job?.id)
-              .filter(id => id);
-            
-            console.log('✅ Loaded saved job IDs:', this.savedJobIds.length);
-          }
+  console.log('🔄 Loading saved and applied jobs from backend...');
+
+  const savedJobs$ = this.jobService.getSavedJobs({ page: 1, limit: 1000 }).pipe(
+    catchError(error => {
+      console.error('❌ Error loading saved jobs:', error);
+      return of({ success: false, data: null });
+    })
+  );
+
+  const appliedJobs$ = this.jobService.getAppliedJobs({
+    page: 1,
+    limit: 1000
+  }).pipe(
+    catchError(error => {
+      console.error('❌ Error loading applied jobs:', error);
+      return of({ success: false, data: null });
+    })
+  );
+
+  forkJoin({
+    saved: savedJobs$,
+    applied: appliedJobs$
+  }).pipe(
+    takeUntil(this.destroy$),
+    finalize(() => {
+      console.log('✅ Saved/Applied jobs load completed');
+      this.loadJobs();
+    })
+  )
+  .subscribe({
+    next: (results) => {
+      console.log('📦 Raw responses:', { saved: results.saved, applied: results.applied });
+
+      // ── Process saved jobs ──
+      if (results.saved && results.saved.success && results.saved.data) {
+        const savedData = results.saved.data.data || results.saved.data.jobs || results.saved.data;
+
+        if (Array.isArray(savedData)) {
+          this.savedJobIds = savedData
+            .map((item: any) => item.job_id || item.id || item.job?.id)
+            .filter(id => id);
+
+          console.log('✅ Loaded saved job IDs:', this.savedJobIds.length);
         }
-        
-        // Process applied jobs
-        if (results.applied && results.applied.success && results.applied.data) {
-          const appliedData = results.applied.data.data || results.applied.data.jobs || results.applied.data;
-          
-          if (Array.isArray(appliedData)) {
-            this.appliedJobIds = appliedData
-              .filter((item: any) => {
-                const status = item.status || item.application_status || item.job?.application_status;
-                return status !== 'withdrawn';
-              })
-              .map((item: any) => item.job_id || item.id || item.job?.id)
-              .filter(id => id);
-            
-            console.log('✅ Loaded applied job IDs (excluding withdrawn):', this.appliedJobIds.length);
-          }
-        }
-        
-        console.log('📋 Final state:', {
-          savedJobIds: this.savedJobIds,
-          appliedJobIds: this.appliedJobIds
-        });
       }
-    });
-  }
+
+      // ── Process applied jobs ──
+      if (results.applied && results.applied.success && results.applied.data) {
+        const appliedData = results.applied.data.data || results.applied.data.jobs || results.applied.data;
+
+        if (Array.isArray(appliedData)) {
+          // ✅ Store full applied jobs list so isJobApplied() can check status later
+          this.appliedJobs = appliedData;
+
+          // ✅ Only track as "applied" if status is NOT withdrawn or cancelled
+          this.appliedJobIds = appliedData
+            .filter((item: any) => {
+              const status = item.status || item.application_status || item.job?.application_status;
+              const isWithdrawn = status === 'withdrawn' || status === 'cancelled';
+              if (isWithdrawn) {
+                console.log(`⏭️ Excluding withdrawn/cancelled job from appliedJobIds:`, item.job_id || item.id);
+              }
+              return !isWithdrawn;
+            })
+            .map((item: any) => item.job_id || item.id || item.job?.id)
+            .filter(id => id);
+
+          console.log('✅ Loaded applied job IDs (excluding withdrawn/cancelled):', this.appliedJobIds.length);
+          console.log('✅ Total applied jobs stored (including withdrawn):', this.appliedJobs.length);
+        }
+      }
+
+      console.log('📋 Final state:', {
+        savedJobIds: this.savedJobIds,
+        appliedJobIds: this.appliedJobIds,
+        appliedJobsWithStatus: this.appliedJobs.map((j: any) => ({
+          id: j.job_id || j.id,
+          status: j.status || j.application_status
+        }))
+      });
+    },
+    error: (error) => {
+      console.error('❌ Unexpected error in loadSavedAndAppliedJobs:', error);
+    }
+  });
+}
 
   /**
    * Get sort field for API query
@@ -1090,21 +1108,23 @@ checkProfileCompletion(): void {
   /**
    * Check if job is applied
    */
-  isJobApplied(jobId: string): boolean {
+  // ✅ FIXED isJobApplied - withdrawn = not applied
+isJobApplied(jobId: string): boolean {
   if (!this.appliedJobIds.includes(jobId)) {
     return false;
   }
-  
-  // ✅ FIX: Only remove if EXPLICITLY withdrawn, not if null/undefined
-  const job = this.jobs.find(j => this.getJobId(j) === jobId);
-  if (job) {
-    const status = (job as any).application_status;
-    if (status === 'withdrawn') {
+
+  // Check if this job has a withdrawn/cancelled application
+  const appliedJob = this.appliedJobs?.find(j => this.getJobId(j) === jobId);
+  if (appliedJob) {
+    const status = (appliedJob as any).application_status;
+    if (status === 'withdrawn' || status === 'cancelled') {
+      // Remove from appliedJobIds so the job shows as "Apply" again
       this.appliedJobIds = this.appliedJobIds.filter(id => id !== jobId);
       return false;
     }
   }
-  // ✅ If job not found in current view OR status is null, trust appliedJobIds
+
   return true;
 }
 
