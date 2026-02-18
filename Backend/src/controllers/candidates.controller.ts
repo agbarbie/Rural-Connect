@@ -807,84 +807,142 @@ export class CandidatesController {
   }
 
   async toggleShortlist(
-    req: AuthenticatedRequest,
-    res: Response,
-  ): Promise<Response> {
-    try {
-      const userId = req.user?.id;
-      const { userId: candidateUserId } = req.params;
-      const { jobId } = req.body;
+  req: AuthenticatedRequest,
+  res: Response,
+): Promise<Response> {
+  try {
+    const userId = req.user?.id;
+    const { userId: candidateUserId } = req.params;
+    const { jobId } = req.body;
 
-      if (!userId) {
-        return res.status(401).json({
-          success: false,
-          message: "User ID not found",
-        });
-      }
-
-      const employerQuery = `SELECT id as employer_id FROM employers WHERE user_id = $1`;
-      const employerResult = await pool.query(employerQuery, [userId]);
-
-      if (employerResult.rows.length === 0) {
-        return res.status(404).json({
-          success: false,
-          message: "Employer profile not found",
-        });
-      }
-
-      const employerId = employerResult.rows[0].employer_id;
-
-      const checkQuery = `
-        SELECT id FROM shortlisted_candidates
-        WHERE employer_id = $1 AND user_id = $2 AND job_id = $3
-      `;
-
-      const checkResult = await pool.query(checkQuery, [
-        employerId,
-        candidateUserId,
-        jobId,
-      ]);
-
-      if (checkResult.rows.length > 0) {
-        await pool.query("DELETE FROM shortlisted_candidates WHERE id = $1", [
-          checkResult.rows[0].id,
-        ]);
-
-        return res.json({
-          success: true,
-          message: "Candidate removed from shortlist",
-          data: { is_shortlisted: false },
-        });
-      } else {
-        await pool.query(
-          `INSERT INTO shortlisted_candidates (employer_id, user_id, job_id)
-           VALUES ($1, $2, $3)`,
-          [employerId, candidateUserId, jobId],
-        );
-
-        await pool.query(
-          `UPDATE job_applications
-           SET status = 'shortlisted', updated_at = NOW()
-           WHERE user_id = $1 AND job_id = $2`,
-          [candidateUserId, jobId],
-        );
-
-        return res.json({
-          success: true,
-          message: "Candidate added to shortlist",
-          data: { is_shortlisted: true },
-        });
-      }
-    } catch (error) {
-      console.error("Error toggling shortlist:", error);
-      return res.status(500).json({
+    if (!userId) {
+      return res.status(401).json({
         success: false,
-        message: "Failed to update shortlist",
-        error: error instanceof Error ? error.message : "Unknown error",
+        message: 'User ID not found',
       });
     }
-  }
 
+    if (!jobId) {
+      return res.status(400).json({
+        success: false,
+        message: 'jobId is required in request body',
+      });
+    }
+
+    // Get employer record
+    const employerResult = await pool.query(
+      'SELECT id as employer_id FROM employers WHERE user_id = $1',
+      [userId]
+    );
+
+    if (employerResult.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'Employer profile not found',
+      });
+    }
+
+    const employerId = employerResult.rows[0].employer_id;
+
+    // Check if already shortlisted
+    const checkResult = await pool.query(
+      `SELECT id FROM shortlisted_candidates
+       WHERE employer_id = $1 AND user_id = $2 AND job_id = $3`,
+      [employerId, candidateUserId, jobId]
+    );
+
+    if (checkResult.rows.length > 0) {
+      // ── REMOVE FROM SHORTLIST ──
+      await pool.query(
+        'DELETE FROM shortlisted_candidates WHERE id = $1',
+        [checkResult.rows[0].id]
+      );
+
+      // Revert application status back to 'reviewed'
+      await pool.query(
+        `UPDATE job_applications
+         SET status = 'reviewed', updated_at = NOW()
+         WHERE user_id = $1 AND job_id = $2`,
+        [candidateUserId, jobId]
+      );
+
+      return res.json({
+        success: true,
+        message: 'Candidate removed from shortlist',
+        data: { is_shortlisted: false },
+      });
+
+    } else {
+      // ── ADD TO SHORTLIST ──
+      await pool.query(
+        `INSERT INTO shortlisted_candidates (employer_id, user_id, job_id)
+         VALUES ($1, $2, $3)`,
+        [employerId, candidateUserId, jobId]
+      );
+
+      await pool.query(
+        `UPDATE job_applications
+         SET status = 'shortlisted', updated_at = NOW()
+         WHERE user_id = $1 AND job_id = $2`,
+        [candidateUserId, jobId]
+      );
+
+      // ✅ Get job title for the notification message
+      const jobResult = await pool.query(
+        'SELECT title FROM jobs WHERE id = $1',
+        [jobId]
+      );
+      const jobTitle = jobResult.rows.length > 0
+        ? jobResult.rows[0].title
+        : 'a position';
+
+      // ✅ Get employer/company name for the notification message
+      const companyResult = await pool.query(
+        `SELECT c.name as company_name
+         FROM employers e
+         LEFT JOIN companies c ON e.company_id = c.id
+         WHERE e.id = $1`,
+        [employerId]
+      );
+      const companyName = companyResult.rows.length > 0 && companyResult.rows[0].company_name
+        ? companyResult.rows[0].company_name
+        : 'An employer';
+
+      // ✅ Send notification to the jobseeker
+      await pool.query(
+        `INSERT INTO notifications (user_id, type, title, message, metadata, is_read, created_at)
+         VALUES ($1, 'application_shortlisted', $2, $3, $4, false, NOW())`,
+        [
+          candidateUserId,
+          '🎉 You have been shortlisted!',
+          `${companyName} has shortlisted your application for "${jobTitle}". Congratulations!`,
+          JSON.stringify({
+            job_id: jobId,
+            job_title: jobTitle,
+            employer_id: employerId,
+            company_name: companyName,
+            type: 'application_shortlisted'
+          })
+        ]
+      );
+
+      console.log(`✅ Shortlist notification sent to jobseeker ${candidateUserId} for job ${jobId}`);
+
+      return res.json({
+        success: true,
+        message: 'Candidate added to shortlist',
+        data: { is_shortlisted: true },
+      });
+    }
+  } catch (error) {
+    console.error('Error toggling shortlist:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to update shortlist',
+      error: error instanceof Error ? error.message : 'Unknown error',
+    });
+  }
+}
   async inviteCandidate(
     req: AuthenticatedRequest,
     res: Response,
