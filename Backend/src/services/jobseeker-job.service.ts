@@ -447,39 +447,38 @@ export class JobseekerJobService {
     }
   }
 
-  async applyToJob(userId: string, jobId: string, applicationData: ApplicationData): Promise<ServiceResponse<JobApplication>> {
+ async applyToJob(userId: string, jobId: string, applicationData: ApplicationData): Promise<ServiceResponse<JobApplication>> {
   const client = await this.db.connect();
   try {
     await client.query('BEGIN');
 
     console.log(`📝 Applying to job ${jobId} for user ${userId}`);
 
-    // Check if already applied
-    // ✅ NEW - only blocks if application is active (not withdrawn/cancelled)
-const existingApplication = await client.query(
-  `SELECT id, status FROM job_applications 
-   WHERE user_id = $1 AND job_id = $2 
-   AND status NOT IN ('withdrawn', 'cancelled')`,
-  [userId, jobId]
-);
+    // Block if active (non-withdrawn/cancelled) application already exists
+    const existingApplication = await client.query(
+      `SELECT id, status FROM job_applications 
+       WHERE user_id = $1 AND job_id = $2 
+       AND status NOT IN ('withdrawn', 'cancelled')`,
+      [userId, jobId]
+    );
 
-if (existingApplication.rows.length > 0) {
-  await client.query('ROLLBACK');
-  return {
-    success: false,
-    message: 'You have already applied to this job'
-  };
-}
+    if (existingApplication.rows.length > 0) {
+      await client.query('ROLLBACK');
+      return {
+        success: false,
+        message: 'You have already applied to this job'
+      };
+    }
 
-// ✅ NEW - if a withdrawn application exists, delete it so INSERT works cleanly
-await client.query(
-  `DELETE FROM job_applications 
-   WHERE user_id = $1 AND job_id = $2 
-   AND status IN ('withdrawn', 'cancelled')`,
-  [userId, jobId]
-);
+    // Clean up any previously withdrawn/cancelled application so INSERT is clean
+    await client.query(
+      `DELETE FROM job_applications 
+       WHERE user_id = $1 AND job_id = $2 
+       AND status IN ('withdrawn', 'cancelled')`,
+      [userId, jobId]
+    );
 
-    // Check if job exists and is open
+    // Check job exists and is open; also fetch employer_id (employers table row id)
     const jobResult = await client.query(
       "SELECT id, title, employer_id FROM jobs WHERE id = $1 AND status = 'Open'",
       [jobId]
@@ -508,7 +507,7 @@ await client.query(
       applicationData.expectedSalary || null, applicationData.availabilityDate || null
     ]);
 
-    // Update job applications count
+    // Increment job applications count
     await client.query(
       'UPDATE jobs SET applications_count = applications_count + 1 WHERE id = $1',
       [jobId]
@@ -519,7 +518,7 @@ await client.query(
     const application = result.rows[0] as JobApplication;
     console.log('✅ Application submitted successfully');
 
-    // Get applicant name for notification
+    // ── Get applicant name ──
     const applicantResult = await this.db.query(
       'SELECT first_name, last_name FROM users WHERE id = $1',
       [userId]
@@ -529,27 +528,30 @@ await client.query(
       ? `${applicantResult.rows[0].first_name} ${applicantResult.rows[0].last_name}`
       : 'A candidate';
 
-    // ✅ FIX: Look up employer's user_id from employers table
-    // job.employer_id is the employers TABLE row id, NOT the users.id
-    // Notifications are stored/queried by user_id, so we need the correct one
+    // ── ✅ FIX: Resolve employer's users.id from employers table ──
+    // job.employer_id is the employers TABLE row id (NOT users.id).
+    // We must look up the corresponding users.id and pass THAT to
+    // notifyEmployerAboutApplication, which now accepts users.id directly.
     const employerUserResult = await this.db.query(
       'SELECT user_id FROM employers WHERE id = $1',
       [job.employer_id]
     );
 
     if (employerUserResult.rows.length > 0) {
-      const employerUserId = employerUserResult.rows[0].user_id;
-      console.log(`🔔 Notifying employer (user_id: ${employerUserId}) about application from ${applicantName}`);
+      const employerUserId = employerUserResult.rows[0].user_id; // ← users.id ✅
+      console.log(`🔔 Notifying employer (users.id: ${employerUserId}) about application from ${applicantName}`);
 
+      // Pass users.id — notifyEmployerAboutApplication no longer does a second
+      // employers-table lookup, so there is no ID-type mismatch.
       this.notificationService.notifyEmployerAboutApplication(
-        employerUserId,  // ✅ Correct: users.id, not employers.id
+        employerUserId,    // ← users.id (correct)
         jobId,
         job.title,
         applicantName,
         application.id
       ).catch((err: any) => console.error('❌ Failed to notify employer:', err));
     } else {
-      console.error(`❌ Could not find employer user_id for employer_id: ${job.employer_id}`);
+      console.error(`❌ Could not find users.id for employer_id (employers.id): ${job.employer_id}`);
     }
 
     return {

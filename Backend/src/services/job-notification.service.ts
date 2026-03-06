@@ -1,4 +1,4 @@
-// src/services/job-notification.service.ts - FIXED VERSION WITH APPLICANT NAMES
+// src/services/job-notification.service.ts - FIXED: employer ID mismatch corrected
 import { Pool } from 'pg';
 import pool from '../db/db.config';
 
@@ -147,10 +147,18 @@ export class JobNotificationService {
   }
 
   /**
-   * 🔥 FIXED: Notify employer about new application - WITH ENHANCED APPLICANT INFO
+   * 🔥 FIXED: notifyEmployerAboutApplication now accepts employer's users.id directly.
+   *
+   * PREVIOUS BUG: The parameter was named "employerId" but callers were passing
+   * the users.id (not employers.id), and then the method tried to look up
+   * `WHERE e.id = $1` (treating it as employers.id) — causing a mismatch and
+   * silently failing to find the employer, so no notification was ever created.
+   *
+   * FIX: Accept employerUserId (users.id) directly and use it without a
+   * redundant lookup. We already have the correct users.id from the caller.
    */
   async notifyEmployerAboutApplication(
-    employerId: string,
+    employerUserId: string,   // ← This is users.id (NOT employers.id)
     jobId: string,
     jobTitle: string,
     applicantName: string,
@@ -161,61 +169,55 @@ export class JobNotificationService {
       console.log('📢 NOTIFYING EMPLOYER ABOUT APPLICATION');
       console.log('📢 ========================================');
       console.log('📢 Input parameters:', {
-        employerId,
+        employerUserId,
         jobId,
         jobTitle,
         applicantName,
         applicationId
       });
 
-      // Get employer's USER_ID from employer_id
-      const employerQuery = await this.db.query(`
-        SELECT e.id, e.user_id, u.email, u.first_name, u.last_name, u.user_type
-        FROM employers e
-        JOIN users u ON e.user_id = u.id
-        WHERE e.id = $1
-      `, [employerId]);
+      // ✅ FIX: Verify the user exists and IS an employer using users.id directly.
+      // No secondary employers-table lookup needed — we already have the correct id.
+      const userCheck = await this.db.query(`
+        SELECT id, email, first_name, last_name, user_type
+        FROM users
+        WHERE id = $1
+      `, [employerUserId]);
 
-      if (employerQuery.rows.length === 0) {
-        console.error('❌ Employer not found for employer_id:', employerId);
-        throw new Error(`Employer ${employerId} not found`);
+      if (userCheck.rows.length === 0) {
+        console.error('❌ Employer user not found for users.id:', employerUserId);
+        throw new Error(`User ${employerUserId} not found`);
       }
 
-      const employer = employerQuery.rows[0];
-      const employerUserId = employer.user_id;
-
-      console.log('✅ Found employer:', {
-        employerId: employer.id,
-        userId: employerUserId,
-        email: employer.email,
-        name: `${employer.first_name} ${employer.last_name}`,
-        userType: employer.user_type
+      const user = userCheck.rows[0];
+      console.log('✅ Found employer user:', {
+        userId: user.id,
+        email: user.email,
+        name: `${user.first_name} ${user.last_name}`,
+        userType: user.user_type
       });
 
-      if (employer.user_type !== 'employer') {
-        console.error('❌ User is not an employer:', employer.user_type);
+      if (user.user_type !== 'employer') {
+        console.error('❌ User is not an employer:', user.user_type);
         throw new Error('User is not an employer');
       }
 
       console.log('✅ User type verified: EMPLOYER');
       console.log('📬 Creating notification for employer user_id:', employerUserId);
 
-      // 🔥 ENHANCED: Include applicant name in the message
       const notificationMessage = `${applicantName} has applied for "${jobTitle}". Review their application now!`;
 
-      // 🔥 ENHANCED: Include more applicant details in metadata
       await this.createNotification(
-        employerUserId,
+        employerUserId,   // ← users.id used directly — no mismatch
         'application_received',
         notificationMessage,
         {
           job_id: jobId,
           job_title: jobTitle,
-          applicant_name: applicantName, // ✅ Store in metadata
+          applicant_name: applicantName,
           application_id: applicationId,
           action: 'new_application',
           timestamp: new Date().toISOString(),
-          // 🔥 NEW: Add action URL for quick navigation
           action_url: `/employer/applications?jobId=${jobId}&applicationId=${applicationId}`
         }
       );
@@ -228,7 +230,7 @@ export class JobNotificationService {
       console.error('❌ Error details:', {
         message: error.message,
         stack: error.stack,
-        employerId,
+        employerUserId,
         jobId
       });
       console.error('📢 ========================================');
