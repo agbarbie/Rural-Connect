@@ -537,12 +537,20 @@ export class CandidatesController {
    * and a verified fallback so the shortlist action never silently swallows
    * notification failures.
    */
-  async toggleShortlist(
+ /**
+ * Toggle shortlist status for a candidate
+ * POST /api/employer/candidates/:userId/shortlist
+ *
+ * ROOT CAUSE FIX:
+ * shortlisted_candidates.employer_id FK → users.id
+ * So we must store the USER's id (from JWT), NOT the employers table row id.
+ */
+async toggleShortlist(
   req: AuthenticatedRequest,
   res: Response,
 ): Promise<Response> {
   try {
-    const userId = req.user?.id;
+    const userId = req.user?.id; // This is the user's ID from JWT — use this directly
     const { userId: candidateUserId } = req.params;
     const { jobId } = req.body;
 
@@ -555,29 +563,23 @@ export class CandidatesController {
       return res.status(400).json({ success: false, message: 'jobId is required in request body' });
     }
 
-    // ── 1. Resolve employer + company name ─────────────────────────────────
-    let employerId: string;
-    let resolvedCompanyName: string;
-
+    // ── 1. Get company name (for notification message) ──────────────────────
+    // We only need company_name here — we use userId directly as employer_id
+    let resolvedCompanyName = 'An employer';
     try {
-      const employerResult = await pool.query(
-        `SELECT e.id as employer_id, c.name as company_name
+      const companyResult = await pool.query(
+        `SELECT c.name as company_name
          FROM employers e
          LEFT JOIN companies c ON e.company_id = c.id
          WHERE e.user_id = $1`,
         [userId]
       );
-
-      if (employerResult.rows.length === 0) {
-        return res.status(404).json({ success: false, message: 'Employer profile not found' });
+      if (companyResult.rows.length > 0) {
+        resolvedCompanyName = companyResult.rows[0].company_name || 'An employer';
       }
-
-      employerId = employerResult.rows[0].employer_id;
-      resolvedCompanyName = employerResult.rows[0].company_name || 'An employer';
-      console.log('✅ Employer resolved:', { employerId, resolvedCompanyName });
+      console.log('✅ Company name resolved:', resolvedCompanyName);
     } catch (err: any) {
-      console.error('❌ Failed to resolve employer:', err.message);
-      return res.status(500).json({ success: false, message: 'Failed to resolve employer', detail: err.message });
+      console.error('❌ Failed to get company name (non-critical):', err.message);
     }
 
     // ── 2. Get job title ────────────────────────────────────────────────────
@@ -590,56 +592,43 @@ export class CandidatesController {
       console.error('❌ Failed to get job title (non-critical):', err.message);
     }
 
-    // ── 3. Detect whether shortlisted_candidates has a job_id column ────────
-    //      Some deployments created the table without job_id. We check the
-    //      information_schema once and adapt all queries accordingly.
-    let hasJobIdColumn = false;
-    try {
-      const colCheck = await pool.query(
-        `SELECT column_name
-         FROM information_schema.columns
-         WHERE table_name = 'shortlisted_candidates'
-           AND column_name = 'job_id'`
-      );
-      hasJobIdColumn = colCheck.rows.length > 0;
-      console.log('📋 shortlisted_candidates has job_id column:', hasJobIdColumn);
-    } catch (err: any) {
-      console.error('❌ Failed to check schema (non-critical):', err.message);
-    }
-
-    // ── 4. Check if already shortlisted ────────────────────────────────────
+    // ── 3. Check if already shortlisted ────────────────────────────────────
+    // employer_id in shortlisted_candidates = users.id (the JWT userId)
     let alreadyShortlisted = false;
     let existingRowId: string | null = null;
 
     try {
-      let checkResult;
-      if (hasJobIdColumn) {
-        checkResult = await pool.query(
-          `SELECT id FROM shortlisted_candidates
-           WHERE employer_id = $1 AND user_id = $2 AND job_id = $3`,
-          [employerId, candidateUserId, jobId]
-        );
-      } else {
-        checkResult = await pool.query(
-          `SELECT id FROM shortlisted_candidates
-           WHERE employer_id = $1 AND user_id = $2`,
-          [employerId, candidateUserId]
-        );
-      }
+      const checkResult = await pool.query(
+        `SELECT id FROM shortlisted_candidates
+         WHERE employer_id = $1 AND user_id = $2 AND job_id = $3`,
+        [userId, candidateUserId, jobId]
+      );
       alreadyShortlisted = checkResult.rows.length > 0;
       existingRowId = alreadyShortlisted ? checkResult.rows[0].id : null;
-      console.log('📋 Already shortlisted:', alreadyShortlisted, '| Row ID:', existingRowId);
+      console.log('📋 Already shortlisted:', alreadyShortlisted);
     } catch (err: any) {
-      console.error('❌ Failed to check shortlist status:', err.message);
-      return res.status(500).json({ success: false, message: 'Failed to check shortlist status', detail: err.message });
+      // Fallback: try without job_id in case that column is missing
+      try {
+        const checkResult2 = await pool.query(
+          `SELECT id FROM shortlisted_candidates
+           WHERE employer_id = $1 AND user_id = $2`,
+          [userId, candidateUserId]
+        );
+        alreadyShortlisted = checkResult2.rows.length > 0;
+        existingRowId = alreadyShortlisted ? checkResult2.rows[0].id : null;
+        console.log('📋 (fallback check) Already shortlisted:', alreadyShortlisted);
+      } catch (err2: any) {
+        console.error('❌ Failed to check shortlist status:', err2.message);
+        return res.status(500).json({ success: false, message: 'Failed to check shortlist status', detail: err2.message });
+      }
     }
 
-    // ── 5a. REMOVE from shortlist ───────────────────────────────────────────
+    // ── 4a. REMOVE from shortlist ───────────────────────────────────────────
     if (alreadyShortlisted && existingRowId) {
       try {
         await pool.query('DELETE FROM shortlisted_candidates WHERE id = $1', [existingRowId]);
       } catch (err: any) {
-        console.error('❌ Failed to delete from shortlisted_candidates:', err.message);
+        console.error('❌ Failed to delete shortlist row:', err.message);
         return res.status(500).json({ success: false, message: 'Failed to remove from shortlist', detail: err.message });
       }
 
@@ -650,7 +639,7 @@ export class CandidatesController {
           [candidateUserId, jobId]
         );
       } catch (err: any) {
-        console.error('❌ Failed to update application status to reviewed (non-critical):', err.message);
+        console.error('⚠️ Failed to revert application status (non-critical):', err.message);
       }
 
       console.log(`✅ Candidate ${candidateUserId} removed from shortlist`);
@@ -661,34 +650,46 @@ export class CandidatesController {
       });
     }
 
-    // ── 5b. ADD to shortlist ────────────────────────────────────────────────
+    // ── 4b. ADD to shortlist ────────────────────────────────────────────────
     try {
-      if (hasJobIdColumn) {
-        await pool.query(
-          `INSERT INTO shortlisted_candidates (employer_id, user_id, job_id)
-           VALUES ($1, $2, $3)
-           ON CONFLICT DO NOTHING`,
-          [employerId, candidateUserId, jobId]
-        );
-      } else {
-        await pool.query(
-          `INSERT INTO shortlisted_candidates (employer_id, user_id)
-           VALUES ($1, $2)
-           ON CONFLICT DO NOTHING`,
-          [employerId, candidateUserId]
-        );
-      }
-      console.log(`✅ Candidate ${candidateUserId} added to shortlisted_candidates`);
+      // Try with job_id first
+      await pool.query(
+        `INSERT INTO shortlisted_candidates (employer_id, user_id, job_id)
+         VALUES ($1, $2, $3)
+         ON CONFLICT DO NOTHING`,
+        [userId, candidateUserId, jobId]  // ✅ userId (not employerId from employers table)
+      );
+      console.log(`✅ Inserted into shortlisted_candidates using userId=${userId}`);
     } catch (err: any) {
-      console.error('❌ Failed to insert into shortlisted_candidates:', err.message, err.detail);
-      return res.status(500).json({
-        success: false,
-        message: 'Failed to add to shortlist',
-        detail: err.message,
-        hint: err.detail || null,
-      });
+      if (err.message?.includes('job_id')) {
+        // job_id column doesn't exist — try without it
+        try {
+          await pool.query(
+            `INSERT INTO shortlisted_candidates (employer_id, user_id)
+             VALUES ($1, $2)
+             ON CONFLICT DO NOTHING`,
+            [userId, candidateUserId]
+          );
+          console.log(`✅ Inserted into shortlisted_candidates (no job_id column)`);
+        } catch (err2: any) {
+          console.error('❌ Insert failed (fallback):', err2.message, err2.detail);
+          return res.status(500).json({
+            success: false,
+            message: 'Failed to add to shortlist',
+            detail: err2.message,
+          });
+        }
+      } else {
+        console.error('❌ Insert failed:', err.message, err.detail);
+        return res.status(500).json({
+          success: false,
+          message: 'Failed to add to shortlist',
+          detail: err.message,
+        });
+      }
     }
 
+    // ── 5. Update application status ───────────────────────────────────────
     try {
       await pool.query(
         `UPDATE job_applications SET status = 'shortlisted', updated_at = NOW()
@@ -697,7 +698,7 @@ export class CandidatesController {
       );
       console.log('✅ Application status updated to shortlisted');
     } catch (err: any) {
-      console.error('❌ Failed to update application status to shortlisted (non-critical):', err.message);
+      console.error('⚠️ Failed to update application status (non-critical):', err.message);
     }
 
     // ── 6. Send notification to jobseeker ───────────────────────────────────
@@ -708,9 +709,9 @@ export class CandidatesController {
       );
 
       if (jobseekerCheck.rows.length === 0) {
-        console.error(`❌ Notification skipped: user ${candidateUserId} not found`);
+        console.error(`⚠️ Notification skipped: user ${candidateUserId} not found`);
       } else if (jobseekerCheck.rows[0].user_type !== 'jobseeker') {
-        console.error(`❌ Notification skipped: user ${candidateUserId} is ${jobseekerCheck.rows[0].user_type}, not jobseeker`);
+        console.error(`⚠️ Notification skipped: user is ${jobseekerCheck.rows[0].user_type}, not jobseeker`);
       } else {
         const notifResult = await pool.query(
           `INSERT INTO notifications
@@ -721,11 +722,11 @@ export class CandidatesController {
             candidateUserId,
             'application_shortlisted',
             "🎉 You've been shortlisted!",
-            `${resolvedCompanyName} has shortlisted your application for "${jobTitle}". Keep an eye on your inbox for next steps!`,
+            `${resolvedCompanyName} has shortlisted your application for "${jobTitle}". Keep an eye out for next steps!`,
             JSON.stringify({
               job_id: jobId,
               job_title: jobTitle,
-              employer_id: employerId,
+              employer_id: userId,
               company_name: resolvedCompanyName,
               type: 'application_shortlisted',
               action_url: '/jobseeker/applications',
@@ -733,11 +734,10 @@ export class CandidatesController {
             }),
           ]
         );
-        console.log(`✅ Shortlist notification created (id: ${notifResult.rows[0]?.id}) for jobseeker ${candidateUserId}`);
+        console.log(`✅ Notification created (id: ${notifResult.rows[0]?.id}) for jobseeker ${candidateUserId}`);
       }
     } catch (notifErr: any) {
-      // Never let notification failure block the shortlist response
-      console.error('❌ Notification failed (non-critical):', {
+      console.error('⚠️ Notification failed (non-critical):', {
         message: notifErr.message,
         code: notifErr.code,
         detail: notifErr.detail,
@@ -746,7 +746,7 @@ export class CandidatesController {
 
     return res.json({
       success: true,
-      message: `${candidateUserId} successfully shortlisted`,
+      message: `Candidate shortlisted successfully`,
       data: { is_shortlisted: true },
     });
 
