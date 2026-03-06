@@ -1,4 +1,4 @@
-// src/app/employer/candidates/candidates.component.ts - FIXED VERSION
+// src/app/employer/candidates/candidates.component.ts
 
 import { Component, OnInit, OnDestroy, Inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
@@ -24,8 +24,16 @@ import {
   TrainingService,
   Training,
 } from '../../../../../services/training.service';
-import { RatingComponent } from '../rating/rating.component'; 
+import { RatingComponent } from '../rating/rating.component';
 import { RatingService } from '../../../../../services/rating.service';
+
+// ✅ Toast notification interface
+interface Toast {
+  id: string;
+  message: string;
+  type: 'success' | 'error' | 'info' | 'warning';
+  candidateName?: string;
+}
 
 @Component({
   selector: 'app-candidates',
@@ -37,7 +45,7 @@ import { RatingService } from '../../../../../services/rating.service';
 export class CandidatesComponent implements OnInit, OnDestroy {
   private destroy$ = new Subject<void>();
 
-  // Data properties
+  // Data
   candidates: Candidate[] = [];
   filteredCandidates: Candidate[] = [];
   jobPosts: JobPost[] = [];
@@ -84,7 +92,12 @@ export class CandidatesComponent implements OnInit, OnDestroy {
   showRatingModal = false;
   candidateToRate: any = null;
 
-  // Expose Math to template
+  // ✅ Toast notifications for employer feedback
+  toasts: Toast[] = [];
+
+  // Shortlist loading state — tracks which candidate is being shortlisted
+  shortlistingId: string | null = null;
+
   Math = Math;
 
   constructor(
@@ -96,7 +109,6 @@ export class CandidatesComponent implements OnInit, OnDestroy {
   ) {}
 
   ngOnInit() {
-    console.log('🚀 Candidates Component initialized');
     this.loadJobPosts();
     this.loadEmployerTrainings();
     this.initializeChat();
@@ -107,97 +119,82 @@ export class CandidatesComponent implements OnInit, OnDestroy {
     this.destroy$.complete();
   }
 
-  // ============================================
-  // RATING HELPER METHODS
-  // ============================================
+  // ============================================================
+  // TOAST NOTIFICATION SYSTEM (employer feedback)
+  // ============================================================
 
   /**
-   * Get star array for rating display (full, half, empty stars)
-   * Returns array of 1 (full), 0.5 (half), 0 (empty)
+   * Show a toast to the employer.
+   * type: 'success' | 'error' | 'info' | 'warning'
+   * Auto-dismisses after 4 seconds.
    */
+  showToast(
+    message: string,
+    type: Toast['type'] = 'success',
+    candidateName?: string
+  ): void {
+    const id = Date.now().toString();
+    this.toasts.push({ id, message, type, candidateName });
+    setTimeout(() => this.dismissToast(id), 4000);
+  }
+
+  dismissToast(id: string): void {
+    this.toasts = this.toasts.filter(t => t.id !== id);
+  }
+
+  getToastIcon(type: Toast['type']): string {
+    const icons: Record<Toast['type'], string> = {
+      success: 'fa-check-circle',
+      error: 'fa-times-circle',
+      info: 'fa-info-circle',
+      warning: 'fa-exclamation-triangle',
+    };
+    return icons[type];
+  }
+
+  // ============================================================
+  // RATING HELPER METHODS
+  // ============================================================
+
   getStarArray(rating: number): number[] {
     const stars: number[] = [];
     const fullStars = Math.floor(rating);
     const hasHalfStar = rating % 1 >= 0.5;
-    
-    // Add full stars
-    for (let i = 0; i < fullStars; i++) {
-      stars.push(1);
-    }
-    
-    // Add half star if needed
-    if (hasHalfStar && fullStars < 5) {
-      stars.push(0.5);
-    }
-    
-    // Fill remaining with empty stars
-    const remaining = 5 - stars.length;
-    for (let i = 0; i < remaining; i++) {
-      stars.push(0);
-    }
-    
+    for (let i = 0; i < fullStars; i++) stars.push(1);
+    if (hasHalfStar && fullStars < 5) stars.push(0.5);
+    while (stars.length < 5) stars.push(0);
     return stars;
   }
 
-  /**
-   * Format rating date (e.g., "2 days ago", "3 weeks ago")
-   */
   formatRatingDate(dateString: string): string {
     if (!dateString) return '';
-    
     const date = new Date(dateString);
     const now = new Date();
-    const diffTime = Math.abs(now.getTime() - date.getTime());
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    
+    const diffDays = Math.ceil(Math.abs(now.getTime() - date.getTime()) / 86400000);
     if (diffDays === 0) return 'Today';
     if (diffDays === 1) return 'Yesterday';
     if (diffDays < 7) return `${diffDays} days ago`;
-    if (diffDays < 30) {
-      const weeks = Math.floor(diffDays / 7);
-      return `${weeks} ${weeks === 1 ? 'week' : 'weeks'} ago`;
-    }
-    if (diffDays < 365) {
-      const months = Math.floor(diffDays / 30);
-      return `${months} ${months === 1 ? 'month' : 'months'} ago`;
-    }
-    
-    return date.toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-    });
+    if (diffDays < 30) { const w = Math.floor(diffDays / 7); return `${w} ${w === 1 ? 'week' : 'weeks'} ago`; }
+    if (diffDays < 365) { const m = Math.floor(diffDays / 30); return `${m} ${m === 1 ? 'month' : 'months'} ago`; }
+    return date.toLocaleDateString('en-US', { year: 'numeric', month: 'short' });
   }
 
-  /**
-   * Calculate rating percentage for distribution bar
-   */
   getRatingPercentage(count: number, total: number): number {
-    if (total === 0) return 0;
-    return Math.round((count / total) * 100);
+    return total === 0 ? 0 : Math.round((count / total) * 100);
   }
 
-  /**
-   * Get initials from name (for avatars)
-   */
   getInitials(name: string): string {
     if (!name) return '?';
     const parts = name.trim().split(' ');
-    if (parts.length >= 2) {
-      return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
-    }
-    return name.substring(0, 2).toUpperCase();
+    return parts.length >= 2
+      ? `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase()
+      : name.substring(0, 2).toUpperCase();
   }
 
-  /**
-   * Check if candidate has ratings
-   */
   hasRatings(candidate: Candidate): boolean {
     return (candidate.total_ratings ?? 0) > 0;
   }
 
-  /**
-   * Get rating badge class based on average rating
-   */
   getRatingBadgeClass(rating: number): string {
     if (rating >= 4.5) return 'rating-excellent';
     if (rating >= 4.0) return 'rating-good';
@@ -205,54 +202,29 @@ export class CandidatesComponent implements OnInit, OnDestroy {
     return 'rating-poor';
   }
 
-  /**
-   * Check if profile has skill ratings
-   * ✅ FIXED: Removed unnecessary optional chaining on non-nullable properties
-   */
   hasSkillRatings(profile: CandidateProfile | null): boolean {
-    if (!profile || !profile.rating_stats || !profile.rating_stats.skill_ratings) {
-      return false;
-    }
-    
-    const skills = profile.rating_stats.skill_ratings;
-    return !!(
-      (skills.technical ?? 0) > 0 ||
-      (skills.communication ?? 0) > 0 ||
-      (skills.professionalism ?? 0) > 0 ||
-      (skills.quality ?? 0) > 0 ||
-      (skills.timeliness ?? 0) > 0
-    );
+    if (!profile?.rating_stats?.skill_ratings) return false;
+    const s = profile.rating_stats.skill_ratings;
+    return !!((s.technical ?? 0) > 0 || (s.communication ?? 0) > 0 ||
+      (s.professionalism ?? 0) > 0 || (s.quality ?? 0) > 0 || (s.timeliness ?? 0) > 0);
   }
 
-  /**
-   * Get rating distribution value safely
-   * ✅ FIXED: Removed unnecessary optional chaining
-   */
   getRatingDistributionValue(
     distribution: { 1: number; 2: number; 3: number; 4: number; 5: number } | undefined,
     rating: number
   ): number {
     if (!distribution) return 0;
-    
-    // Use type assertion to handle the index signature
-    const dist = distribution as { [key: number]: number };
-    return dist[rating] || 0;
+    return (distribution as { [key: number]: number })[rating] || 0;
   }
 
-  // ============================================
-  // PROFILE MODAL FUNCTIONS
-  // ============================================
+  // ============================================================
+  // PROFILE MODAL
+  // ============================================================
 
-  /**
-   * Open profile modal and load full candidate data
-   */
   viewFullProfile(candidateId: string): void {
-    console.log('📋 Loading full profile for candidate:', candidateId);
-
     this.showProfileModal = true;
     this.isLoadingProfile = true;
     this.currentProfileData = null;
-
     const jobId = this.selectedJob === 'all' ? undefined : this.selectedJob;
 
     this.candidatesService
@@ -262,111 +234,89 @@ export class CandidatesComponent implements OnInit, OnDestroy {
         next: (response) => {
           if (response.success && response.data) {
             this.currentProfileData = response.data;
-            console.log('✅ Profile loaded:', this.currentProfileData);
           } else {
-            console.error('❌ No profile data received');
-            alert('Failed to load candidate profile');
+            this.showToast('Failed to load candidate profile.', 'error');
             this.closeProfileModal();
           }
           this.isLoadingProfile = false;
         },
-        error: (error) => {
-          console.error('❌ Error loading profile:', error);
-          alert('Failed to load candidate profile');
+        error: () => {
+          this.showToast('Failed to load candidate profile.', 'error');
           this.closeProfileModal();
           this.isLoadingProfile = false;
         },
       });
   }
 
-  /**
-   * Close profile modal
-   */
   closeProfileModal(): void {
     this.showProfileModal = false;
     this.currentProfileData = null;
     this.isLoadingProfile = false;
   }
 
-  /**
-   * Toggle shortlist from modal
-   * ✅ FIXED: Removed unnecessary optional chaining
-   */
   toggleShortlistFromModal(): void {
-    if (
-      !this.currentProfileData ||
-      !this.selectedJob ||
-      this.selectedJob === 'all'
-    ) {
-      alert('Please select a specific job to shortlist candidates');
+    if (!this.currentProfileData || !this.selectedJob || this.selectedJob === 'all') {
+      this.showToast('Please select a specific job to shortlist candidates.', 'warning');
       return;
     }
 
+    const candidateName = this.currentProfileData.name;
+    this.shortlistingId = this.currentProfileData.user_id;
+
     this.candidatesService
       .toggleShortlist(this.currentProfileData.user_id, this.selectedJob)
-      .pipe(takeUntil(this.destroy$))
+      .pipe(
+        takeUntil(this.destroy$),
+        finalize(() => { this.shortlistingId = null; })
+      )
       .subscribe({
         next: (response) => {
-          if (response.success && this.currentProfileData && this.currentProfileData.application) {
-            this.currentProfileData.application.status = response.data.is_shortlisted
+          if (response.success && this.currentProfileData?.application) {
+            const isNowShortlisted = response.data.is_shortlisted;
+            this.currentProfileData.application.status = isNowShortlisted
               ? 'shortlisted'
               : 'reviewed';
 
-            // Update in candidates list
-            const candidate = this.candidates.find(
-              (c) => c.id === this.currentProfileData!.user_id
-            );
-            if (candidate) {
-              candidate.is_shortlisted = response.data.is_shortlisted;
-            }
+            // Sync in the candidates list
+            const candidate = this.candidates.find(c => c.id === this.currentProfileData!.user_id);
+            if (candidate) candidate.is_shortlisted = isNowShortlisted;
 
-            console.log('✅ Shortlist status updated');
+            // ✅ Show employer success toast
+            if (isNowShortlisted) {
+              this.showToast(
+                `Successfully shortlisted ${candidateName}! They have been notified.`,
+                'success',
+                candidateName
+              );
+            } else {
+              this.showToast(`${candidateName} removed from shortlist.`, 'info', candidateName);
+            }
           }
         },
-        error: (error) => {
-          console.error('❌ Error toggling shortlist:', error);
-          alert('Failed to update shortlist status');
+        error: () => {
+          this.showToast('Failed to update shortlist status. Please try again.', 'error');
         },
       });
   }
 
-  /**
-   * Check if profile has social links
-   */
   hasSocialLinks(profile: CandidateProfile | null): boolean {
     if (!profile) return false;
-    const links = profile.social_links;
-    return !!(
-      links.linkedin ||
-      links.github ||
-      links.portfolio ||
-      links.website
-    );
+    const l = profile.social_links;
+    return !!(l.linkedin || l.github || l.portfolio || l.website);
   }
 
-  /**
-   * Format date for display
-   */
   formatDate(dateString: string): string {
     if (!dateString) return '';
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
+    return new Date(dateString).toLocaleDateString('en-US', {
+      year: 'numeric', month: 'short', day: 'numeric',
     });
   }
 
-  // ============================================
-  // RATING MODAL FUNCTIONS
-  // ============================================
+  // ============================================================
+  // RATING MODAL
+  // ============================================================
 
-  /**
-   * Open rating modal for a candidate
-   */
   openRatingModal(candidate: any): void {
-    console.log('📝 Opening rating modal for candidate:', candidate.name);
-    
     this.candidateToRate = {
       user_id: candidate.id,
       name: candidate.name,
@@ -374,81 +324,51 @@ export class CandidatesComponent implements OnInit, OnDestroy {
       profile_image: candidate.profile_picture,
       job_id: this.selectedJob !== 'all' ? this.selectedJob : candidate.job_id,
       job_title: this.getJobTitleForCandidate(candidate),
-      application_id: candidate.application_id
+      application_id: candidate.application_id,
     };
-    
     this.showRatingModal = true;
   }
 
-  /**
-   * Get job title for candidate
-   */
   private getJobTitleForCandidate(candidate: any): string | undefined {
     if (this.selectedJob !== 'all') {
-      const selectedJobPost = this.jobPosts.find(j => j.id === this.selectedJob);
-      return selectedJobPost?.title;
+      return this.jobPosts.find(j => j.id === this.selectedJob)?.title;
     }
     return candidate.job_title;
   }
 
-  /**
-   * Close rating modal
-   */
   closeRatingModal(): void {
     this.showRatingModal = false;
     this.candidateToRate = null;
   }
 
-  /**
-   * Handle rating submission
-   */
   onRatingSubmitted(rating: any): void {
-    console.log('✅ Rating submitted:', rating);
-    alert(`✅ Successfully rated ${this.candidateToRate.name}!`);
+    this.showToast(`Successfully rated ${this.candidateToRate.name}!`, 'success');
     this.closeRatingModal();
-    this.loadCandidates(); // Refresh to show updated ratings
+    this.loadCandidates();
   }
 
-  // ============================================
-  // DATA LOADING FUNCTIONS
-  // ============================================
+  // ============================================================
+  // DATA LOADING
+  // ============================================================
 
   loadEmployerTrainings(): void {
     const employerId = localStorage.getItem('userId');
-    if (!employerId) {
-      console.warn('⚠️ No employer ID found');
-      return;
-    }
-
-    console.log('📚 Loading employer trainings...');
+    if (!employerId) return;
 
     this.trainingService
-      .getMyTrainings(
-        {
-          status: 'published',
-          limit: 100,
-        },
-        employerId
-      )
+      .getMyTrainings({ status: 'published', limit: 100 }, employerId)
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: (response) => {
-          if (response.success && response.data && response.data.trainings) {
+          if (response.success && response.data?.trainings) {
             this.availableTrainings = response.data.trainings;
-            console.log(
-              `✅ Loaded ${this.availableTrainings.length} trainings`
-            );
           }
         },
-        error: (error) => {
-          console.error('❌ Error loading trainings:', error);
-        },
+        error: (error) => console.error('❌ Error loading trainings:', error),
       });
   }
 
   loadJobPosts(): void {
-    console.log('📋 Loading job posts...');
-
     this.candidatesService
       .getJobPosts()
       .pipe(takeUntil(this.destroy$))
@@ -456,28 +376,20 @@ export class CandidatesComponent implements OnInit, OnDestroy {
         next: (response) => {
           if (response.success && response.data) {
             this.jobPosts = response.data;
-            console.log('✅ Job posts loaded:', this.jobPosts.length);
-            this.loadCandidates();
           }
-        },
-        error: (error) => {
-          console.error('❌ Error loading job posts:', error);
           this.loadCandidates();
         },
+        error: () => this.loadCandidates(),
       });
   }
 
   loadCandidates(): void {
-    console.log('🔄 Loading candidates...');
-
     this.isLoading = true;
     this.lastRefreshTime = new Date();
 
     const query: CandidatesQuery = {
       job_id: this.selectedJob === 'all' ? undefined : this.selectedJob,
-      match_score_min: this.skillsMatchFilter
-        ? parseInt(this.skillsMatchFilter)
-        : undefined,
+      match_score_min: this.skillsMatchFilter ? parseInt(this.skillsMatchFilter) : undefined,
       location: this.locationFilter || undefined,
       experience: this.experienceFilter || undefined,
       training: this.trainingFilter || undefined,
@@ -488,34 +400,20 @@ export class CandidatesComponent implements OnInit, OnDestroy {
 
     this.candidatesService
       .getCandidates(query)
-      .pipe(
-        takeUntil(this.destroy$),
-        finalize(() => {
-          this.isLoading = false;
-        })
-      )
+      .pipe(takeUntil(this.destroy$), finalize(() => { this.isLoading = false; }))
       .subscribe({
         next: (response) => {
           if (response.success && response.data) {
-            this.candidates = Array.isArray(response.data.data)
-              ? response.data.data
-              : [];
-
+            this.candidates = Array.isArray(response.data.data) ? response.data.data : [];
             this.totalCandidates = response.data.pagination?.total || 0;
             this.totalPages = response.data.pagination?.total_pages || 1;
             this.currentPage = response.data.pagination?.page || 1;
-
             this.applyClientSideFilters();
-
-            console.log('✅ Candidates loaded:', this.candidates.length);
           } else {
             this.resetCandidatesState();
           }
         },
-        error: (error) => {
-          console.error('❌ Error loading candidates:', error);
-          this.resetCandidatesState();
-        },
+        error: () => this.resetCandidatesState(),
       });
   }
 
@@ -529,34 +427,24 @@ export class CandidatesComponent implements OnInit, OnDestroy {
 
   applyClientSideFilters(): void {
     let filtered = [...this.candidates];
-
-    if (this.searchQuery && this.searchQuery.trim()) {
-      const query = this.searchQuery.toLowerCase().trim();
-      filtered = filtered.filter(
-        (candidate) =>
-          candidate.name.toLowerCase().includes(query) ||
-          candidate.title.toLowerCase().includes(query) ||
-          candidate.email?.toLowerCase().includes(query) ||
-          (candidate.skills &&
-            candidate.skills.some((skill) =>
-              skill.toLowerCase().includes(query)
-            )) ||
-          (candidate.location &&
-            candidate.location.toLowerCase().includes(query))
+    if (this.searchQuery?.trim()) {
+      const q = this.searchQuery.toLowerCase().trim();
+      filtered = filtered.filter(c =>
+        c.name.toLowerCase().includes(q) ||
+        c.title.toLowerCase().includes(q) ||
+        c.email?.toLowerCase().includes(q) ||
+        c.skills?.some(s => s.toLowerCase().includes(q)) ||
+        c.location?.toLowerCase().includes(q)
       );
     }
-
     this.filteredCandidates = filtered;
   }
 
-  // ============================================
-  // FILTER & SORT FUNCTIONS
-  // ============================================
+  // ============================================================
+  // FILTER & SORT
+  // ============================================================
 
-  applyFilters(): void {
-    this.currentPage = 1;
-    this.loadCandidates();
-  }
+  applyFilters(): void { this.currentPage = 1; this.loadCandidates(); }
 
   clearFilters(): void {
     this.searchQuery = '';
@@ -570,32 +458,15 @@ export class CandidatesComponent implements OnInit, OnDestroy {
     this.loadCandidates();
   }
 
-  onJobChange(): void {
-    this.currentPage = 1;
-    this.clearSelection();
-    this.loadCandidates();
-  }
+  onJobChange(): void { this.currentPage = 1; this.clearSelection(); this.loadCandidates(); }
+  sortCandidates(): void { this.currentPage = 1; this.loadCandidates(); }
+  onSearchChange(): void { this.applyClientSideFilters(); }
+  onSearchSubmit(): void { this.applyClientSideFilters(); }
+  toggleViewMode(): void { this.viewMode = this.viewMode === 'grid' ? 'list' : 'grid'; }
 
-  sortCandidates(): void {
-    this.currentPage = 1;
-    this.loadCandidates();
-  }
-
-  onSearchChange(): void {
-    this.applyClientSideFilters();
-  }
-
-  onSearchSubmit(): void {
-    this.applyClientSideFilters();
-  }
-
-  toggleViewMode(): void {
-    this.viewMode = this.viewMode === 'grid' ? 'list' : 'grid';
-  }
-
-  // ============================================
-  // SELECTION FUNCTIONS
-  // ============================================
+  // ============================================================
+  // SELECTION
+  // ============================================================
 
   toggleCandidateSelection(candidateId: string): void {
     const index = this.selectedCandidates.indexOf(candidateId);
@@ -604,20 +475,16 @@ export class CandidatesComponent implements OnInit, OnDestroy {
     } else {
       this.selectedCandidates.push(candidateId);
     }
-
-    const candidate = this.candidates.find((c) => c.id === candidateId);
-    if (candidate) {
-      candidate.is_selected = this.selectedCandidates.includes(candidateId);
-    }
-
+    const candidate = this.candidates.find(c => c.id === candidateId);
+    if (candidate) candidate.is_selected = this.selectedCandidates.includes(candidateId);
     this.showBatchActions = this.selectedCandidates.length > 0;
   }
 
   selectAllVisible(): void {
-    this.filteredCandidates.forEach((candidate) => {
-      if (!this.selectedCandidates.includes(candidate.id)) {
-        this.selectedCandidates.push(candidate.id);
-        candidate.is_selected = true;
+    this.filteredCandidates.forEach(c => {
+      if (!this.selectedCandidates.includes(c.id)) {
+        this.selectedCandidates.push(c.id);
+        c.is_selected = true;
       }
     });
     this.showBatchActions = true;
@@ -625,40 +492,89 @@ export class CandidatesComponent implements OnInit, OnDestroy {
 
   clearSelection(): void {
     this.selectedCandidates = [];
-    this.candidates.forEach((c) => (c.is_selected = false));
+    this.candidates.forEach(c => c.is_selected = false);
     this.showBatchActions = false;
   }
 
-  // ============================================
-  // ACTION FUNCTIONS
-  // ============================================
+  // ============================================================
+  // ACTIONS
+  // ============================================================
 
-  shortlistSelected(): void {
+  /**
+   * ✅ Single-candidate shortlist toggle with toast feedback.
+   * Called from the card's "Shortlist" button.
+   */
+  toggleShortlist(candidate: Candidate): void {
     if (this.selectedJob === 'all') {
-      alert('Please select a specific job to shortlist candidates');
+      this.showToast('Please select a specific job to shortlist candidates.', 'warning');
       return;
     }
 
-    const promises = this.selectedCandidates.map((candidateId) =>
-      this.candidatesService
-        .toggleShortlist(candidateId, this.selectedJob)
-        .toPromise()
+    // Prevent double-click
+    if (this.shortlistingId === candidate.id) return;
+    this.shortlistingId = candidate.id;
+
+    const candidateName = candidate.name;
+    const wasShortlisted = candidate.is_shortlisted;
+
+    this.candidatesService
+      .toggleShortlist(candidate.id, this.selectedJob)
+      .pipe(
+        takeUntil(this.destroy$),
+        finalize(() => { this.shortlistingId = null; })
+      )
+      .subscribe({
+        next: (response) => {
+          if (response.success) {
+            candidate.is_shortlisted = response.data.is_shortlisted;
+
+            // ✅ Employer toast — confirms shortlist AND mentions notification sent
+            if (response.data.is_shortlisted) {
+              this.showToast(
+                `✅ ${candidateName} has been shortlisted successfully! They have been notified.`,
+                'success',
+                candidateName
+              );
+            } else {
+              this.showToast(
+                `${candidateName} has been removed from the shortlist.`,
+                'info',
+                candidateName
+              );
+            }
+          }
+        },
+        error: () => {
+          // Revert optimistic UI if we had changed anything
+          this.showToast(`Failed to update shortlist for ${candidateName}. Please try again.`, 'error');
+        },
+      });
+  }
+
+  shortlistSelected(): void {
+    if (this.selectedJob === 'all') {
+      this.showToast('Please select a specific job to shortlist candidates.', 'warning');
+      return;
+    }
+
+    const promises = this.selectedCandidates.map(candidateId =>
+      this.candidatesService.toggleShortlist(candidateId, this.selectedJob).toPromise()
     );
 
     Promise.all(promises)
       .then(() => {
+        this.showToast(`${this.selectedCandidates.length} candidate(s) shortlisted successfully!`, 'success');
         this.loadCandidates();
         this.clearSelection();
       })
-      .catch((error) => {
-        console.error('❌ Error in batch shortlist:', error);
-        alert('Failed to shortlist some candidates');
+      .catch(() => {
+        this.showToast('Failed to shortlist some candidates. Please try again.', 'error');
       });
   }
 
   sendBulkInvites(): void {
     if (this.selectedJob === 'all') {
-      alert('Please select a specific job to send invitations');
+      this.showToast('Please select a specific job to send invitations.', 'warning');
       return;
     }
 
@@ -671,69 +587,36 @@ export class CandidatesComponent implements OnInit, OnDestroy {
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: () => {
-          alert('Invitations sent successfully!');
+          this.showToast('Invitations sent successfully!', 'success');
           this.clearSelection();
         },
-        error: (error) => {
-          console.error('❌ Error sending invites:', error);
-          alert('Failed to send invitations');
-        },
-      });
-  }
-
-  toggleShortlist(candidate: Candidate): void {
-    if (this.selectedJob === 'all') {
-      alert('Please select a specific job to shortlist candidates');
-      return;
-    }
-
-    this.candidatesService
-      .toggleShortlist(candidate.id, this.selectedJob)
-      .pipe(takeUntil(this.destroy$))
-      .subscribe({
-        next: (response) => {
-          if (response.success) {
-            candidate.is_shortlisted = response.data.is_shortlisted;
-          }
-        },
-        error: (error) => {
-          console.error('❌ Error toggling shortlist:', error);
-        },
+        error: () => this.showToast('Failed to send invitations.', 'error'),
       });
   }
 
   inviteToApply(candidateId: string): void {
     if (this.selectedJob === 'all') {
-      alert('Please select a specific job');
+      this.showToast('Please select a specific job.', 'warning');
       return;
     }
 
-    const message =
-      prompt('Enter invitation message:') || 'You have been invited to apply.';
+    const message = prompt('Enter invitation message:') || 'You have been invited to apply.';
 
     this.candidatesService
       .inviteCandidate(candidateId, this.selectedJob, message)
       .pipe(takeUntil(this.destroy$))
       .subscribe({
-        next: () => {
-          alert('Invitation sent!');
-        },
-        error: (error) => {
-          console.error('❌ Error sending invitation:', error);
-          alert('Failed to send invitation');
-        },
+        next: () => this.showToast('Invitation sent!', 'success'),
+        error: () => this.showToast('Failed to send invitation.', 'error'),
       });
   }
 
   startChat(candidateId: string): void {
-    this.router.navigate(['/employer/messages'], {
-      queryParams: { userId: candidateId },
-    });
+    this.router.navigate(['/employer/messages'], { queryParams: { userId: candidateId } });
   }
 
   requestInterview(candidateId: string | undefined): void {
     if (!candidateId) return;
-
     this.router.navigate(['/employer/schedule-interview'], {
       queryParams: {
         candidateId,
@@ -742,38 +625,23 @@ export class CandidatesComponent implements OnInit, OnDestroy {
     });
   }
 
-  // ============================================
-  // UTILITY FUNCTIONS
-  // ============================================
+  // ============================================================
+  // UTILITY
+  // ============================================================
 
-  getFullImageUrl(
-    imagePath: string | null | undefined,
-    candidateName: string
-  ): string {
+  getFullImageUrl(imagePath: string | null | undefined, candidateName: string): string {
     if (!imagePath) {
-      return `https://ui-avatars.com/api/?name=${encodeURIComponent(
-        candidateName
-      )}&background=4285f4&color=fff&size=128`;
+      return `https://ui-avatars.com/api/?name=${encodeURIComponent(candidateName)}&background=4285f4&color=fff&size=128`;
     }
-
-    if (imagePath.startsWith('http') || imagePath.startsWith('data:')) {
-      return imagePath;
-    }
-
+    if (imagePath.startsWith('http') || imagePath.startsWith('data:')) return imagePath;
     if (imagePath.startsWith('/uploads')) {
-      const baseUrl = environment.apiUrl.replace('/api', '');
-      return `${baseUrl}${imagePath}`;
+      return `${environment.apiUrl.replace('/api', '')}${imagePath}`;
     }
-
-    return `https://ui-avatars.com/api/?name=${encodeURIComponent(
-      candidateName
-    )}&background=4285f4&color=fff&size=128`;
+    return `https://ui-avatars.com/api/?name=${encodeURIComponent(candidateName)}&background=4285f4&color=fff&size=128`;
   }
 
   handleImageError(event: any, candidateName: string): void {
-    event.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(
-      candidateName
-    )}&background=4285f4&color=fff&size=128`;
+    event.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(candidateName)}&background=4285f4&color=fff&size=128`;
   }
 
   get paginatedCandidates(): Candidate[] {
@@ -787,15 +655,8 @@ export class CandidatesComponent implements OnInit, OnDestroy {
     }
   }
 
-  openComparison(): void {
-    if (this.selectedCandidates.length >= 2) {
-      this.showComparison = true;
-    }
-  }
-
-  closeComparison(): void {
-    this.showComparison = false;
-  }
+  openComparison(): void { if (this.selectedCandidates.length >= 2) this.showComparison = true; }
+  closeComparison(): void { this.showComparison = false; }
 
   getMatchScoreClass(score: number): string {
     if (score >= 90) return 'match-excellent';
@@ -804,80 +665,47 @@ export class CandidatesComponent implements OnInit, OnDestroy {
     return 'match-low';
   }
 
-  downloadReport(): void {
-    console.log('📥 Downloading report...');
-  }
-
-  toggleSelection(candidate: Candidate): void {
-    this.toggleCandidateSelection(candidate.id);
-  }
-
-  promoteJob() {
-    console.log('📢 Promoting job...');
-  }
-
-  refreshCandidates(): void {
-    this.loadCandidates();
-  }
+  downloadReport(): void { console.log('📥 Downloading report...'); }
+  toggleSelection(candidate: Candidate): void { this.toggleCandidateSelection(candidate.id); }
+  promoteJob(): void { console.log('📢 Promoting job...'); }
+  refreshCandidates(): void { this.loadCandidates(); }
 
   toggleSidebar(): void {
-    const sidebar = document.querySelector('.sidebar');
-    const overlay = document.querySelector('.sidebar-overlay');
-    const hamburger = document.querySelector('.hamburger');
-    
-    sidebar?.classList.toggle('open');
-    overlay?.classList.toggle('open');
-    hamburger?.classList.toggle('active');
+    document.querySelector('.sidebar')?.classList.toggle('open');
+    document.querySelector('.sidebar-overlay')?.classList.toggle('open');
+    document.querySelector('.hamburger')?.classList.toggle('active');
   }
 
   closeSidebar(): void {
-    const sidebar = document.querySelector('.sidebar');
-    const overlay = document.querySelector('.sidebar-overlay');
-    const hamburger = document.querySelector('.hamburger');
-    
-    sidebar?.classList.remove('open');
-    overlay?.classList.remove('open');
-    hamburger?.classList.remove('active');
+    document.querySelector('.sidebar')?.classList.remove('open');
+    document.querySelector('.sidebar-overlay')?.classList.remove('open');
+    document.querySelector('.hamburger')?.classList.remove('active');
   }
 
-  // ============================================
-  // CHAT FUNCTIONS
-  // ============================================
+  // ============================================================
+  // CHAT
+  // ============================================================
 
   initializeChat(): void {
-    this.chatMessages = [
-      {
-        type: 'ai',
-        content:
-          "👋 Hello! I'm your AI hiring assistant. How can I help you today?",
-        timestamp: new Date(),
-      },
-    ];
+    this.chatMessages = [{
+      type: 'ai',
+      content: "👋 Hello! I'm your AI hiring assistant. How can I help you today?",
+      timestamp: new Date(),
+    }];
   }
 
-  toggleChat(): void {
-    this.isChatOpen = !this.isChatOpen;
-  }
+  toggleChat(): void { this.isChatOpen = !this.isChatOpen; }
 
   sendMessage(): void {
     if (!this.currentMessage.trim() || this.isChatLoading) return;
 
     const userMessage = this.currentMessage.trim();
-    this.chatMessages.push({
-      type: 'user',
-      content: userMessage,
-      timestamp: new Date(),
-    });
-
+    this.chatMessages.push({ type: 'user', content: userMessage, timestamp: new Date() });
     this.currentMessage = '';
     this.isChatLoading = true;
+    this.chatHistory.push({ role: 'user', content: userMessage });
 
-    this.chatHistory.push({
-      role: 'user',
-      content: userMessage,
-    });
-
-    const job = this.jobPosts.find((j) => j.id === this.selectedJob);
+    const job = this.jobPosts.find(j => j.id === this.selectedJob);
     const context = {
       jobs: this.jobPosts,
       trainings: this.availableTrainings,
@@ -890,29 +718,13 @@ export class CandidatesComponent implements OnInit, OnDestroy {
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: (response: GeminiResponse) => {
-          const aiMessage =
-            response.message || "I couldn't process that request.";
-
-          this.chatMessages.push({
-            type: 'ai',
-            content: aiMessage,
-            timestamp: new Date(),
-          });
-
-          this.chatHistory.push({
-            role: 'assistant',
-            content: aiMessage,
-          });
-
+          const aiMessage = response.message || "I couldn't process that request.";
+          this.chatMessages.push({ type: 'ai', content: aiMessage, timestamp: new Date() });
+          this.chatHistory.push({ role: 'assistant', content: aiMessage });
           this.isChatLoading = false;
         },
-        error: (error) => {
-          console.error('❌ Chat error:', error);
-          this.chatMessages.push({
-            type: 'ai',
-            content: '❌ Error occurred. Please try again.',
-            timestamp: new Date(),
-          });
+        error: () => {
+          this.chatMessages.push({ type: 'ai', content: '❌ Error occurred. Please try again.', timestamp: new Date() });
           this.isChatLoading = false;
         },
       });

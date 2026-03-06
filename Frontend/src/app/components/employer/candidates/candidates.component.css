@@ -9,6 +9,97 @@ body {
     line-height: 1.6;
     overflow-x: hidden;
 }
+/* ============================================================
+   EMPLOYER TOAST NOTIFICATIONS
+   Add these styles to candidates.component.css
+   ============================================================ */
+
+/* Toast container — fixed top-right */
+.employer-toasts {
+  position: fixed;
+  top: 20px;
+  right: 24px;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-width: 380px;
+  pointer-events: none; /* let clicks pass through the container */
+}
+
+/* Individual toast card */
+.employer-toast {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.14);
+  border-left: 4px solid #ccc;
+  pointer-events: all;
+  animation: toastSlideIn 0.3s ease;
+}
+
+@keyframes toastSlideIn {
+  from { opacity: 0; transform: translateX(60px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+/* Type variants */
+.employer-toast.toast-success { border-left-color: #22c55e; }
+.employer-toast.toast-error   { border-left-color: #ef4444; }
+.employer-toast.toast-warning { border-left-color: #f59e0b; }
+.employer-toast.toast-info    { border-left-color: #3b82f6; }
+
+/* Icon */
+.toast-icon {
+  flex-shrink: 0;
+  font-size: 18px;
+  margin-top: 2px;
+}
+.toast-success .toast-icon { color: #22c55e; }
+.toast-error   .toast-icon { color: #ef4444; }
+.toast-warning .toast-icon { color: #f59e0b; }
+.toast-info    .toast-icon { color: #3b82f6; }
+
+/* Message body */
+.toast-body { flex: 1; }
+.toast-message {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 500;
+  color: #1e293b;
+  line-height: 1.4;
+}
+
+/* Close button */
+.toast-close {
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #94a3b8;
+  font-size: 13px;
+  padding: 0;
+  line-height: 1;
+  transition: color 0.2s;
+}
+.toast-close:hover { color: #475569; }
+
+/* ============================================================
+   SHORTLIST BUTTON LOADING STATE
+   Make sure these don't conflict with existing .btn styles
+   ============================================================ */
+
+/* Prevent double-click while saving */
+.btn[disabled] {
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+/* Spinner inside button inherits btn colour */
+.btn .fa-spinner { margin-right: 4px; }
 
 /* === HAMBURGER & OVERLAY === */
 .hamburger {
