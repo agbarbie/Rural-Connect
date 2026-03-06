@@ -149,16 +149,6 @@
                 {{ getTimeSince(notification.created_at) }}
               </span>
             </div>
- 
-            <!-- Notification Actions -->
-            <div class="notification-actions">
-              <!-- View Application Button for application_received -->
-              <button
-                *ngIf="notification.type === 'application_received'"
-                class="btn-notification-action btn-view-application"
-                title="View Application">
-                <i class="fas fa-folder-open"></i>
-              </button>
               
               <!-- Mark as Read -->
               <button
@@ -169,14 +159,7 @@
                 <i class="fas fa-check"></i>
               </button>
              
-              <!-- View Details -->
-              <button
-                class="btn-notification-action btn-view"
-                title="View Details">
-                <i class="fas fa-eye"></i>
-              </button>
-            </div>
-
+          
             <!-- Unread Indicator -->
             <span *ngIf="!notification.read" class="unread-dot"></span>
           </div>
