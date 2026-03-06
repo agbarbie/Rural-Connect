@@ -447,126 +447,137 @@ export class JobseekerJobService {
     }
   }
 
- async applyToJob(userId: string, jobId: string, applicationData: ApplicationData): Promise<ServiceResponse<JobApplication>> {
-  const client = await this.db.connect();
-  try {
-    await client.query('BEGIN');
+async applyToJob(userId: string, jobId: string, applicationData: ApplicationData): Promise<ServiceResponse<JobApplication>> {
+    const client = await this.db.connect();
+    try {
+      await client.query('BEGIN');
 
-    console.log(`📝 Applying to job ${jobId} for user ${userId}`);
+      console.log(`📝 Applying to job ${jobId} for user ${userId}`);
 
-    // Block if active (non-withdrawn/cancelled) application already exists
-    const existingApplication = await client.query(
-      `SELECT id, status FROM job_applications 
-       WHERE user_id = $1 AND job_id = $2 
-       AND status NOT IN ('withdrawn', 'cancelled')`,
-      [userId, jobId]
-    );
+      // Block if active (non-withdrawn/cancelled) application already exists
+      const existingApplication = await client.query(
+        `SELECT id, status FROM job_applications 
+         WHERE user_id = $1 AND job_id = $2 
+         AND status NOT IN ('withdrawn', 'cancelled')`,
+        [userId, jobId]
+      );
 
-    if (existingApplication.rows.length > 0) {
-      await client.query('ROLLBACK');
+      if (existingApplication.rows.length > 0) {
+        await client.query('ROLLBACK');
+        return {
+          success: false,
+          message: 'You have already applied to this job'
+        };
+      }
+
+      // Clean up any previously withdrawn/cancelled application so INSERT is clean
+      await client.query(
+        `DELETE FROM job_applications 
+         WHERE user_id = $1 AND job_id = $2 
+         AND status IN ('withdrawn', 'cancelled')`,
+        [userId, jobId]
+      );
+
+      // Check job exists and is open; also fetch employer_id (employers table row id)
+      const jobResult = await client.query(
+        "SELECT id, title, employer_id FROM jobs WHERE id = $1 AND status = 'Open'",
+        [jobId]
+      );
+
+      if (jobResult.rows.length === 0) {
+        await client.query('ROLLBACK');
+        return {
+          success: false,
+          message: 'Job not found or not accepting applications'
+        };
+      }
+
+      const job = jobResult.rows[0];
+
+      // Create application
+      const result = await client.query(`
+        INSERT INTO job_applications (
+          user_id, job_id, cover_letter, resume_id, portfolio_url, 
+          expected_salary, availability_date, status, applied_at
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, 'pending', NOW())
+        RETURNING *
+      `, [
+        userId, jobId, applicationData.coverLetter || null,
+        applicationData.resumeId || null, applicationData.portfolioUrl || null,
+        applicationData.expectedSalary || null, applicationData.availabilityDate || null
+      ]);
+
+      // Increment job applications count
+      await client.query(
+        'UPDATE jobs SET applications_count = applications_count + 1 WHERE id = $1',
+        [jobId]
+      );
+
+      await client.query('COMMIT');
+
+      const application = result.rows[0] as JobApplication;
+      console.log('✅ Application submitted successfully');
+
+      // ── Get applicant name with multiple fallbacks ──
+      const applicantResult = await this.db.query(
+        `SELECT first_name, last_name, name, email FROM users WHERE id = $1`,
+        [userId]
+      );
+
+      let applicantName = 'A candidate';
+
+      if (applicantResult.rows.length > 0) {
+        const u = applicantResult.rows[0];
+
+        if (u.first_name && u.last_name) {
+          applicantName = `${u.first_name} ${u.last_name}`.trim();
+        } else if (u.first_name) {
+          applicantName = u.first_name.trim();
+        } else if (u.name) {
+          applicantName = u.name.trim();
+        } else if (u.email) {
+          applicantName = u.email.split('@')[0];
+        }
+      }
+
+      console.log(`👤 Applicant name resolved: "${applicantName}" for userId: ${userId}`);
+
+      // ── Resolve employer's users.id from employers table ──
+      // job.employer_id is the employers TABLE row id (NOT users.id).
+      // We must look up the corresponding users.id before notifying.
+      const employerUserResult = await this.db.query(
+        'SELECT user_id FROM employers WHERE id = $1',
+        [job.employer_id]
+      );
+
+      if (employerUserResult.rows.length > 0) {
+        const employerUserId = employerUserResult.rows[0].user_id;
+        console.log(`🔔 Notifying employer (users.id: ${employerUserId}) about application from ${applicantName}`);
+
+        this.notificationService.notifyEmployerAboutApplication(
+          employerUserId,
+          jobId,
+          job.title,
+          applicantName,
+          application.id
+        ).catch((err: any) => console.error('❌ Failed to notify employer:', err));
+      } else {
+        console.error(`❌ Could not find users.id for employer_id: ${job.employer_id}`);
+      }
+
       return {
-        success: false,
-        message: 'You have already applied to this job'
+        success: true,
+        message: 'Application submitted successfully',
+        data: application
       };
-    }
-
-    // Clean up any previously withdrawn/cancelled application so INSERT is clean
-    await client.query(
-      `DELETE FROM job_applications 
-       WHERE user_id = $1 AND job_id = $2 
-       AND status IN ('withdrawn', 'cancelled')`,
-      [userId, jobId]
-    );
-
-    // Check job exists and is open; also fetch employer_id (employers table row id)
-    const jobResult = await client.query(
-      "SELECT id, title, employer_id FROM jobs WHERE id = $1 AND status = 'Open'",
-      [jobId]
-    );
-
-    if (jobResult.rows.length === 0) {
+    } catch (error) {
       await client.query('ROLLBACK');
-      return {
-        success: false,
-        message: 'Job not found or not accepting applications'
-      };
+      console.error('❌ Error applying to job:', error);
+      throw error;
+    } finally {
+      client.release();
     }
-
-    const job = jobResult.rows[0];
-
-    // Create application
-    const result = await client.query(`
-      INSERT INTO job_applications (
-        user_id, job_id, cover_letter, resume_id, portfolio_url, 
-        expected_salary, availability_date, status, applied_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, 'pending', NOW())
-      RETURNING *
-    `, [
-      userId, jobId, applicationData.coverLetter || null,
-      applicationData.resumeId || null, applicationData.portfolioUrl || null,
-      applicationData.expectedSalary || null, applicationData.availabilityDate || null
-    ]);
-
-    // Increment job applications count
-    await client.query(
-      'UPDATE jobs SET applications_count = applications_count + 1 WHERE id = $1',
-      [jobId]
-    );
-
-    await client.query('COMMIT');
-
-    const application = result.rows[0] as JobApplication;
-    console.log('✅ Application submitted successfully');
-
-    // ── Get applicant name ──
-    const applicantResult = await this.db.query(
-      'SELECT first_name, last_name FROM users WHERE id = $1',
-      [userId]
-    );
-
-    const applicantName = applicantResult.rows.length > 0
-      ? `${applicantResult.rows[0].first_name} ${applicantResult.rows[0].last_name}`
-      : 'A candidate';
-
-    // ── ✅ FIX: Resolve employer's users.id from employers table ──
-    // job.employer_id is the employers TABLE row id (NOT users.id).
-    // We must look up the corresponding users.id and pass THAT to
-    // notifyEmployerAboutApplication, which now accepts users.id directly.
-    const employerUserResult = await this.db.query(
-      'SELECT user_id FROM employers WHERE id = $1',
-      [job.employer_id]
-    );
-
-    if (employerUserResult.rows.length > 0) {
-      const employerUserId = employerUserResult.rows[0].user_id; // ← users.id ✅
-      console.log(`🔔 Notifying employer (users.id: ${employerUserId}) about application from ${applicantName}`);
-
-      // Pass users.id — notifyEmployerAboutApplication no longer does a second
-      // employers-table lookup, so there is no ID-type mismatch.
-      this.notificationService.notifyEmployerAboutApplication(
-        employerUserId,    // ← users.id (correct)
-        jobId,
-        job.title,
-        applicantName,
-        application.id
-      ).catch((err: any) => console.error('❌ Failed to notify employer:', err));
-    } else {
-      console.error(`❌ Could not find users.id for employer_id (employers.id): ${job.employer_id}`);
-    }
-
-    return {
-      success: true,
-      message: 'Application submitted successfully',
-      data: application
-    };
-  } catch (error) {
-    await client.query('ROLLBACK');
-    console.error('❌ Error applying to job:', error);
-    throw error;
-  } finally {
-    client.release();
   }
-}
 
   // ✅ IMPLEMENTED: Get application status
   async getApplicationStatus(userId: string, jobId: string): Promise<JobApplication | null> {
