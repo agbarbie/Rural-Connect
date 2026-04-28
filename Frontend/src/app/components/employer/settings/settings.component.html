@@ -1,0 +1,139 @@
+<div class="settings-page">
+  <div class="page-header">
+    <div class="header-icon"><i class="fas fa-cog"></i></div>
+    <div>
+      <h1>Settings</h1>
+      <p>Manage your employer account and preferences</p>
+    </div>
+  </div>
+
+  <div class="tabs">
+    <button class="tab-btn" [class.active]="activeTab === 'profile'" (click)="activeTab = 'profile'"><i class="fas fa-building"></i> Company Profile</button>
+    <button class="tab-btn" [class.active]="activeTab === 'security'" (click)="activeTab = 'security'"><i class="fas fa-lock"></i> Security</button>
+    <button class="tab-btn" [class.active]="activeTab === 'notifications'" (click)="activeTab = 'notifications'"><i class="fas fa-bell"></i> Notifications</button>
+    <button class="tab-btn" [class.active]="activeTab === 'privacy'" (click)="activeTab = 'privacy'"><i class="fas fa-shield-alt"></i> Privacy</button>
+  </div>
+
+  <!-- PROFILE -->
+  <div class="settings-card" *ngIf="activeTab === 'profile'">
+    <h2 class="card-title"><i class="fas fa-building"></i> Company & Contact Info</h2>
+    <p class="card-desc">Update your company details and personal contact information.</p>
+    <div class="alert success" *ngIf="profileSuccess"><i class="fas fa-check-circle"></i> {{ profileSuccess }}</div>
+    <div class="alert error"   *ngIf="profileError"><i class="fas fa-exclamation-circle"></i> {{ profileError }}</div>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label>Your Name *</label>
+        <input type="text" [(ngModel)]="name" class="form-input" placeholder="Full name">
+      </div>
+      <div class="form-group">
+        <label>Company Name</label>
+        <input type="text" [(ngModel)]="companyName" class="form-input" placeholder="e.g. Acme Corp">
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Role in Company</label>
+        <input type="text" [(ngModel)]="roleInCompany" class="form-input" placeholder="e.g. HR Manager">
+      </div>
+      <div class="form-group">
+        <label>Location</label>
+        <input type="text" [(ngModel)]="location" class="form-input" placeholder="e.g. Nairobi, Kenya">
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Contact Number</label>
+      <input type="tel" [(ngModel)]="contactNumber" class="form-input" placeholder="+254 700 000 000">
+    </div>
+    <button class="save-btn" (click)="saveProfile()" [disabled]="profileLoading">
+      <span *ngIf="!profileLoading"><i class="fas fa-save"></i> Save Changes</span>
+      <span *ngIf="profileLoading"><i class="fas fa-spinner fa-spin"></i> Saving...</span>
+    </button>
+  </div>
+
+  <!-- SECURITY -->
+  <div class="settings-card" *ngIf="activeTab === 'security'">
+    <h2 class="card-title"><i class="fas fa-lock"></i> Change Password</h2>
+    <p class="card-desc">Use a strong password you haven't used before.</p>
+    <div class="alert success" *ngIf="passwordSuccess"><i class="fas fa-check-circle"></i> {{ passwordSuccess }}</div>
+    <div class="alert error"   *ngIf="passwordError"><i class="fas fa-exclamation-circle"></i> {{ passwordError }}</div>
+
+    <div class="form-group">
+      <label>Current Password</label>
+      <div class="input-wrap">
+        <i class="fas fa-lock input-icon"></i>
+        <input [type]="showCurrentPassword ? 'text' : 'password'" [(ngModel)]="currentPassword" class="form-input padded" placeholder="Current password">
+        <button class="eye-btn" type="button" (click)="showCurrentPassword = !showCurrentPassword"><i [class]="showCurrentPassword ? 'fas fa-eye-slash' : 'fas fa-eye'"></i></button>
+      </div>
+    </div>
+    <div class="form-group">
+      <label>New Password</label>
+      <div class="input-wrap">
+        <i class="fas fa-key input-icon"></i>
+        <input [type]="showNewPassword ? 'text' : 'password'" [(ngModel)]="newPassword" class="form-input padded" placeholder="Min 6 characters">
+        <button class="eye-btn" type="button" (click)="showNewPassword = !showNewPassword"><i [class]="showNewPassword ? 'fas fa-eye-slash' : 'fas fa-eye'"></i></button>
+      </div>
+      <div class="strength-bar" *ngIf="newPassword"><div class="strength-fill" [style.width]="passwordStrength.width" [style.background]="passwordStrength.color"></div></div>
+      <span class="strength-lbl" *ngIf="newPassword" [style.color]="passwordStrength.color">{{ passwordStrength.level }}</span>
+    </div>
+    <div class="form-group">
+      <label>Confirm New Password</label>
+      <div class="input-wrap">
+        <i class="fas fa-key input-icon"></i>
+        <input [type]="showConfirmPassword ? 'text' : 'password'" [(ngModel)]="confirmNewPassword" class="form-input padded" placeholder="Repeat new password">
+        <button class="eye-btn" type="button" (click)="showConfirmPassword = !showConfirmPassword"><i [class]="showConfirmPassword ? 'fas fa-eye-slash' : 'fas fa-eye'"></i></button>
+      </div>
+      <span class="match-ok"  *ngIf="confirmNewPassword && newPassword === confirmNewPassword"><i class="fas fa-check"></i> Match</span>
+      <span class="match-err" *ngIf="confirmNewPassword && newPassword !== confirmNewPassword"><i class="fas fa-times"></i> No match</span>
+    </div>
+    <button class="save-btn" (click)="changePassword()" [disabled]="passwordLoading">
+      <span *ngIf="!passwordLoading"><i class="fas fa-shield-alt"></i> Update Password</span>
+      <span *ngIf="passwordLoading"><i class="fas fa-spinner fa-spin"></i> Updating...</span>
+    </button>
+
+    <div class="divider"></div>
+    <h3 class="sub-title danger-title"><i class="fas fa-exclamation-triangle"></i> Danger Zone</h3>
+    <p class="card-desc">Permanently delete your employer account and all job/training postings.</p>
+    <button class="danger-btn" (click)="confirmDeleteAccount()"><i class="fas fa-trash-alt"></i> Delete Account</button>
+  </div>
+
+  <!-- NOTIFICATIONS -->
+  <div class="settings-card" *ngIf="activeTab === 'notifications'">
+    <h2 class="card-title"><i class="fas fa-bell"></i> Notification Preferences</h2>
+    <p class="card-desc">Choose which emails you'd like to receive.</p>
+    <div class="alert success" *ngIf="notifSuccess"><i class="fas fa-check-circle"></i> {{ notifSuccess }}</div>
+    <div class="toggle-group">
+      <div class="toggle-item">
+        <div class="toggle-info"><span class="toggle-title">New Applications</span><span class="toggle-desc">Get notified when a job seeker applies to your postings.</span></div>
+        <label class="toggle-switch"><input type="checkbox" [(ngModel)]="emailNewApplications"><span class="slider"></span></label>
+      </div>
+      <div class="toggle-item">
+        <div class="toggle-info"><span class="toggle-title">Training Alerts</span><span class="toggle-desc">Updates on your scheduled training sessions.</span></div>
+        <label class="toggle-switch"><input type="checkbox" [(ngModel)]="emailTrainingAlerts"><span class="slider"></span></label>
+      </div>
+      <div class="toggle-item">
+        <div class="toggle-info"><span class="toggle-title">Platform Updates</span><span class="toggle-desc">News and tips from the Rural Connect team.</span></div>
+        <label class="toggle-switch"><input type="checkbox" [(ngModel)]="emailPlatformUpdates"><span class="slider"></span></label>
+      </div>
+    </div>
+    <button class="save-btn" (click)="saveNotifications()"><i class="fas fa-save"></i> Save Preferences</button>
+  </div>
+
+  <!-- PRIVACY -->
+  <div class="settings-card" *ngIf="activeTab === 'privacy'">
+    <h2 class="card-title"><i class="fas fa-shield-alt"></i> Privacy Settings</h2>
+    <p class="card-desc">Control how your company appears to job seekers.</p>
+    <div class="alert success" *ngIf="privacySuccess"><i class="fas fa-check-circle"></i> {{ privacySuccess }}</div>
+    <div class="toggle-group">
+      <div class="toggle-item">
+        <div class="toggle-info"><span class="toggle-title">Public Company Profile</span><span class="toggle-desc">Allow job seekers to discover and view your company profile.</span></div>
+        <label class="toggle-switch"><input type="checkbox" [(ngModel)]="companyVisible"><span class="slider"></span></label>
+      </div>
+      <div class="toggle-item">
+        <div class="toggle-info"><span class="toggle-title">Show Contact Info</span><span class="toggle-desc">Display your contact number on your company profile.</span></div>
+        <label class="toggle-switch"><input type="checkbox" [(ngModel)]="showContactInfo"><span class="slider"></span></label>
+      </div>
+    </div>
+    <button class="save-btn" (click)="savePrivacy()"><i class="fas fa-save"></i> Save Privacy Settings</button>
+  </div>
+</div>

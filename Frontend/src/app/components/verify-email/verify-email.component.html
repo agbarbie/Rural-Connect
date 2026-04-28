@@ -1,0 +1,35 @@
+<div class="verify-container">
+  <div class="verify-card">
+
+    <!-- Loading -->
+    <div class="card-content" *ngIf="status === 'loading'">
+      <div class="icon-circle loading-circle">
+        <i class="fas fa-spinner fa-spin"></i>
+      </div>
+      <h2>Verifying Your Email...</h2>
+      <p class="subtitle">Please wait while we verify your email address.</p>
+    </div>
+
+    <!-- Success -->
+    <div class="card-content" *ngIf="status === 'success'">
+      <div class="icon-circle success-circle pulse">
+        <i class="fas fa-check"></i>
+      </div>
+      <h2>Email Verified! 🎉</h2>
+      <p class="subtitle">{{ message }}</p>
+      <p class="redirect-note"><i class="fas fa-circle-notch fa-spin"></i> Redirecting to login in 3 seconds...</p>
+      <button class="verify-btn" (click)="goToLogin()">Go to Login Now</button>
+    </div>
+
+    <!-- Error -->
+    <div class="card-content" *ngIf="status === 'error'">
+      <div class="icon-circle error-circle">
+        <i class="fas fa-times"></i>
+      </div>
+      <h2>Verification Failed</h2>
+      <p class="subtitle">{{ message }}</p>
+      <button class="verify-btn" (click)="goToLogin()">Back to Login</button>
+    </div>
+
+  </div>
+</div>

@@ -1,0 +1,578 @@
+<header class="header">
+  <div class="container">
+    <div class="nav-wrapper">
+      <div class="logo">
+        <i class="fas fa-leaf"></i>
+        <span>Digital Skilling App</span>
+      </div>
+      
+      <nav class="nav desktop-nav">
+        <a (click)="scrollToSection('opportunities')" class="nav-link">Discover Opportunities</a>
+        <a (click)="scrollToSection('how-it-works')" class="nav-link">How It Works</a>
+        <a (click)="scrollToSection('testimonials')" class="nav-link">Success Stories</a>
+        <a (click)="scrollToSection('premium')" class="nav-link">Premium</a>
+        <a (click)="scrollToSection('contact')" class="nav-link">Contact</a>
+        <button class="btn-login"(click)="navigateToLogin()">Login</button>
+        <button class="btn-signup"(click)="navigateToSignup()">Sign Up</button>
+      </nav>
+
+      <button class="mobile-menu-btn" (click)="toggleMenu()">
+        <i class="fas" [ngClass]="isMenuOpen ? 'fa-times' : 'fa-bars'"></i>
+      </button>
+    </div>
+
+    <nav class="mobile-nav" [class.active]="isMenuOpen">
+      <a (click)="scrollToSection('opportunities')" class="nav-link">Discover Opportunities</a>
+      <a (click)="scrollToSection('how-it-works')" class="nav-link">How it Works</a>
+      <a (click)="scrollToSection('testimonials')" class="nav-link">Success Stories</a>
+      <a (click)="scrollToSection('premium')" class="nav-link">Premium</a>
+      <a (click)="scrollToSection('contact')" class="nav-link">Contact</a>
+      <div class="mobile-auth-buttons">
+        <button class="btn-login"(click)="navigateToLogin()">Login</button>
+        <button class="btn-signup"(click)="navigateToSignup()">Sign Up</button>
+      </div>
+    </nav>
+  </div>
+</header>
+
+<section class="job-vacancies">
+  <div class="container">
+    <div class="vacancies-content">
+      <h1>We Offer <span class="highlight">25K+</span> Job Vacancies Right Now</h1>
+      <p>Find Jobs, Training & Career Opportunities
+Browse real job openings and training programs that match your skills. No random posts just helpful, well-picked options to help you grow and succeed.</p>
+      <button class="btn-primary"(click)="navigateToLogin()">Get Started <i class="fas fa-arrow-right"></i></button>
+      <div class="vacancies-links">
+        <a href="#" class="btn-link" (click)="navigateToLogin()">Find Opportunities</a>
+        <a href="#" class="btn-link" (click)="navigateToLogin()">Find Candidates</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="hero">
+  <div class="hero-background"></div>
+  <div class="container">
+    <div class="hero-content">
+      <div class="hero-text">
+        <h1>
+          Empowering Rural Talent with <span class="highlight">AI</span> & Remote Work
+        </h1>
+        <p>
+          Connect to verified job opportunities, upskill with personalized training and jobs opportunities from your village. Smart AI recommendations guide you every step of the way to career success.
+        </p>
+        <div class="hero-stats">
+          <div class="stat-item">
+            <span class="stat-number">25K+</span>
+            <span class="stat-label">Active Jobs</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-number">15K+</span>
+            <span class="stat-label">Rural Workers</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-number">95%</span>
+            <span class="stat-label">Success Rate</span>
+          </div>
+        </div>
+        <div class="hero-buttons">
+          <button class="btn-primary" (click)="navigateToLogin()">Get Started <i class="fas fa-arrow-right"></i></button>
+          <button class="btn-secondary"(click)="navigateToLogin()">Join as Employer</button>
+        </div>
+      </div>
+      <div class="hero-image">
+        <div class="hero-card floating">
+          <div class="card-content">
+            <i class="fas fa-users"></i>
+            <h3>AI-Powered Matching</h3>
+            <p>Connect with opportunities that match your unique skills and potential</p>
+          </div>
+        </div>
+        <div class="hero-card floating-delayed">
+          <div class="card-content">
+            <i class="fas fa-shield-alt"></i>
+            <h3>Connecting Employers and Job seekers</h3>
+            <p>Employers advertising jobs and training opportunities for job seekers to apply. </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="powerful-features">
+  <div class="container">
+    <h2>Powerful Features</h2>
+    <p>Discover why RuralConnect is revolutionalizing the hiring process</p>
+    <div class="features-grid">
+      <div class="feature-card">
+        <h3>AI-Powered Matching</h3>
+        <p>Our advanced algorithms understand your true potential beyond just keywords, matching you with opportunities that align with your abilities.</p>
+        <div class="progress-bar">
+          <span>Matching</span>
+          <div class="progress" style="width: 95%;"></div>
+        </div>
+      </div>
+      <div class="feature-card">
+        <h3>Skill Analysis</h3>
+        <p>Detailed assessment of your skills and capabilities helps identify your strengths and areas for growth.</p>
+        <div class="progress-bar">
+          <span>Skill identified</span>
+          <div class="progress" style="width: 150px;"></div>
+        </div>
+      </div>
+      <div class="feature-card">
+        <h3>Training Recommendation</h3>
+        <p>Personalized courses and resources to help you bridge skill gaps and advance your career.</p>
+        <div class="progress-bar">
+          <span>Training Resources</span>
+          <div class="progress" style="width: 20%;"></div>
+        </div>
+      </div>
+      <div class="feature-card">
+        <h3>Career Path</h3>
+        <p>Discover personalized career paths and growth opportunities that align with your skills and aspirations.</p>
+        <div class="progress-bar">
+          <span>Career options</span>
+          <div class="progress" style="width: 6%;"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="premium-simulator" id="premium">
+  <div class="container">
+    <div class="section-header">
+      <h2>"What If" Simulator Premium</h2>
+      <p>Explore unlimited career possibilities by adding new skills and simulating your future. Unlock premium insights with our subscription model – just Ksh 499/month for jobseekers.</p>
+    </div>
+    
+    <div class="simulator-content">
+      <div class="simulator-description">
+        <h3>Premium Service for Jobseekers</h3>
+        <p>Our "What If" Simulator is an exclusive premium feature designed to help you visualize and plan your career growth. Add skills like Python, React, or Node.js to see how they open new doors to high-paying remote jobs, personalized training paths, and salary projections.</p>
+        <ul class="premium-benefits">
+          <li><i class="fas fa-check"></i> Simulate career scenarios with AI predictions</li>
+          <li><i class="fas fa-check"></i> Unlimited skill additions and opportunity explorations</li>
+          <li><i class="fas fa-check"></i> Detailed reports on salary potential and job matches</li>
+          <li><i class="fas fa-check"></i> Priority access to premium training and mentorship</li>
+        </ul>
+        <div class="subscription-pricing">
+          <div class="price-box">
+            <span class="price">Ksh 499</span>
+            <span class="price-period">/month</span>
+          </div>
+          <button class="btn-primary subscribe-btn" (click)="subscribeToPremium()">Start Premium Trial <i class="fas fa-arrow-right"></i></button>
+          <p class="trial-note">7-day free trial, cancel anytime.</p>
+        </div>
+      </div>
+      
+      <div class="simulator-demo">
+        <div class="demo-card">
+          <h4>Try a Quick Demo</h4>
+          <p>Add skills to see simulated career paths (Premium unlocks full access).</p>
+          <div class="skill-buttons">
+            <button class="skill-btn" (click)="addSkill('Python')">
+              <i class="fas fa-plus"></i> Add Python
+            </button>
+            <button class="skill-btn" (click)="addSkill('React')">
+              <i class="fas fa-plus"></i> Add React
+            </button>
+            <button class="skill-btn" (click)="addSkill('Node.js')">
+              <i class="fas fa-plus"></i> Add Node.js
+            </button>
+          </div>
+          <div class="simulated-results" *ngIf="simulatedSkills.length > 0">
+            <h5>Simulated Career Paths:</h5>
+            <ul>
+              <li *ngFor="let skill of simulatedSkills">{{ skill }} → Opens {{ getCareerForSkill(skill) }} ({{ getSalaryForSkill(skill) }})</li>
+            </ul>
+          </div>
+          <div class="premium-lock" *ngIf="simulatedSkills.length > 0">
+            <i class="fas fa-lock"></i> Unlock full simulation with Premium
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="featured-opportunities" id="opportunities">
+  <div class="container">
+    <div class="section-header">
+      <h2>Discover Your Next Opportunity</h2>
+      <p>AI-curated jobs and training programs tailored for rural talent</p>
+    </div>
+
+    <div class="opportunity-tabs">
+      <button 
+        class="opportunity-tab" 
+        [class.active]="activeTab === 'jobs'"
+        (click)="setActiveTab('jobs')">
+        <i class="fas fa-briefcase"></i>
+        Browse Jobs
+      </button>
+      <button 
+        class="opportunity-tab" 
+        [class.active]="activeTab === 'training'"
+        (click)="setActiveTab('training')">
+        <i class="fas fa-graduation-cap"></i>
+        Training Programs
+      </button>
+    </div>
+
+    <div class="opportunity-grid">
+    
+      <div *ngIf="activeTab === 'jobs'" class="opportunities-container">
+        <div *ngFor="let job of jobOpportunities" class="opportunity-card job-card">
+          <div class="posted-time">{{ job.posted }}</div>
+          <div class="card-header">
+            <div class="company-info">
+              <div class="company-logo">{{ job.logo }}</div>
+              <div class="company-details">
+                <h3>{{ job.title }}</h3>
+                <p>{{ job.company }} • {{ job.location }}</p>
+              </div>
+            </div>
+            <button class="bookmark-btn" (click)="bookmarkOpportunity($event, job.id)">
+              <i class="fas fa-bookmark"></i>
+            </button>
+          </div>
+          <div class="job-rating">
+            <i 
+              *ngFor="let star of [1,2,3,4,5]" 
+              class="fas" 
+              [ngClass]="star <= (job.rating ?? 0) ? 'fa-star' : 'fa-star-half-alt'">
+            </i>
+          </div>
+
+          <div class="job-meta">
+            <span class="job-type">{{ job.type }}</span>
+            <span class="salary-range">{{ job.salary }}</span>
+          </div>
+
+          <div class="skills-list">
+            <span *ngFor="let skill of job.skills" class="skill-tag">{{ skill }}</span>
+          </div>
+
+          <div class="card-footer">
+            <div class="match-score">
+              <span>{{ job.matchScore }}% Match</span>
+              <div class="match-bar">
+                <div class="match-progress" [style.width.%]="job.matchScore"></div>
+              </div>
+            </div>
+            <button class="apply-btn" (click)="applyForJob(job)">
+              Apply Now <i class="fas fa-arrow-right"></i>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div *ngIf="activeTab === 'training'" class="opportunities-container">
+        <div *ngFor="let training of trainingPrograms" class="opportunity-card training-card">
+          <div class="posted-time">{{ training.category }}</div>
+          <div class="card-header">
+            <div class="company-info">
+              <div class="company-logo training-logo">{{ training.logo }}</div>
+              <div class="company-details">
+                <h3>{{ training.title }}</h3>
+                <p>{{ training.provider }} • Online</p>
+              </div>
+            </div>
+            <button class="bookmark-btn" (click)="bookmarkOpportunity($event, training.id)">
+              <i class="fas fa-bookmark"></i>
+            </button>
+          </div>
+
+          <div class="duration">Duration: {{ training.duration }} • Live sessions</div>
+
+          <div class="skills-list">
+            <span *ngFor="let skill of training.skills" class="skill-tag training-skill">{{ skill }}</span>
+          </div>
+
+          <div class="card-footer">
+            <div class="level-badge" [ngClass]="training.level.toLowerCase()">{{ training.level }}</div>
+            <div class="match-score">
+              <span>{{ training.matchScore }}% Match</span>
+              <div class="match-bar">
+                <div class="match-progress" [style.width.%]="training.matchScore"></div>
+              </div>
+            </div>
+          </div>
+
+          <button class="enroll-btn" (click)="enrollInTraining(training)">
+            Enroll Now <i class="fas fa-arrow-right"></i>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="candidates" id="candidates">
+  <div class="container">
+    <div class="section-header">
+      <h2>Featured Rural Talent</h2>
+      <p>Discover skilled professionals ready to contribute to your team</p>
+    </div>
+
+    <div class="candidates-grid">
+      <div *ngFor="let candidate of candidates" class="candidate-card">
+        <button class="candidate-share" (click)="shareCandidate($event, candidate)">
+          <i class="fas fa-share-alt"></i>
+        </button>
+        
+        <div class="candidate-image">
+          <img [src]="candidate.image" [alt]="candidate.name">
+          <div class="match-badge">{{ candidate.matchScore }}% Match</div>
+        </div>
+        
+        <div class="candidate-info">
+          <h3>{{ candidate.name }}</h3>
+          <div class="candidate-role">{{ candidate.role }}</div>
+          <div class="candidate-experience">
+            <i class="fas fa-briefcase"></i>
+            {{ candidate.experience }} Experience
+          </div>
+          <div class="candidate-location" *ngIf="candidate.location">
+            <i class="fas fa-map-marker-alt"></i>
+            {{ candidate.location }}
+          </div>
+          
+          <div class="candidate-skills" *ngIf="candidate.skills">
+            <span *ngFor="let skill of candidate.skills" class="skill-tag">{{ skill }}</span>
+          </div>
+        </div>
+        
+        <button class="btn-resume" (click)="viewCandidateResume(candidate)">
+          View Profile <i class="fas fa-user"></i>
+        </button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="how-it-works" id="how-it-works">
+  <div class="container">
+    <div class="section-header">
+      <h2>How Digital Skilling App Works</h2>
+      <p>Simple steps to connect rural talent with global opportunities</p>
+    </div>
+
+    <div class="steps-container">
+      <div class="steps-timeline">
+        <div class="step-item">
+          <div class="step-number">1</div>
+          <div class="step-icon">
+            <i class="fas fa-user-plus"></i>
+          </div>
+          <div class="step-content">
+            <h3>Create Your Profile</h3>
+            <p>Build a comprehensive profile showcasing your skills, experience, and aspirations. Our AI analyzes your potential beyond traditional resumes.</p>
+            <ul class="step-features">
+              <li><i class="fas fa-check"></i> Personal information & goals</li>
+              <li><i class="fas fa-check"></i> AI-powered skills assessment</li>
+              <li><i class="fas fa-check"></i> Portfolio and certifications</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="step-item">
+          <div class="step-number">2</div>
+          <div class="step-icon">
+            <i class="fas fa-brain"></i>
+          </div>
+          <div class="step-content">
+            <h3>AI-Powered Matching</h3>
+            <p>Our advanced AI algorithm analyzes your skills, experience, and potential to find perfect matches beyond traditional keyword searches.</p>
+            <ul class="step-features">
+              <li><i class="fas fa-check"></i> Deep skill analysis</li>
+              <li><i class="fas fa-check"></i> Career potential assessment</li>
+              <li><i class="fas fa-check"></i> Personalized recommendations</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="step-item">
+          <div class="step-number">3</div>
+          <div class="step-icon">
+            <i class="fas fa-search"></i>
+          </div>
+          <div class="step-content">
+            <h3>Discover Opportunities</h3>
+            <p>Get matched with jobs and training programs that align with your skills and goals. Browse curated opportunities from verified employers.</p>
+            <ul class="step-features">
+              <li><i class="fas fa-check"></i> Personalized job matches</li>
+              <li><i class="fas fa-check"></i> Training recommendations</li>
+              <li><i class="fas fa-check"></i> Skill gap analysis</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="step-item">
+          <div class="step-number">4</div>
+          <div class="step-icon">
+            <i class="fas fa-video"></i>
+          </div>
+          <div class="step-content">
+            <h3>Apply & Interview</h3>
+            <p>Apply with one click and attend virtual interviews from anywhere. Our platform streamlines the entire hiring process.</p>
+            <ul class="step-features">
+              <li><i class="fas fa-check"></i> One-click applications</li>
+              <li><i class="fas fa-check"></i> Virtual interview scheduling</li>
+              <li><i class="fas fa-check"></i> Real-time feedback</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="step-item">
+          <div class="step-number">5</div>
+          <div class="step-icon">
+            <i class="fas fa-graduation-cap"></i>
+          </div>
+          <div class="step-content">
+            <h3>Upskill & Grow</h3>
+            <p>Access personalized training programs to bridge skill gaps and advance your career. Learn from industry experts.</p>
+            <ul class="step-features">
+              <li><i class="fas fa-check"></i> Personalized learning paths</li>
+              <li><i class="fas fa-check"></i> Industry certifications</li>
+              <li><i class="fas fa-check"></i> Mentorship programs</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="step-item">
+          <div class="step-number">6</div>
+          <div class="step-icon">
+            <i class="fas fa-wallet"></i>
+          </div>
+          <div class="step-content">
+            <h3>Work</h3>
+            <p>Start working remotely. Build your reputation and advance your career.</p>
+            <ul class="step-features">
+              <li><i class="fas fa-check"></i> Performance tracking</li>
+              <li><i class="fas fa-check"></i> Career growth metrics</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="success-stories" id="testimonials">
+  <div class="container">
+    <div class="section-header">
+      <h2>Success Stories</h2>
+      <p>Real stories from rural professionals who transformed their careers</p>
+    </div>
+
+    <div class="testimonial-carousel">
+      <div class="testimonial-container">
+        <div *ngFor="let story of stories; let i = index" 
+             class="testimonial-slide" 
+             [class.active]="i === currentTestimonial">
+          <div class="story-card">
+            <div class="story-rating">
+              <i *ngFor="let star of getStarArray(story.rating || 5)" class="fas fa-star"></i>
+            </div>
+            <div class="story-content">
+              <p>"{{ story.content }}"</p>
+            </div>
+            <div class="story-author">
+              <img [src]="story.avatar" [alt]="story.name">
+              <div class="author-info">
+                <h4>{{ story.name }}</h4>
+                <span>{{ story.role }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <div class="testimonial-indicators">
+        <button *ngFor="let story of stories; let i = index" 
+                class="indicator" 
+                [class.active]="i === currentTestimonial"
+                (click)="currentTestimonial = i">
+        </button>
+      </div>
+    </div>
+  </div>
+</section>
+
+
+<section class="cta">
+  <div class="container">
+    <div class="cta-content">
+      <h2>Ready to Unlock Your Potential?</h2>
+      <p>Join thousands already earning, learning, and growing with RuralConnect.</p>
+      <div class="cta-stats">
+        <div class="cta-stat">
+          <span class="stat-number">Ksh 30,000 - Ksh 60,000</span>
+          <span class="stat-label">Earned by Rural Workers</span>
+        </div>
+        <div class="cta-stat">
+          <span class="stat-number">98%</span>
+          <span class="stat-label">Job Satisfaction Rate</span>
+        </div>
+      </div>
+      <div class="cta-buttons">
+        <button class="btn-primary"(click)="navigateToSignup()">Sign Up as Job Seeker</button>
+        <button class="btn-secondary"(click)="navigateToSignup()">Sign Up as Employer</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer class="footer" id="contact">
+  <div class="container">
+    <div class="footer-content">
+      <div class="footer-brand">
+        <div class="logo">
+          <i class="fas fa-leaf"></i>
+          <span>Digital Skilling App</span>
+        </div>
+        <p>Connecting rural talent with global opportunities through jobs, skills development, and secure payments.</p>
+        <div class="social-links">
+          <a href="#" aria-label="Facebook"><i class="fab fa-facebook"></i></a>
+          <a href="#" aria-label="Twitter"><i class="fab fa-twitter"></i></a>
+          <a href="#" aria-label="LinkedIn"><i class="fab fa-linkedin"></i></a>
+          <a href="#" aria-label="Instagram"><i class="fab fa-instagram"></i></a>
+        </div>
+      </div>
+      
+      <div class="footer-links">
+        <div class="footer-column">
+          <h4>For Job Seekers</h4>
+          <a href="#">Find Jobs</a>
+          <a href="#">Training Programs</a>
+          <a href="#">Career Guidance</a>
+          <a href="#">Success Stories</a>
+          <a href="#premium">Premium Simulator</a>
+        </div>
+        <div class="footer-column">
+          <h4>For Employers</h4>
+          <a href="#">Post Jobs</a>
+          <a href="#">Find Talent</a>
+          <a href="#">Pricing</a>
+          <a href="#">Resources</a>
+        </div>
+        <div class="footer-column">
+          <h4>Support</h4>
+          <a href="#">Help Center</a>
+          <a href="#">Contact Us</a>
+          <a href="#">FAQ</a>
+          <a href="#">Privacy Policy</a>
+        </div>
+      </div>
+    </div>
+    
+    <div class="footer-bottom">
+      <p>© 2025 Digital Skilling App. All rights reserved.</p>
+      <p>Empowering rural areas, one opportunity at a time.</p>
+    </div>
+  </div>
+</footer>

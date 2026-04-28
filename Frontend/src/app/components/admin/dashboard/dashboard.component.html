@@ -1,0 +1,212 @@
+<div class="dashboard-container">
+  <!-- Sidebar -->
+<app-sidebar [userType]="'admin'"></app-sidebar>
+
+  <!-- Main Content -->
+  <main class="main-content">
+    <!-- Header -->
+    <header class="header">
+      <!-- Add hamburger button -->
+      <button class="hamburger" (click)="toggleSidebar()" aria-label="Toggle Menu">
+        <i class="fas fa-bars"></i>
+      </button>
+
+      <h1>Admin Dashboard</h1>
+      <div class="header-actions">
+        <div class="search-container">
+          <i class="fas fa-search"></i>
+          <input type="text" placeholder="Search..." class="search-input">
+        </div>
+        <div class="user-menu">
+          <span>{{adminName}}</span>
+          <img src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHZpZXdCb3g9IjAgMCA0MCA0MCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPGNpcmNsZSBjeD0iMjAiIGN5PSIyMCIgcj0iMjAiIGZpbGw9IiM2MzY2ZjEiLz4KPHN2ZyB4PSI4IiB5PSI4IiB3aWR0aD0iMjQiIGhlaWdodD0iMjQiIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSI+CjxwYXRoIGQ9Ik0yMCAyMXYtMmE0IDQgMCAwIDAtNC00SDhhNCA0IDAgMCAwLTQgNHYyIiBzdHJva2U9IndoaXRlIiBzdHJva2Utd2lkdGg9IjIiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCIvPgo8Y2lyY2xlIGN4PSIxMiIgY3k9IjciIHI9IjQiIHN0cm9rZT0id2hpdGUiIHN0cm9rZS13aWR0aD0iMiIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIi8+Cjwvc3ZnPgo8L3N2Zz4K" alt="Admin" class="avatar">
+        </div>
+      </div>
+    </header>
+
+    <!-- Welcome Banner -->
+    <section class="welcome-banner">
+      <div class="welcome-content">
+        <h2>Welcome back, {{adminName}}!</h2>
+        <p>Platform performance is optimal. <strong>12 new users</strong> joined today.</p>
+      </div>
+      <div class="welcome-illustration">
+        <i class="fas fa-desktop"></i>
+      </div>
+    </section>
+
+    <!-- Stats Cards -->
+    <section class="stats-grid">
+      <div class="stat-card" *ngFor="let stat of statsCards">
+        <div class="stat-icon" [style.background]="stat.color">
+          <i [class]="stat.icon"></i>
+        </div>
+        <div class="stat-content">
+          <h3>{{stat.title}}</h3>
+          <div class="stat-value">{{stat.value}}</div>
+          <div class="stat-trend" [class.positive]="stat.trend > 0" [class.negative]="stat.trend < 0">
+            <i [class]="stat.trend > 0 ? 'fas fa-arrow-up' : 'fas fa-arrow-down'"></i>
+            <span>{{stat.trend > 0 ? '+' : ''}}{{stat.trend}}% {{stat.trendLabel}}</span>
+          </div>
+          <a [routerLink]="getStatDetailsRoute(stat.title)" class="stat-link">View details <i class="fas fa-chevron-right"></i></a>
+        </div>
+      </div>
+    </section>
+
+    <!-- Charts Section -->
+    <section class="charts-section">
+      <div class="chart-container">
+        <div class="chart-header">
+          <h3>Platform Activity</h3>
+          <div class="chart-actions">
+            <i class="fas fa-ellipsis-h"></i>
+          </div>
+        </div>
+        <div class="chart-legend">
+          <span class="legend-item">
+            <span class="legend-color" style="background: #8b5cf6;"></span>
+            Job Seekers
+          </span>
+          <span class="legend-item">
+            <span class="legend-color" style="background: #06b6d4;"></span>
+            Employers
+          </span>
+          <span class="legend-item">
+            <span class="legend-color" style="background: #f59e0b;"></span>
+            Job Posts
+          </span>
+        </div>
+        <div class="chart-placeholder">
+          <canvas id="platformChart" width="600" height="300"></canvas>
+        </div>
+      </div>
+
+      <div class="system-performance">
+        <h3>System Performance</h3>
+        <div class="performance-metrics">
+          <div class="metric-item">
+            <span class="metric-label">CPU Usage</span>
+            <div class="metric-bar">
+              <div class="metric-fill" style="width: 42%; background: #10b981;"></div>
+            </div>
+            <span class="metric-value">42%</span>
+          </div>
+          <div class="metric-item">
+            <span class="metric-label">Memory Usage</span>
+            <div class="metric-bar">
+              <div class="metric-fill" style="width: 68%; background: #f59e0b;"></div>
+            </div>
+            <span class="metric-value">68%</span>
+          </div>
+          <div class="metric-item">
+            <span class="metric-label">API Response Time</span>
+            <div class="metric-bar">
+              <div class="metric-fill" style="width: 32%; background: #06b6d4;"></div>
+            </div>
+            <span class="metric-value">128ms</span>
+          </div>
+          <div class="metric-item">
+            <span class="metric-label">Database Load</span>
+            <div class="metric-bar">
+              <div class="metric-fill" style="width: 54%; background: #8b5cf6;"></div>
+            </div>
+            <span class="metric-value">54%</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Secondary Stats and Alerts -->
+    <section class="secondary-section">
+      <div class="user-growth">
+        <div class="section-header">
+          <h3>User Growth</h3>
+        </div>
+        <div class="growth-chart">
+          <canvas id="userGrowthChart" width="400" height="250"></canvas>
+        </div>
+        <div class="growth-metrics">
+          <div class="growth-metric">
+            <span class="metric-title">Conversion Rate</span>
+            <span class="metric-value">28.6%</span>
+          </div>
+          <div class="growth-metric">
+            <span class="metric-title">Retention Rate</span>
+            <span class="metric-value">76.2%</span>
+          </div>
+          <div class="growth-metric">
+            <span class="metric-title">Churn Rate</span>
+            <span class="metric-value">3.8%</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="alerts-panel">
+        <div class="section-header">
+          <h3>Critical Alerts</h3>
+          <div class="section-actions">
+            <i class="fas fa-filter"></i>
+            <i class="fas fa-sync-alt"></i>
+          </div>
+        </div>
+        <div class="alerts-list">
+          <div class="alert-item" *ngFor="let alert of alerts" [class]="'alert-' + alert.severity">
+            <div class="alert-icon">
+              <i [class]="getAlertIcon(alert.type)"></i>
+            </div>
+            <div class="alert-content">
+              <h4>{{alert.title}}</h4>
+              <p>{{alert.message}}</p>
+              <div class="alert-actions">
+                <button class="btn btn-primary" (click)="handleAlertAction(alert)">{{getAlertAction(alert.type)}}</button>
+                <button class="btn btn-secondary" (click)="dismissAlert(alert.id)">Dismiss</button>
+              </div>
+            </div>
+            <div class="alert-time">{{alert.time}}</div>
+          </div>
+        </div>
+        <a routerLink="/admin/security" class="view-all-link">View all alerts</a>
+      </div>
+    </section>
+
+    <!-- Feature Adoption and Maintenance -->
+    <section class="bottom-section">
+      <div class="feature-adoption">
+        <h3>Feature Adoption Rates</h3>
+        <div class="adoption-list">
+          <div class="adoption-item" *ngFor="let feature of featureAdoption">
+            <span class="feature-name">{{feature.name}}</span>
+            <div class="adoption-bar">
+              <div class="adoption-fill" [style.width.%]="feature.percentage"></div>
+            </div>
+            <span class="adoption-percentage">{{feature.percentage}}%</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="maintenance-panel">
+        <h3>Upcoming Maintenance</h3>
+        <div class="maintenance-list">
+          <div class="maintenance-item" *ngFor="let item of maintenanceItems">
+            <div class="maintenance-icon" [class]="'maintenance-' + item.type">
+              <i [class]="getMaintenanceIcon(item.type)"></i>
+            </div>
+            <div class="maintenance-content">
+              <h4>{{item.title}}</h4>
+              <p>{{item.description}}</p>
+              <div class="maintenance-meta">
+                <span class="maintenance-date">
+                  <i class="fas fa-calendar"></i>
+                  {{item.date}}
+                </span>
+                <span class="maintenance-downtime" [class.no-downtime]="item.downtime === 'No Downtime'">
+                  {{item.downtime}}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>

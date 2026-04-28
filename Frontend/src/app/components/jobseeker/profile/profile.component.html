@@ -1,0 +1,1005 @@
+<div class="app-container">
+  <app-sidebar [userType]="'jobseeker'"></app-sidebar>
+
+  <div class="main-content">
+    <!-- Hamburger Menu (Mobile Only) -->
+    <button class="hamburger" (click)="toggleSidebar()">
+      <i class="fas fa-bars"></i>
+    </button>
+
+    <!-- Sidebar Overlay (Mobile Only) -->
+    <div class="sidebar-overlay" (click)="closeSidebar()"></div>
+
+    @if (isLoading) {
+      <div class="loading-container">
+        <div class="spinner"></div>
+        <p>Loading your profile...</p>
+      </div>
+    } @else {
+      <div class="profile-container">
+        <!-- MAIN BLUE HEADER -->
+        <div class="profile-header">
+          <div class="header-left">
+            <div class="profile-image-wrapper">
+              <img
+                [src]="
+                  getFullImageUrl(
+                    profile.profileImage || profile.profile_picture
+                  )
+                "
+                [alt]="profile.fullName"
+                class="profile-image"
+                (error)="handleImageError($event)"
+              />
+              <div class="initials-fallback" *ngIf="!hasProfileImage()">
+                {{ getInitials(profile.fullName) }}
+              </div>
+
+              <button
+                class="upload-btn"
+                (click)="triggerImageUpload()"
+                title="Change Photo"
+              >
+                <i class="fas fa-camera"></i>
+              </button>
+              <input
+                #fileInput
+                type="file"
+                accept="image/*"
+                (change)="handleImageUpload($event)"
+                style="display: none"
+              />
+            </div>
+
+            <div class="profile-info">
+              <h1 class="profile-name">{{ profile.fullName }}</h1>
+
+              <!-- Rating Bar -->
+              <div class="rating-bar">
+                <div class="rating-stars-inline">
+                  @if (ratingStats.totalRatings > 0) {
+                    @for (
+                      star of getStarArray(ratingStats.averageRating);
+                      track $index
+                    ) {
+                      @if (star === 1) {
+                        <i class="fas fa-star"></i>
+                      } @else if (star === 0.5) {
+                        <i class="fas fa-star-half-alt"></i>
+                      } @else {
+                        <i class="far fa-star"></i>
+                      }
+                    }
+                  } @else {
+                    <i class="far fa-star"></i><i class="far fa-star"></i
+                    ><i class="far fa-star"></i><i class="far fa-star"></i
+                    ><i class="far fa-star"></i>
+                  }
+                </div>
+
+                <span class="rating-value">
+                  {{
+                    ratingStats.totalRatings > 0
+                      ? (ratingStats.averageRating | number: "1.1-1")
+                      : "0.0"
+                  }}
+                </span>
+
+                <span
+                  class="review-count"
+                  [title]="ratingStats.totalRatings + ' review(s)'"
+                >
+                  <i class="fas fa-comment-dots"></i>
+                  {{ ratingStats.totalRatings }}
+                </span>
+
+                <span class="success-rate" title="Job success rate">
+                  <i class="fas fa-check-circle"></i> {{ getSuccessRate() }}%
+                </span>
+              </div>
+
+              <div class="profile-views" *ngIf="!isLoadingViewers">
+                <i class="fas fa-eye"></i>
+                <span class="views-text">
+                  Viewed by {{ getProfileViewsCount() }}
+                  {{ getProfileViewsCount() === 1 ? "employer" : "employers" }}
+                </span>
+                <button
+                  class="view-details-btn"
+                  (click)="showProfileViewers()"
+                  *ngIf="hasProfileViews()"
+                >
+                  See who
+                </button>
+                <span
+                  class="no-views-text"
+                  *ngIf="!hasProfileViews()"
+                  style="font-size: 12px; opacity: 0.8"
+                >
+                  No views yet
+                </span>
+              </div>
+
+              <!-- Loading state -->
+              <div class="profile-views" *ngIf="isLoadingViewers">
+                <i class="fas fa-spinner fa-spin"></i>
+                <span class="views-text">Loading views...</span>
+              </div>
+
+              <p class="profile-email">{{ profile.email }}</p>
+              @if (profile.phone) {
+                <p class="profile-phone">
+                  <i class="fas fa-phone"></i> {{ profile.phone }}
+                </p>
+              }
+              @if (profile.location) {
+                <p class="profile-location">
+                  <i class="fas fa-map-marker-alt"></i> {{ profile.location }}
+                </p>
+              }
+            </div>
+          </div>
+
+          <div class="header-actions">
+            @if (!isEditMode) {
+              <button class="btn btn-primary" (click)="toggleEditMode()">
+                <i class="fas fa-edit"></i> Edit Profile
+              </button>
+              <button class="btn btn-share" (click)="shareProfile()">
+                <i class="fas fa-share-alt"></i> Share
+              </button>
+            } @else {
+              <button class="btn btn-success" (click)="saveProfile()">
+                <i class="fas fa-save"></i> Save Changes
+              </button>
+              <button class="btn btn-cancel" (click)="cancelEdit()">
+                <i class="fas fa-times"></i> Cancel
+              </button>
+            }
+          </div>
+        </div>
+
+        <!-- Profile Completion Card -->
+        <div
+          class="completion-card"
+          [class.complete]="profile.profileCompletion === 100"
+        >
+          <div class="completion-content">
+            <div class="completion-icon">
+              @if (profile.profileCompletion === 100) {
+                <i class="fas fa-check-circle"></i>
+              } @else {
+                <i class="fas fa-exclamation-circle"></i>
+              }
+            </div>
+            <div class="completion-info">
+              <h3>Profile Completion</h3>
+              <p class="completion-message">
+                @if (profile.profileCompletion === 100) {
+                  🎉 Perfect! Your profile is 100% complete and ready to impress
+                  employers.
+                } @else if (profile.profileCompletion >= 80) {
+                  Almost there! Just {{ 100 - profile.profileCompletion }}% more
+                  to go.
+                } @else if (profile.profileCompletion >= 50) {
+                  You're halfway there! Complete your profile to stand out.
+                } @else {
+                  ⚠️ Your profile needs attention. Complete it to attract
+                  employers.
+                }
+              </p>
+            </div>
+            <div class="completion-percentage">
+              <span class="percentage-number"
+                >{{ profile.profileCompletion }}%</span
+              >
+            </div>
+          </div>
+          <div class="progress-bar">
+            <div
+              class="progress-fill"
+              [style.width.%]="profile.profileCompletion"
+              [class.complete]="profile.profileCompletion === 100"
+            ></div>
+          </div>
+
+          @if (missingFields.length > 0 && profile.profileCompletion < 100) {
+            <div class="missing-fields">
+              <h4><i class="fas fa-list-check"></i> Complete Your Profile:</h4>
+              <div class="fields-grid">
+                @for (field of missingFields; track field) {
+                  <span class="field-tag">{{ field }}</span>
+                }
+              </div>
+              <div class="completion-tips">
+                <p class="tip-text">
+                  <i class="fas fa-lightbulb"></i>
+                  @if (!profile.about || profile.about.length < 50) {
+                    <strong>Quick Tip:</strong> Add a professional summary (50+
+                    words) to make a great first impression
+                  } @else if (profile.selectedSkills.length < 3) {
+                    <strong>Quick Tip:</strong> Add at least 3 skills that match
+                    your expertise
+                  } @else if (!hasProfileImage()) {
+                    <strong>Quick Tip:</strong> Upload a professional photo to
+                    increase profile views
+                  } @else {
+                    <strong>Almost done!</strong> Just fill in the remaining
+                    fields to complete your profile
+                  }
+                </p>
+              </div>
+            </div>
+          } @else if (profile.profileCompletion === 100) {
+            <div class="completion-success">
+              <div class="success-message">
+                <i class="fas fa-trophy"></i>
+                <div>
+                  <h4>Excellent! Your profile is complete</h4>
+                  <p>
+                    Your profile is now optimized to attract top employers. Keep
+                    it updated!
+                  </p>
+                </div>
+              </div>
+              <div class="next-steps">
+                <h5><i class="fas fa-rocket"></i> Next Steps:</h5>
+                <ul>
+                  <li>
+                    <i class="fas fa-search"></i>
+                    <a routerLink="/jobseeker/jobs-explorer"
+                      >Browse available jobs</a
+                    >
+                  </li>
+                  <li>
+                    <i class="fas fa-graduation-cap"></i>
+                    <a routerLink="/jobseeker/training"
+                      >Explore training programs</a
+                    >
+                  </li>
+                  <li>
+                    <i class="fas fa-share-alt"></i>
+                    <button class="link-btn" (click)="shareProfile()">
+                      Share your profile
+                    </button>
+                  </li>
+                </ul>
+              </div>
+            </div>
+          }
+        </div>
+
+        <!-- Main Content -->
+        <div class="profile-content">
+          @if (isEditMode) {
+            <div class="edit-section">
+              <h2 class="section-heading">
+                <i class="fas fa-user-edit"></i> Edit Your Information
+              </h2>
+
+              <!-- Optional CV Upload Toggle -->
+              <div class="optional-section-toggle">
+                <button class="btn btn-secondary" (click)="toggleCVUpload()">
+                  <i class="fas fa-file-upload"></i>
+                  {{ showCVUpload ? "Hide CV Upload" : "Upload CV (Optional)" }}
+                </button>
+                <p class="toggle-help">
+                  Auto-populates your experience, education, and skills from
+                  your CV
+                </p>
+              </div>
+
+              @if (showCVUpload) {
+                <div class="form-card">
+                  <h3 class="form-section-title">Upload Your CV</h3>
+                  
+<div class="form-group full-width">
+  <label>Upload CV (PDF, Word, or Text)</label>
+  <button
+    class="btn btn-primary"
+    (click)="triggerCVUpload()"
+    [disabled]="isUploadingCV"
+  >
+    <i class="fas fa-upload"></i>
+    {{ isUploadingCV ? "Uploading..." : "Choose CV File" }}
+  </button>
+  <input
+    #cvFileInput
+    type="file"
+    accept=".pdf,.doc,.docx,.txt"
+    (change)="handleCVUpload($event)"
+    style="display: none"
+  />
+  <p class="help-text">Supported: PDF, DOC, DOCX, TXT files up to 5MB</p>
+</div>
+                </div>
+              }
+
+              <!-- Contact Information -->
+              <div class="form-card">
+                <h3 class="form-section-title">Contact Information</h3>
+                <div class="form-grid">
+                  <div class="form-group">
+                    <label>Phone Number *</label>
+                    <input
+                      type="tel"
+                      [(ngModel)]="profile.phone"
+                      placeholder="e.g., +254 700 000000"
+                    />
+                  </div>
+                  <div class="form-group">
+                    <label>Location *</label>
+                    <input
+                      type="text"
+                      [(ngModel)]="profile.location"
+                      placeholder="e.g., Nairobi, Kenya"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <!-- Professional Summary -->
+              <div class="form-card">
+                <h3 class="form-section-title">Professional Summary</h3>
+                <div class="form-group">
+                  <textarea
+                    [(ngModel)]="profile.about"
+                    rows="5"
+                    placeholder="Tell employers about your background, skills, and career goals..."
+                  ></textarea>
+                  <span class="help-text"
+                    >Tip: Write at least 50 characters for better
+                    visibility</span
+                  >
+                </div>
+              </div>
+
+              <!-- Skills -->
+              <div class="form-card">
+                <h3 class="form-section-title">Skills</h3>
+                <div class="form-group full-width">
+                  <label>Select Your Skills (choose at least 3)</label>
+                  <div class="skills-checkboxes">
+                    <div class="skills-group">
+                      <h5>Technical Skills</h5>
+                      <div class="checkbox-grid">
+                        @for (skill of availableTechnicalSkills; track skill) {
+                          <label class="checkbox-label">
+                            <input
+                              type="checkbox"
+                              [checked]="profile.selectedSkills.includes(skill)"
+                              (change)="toggleSkill(skill, $event)"
+                            />
+                            {{ skill }}
+                          </label>
+                        }
+                      </div>
+                    </div>
+                    <div class="skills-group">
+                      <h5>Soft Skills</h5>
+                      <div class="checkbox-grid">
+                        @for (skill of availableSoftSkills; track skill) {
+                          <label class="checkbox-label">
+                            <input
+                              type="checkbox"
+                              [checked]="profile.selectedSkills.includes(skill)"
+                              (change)="toggleSkill(skill, $event)"
+                            />
+                            {{ skill }}
+                          </label>
+                        }
+                      </div>
+                    </div>
+                  </div>
+                  <div class="custom-skill-input">
+                    <input
+                      type="text"
+                      [(ngModel)]="newSkill"
+                      placeholder="Add custom skill"
+                      (keyup.enter)="addCustomSkill()"
+                    />
+                    <button (click)="addCustomSkill()">
+                      <i class="fas fa-plus"></i> Add
+                    </button>
+                  </div>
+                  <span class="help-text"
+                    >Selected: {{ profile.selectedSkills.length }} skills</span
+                  >
+                </div>
+              </div>
+
+              <!-- Professional Links -->
+              <div class="form-card">
+                <h3 class="form-section-title">Professional Links</h3>
+                <div class="form-grid">
+                  <div class="form-group">
+                    <label>LinkedIn</label>
+                    <input
+                      type="url"
+                      [(ngModel)]="profile.socialLinksInput.linkedin"
+                      placeholder="https://linkedin.com/in/..."
+                    />
+                  </div>
+                  <div class="form-group">
+                    <label>GitHub</label>
+                    <input
+                      type="url"
+                      [(ngModel)]="profile.socialLinksInput.github"
+                      placeholder="https://github.com/..."
+                    />
+                  </div>
+                  <div class="form-group full-width">
+                    <label>Portfolio / Website</label>
+                    <input
+                      type="url"
+                      [(ngModel)]="profile.socialLinksInput.website"
+                      placeholder="https://yourportfolio.com"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <!-- Career Preferences -->
+              <div class="form-card">
+                <h3 class="form-section-title">Career Preferences</h3>
+                <div class="form-grid">
+                  <div class="form-group">
+                    <label>Years of Experience</label>
+                    <input
+                      type="number"
+                      [(ngModel)]="profile.yearsOfExperience"
+                      min="0"
+                    />
+                  </div>
+                  <div class="form-group">
+                    <label>Current Position</label>
+                    <input
+                      type="text"
+                      [(ngModel)]="profile.currentPosition"
+                      placeholder="e.g., Junior Developer"
+                    />
+                  </div>
+                  <div class="form-group full-width">
+                    <label>Availability</label>
+                    <select [(ngModel)]="profile.availabilityStatus">
+                      <option value="open_to_opportunities">
+                        Open to Opportunities
+                      </option>
+                      <option value="actively_seeking">Actively Seeking</option>
+                      <option value="not_seeking">Not Currently Seeking</option>
+                    </select>
+                  </div>
+                </div>
+                <div class="form-group">
+                  <label>Preferred Job Types (one per line)</label>
+                  <textarea
+                    [(ngModel)]="profile.preferredJobTypes"
+                    rows="3"
+                    placeholder="Full-time&#10;Remote&#10;Contract"
+                  ></textarea>
+                </div>
+                <div class="form-grid">
+                  <div class="form-group">
+                    <label>Salary Expectation (Min)</label>
+                    <input
+                      type="number"
+                      [(ngModel)]="profile.salaryMin"
+                      placeholder="50000"
+                    />
+                  </div>
+                  <div class="form-group">
+                    <label>Salary Expectation (Max)</label>
+                    <input
+                      type="number"
+                      [(ngModel)]="profile.salaryMax"
+                      placeholder="100000"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+          } @else {
+            <!-- VIEW MODE -->
+
+            <!-- About Me -->
+            @if (profile.about) {
+              <div class="content-card">
+                <h2 class="card-title">
+                  <i class="fas fa-user-circle"></i> About Me
+                </h2>
+                <p class="about-text">{{ profile.about }}</p>
+              </div>
+            }
+
+            <!-- Skills -->
+            @if (
+              technicalSkills.length || softSkills.length || otherSkills.length
+            ) {
+              <div class="content-card">
+                <h2 class="card-title"><i class="fas fa-cogs"></i> Skills</h2>
+                <div class="skills-wrapper">
+                  @if (technicalSkills.length) {
+                    <div class="skills-section">
+                      <h4>Technical Skills</h4>
+                      <div class="skills-tags">
+                        @for (skill of technicalSkills; track skill.name) {
+                          <span class="skill-tag technical">{{
+                            skill.name
+                          }}</span>
+                        }
+                      </div>
+                    </div>
+                  }
+                  @if (softSkills.length) {
+                    <div class="skills-section">
+                      <h4>Soft Skills</h4>
+                      <div class="skills-tags">
+                        @for (skill of softSkills; track skill.name) {
+                          <span class="skill-tag soft">{{ skill.name }}</span>
+                        }
+                      </div>
+                    </div>
+                  }
+                  @if (otherSkills.length) {
+                    <div class="skills-section">
+                      <h4>Other Skills</h4>
+                      <div class="skills-tags">
+                        @for (skill of otherSkills; track skill.name) {
+                          <span class="skill-tag other">{{ skill.name }}</span>
+                        }
+                      </div>
+                    </div>
+                  }
+                </div>
+              </div>
+            }
+
+            <!-- Social Links -->
+            @if (socialLinks.length) {
+              <div class="content-card">
+                <h2 class="card-title">
+                  <i class="fas fa-link"></i> Connect With Me
+                </h2>
+                <div class="social-links">
+                  @for (link of socialLinks; track link.platform) {
+                    <a [href]="link.url" target="_blank" class="social-link">
+                      <i [class]="link.icon"></i>
+                      <span>{{ link.platform }}</span>
+                      <i class="fas fa-external-link-alt"></i>
+                    </a>
+                  }
+                </div>
+              </div>
+            }
+
+            <!-- Career Information -->
+            @if (profile.yearsOfExperience > 0 || profile.currentPosition) {
+              <div class="content-card">
+                <h2 class="card-title">
+                  <i class="fas fa-briefcase"></i> Career Information
+                </h2>
+                <div class="info-grid">
+                  @if (profile.yearsOfExperience > 0) {
+                    <div class="info-item">
+                      <span class="info-label">Experience</span>
+                      <span class="info-value"
+                        >{{ profile.yearsOfExperience }} years</span
+                      >
+                    </div>
+                  }
+                  @if (profile.currentPosition) {
+                    <div class="info-item">
+                      <span class="info-label">Current Position</span>
+                      <span class="info-value">{{
+                        profile.currentPosition
+                      }}</span>
+                    </div>
+                  }
+                  <div class="info-item">
+                    <span class="info-label">Availability</span>
+                    <span class="info-value">{{
+                      profile.availabilityStatus | titlecase
+                    }}</span>
+                  </div>
+                  @if (profile.salaryMin || profile.salaryMax) {
+                    <div class="info-item">
+                      <span class="info-label">Salary Range</span>
+                      <span class="info-value"
+                        >Ksh {{ profile.salaryMin || "Negotiable" }} -
+                        {{ profile.salaryMax || "Negotiable" }}</span
+                      >
+                    </div>
+                  }
+                </div>
+              </div>
+            }
+
+            <!-- RATINGS & REVIEWS -->
+            @if (ratingStats.totalRatings > 0) {
+              <div class="content-card ratings-card">
+                <h2 class="card-title">
+                  <i class="fas fa-star"></i> Ratings & Reviews
+                </h2>
+
+                <div class="rating-summary">
+                  <div class="rating-overview">
+                    <div class="rating-score">
+                      <span class="score-number">{{
+                        ratingStats.averageRating | number: "1.1-1"
+                      }}</span>
+                      <div class="rating-stars-large">
+                        @for (
+                          star of getStarArray(ratingStats.averageRating);
+                          track $index
+                        ) {
+                          @if (star === 1) {
+                            <i class="fas fa-star"></i>
+                          } @else if (star === 0.5) {
+                            <i class="fas fa-star-half-alt"></i>
+                          } @else {
+                            <i class="far fa-star"></i>
+                          }
+                        }
+                      </div>
+                      <p class="rating-count">
+                        {{ ratingStats.totalRatings }}
+                        {{
+                          ratingStats.totalRatings === 1 ? "rating" : "ratings"
+                        }}
+                      </p>
+                    </div>
+
+                    <div class="rating-distribution">
+                      @for (r of [5, 4, 3, 2, 1]; track r) {
+                        <div class="distribution-row">
+                          <span class="distribution-label"
+                            >{{ r }} <i class="fas fa-star"></i
+                          ></span>
+                          <div class="distribution-bar">
+                            <div
+                              class="distribution-fill"
+                              [style.width.%]="
+                                getRatingPercentage(
+                                  ratingStats.ratingDistribution[r]
+                                )
+                              "
+                            ></div>
+                          </div>
+                          <span class="distribution-count">{{
+                            ratingStats.ratingDistribution[r]
+                          }}</span>
+                        </div>
+                      }
+                    </div>
+                  </div>
+                </div>
+
+                <div class="reviews-section">
+                  <h3 class="reviews-heading">
+                    <i class="fas fa-comment-dots"></i> What Employers Say About
+                    Me
+                  </h3>
+
+                  <div class="reviews-list">
+                    @for (rating of myRatings; track rating.id) {
+                      <div class="review-card">
+                        <div class="review-header">
+                          <div class="reviewer-info">
+                            <div class="reviewer-avatar">
+                              <span>{{
+                                getInitials(rating.employer_name || "Employer")
+                              }}</span>
+                            </div>
+                            <div class="reviewer-details">
+                              <h4 class="reviewer-name">
+                                {{ rating.employer_name || "Employer" }}
+                              </h4>
+                              <p class="reviewer-role">
+                                {{ rating.role_in_company || "Employer" }}
+                              </p>
+                              <div class="viewer-company">
+                                <i class="fas fa-building"></i>
+                                <span>{{
+                                  rating.company_name || "Company"
+                                }}</span>
+                              </div>
+                              @if (rating.company_industry) {
+                                <div class="viewer-location">
+                                  <i class="fas fa-industry"></i>
+                                  <span>{{ rating.company_industry }}</span>
+                                </div>
+                              }
+                              @if (rating.company_location) {
+                                <div class="viewer-location">
+                                  <i class="fas fa-map-marker-alt"></i>
+                                  <span>{{ rating.company_location }}</span>
+                                </div>
+                              }
+                              <div class="viewer-time">
+                                <i class="fas fa-clock"></i>
+                                <span>{{
+                                  formatRatingDate(rating.created_at)
+                                }}</span>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div class="review-rating">
+                            <div class="rating-stars-small">
+                              @for (i of [1, 2, 3, 4, 5]; track i) {
+                                @if (i <= rating.rating) {
+                                  <i class="fas fa-star"></i>
+                                } @else {
+                                  <i class="far fa-star"></i>
+                                }
+                              }
+                            </div>
+                            <span class="rating-number"
+                              >{{ rating.rating }}.0</span
+                            >
+                          </div>
+                        </div>
+
+                        @if (rating.job_title) {
+                          <div class="review-job">
+                            <i class="fas fa-briefcase"></i>
+                            {{ rating.job_title }}
+                          </div>
+                        }
+
+                        @if (rating.task_description) {
+                          <div class="review-task">
+                            <strong>Project:</strong>
+                            {{ rating.task_description }}
+                          </div>
+                        }
+
+                        <div class="review-content">
+                          <p class="review-text">{{ rating.feedback }}</p>
+                        </div>
+
+                        @if (rating.would_hire_again) {
+                          <div class="review-badge would-hire-again">
+                            <i class="fas fa-check-circle"></i> Would hire again
+                          </div>
+                        }
+
+                        @if (
+                          rating.skills_rating &&
+                          hasSkillsRating(rating.skills_rating)
+                        ) {
+                          <div class="skills-breakdown">
+                            <h5>
+                              <i class="fas fa-chart-bar"></i> Skills
+                              Assessment:
+                            </h5>
+                            <div class="skills-ratings">
+                              @if (rating.skills_rating.technical) {
+                                <div class="skill-rating-item">
+                                  <span class="skill-label"
+                                    ><i class="fas fa-code"></i>
+                                    Technical:</span
+                                  >
+                                  <div class="skill-stars">
+                                    @for (i of [1, 2, 3, 4, 5]; track i) {
+                                      @if (
+                                        i <= rating.skills_rating.technical
+                                      ) {
+                                        <i class="fas fa-star"></i>
+                                      } @else {
+                                        <i class="far fa-star"></i>
+                                      }
+                                    }
+                                  </div>
+                                  <span class="skill-value"
+                                    >{{
+                                      rating.skills_rating.technical
+                                    }}/5</span
+                                  >
+                                </div>
+                              }
+                              @if (rating.skills_rating.communication) {
+                                <div class="skill-rating-item">
+                                  <span class="skill-label"
+                                    ><i class="fas fa-comments"></i>
+                                    Communication:</span
+                                  >
+                                  <div class="skill-stars">
+                                    @for (i of [1, 2, 3, 4, 5]; track i) {
+                                      @if (
+                                        i <= rating.skills_rating.communication
+                                      ) {
+                                        <i class="fas fa-star"></i>
+                                      } @else {
+                                        <i class="far fa-star"></i>
+                                      }
+                                    }
+                                  </div>
+                                  <span class="skill-value"
+                                    >{{
+                                      rating.skills_rating.communication
+                                    }}/5</span
+                                  >
+                                </div>
+                              }
+                              @if (rating.skills_rating.professionalism) {
+                                <div class="skill-rating-item">
+                                  <span class="skill-label"
+                                    ><i class="fas fa-user-tie"></i>
+                                    Professionalism:</span
+                                  >
+                                  <div class="skill-stars">
+                                    @for (i of [1, 2, 3, 4, 5]; track i) {
+                                      @if (
+                                        i <=
+                                        rating.skills_rating.professionalism
+                                      ) {
+                                        <i class="fas fa-star"></i>
+                                      } @else {
+                                        <i class="far fa-star"></i>
+                                      }
+                                    }
+                                  </div>
+                                  <span class="skill-value"
+                                    >{{
+                                      rating.skills_rating.professionalism
+                                    }}/5</span
+                                  >
+                                </div>
+                              }
+                              @if (rating.skills_rating.quality) {
+                                <div class="skill-rating-item">
+                                  <span class="skill-label"
+                                    ><i class="fas fa-medal"></i> Quality:</span
+                                  >
+                                  <div class="skill-stars">
+                                    @for (i of [1, 2, 3, 4, 5]; track i) {
+                                      @if (i <= rating.skills_rating.quality) {
+                                        <i class="fas fa-star"></i>
+                                      } @else {
+                                        <i class="far fa-star"></i>
+                                      }
+                                    }
+                                  </div>
+                                  <span class="skill-value"
+                                    >{{ rating.skills_rating.quality }}/5</span
+                                  >
+                                </div>
+                              }
+                              @if (rating.skills_rating.timeliness) {
+                                <div class="skill-rating-item">
+                                  <span class="skill-label"
+                                    ><i class="fas fa-clock"></i>
+                                    Timeliness:</span
+                                  >
+                                  <div class="skill-stars">
+                                    @for (i of [1, 2, 3, 4, 5]; track i) {
+                                      @if (
+                                        i <= rating.skills_rating.timeliness
+                                      ) {
+                                        <i class="fas fa-star"></i>
+                                      } @else {
+                                        <i class="far fa-star"></i>
+                                      }
+                                    }
+                                  </div>
+                                  <span class="skill-value"
+                                    >{{
+                                      rating.skills_rating.timeliness
+                                    }}/5</span
+                                  >
+                                </div>
+                              }
+                            </div>
+                          </div>
+                        }
+                      </div>
+                    }
+                  </div>
+
+                  @if (myRatings.length === 0) {
+                    <div class="no-reviews">
+                      <i class="fas fa-star-half-alt"></i>
+                      <p>
+                        No ratings yet. Complete your first job to receive
+                        ratings from employers!
+                      </p>
+                    </div>
+                  }
+                </div>
+              </div>
+            } @else {
+              <div class="content-card">
+                <div class="no-reviews">
+                  <i class="fas fa-star-half-alt"></i>
+                  <p>
+                    No ratings yet. Complete your first job to receive ratings
+                    from employers!
+                  </p>
+                </div>
+              </div>
+            }
+
+            <!-- Empty State -->
+            @if (
+              !profile.about &&
+              !technicalSkills.length &&
+              !softSkills.length &&
+              !otherSkills.length &&
+              !socialLinks.length &&
+              ratingStats.totalRatings === 0
+            ) {
+              <div class="empty-state">
+                <i class="fas fa-user-circle"></i>
+                <h3>Complete Your Profile</h3>
+                <p>
+                  Add your information to make your profile stand out to
+                  employers
+                </p>
+                <button class="btn btn-primary" (click)="toggleEditMode()">
+                  <i class="fas fa-edit"></i> Get Started
+                </button>
+              </div>
+            }
+          }
+        </div>
+      </div>
+    }
+
+    <!-- Profile Viewers Modal -->
+    @if (showViewersModal) {
+      <div class="modal-overlay" (click)="closeViewersModal()">
+        <div
+          class="modal-content viewers-modal"
+          (click)="$event.stopPropagation()"
+        >
+          <div class="modal-header">
+            <h3><i class="fas fa-eye"></i> Profile Viewers</h3>
+            <button class="close-btn" (click)="closeViewersModal()">
+              <i class="fas fa-times"></i>
+            </button>
+          </div>
+          <div class="modal-body">
+            @if (profileViews.length > 0) {
+              <div class="viewers-list">
+                @for (viewer of profileViews; track viewer.id) {
+                  <div class="viewer-card">
+                    <div class="viewer-avatar">
+                      <span>{{ getInitials(viewer.name) }}</span>
+                    </div>
+                    <div class="viewer-info">
+                      <h4 class="viewer-name">{{ viewer.name }}</h4>
+                      <p class="viewer-role">{{ viewer.role_in_company }}</p>
+                      <div class="viewer-company">
+                        <i class="fas fa-building"></i>
+                        {{ viewer.company_name }}
+                      </div>
+                      @if (viewer.location) {
+                        <div class="viewer-location">
+                          <i class="fas fa-map-marker-alt"></i>
+                          {{ viewer.location }}
+                        </div>
+                      }
+                      <div class="viewer-time">
+                        <i class="fas fa-clock"></i>
+                        {{ formatViewTime(viewer.viewed_at) }}
+                      </div>
+                    </div>
+                  </div>
+                }
+              </div>
+            } @else {
+              <div class="no-viewers">
+                <i class="fas fa-eye-slash"></i>
+                <p>
+                  No profile views yet. Share your profile to get more
+                  visibility!
+                </p>
+              </div>
+            }
+          </div>
+        </div>
+      </div>
+    }
+  </div>
+</div>

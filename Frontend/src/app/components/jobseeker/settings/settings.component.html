@@ -1,0 +1,229 @@
+<div class="settings-page">
+
+  <!-- Page header -->
+  <div class="page-header">
+    <div class="header-icon"><i class="fas fa-cog"></i></div>
+    <div>
+      <h1>Settings</h1>
+      <p>Manage your account preferences and security</p>
+    </div>
+  </div>
+
+  <!-- Tab navigation -->
+  <div class="tabs">
+    <button class="tab-btn" [class.active]="activeTab === 'profile'" (click)="activeTab = 'profile'">
+      <i class="fas fa-user"></i> Profile
+    </button>
+    <button class="tab-btn" [class.active]="activeTab === 'security'" (click)="activeTab = 'security'">
+      <i class="fas fa-lock"></i> Security
+    </button>
+    <button class="tab-btn" [class.active]="activeTab === 'notifications'" (click)="activeTab = 'notifications'">
+      <i class="fas fa-bell"></i> Notifications
+    </button>
+    <button class="tab-btn" [class.active]="activeTab === 'privacy'" (click)="activeTab = 'privacy'">
+      <i class="fas fa-shield-alt"></i> Privacy
+    </button>
+  </div>
+
+  <!-- PROFILE TAB -->
+  <div class="settings-card" *ngIf="activeTab === 'profile'">
+    <h2 class="card-title"><i class="fas fa-user-edit"></i> Profile Information</h2>
+    <p class="card-desc">Update your personal information visible on your profile.</p>
+
+    <div class="alert success" *ngIf="profileSuccess"><i class="fas fa-check-circle"></i> {{ profileSuccess }}</div>
+    <div class="alert error" *ngIf="profileError"><i class="fas fa-exclamation-circle"></i> {{ profileError }}</div>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label>Full Name *</label>
+        <input type="text" [(ngModel)]="name" placeholder="Your full name" class="form-input">
+      </div>
+      <div class="form-group">
+        <label>Location</label>
+        <input type="text" [(ngModel)]="location" placeholder="e.g. Nyeri, Kenya" class="form-input">
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label>Contact Number</label>
+      <input type="tel" [(ngModel)]="contactNumber" placeholder="+254 700 000 000" class="form-input">
+    </div>
+
+    <div class="form-group">
+      <label>Bio</label>
+      <textarea [(ngModel)]="bio" rows="4" class="form-input form-textarea" placeholder="Tell employers about yourself..."></textarea>
+    </div>
+
+    <button class="save-btn" (click)="saveProfile()" [disabled]="profileLoading">
+      <span *ngIf="!profileLoading"><i class="fas fa-save"></i> Save Changes</span>
+      <span *ngIf="profileLoading"><i class="fas fa-spinner fa-spin"></i> Saving...</span>
+    </button>
+  </div>
+
+  <!-- SECURITY TAB -->
+  <div class="settings-card" *ngIf="activeTab === 'security'">
+    <h2 class="card-title"><i class="fas fa-lock"></i> Change Password</h2>
+    <p class="card-desc">Make sure to use a strong password you haven't used before.</p>
+
+    <div class="alert success" *ngIf="passwordSuccess"><i class="fas fa-check-circle"></i> {{ passwordSuccess }}</div>
+    <div class="alert error" *ngIf="passwordError"><i class="fas fa-exclamation-circle"></i> {{ passwordError }}</div>
+
+    <div class="form-group">
+      <label>Current Password</label>
+      <div class="input-wrap">
+        <i class="fas fa-lock input-icon"></i>
+        <input [type]="showCurrentPassword ? 'text' : 'password'" [(ngModel)]="currentPassword" class="form-input padded" placeholder="Your current password">
+        <button class="eye-btn" type="button" (click)="showCurrentPassword = !showCurrentPassword">
+          <i [class]="showCurrentPassword ? 'fas fa-eye-slash' : 'fas fa-eye'"></i>
+        </button>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label>New Password</label>
+      <div class="input-wrap">
+        <i class="fas fa-key input-icon"></i>
+        <input [type]="showNewPassword ? 'text' : 'password'" [(ngModel)]="newPassword" class="form-input padded" placeholder="Minimum 6 characters">
+        <button class="eye-btn" type="button" (click)="showNewPassword = !showNewPassword">
+          <i [class]="showNewPassword ? 'fas fa-eye-slash' : 'fas fa-eye'"></i>
+        </button>
+      </div>
+      <div class="strength-bar" *ngIf="newPassword">
+        <div class="strength-fill" [style.width]="passwordStrength.width" [style.background]="passwordStrength.color"></div>
+      </div>
+      <span class="strength-lbl" *ngIf="newPassword" [style.color]="passwordStrength.color">{{ passwordStrength.level }}</span>
+    </div>
+
+    <div class="form-group">
+      <label>Confirm New Password</label>
+      <div class="input-wrap">
+        <i class="fas fa-key input-icon"></i>
+        <input [type]="showConfirmPassword ? 'text' : 'password'" [(ngModel)]="confirmNewPassword" class="form-input padded" placeholder="Re-enter new password">
+        <button class="eye-btn" type="button" (click)="showConfirmPassword = !showConfirmPassword">
+          <i [class]="showConfirmPassword ? 'fas fa-eye-slash' : 'fas fa-eye'"></i>
+        </button>
+      </div>
+      <span class="match-ok" *ngIf="confirmNewPassword && newPassword === confirmNewPassword"><i class="fas fa-check"></i> Passwords match</span>
+      <span class="match-err" *ngIf="confirmNewPassword && newPassword !== confirmNewPassword"><i class="fas fa-times"></i> Passwords do not match</span>
+    </div>
+
+    <button class="save-btn" (click)="changePassword()" [disabled]="passwordLoading">
+      <span *ngIf="!passwordLoading"><i class="fas fa-shield-alt"></i> Update Password</span>
+      <span *ngIf="passwordLoading"><i class="fas fa-spinner fa-spin"></i> Updating...</span>
+    </button>
+
+    <div class="divider"></div>
+
+    <h3 class="sub-title danger-title"><i class="fas fa-exclamation-triangle"></i> Danger Zone</h3>
+    <p class="card-desc">Permanently delete your account and all associated data.</p>
+    <button class="danger-btn" (click)="confirmDeleteAccount()">
+      <i class="fas fa-trash-alt"></i> Delete Account
+    </button>
+  </div>
+
+  <!-- NOTIFICATIONS TAB -->
+  <div class="settings-card" *ngIf="activeTab === 'notifications'">
+    <h2 class="card-title"><i class="fas fa-bell"></i> Notification Preferences</h2>
+    <p class="card-desc">Choose what emails you want to receive from Rural Connect.</p>
+
+    <div class="alert success" *ngIf="notifSuccess"><i class="fas fa-check-circle"></i> {{ notifSuccess }}</div>
+
+    <div class="toggle-group">
+      <div class="toggle-item">
+        <div class="toggle-info">
+          <span class="toggle-title">Job Alerts</span>
+          <span class="toggle-desc">Get notified about new job opportunities matching your profile.</span>
+        </div>
+        <label class="toggle-switch">
+          <input type="checkbox" [(ngModel)]="emailJobAlerts">
+          <span class="slider"></span>
+        </label>
+      </div>
+
+      <div class="toggle-item">
+        <div class="toggle-info">
+          <span class="toggle-title">Training Opportunities</span>
+          <span class="toggle-desc">Receive emails when new training programs are posted.</span>
+        </div>
+        <label class="toggle-switch">
+          <input type="checkbox" [(ngModel)]="emailTrainingAlerts">
+          <span class="slider"></span>
+        </label>
+      </div>
+
+      <div class="toggle-item">
+        <div class="toggle-info">
+          <span class="toggle-title">Application Updates</span>
+          <span class="toggle-desc">Be notified when an employer updates your application status.</span>
+        </div>
+        <label class="toggle-switch">
+          <input type="checkbox" [(ngModel)]="emailApplicationUpdates">
+          <span class="slider"></span>
+        </label>
+      </div>
+
+      <div class="toggle-item">
+        <div class="toggle-info">
+          <span class="toggle-title">Newsletter & Tips</span>
+          <span class="toggle-desc">Career tips and platform updates from our team.</span>
+        </div>
+        <label class="toggle-switch">
+          <input type="checkbox" [(ngModel)]="emailNewsletter">
+          <span class="slider"></span>
+        </label>
+      </div>
+    </div>
+
+    <button class="save-btn" (click)="saveNotifications()">
+      <i class="fas fa-save"></i> Save Preferences
+    </button>
+  </div>
+
+  <!-- PRIVACY TAB -->
+  <div class="settings-card" *ngIf="activeTab === 'privacy'">
+    <h2 class="card-title"><i class="fas fa-shield-alt"></i> Privacy Settings</h2>
+    <p class="card-desc">Control who can see your information on Rural Connect.</p>
+
+    <div class="alert success" *ngIf="privacySuccess"><i class="fas fa-check-circle"></i> {{ privacySuccess }}</div>
+
+    <div class="toggle-group">
+      <div class="toggle-item">
+        <div class="toggle-info">
+          <span class="toggle-title">Public Profile</span>
+          <span class="toggle-desc">Allow employers to find and view your profile in candidate searches.</span>
+        </div>
+        <label class="toggle-switch">
+          <input type="checkbox" [(ngModel)]="profileVisible">
+          <span class="slider"></span>
+        </label>
+      </div>
+
+      <div class="toggle-item">
+        <div class="toggle-info">
+          <span class="toggle-title">Show Contact Info</span>
+          <span class="toggle-desc">Display your phone number to employers who view your profile.</span>
+        </div>
+        <label class="toggle-switch">
+          <input type="checkbox" [(ngModel)]="showContactInfo">
+          <span class="slider"></span>
+        </label>
+      </div>
+
+      <div class="toggle-item">
+        <div class="toggle-info">
+          <span class="toggle-title">Allow Messages</span>
+          <span class="toggle-desc">Let employers send you messages directly through the platform.</span>
+        </div>
+        <label class="toggle-switch">
+          <input type="checkbox" [(ngModel)]="allowMessages">
+          <span class="slider"></span>
+        </label>
+      </div>
+    </div>
+
+    <button class="save-btn" (click)="savePrivacy()">
+      <i class="fas fa-save"></i> Save Privacy Settings
+    </button>
+  </div>
+
+</div>

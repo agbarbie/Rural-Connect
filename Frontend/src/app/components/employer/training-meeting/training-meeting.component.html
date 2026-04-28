@@ -1,0 +1,49 @@
+<!-- training-meeting.component.html - DYTE VERSION -->
+<div class="meeting-container">
+  
+  <!-- Loading State -->
+  <div class="meeting-loading" *ngIf="loading">
+    <div class="loading-spinner"></div>
+    <p>Connecting to training session...</p>
+    <small>{{ isModerator ? 'Starting as moderator' : 'Joining as participant' }}</small>
+  </div>
+  
+  <!-- Error State -->
+  <div class="meeting-error" *ngIf="error && !loading">
+    <div class="error-icon">
+      <i class="fas fa-exclamation-triangle"></i>
+    </div>
+    <h2>Unable to Join Meeting</h2>
+    <p>{{ error }}</p>
+    <button class="btn-primary" (click)="router.navigate(['/'])">
+      Return to Dashboard
+    </button>
+  </div>
+  
+  <!-- Meeting Header (shown when meeting is active) -->
+  <div class="meeting-header" *ngIf="meetingJoined && !loading && !error">
+    <div class="meeting-info">
+      <h3>{{ sessionTitle }}</h3>
+      <p *ngIf="trainingTitle">{{ trainingTitle }}</p>
+      <span class="role-badge" [class.moderator]="isModerator">
+        {{ isModerator ? '🎙️ Moderator' : '👤 Participant' }}
+      </span>
+    </div>
+    <div class="meeting-controls">
+      <button class="btn-leave" (click)="leaveMeeting()">
+        <i class="fas fa-phone-slash"></i>
+        Leave Meeting
+      </button>
+    </div>
+  </div>
+  
+  <!-- Dyte Meeting Iframe -->
+  <iframe 
+    *ngIf="dyteIframeUrl && meetingJoined && !loading && !error"
+    [src]="dyteIframeUrl"
+    class="dyte-iframe"
+    allow="camera; microphone; fullscreen; display-capture; autoplay"
+    allowfullscreen>
+  </iframe>
+  
+</div>

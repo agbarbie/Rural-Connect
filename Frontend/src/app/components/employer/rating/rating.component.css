@@ -1,0 +1,539 @@
+/* rating.component.css - COMPLETE & FINAL STYLES (NO DUPLICATION) */
+
+.modal-overlay {
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  background-color: rgba(0, 0, 0, 0.8) !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  z-index: 999999 !important;
+  padding: 20px;
+  animation: fadeIn 0.2s ease-in-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.rating-modal {
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+  max-width: 600px;
+  width: 100%;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  animation: slideUp 0.3s ease-out;
+}
+
+@keyframes slideUp {
+  from {
+    transform: translateY(50px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.modal-header {
+  padding: 24px;
+  border-bottom: 1px solid #e5e7eb;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.modal-header h2 {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 600;
+  color: #1f2937;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.modal-header h2 i {
+  color: #f59e0b;
+}
+
+.close-btn {
+  background: none;
+  border: none;
+  font-size: 24px;
+  color: #6b7280;
+  cursor: pointer;
+  padding: 8px;
+  border-radius: 6px;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.close-btn:hover:not(:disabled) {
+  background: #f3f4f6;
+  color: #1f2937;
+}
+
+.close-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.modal-body {
+  padding: 24px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+/* Candidate Info */
+.candidate-info {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-radius: 12px;
+  margin-bottom: 24px;
+  color: white;
+}
+
+.candidate-avatar {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  overflow: hidden;
+  border: 3px solid white;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.candidate-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.candidate-details h3 {
+  margin: 0 0 4px 0;
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.candidate-email {
+  margin: 0 0 4px 0;
+  font-size: 14px;
+  opacity: 0.9;
+}
+
+.candidate-job {
+  margin: 0;
+  font-size: 14px;
+  opacity: 0.9;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Error Alert */
+.error-alert {
+  padding: 12px 16px;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+  color: #dc2626;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 20px;
+  font-size: 14px;
+}
+
+/* Rating Section */
+.rating-section {
+  margin-bottom: 24px;
+}
+
+.section-label {
+  display: block;
+  font-size: 16px;
+  font-weight: 600;
+  color: #1f2937;
+  margin-bottom: 8px;
+}
+
+.required {
+  color: #dc2626;
+}
+
+.section-description {
+  font-size: 14px;
+  color: #6b7280;
+  margin: 0 0 16px 0;
+}
+
+/* Star Rating */
+.star-rating {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  margin-bottom: 12px;
+}
+
+.star-btn {
+  background: none;
+  border: none;
+  font-size: 48px;
+  color: #d1d5db;
+  cursor: pointer;
+  padding: 4px;
+  transition: all 0.2s;
+  transform-origin: center;
+}
+
+.star-btn:hover:not(:disabled) {
+  transform: scale(1.15);
+}
+
+.star-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.star-btn i.filled {
+  color: #f59e0b;
+  text-shadow: 0 2px 4px rgba(245, 158, 11, 0.3);
+}
+
+.star-btn.small {
+  font-size: 24px;
+}
+
+.rating-labels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  color: #6b7280;
+  margin-bottom: 16px;
+}
+
+.rating-value {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px;
+  background: #fef3c7;
+  border-radius: 8px;
+  margin-top: 16px;
+}
+
+.rating-number {
+  font-size: 32px;
+  font-weight: bold;
+  color: #f59e0b;
+}
+
+.rating-text {
+  font-size: 16px;
+  font-weight: 600;
+  color: #92400e;
+}
+
+/* Detailed Rating Toggle */
+.detailed-rating-toggle {
+  margin-bottom: 24px;
+  padding: 16px;
+  background: #f9fafb;
+  border-radius: 8px;
+}
+
+.toggle-label {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  color: #1f2937;
+}
+
+.toggle-label input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+}
+
+.toggle-description {
+  font-size: 13px;
+  color: #6b7280;
+  margin: 8px 0 0 30px;
+}
+
+/* Skills Rating */
+.skills-rating-section {
+  margin-bottom: 24px;
+  padding: 20px;
+  background: #f9fafb;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+}
+
+.skills-rating-section h4 {
+  margin: 0 0 20px 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.skill-rating-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 0;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.skill-rating-item:last-child {
+  border-bottom: none;
+}
+
+.skill-rating-item label {
+  font-size: 14px;
+  font-weight: 500;
+  color: #374151;
+}
+
+.skill-stars {
+  display: flex;
+  gap: 4px;
+}
+
+/* Form Groups */
+.form-group {
+  margin-bottom: 20px;
+}
+
+.form-group label {
+  display: block;
+  font-size: 14px;
+  font-weight: 600;
+  color: #1f2937;
+  margin-bottom: 8px;
+}
+
+.field-description {
+  font-size: 13px;
+  color: #6b7280;
+  margin: 0 0 8px 0;
+}
+
+.form-textarea {
+  width: 100%;
+  padding: 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  font-family: inherit;
+  font-size: 14px;
+  resize: vertical;
+  transition: border-color 0.2s;
+}
+
+.form-textarea:focus {
+  outline: none;
+  border-color: #667eea;
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+.form-textarea:disabled {
+  background: #f3f4f6;
+  cursor: not-allowed;
+}
+
+.char-count {
+  text-align: right;
+  font-size: 12px;
+  color: #9ca3af;
+  margin-top: 4px;
+}
+
+/* Checkbox Groups */
+.checkbox-group {
+  margin-bottom: 16px;
+}
+
+.checkbox-label {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  color: #1f2937;
+}
+
+.checkbox-label input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  margin-top: 2px;
+}
+
+.checkbox-label input[type="checkbox"]:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.checkbox-group .field-description {
+  margin-left: 30px;
+}
+
+/* Modal Footer */
+.modal-footer {
+  padding: 20px 24px;
+  border-top: 1px solid #e5e7eb;
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+/* Base Button Style */
+.btn {
+  padding: 10px 20px;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.btn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
+}
+
+.btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* Secondary Button */
+.btn-secondary {
+  background: #f3f4f6;
+  color: #374151;
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background: #e5e7eb;
+}
+
+/* Primary Button (in modal footer) */
+.btn-primary {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+}
+
+.btn-primary:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(102, 126, 234, 0.4);
+}
+
+/* Warning Button - "Rate" (Gold/Orange) */
+.btn-warning {
+  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+  color: white;
+}
+
+.btn-warning:hover:not(:disabled) {
+  background: linear-gradient(135deg, #f97316 0%, #c2410c 100%);
+  box-shadow: 0 6px 16px rgba(245, 158, 11, 0.4);
+  animation: pulse-warning 1.5s infinite;
+}
+
+/* Info Button - "Edit Rating" (Blue/Purple) */
+.btn-info {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+}
+
+.btn-info:hover:not(:disabled) {
+  background: linear-gradient(135deg, #5a67d8 0%, #6b46c1 100%);
+  box-shadow: 0 6px 16px rgba(102, 126, 234, 0.4);
+  animation: pulse-info 1.5s infinite;
+}
+
+/* Pulse Animations */
+@keyframes pulse-warning {
+  0% { box-shadow: 0 6px 16px rgba(245, 158, 11, 0.4); }
+  50% { box-shadow: 0 6px 20px rgba(245, 158, 11, 0.6); }
+  100% { box-shadow: 0 6px 16px rgba(245, 158, 11, 0.4); }
+}
+
+@keyframes pulse-info {
+  0% { box-shadow: 0 6px 16px rgba(102, 126, 234, 0.4); }
+  50% { box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6); }
+  100% { box-shadow: 0 6px 16px rgba(102, 126, 234, 0.4); }
+}
+
+/* Responsive */
+@media (max-width: 640px) {
+  .rating-modal {
+    max-width: 100%;
+    max-height: 100vh;
+    border-radius: 0;
+  }
+
+  .modal-header {
+    padding: 16px;
+  }
+
+  .modal-header h2 {
+    font-size: 20px;
+  }
+
+  .modal-body {
+    padding: 16px;
+  }
+
+  .star-rating {
+    gap: 4px;
+  }
+
+  .star-btn {
+    font-size: 36px;
+  }
+
+  .rating-labels {
+    font-size: 10px;
+  }
+
+  .candidate-info {
+    flex-direction: column;
+    text-align: center;
+  }
+
+  .skill-rating-item {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  .btn {
+    padding: 10px 16px;
+    font-size: 13px;
+  }
+}

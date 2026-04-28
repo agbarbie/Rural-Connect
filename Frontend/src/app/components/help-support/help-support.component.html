@@ -1,0 +1,124 @@
+<div class="help-page">
+
+  <!-- Header -->
+  <div class="page-header">
+    <div class="header-icon"><i class="fas fa-life-ring"></i></div>
+    <div>
+      <h1>Help & Support</h1>
+      <p>Find answers, guides, and contact our team</p>
+    </div>
+  </div>
+
+  <!-- Quick contact strip -->
+  <div class="quick-contact">
+    <div class="contact-item">
+      <i class="fas fa-envelope"></i>
+      <span>support&#64;ruralconnect.com</span>
+    </div>
+    <div class="contact-item">
+      <i class="fas fa-clock"></i>
+      <span>Mon–Fri, 8am–6pm EAT</span>
+    </div>
+    <div class="contact-item">
+      <i class="fas fa-comments"></i>
+      <span>Response within 24 hours</span>
+    </div>
+  </div>
+
+  <!-- Tabs -->
+  <div class="tabs">
+    <button class="tab-btn" [class.active]="activeTab === 'faq'" (click)="activeTab = 'faq'">
+      <i class="fas fa-question-circle"></i> FAQs
+    </button>
+    <button class="tab-btn" [class.active]="activeTab === 'guides'" (click)="activeTab = 'guides'">
+      <i class="fas fa-book-open"></i> Guides
+    </button>
+    <button class="tab-btn" [class.active]="activeTab === 'contact'" (click)="activeTab = 'contact'">
+      <i class="fas fa-envelope"></i> Contact Us
+    </button>
+  </div>
+
+  <!-- FAQ TAB -->
+  <div *ngIf="activeTab === 'faq'">
+    <div class="search-bar">
+      <i class="fas fa-search search-icon"></i>
+      <input type="text" [(ngModel)]="searchQuery" placeholder="Search FAQs..." class="search-input">
+    </div>
+
+    <div class="faq-list" *ngIf="filteredFaqs.length > 0">
+      <div class="faq-item" *ngFor="let faq of filteredFaqs" [class.open]="faq.open" (click)="toggleFaq(faq)">
+        <div class="faq-question">
+          <span>{{ faq.question }}</span>
+          <i [class]="faq.open ? 'fas fa-chevron-up' : 'fas fa-chevron-down'"></i>
+        </div>
+        <div class="faq-answer" *ngIf="faq.open">
+          {{ faq.answer }}
+        </div>
+      </div>
+    </div>
+
+    <div class="empty-state" *ngIf="filteredFaqs.length === 0">
+      <i class="fas fa-search"></i>
+      <p>No FAQs match your search. Try different keywords or <a (click)="activeTab = 'contact'">contact us</a>.</p>
+    </div>
+  </div>
+
+  <!-- GUIDES TAB -->
+  <div *ngIf="activeTab === 'guides'" class="guides-grid">
+    <div class="guide-card" *ngFor="let guide of guides">
+      <div class="guide-icon"><i [class]="guide.icon"></i></div>
+      <h3 class="guide-title">{{ guide.title }}</h3>
+      <p class="guide-desc">{{ guide.desc }}</p>
+      <ol class="guide-steps">
+        <li *ngFor="let step of guide.steps">{{ step }}</li>
+      </ol>
+    </div>
+  </div>
+
+  <!-- CONTACT TAB -->
+  <div class="settings-card" *ngIf="activeTab === 'contact'">
+    <h2 class="card-title"><i class="fas fa-paper-plane"></i> Send Us a Message</h2>
+    <p class="card-desc">Describe your issue and our support team will get back to you within 24 hours.</p>
+
+    <div class="alert success" *ngIf="contactSuccess"><i class="fas fa-check-circle"></i> {{ contactSuccess }}</div>
+    <div class="alert error" *ngIf="contactError"><i class="fas fa-exclamation-circle"></i> {{ contactError }}</div>
+
+    <div class="form-group">
+      <label>Subject</label>
+      <input type="text" [(ngModel)]="subject" class="form-input" placeholder="e.g. Can't verify my email">
+    </div>
+
+    <div class="form-group">
+      <label>Message</label>
+      <textarea [(ngModel)]="message" rows="5" class="form-input form-textarea" placeholder="Describe your issue in detail..."></textarea>
+    </div>
+
+    <button class="save-btn" (click)="sendMessage()" [disabled]="contactLoading">
+      <span *ngIf="!contactLoading"><i class="fas fa-paper-plane"></i> Send Message</span>
+      <span *ngIf="contactLoading"><i class="fas fa-spinner fa-spin"></i> Sending...</span>
+    </button>
+
+    <div class="divider"></div>
+
+    <div class="alt-contacts">
+      <h3 class="sub-title"><i class="fas fa-headset"></i> Other Ways to Reach Us</h3>
+      <div class="contact-cards">
+        <div class="contact-card">
+          <i class="fas fa-envelope"></i>
+          <div>
+            <strong>Email Support</strong>
+            <span>support&#64;ruralconnect.com</span>
+          </div>
+        </div>
+        <div class="contact-card">
+          <i class="fas fa-phone"></i>
+          <div>
+            <strong>Phone</strong>
+            <span>+254 700 000 000</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>

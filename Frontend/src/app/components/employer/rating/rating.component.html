@@ -1,0 +1,253 @@
+<!-- rating.component.html - COMPLETE & FINAL VERSION -->
+
+<div class="modal-overlay" *ngIf="showModal" (click)="close()">
+  <div class="rating-modal" (click)="$event.stopPropagation()">
+    <!-- Modal Header -->
+    <div class="modal-header">
+      <h2>
+        <i class="fas fa-star"></i>
+        {{ existingRating ? 'Edit Rating' : 'Rate Jobseeker' }}
+      </h2>
+      <button class="close-btn" (click)="close()" [disabled]="isSubmitting">
+        <i class="fas fa-times"></i>
+      </button>
+    </div>
+
+    <!-- Modal Body -->
+    <div class="modal-body">
+      <!-- Candidate Info -->
+      <div class="candidate-info">
+        <div class="candidate-avatar">
+          <img 
+            [src]="getAvatarUrl(candidate.profile_image, candidate.name)" 
+            [alt]="candidate.name"
+            loading="lazy"
+          />
+        </div>
+        <div class="candidate-details">
+          <h3>{{ candidate.name }}</h3>
+          <p class="candidate-email">{{ candidate.email }}</p>
+          <p class="candidate-job" *ngIf="candidate.job_title">
+            <i class="fas fa-briefcase"></i>
+            {{ candidate.job_title }}
+          </p>
+        </div>
+      </div>
+
+      <!-- Error Message -->
+      <div class="error-alert" *ngIf="errorMessage">
+        <i class="fas fa-exclamation-circle"></i>
+        {{ errorMessage }}
+      </div>
+
+      <!-- Overall Rating -->
+      <div class="rating-section">
+        <label class="section-label">
+          Overall Rating <span class="required">*</span>
+        </label>
+        <p class="section-description">How would you rate this jobseeker's overall performance?</p>
+        
+        <div class="star-rating">
+          <button
+            *ngFor="let star of [1, 2, 3, 4, 5]"
+            type="button"
+            class="star-btn"
+            (click)="setRating(star)"
+            (mouseenter)="setHoverRating(star)"
+            (mouseleave)="clearHoverRating()"
+            [disabled]="isSubmitting">
+            <i [class]="getStarClass(star, overallRating, hoverRating)"></i>
+          </button>
+        </div>
+        
+        <div class="rating-labels">
+          <span>Poor</span>
+          <span>Fair</span>
+          <span>Good</span>
+          <span>Very Good</span>
+          <span>Excellent</span>
+        </div>
+
+        <div class="rating-value" *ngIf="overallRating > 0">
+          <span class="rating-number">{{ overallRating }}</span>
+          <span class="rating-text">
+            {{ overallRating === 1 ? 'Poor' :
+               overallRating === 2 ? 'Fair' :
+               overallRating === 3 ? 'Good' :
+               overallRating === 4 ? 'Very Good' : 'Excellent' }}
+          </span>
+        </div>
+      </div>
+
+      <!-- Detailed Skills Rating Toggle -->
+      <div class="detailed-rating-toggle">
+        <label class="toggle-label">
+          <input 
+            type="checkbox" 
+            [(ngModel)]="enableDetailedRating"
+            [disabled]="isSubmitting">
+          <span>Provide detailed skills assessment</span>
+        </label>
+        <p class="toggle-description">Rate specific skills and competencies</p>
+      </div>
+
+      <!-- Skills Rating Section -->
+      <div class="skills-rating-section" *ngIf="enableDetailedRating">
+        <h4>Skills Assessment</h4>
+        
+        <div class="skill-rating-item">
+          <label>Technical Skills</label>
+          <div class="skill-stars">
+            <button
+              *ngFor="let star of [1, 2, 3, 4, 5]"
+              type="button"
+              class="star-btn small"
+              (click)="setSkillRating('technical', star)"
+              (mouseenter)="setSkillHover('technical', star)"
+              (mouseleave)="clearSkillHover('technical')"
+              [disabled]="isSubmitting">
+              <i [class]="getStarClass(star, getSkillRating('technical'), getSkillHover('technical'))"></i>
+            </button>
+          </div>
+        </div>
+
+        <div class="skill-rating-item">
+          <label>Communication</label>
+          <div class="skill-stars">
+            <button
+              *ngFor="let star of [1, 2, 3, 4, 5]"
+              type="button"
+              class="star-btn small"
+              (click)="setSkillRating('communication', star)"
+              (mouseenter)="setSkillHover('communication', star)"
+              (mouseleave)="clearSkillHover('communication')"
+              [disabled]="isSubmitting">
+              <i [class]="getStarClass(star, getSkillRating('communication'), getSkillHover('communication'))"></i>
+            </button>
+          </div>
+        </div>
+
+        <div class="skill-rating-item">
+          <label>Professionalism</label>
+          <div class="skill-stars">
+            <button
+              *ngFor="let star of [1, 2, 3, 4, 5]"
+              type="button"
+              class="star-btn small"
+              (click)="setSkillRating('professionalism', star)"
+              (mouseenter)="setSkillHover('professionalism', star)"
+              (mouseleave)="clearSkillHover('professionalism')"
+              [disabled]="isSubmitting">
+              <i [class]="getStarClass(star, getSkillRating('professionalism'), getSkillHover('professionalism'))"></i>
+            </button>
+          </div>
+        </div>
+
+        <div class="skill-rating-item">
+          <label>Work Quality</label>
+          <div class="skill-stars">
+            <button
+              *ngFor="let star of [1, 2, 3, 4, 5]"
+              type="button"
+              class="star-btn small"
+              (click)="setSkillRating('quality', star)"
+              (mouseenter)="setSkillHover('quality', star)"
+              (mouseleave)="clearSkillHover('quality')"
+              [disabled]="isSubmitting">
+              <i [class]="getStarClass(star, getSkillRating('quality'), getSkillHover('quality'))"></i>
+            </button>
+          </div>
+        </div>
+
+        <div class="skill-rating-item">
+          <label>Timeliness</label>
+          <div class="skill-stars">
+            <button
+              *ngFor="let star of [1, 2, 3, 4, 5]"
+              type="button"
+              class="star-btn small"
+              (click)="setSkillRating('timeliness', star)"
+              (mouseenter)="setSkillHover('timeliness', star)"
+              (mouseleave)="clearSkillHover('timeliness')"
+              [disabled]="isSubmitting">
+              <i [class]="getStarClass(star, getSkillRating('timeliness'), getSkillHover('timeliness'))"></i>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Task/Project Description (Optional) -->
+      <div class="form-group">
+        <label>Task/Project Description (Optional)</label>
+        <p class="field-description">Briefly describe the work they completed</p>
+        <textarea
+          [(ngModel)]="taskDescription"
+          placeholder="e.g., Developed a responsive website landing page, Fixed critical bugs in the mobile app..."
+          rows="3"
+          maxlength="500"
+          [disabled]="isSubmitting"
+          class="form-textarea"></textarea>
+        <div class="char-count">{{ taskDescription.length }}/500</div>
+      </div>
+
+      <!-- Feedback -->
+      <div class="form-group">
+        <label>Feedback <span class="required">*</span></label>
+        <p class="field-description">Share your experience working with this jobseeker</p>
+        <textarea
+          [(ngModel)]="feedback"
+          placeholder="What did they do well? What could be improved? Would you work with them again?"
+          rows="5"
+          maxlength="1000"
+          [disabled]="isSubmitting"
+          class="form-textarea"></textarea>
+        <div class="char-count">{{ feedback.length }}/1000</div>
+      </div>
+
+      <!-- Would Hire Again -->
+      <div class="form-group checkbox-group">
+        <label class="checkbox-label">
+          <input 
+            type="checkbox" 
+            [(ngModel)]="wouldHireAgain"
+            [disabled]="isSubmitting">
+          <span>I would hire this jobseeker again</span>
+        </label>
+      </div>
+
+      <!-- Public/Private Rating -->
+      <div class="form-group checkbox-group">
+        <label class="checkbox-label">
+          <input 
+            type="checkbox" 
+            [(ngModel)]="isPublic"
+            [disabled]="isSubmitting">
+          <span>Make this rating public</span>
+        </label>
+        <p class="field-description">
+          Public ratings will be visible on the jobseeker's profile
+        </p>
+      </div>
+    </div>
+
+    <!-- Modal Footer -->
+    <div class="modal-footer">
+      <button 
+        class="btn btn-secondary" 
+        (click)="close()"
+        [disabled]="isSubmitting">
+        Cancel
+      </button>
+      <button 
+        class="btn btn-primary" 
+        (click)="submitRating()"
+        [disabled]="isSubmitting || overallRating === 0">
+        <i class="fas" 
+           [class.fa-spinner]="isSubmitting" 
+           [class.fa-spin]="isSubmitting"
+           [class.fa-paper-plane]="!isSubmitting"></i>
+        {{ isSubmitting ? 'Saving...' : (existingRating ? 'Update Rating' : 'Submit Rating') }}
+      </button>
+    </div>
+  </div>
+</div>

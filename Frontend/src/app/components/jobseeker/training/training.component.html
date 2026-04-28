@@ -1,0 +1,718 @@
+<!-- jobseeker-training.component.html - BOOTCAMP MODEL (CORRECTED) -->
+
+<!-- Hamburger Menu Button (Mobile Only) -->
+<button class="hamburger" (click)="toggleSidebar()">
+  <i class="fas fa-bars"></i>
+</button>
+
+<!-- Sidebar Overlay -->
+<div class="sidebar-overlay" (click)="closeSidebar()"></div>
+
+<div class="training-container">
+  
+  <!-- Sidebar -->
+  <app-sidebar [userType]="'jobseeker'"></app-sidebar>
+
+  <!-- Main Content -->
+  <div class="main-content">
+    
+    <!-- Page Header -->
+    <div class="page-header">
+      <div class="header-content">
+        <div class="header-text">
+          <h1>
+            <i class="fas fa-graduation-cap"></i> 
+            Training Opportunities
+          </h1>
+          <p>Apply for professional bootcamp-style training programs and earn verifiable certificates</p>
+        </div>
+        <div class="header-actions">
+          <button 
+            class="btn-toggle-view" 
+            (click)="toggleEnrolledView()"
+            [class.active]="showEnrolledOnly">
+            <i class="fas" [ngClass]="showEnrolledOnly ? 'fa-th-large' : 'fa-user-graduate'"></i>
+            {{ showEnrolledOnly ? 'Browse All Trainings' : 'My Enrolled Trainings' }}
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Notification Bell -->
+    <div class="notification-wrapper">
+      <button class="notification-bell" (click)="toggleNotifications()">
+        <i class="fas fa-bell" [class.ringing]="unreadNotificationCount > 0"></i>
+        <span class="notification-badge" *ngIf="unreadNotificationCount > 0">
+          {{ unreadNotificationCount }}
+        </span>
+      </button>
+   
+      <!-- Notification Dropdown -->
+      <div class="notification-dropdown" *ngIf="showNotifications">
+        <div class="notification-header">
+          <h3>
+            <i class="fas fa-bell"></i>
+            Notifications
+            <span class="unread-count" *ngIf="unreadNotificationCount > 0">
+              ({{ unreadNotificationCount }} new)
+            </span>
+          </h3>
+          <button class="close-btn" (click)="toggleNotifications()">
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+       
+        <div class="notification-list">
+          <!-- Notification Items -->
+          <div class="notification-item"
+               *ngFor="let notification of notifications"
+               [class.unread]="!notification.read"
+               (click)="handleNotificationClick(notification)">
+           
+            <!-- Notification Icon -->
+            <div class="notification-icon" [ngClass]="getNotificationIconClass(notification.type)">
+              <i class="fas" [ngClass]="getNotificationIcon(notification.type)"></i>
+            </div>
+           
+            <!-- Notification Content -->
+            <div class="notification-content">
+              <h4 class="notification-title">{{ notification.title || getNotificationTitle(notification.type) }}</h4>
+              <p class="notification-message">{{ notification.message }}</p>
+              <span class="notification-time">
+                <i class="fas fa-clock"></i>
+                {{ formatDate(notification.created_at) }}
+              </span>
+            </div>
+           
+            <!-- Notification Actions -->
+            <div class="notification-actions">
+              <!-- Certificate Download -->
+              <button
+                *ngIf="notification.type === 'certificate_issued'"
+                class="btn-notification-action btn-download"
+                (click)="downloadCertificate(notification.metadata?.enrollment_id, notification.metadata?.training_title); $event.stopPropagation()"
+                title="Download Certificate">
+                <i class="fas fa-download"></i>
+                Download
+              </button>
+             
+              <!-- View Training -->
+              <button
+                *ngIf="notification.metadata?.training_id"
+                class="btn-notification-action btn-view"
+                (click)="viewTrainingFromNotification(notification.metadata.training_id); $event.stopPropagation()"
+                title="View Training">
+                <i class="fas fa-eye"></i>
+                View
+              </button>
+             
+              <!-- Mark as Read -->
+              <button
+                *ngIf="!notification.read"
+                class="btn-notification-action btn-mark-read"
+                (click)="markNotificationAsRead(notification.id); $event.stopPropagation()"
+                title="Mark as Read">
+                <i class="fas fa-check"></i>
+              </button>
+            </div>
+          </div>
+         
+          <!-- Empty State -->
+          <div class="no-notifications" *ngIf="notifications.length === 0">
+            <i class="fas fa-inbox"></i>
+            <p>No new notifications</p>
+            <small>You'll be notified about training updates, shortlisting, and certificates</small>
+          </div>
+        </div>
+       
+        <!-- Notification Footer -->
+        <div class="notification-footer" *ngIf="notifications.length > 0">
+          <button class="btn-view-all" (click)="viewAllNotifications()">
+            <i class="fas fa-list"></i>
+            View All Notifications
+          </button>
+          <button class="btn-clear-read" (click)="clearReadNotifications()">
+            <i class="fas fa-trash-alt"></i>
+            Clear Read
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Search and Filter Section -->
+    <div class="search-filter-section" *ngIf="!showEnrolledOnly">
+      <div class="search-container">
+        <div class="search-box">
+          <i class="fas fa-search"></i>
+          <input 
+            type="text" 
+            placeholder="Search training programs..." 
+            [(ngModel)]="searchQuery"
+            (input)="onSearchChange()">
+        </div>
+        <button class="filter-toggle-btn" (click)="toggleFilters()">
+          <i class="fas fa-filter"></i>
+          Filters
+          <i class="fas fa-chevron-down" [class.rotated]="showFilters"></i>
+        </button>
+      </div>
+
+      <!-- Advanced Filters -->
+      <div class="filters-panel" [class.show]="showFilters">
+        <div class="filter-group">
+          <h4>Level</h4>
+          <label><input type="checkbox" (change)="onFilterCheckboxChange('level', 'Beginner', $event)"> Beginner</label>
+          <label><input type="checkbox" (change)="onFilterCheckboxChange('level', 'Intermediate', $event)"> Intermediate</label>
+          <label><input type="checkbox" (change)="onFilterCheckboxChange('level', 'Advanced', $event)"> Advanced</label>
+        </div>
+        <div class="filter-group">
+          <h4>Cost</h4>
+          <label><input type="checkbox" (change)="onFilterCheckboxChange('cost', 'Free', $event)"> Free</label>
+          <label><input type="checkbox" (change)="onFilterCheckboxChange('cost', 'Paid', $event)"> Paid</label>
+        </div>
+        <div class="filter-group">
+          <h4>Mode</h4>
+          <label><input type="checkbox" (change)="onFilterCheckboxChange('mode', 'Online', $event)"> Online</label>
+          <label><input type="checkbox" (change)="onFilterCheckboxChange('mode', 'Offline', $event)"> Offline</label>
+        </div>
+        <button class="clear-filters-btn" (click)="clearAllFilters()">
+          <i class="fas fa-times"></i> Clear All
+        </button>
+      </div>
+    </div>
+
+    <!-- Category Tabs -->
+    <div class="category-tabs" *ngIf="!showEnrolledOnly">
+      <button 
+        class="category-tab" 
+        [class.active]="selectedCategory === 'all'"
+        (click)="filterByCategory('all')">
+        All Trainings
+      </button>
+      <button 
+        *ngFor="let category of categories"
+        class="category-tab" 
+        [class.active]="selectedCategory === category"
+        (click)="filterByCategory(category)">
+        {{category}}
+      </button>
+    </div>
+
+    <!-- Loading State -->
+    <div class="loading-state" *ngIf="loading">
+      <div class="loading-spinner">
+        <i class="fas fa-spinner fa-spin"></i>
+        <p>Loading training programs...</p>
+      </div>
+    </div>
+
+    <!-- Error State -->
+    <div class="error-state" *ngIf="error && !loading">
+      <div class="error-content">
+        <i class="fas fa-exclamation-triangle"></i>
+        <h3>Error Loading Trainings</h3>
+        <p>{{error}}</p>
+        <button class="btn btn-primary" (click)="refreshTrainings()">
+          <i class="fas fa-refresh"></i>
+          Try Again
+        </button>
+      </div>
+    </div>
+
+    <!-- Training Grid -->
+    <div class="training-grid" *ngIf="!loading && !error">
+      <div class="training-card" *ngFor="let training of filteredTrainings">
+        
+        <!-- Card Header with Image -->
+        <div class="card-header">
+          <div class="card-image">
+            <img [src]="training.thumbnail_url || 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=300&h=200&fit=crop'" 
+                 [alt]="training.title">
+            <div class="session-overlay">
+              <i class="fas fa-calendar-alt"></i>
+              <span>{{ getSessionsCount(training) }} Live Sessions</span>
+            </div>
+            <div class="duration-badge">{{formatDuration(training.duration_hours)}}</div>
+          </div>
+        </div>
+
+        <!-- Card Content -->
+        <div class="card-content">
+          <!-- Category and Level -->
+          <div class="card-meta">
+            <span class="category-tag">{{training.category}}</span>
+            <span class="level-badge" [class]="training.level.toLowerCase()">{{training.level}}</span>
+          </div>
+          
+          <!-- Title and Description -->
+          <h3 class="card-title">{{training.title}}</h3>
+          <p class="card-description">{{training.description}}</p>
+          
+          <!-- Provider and Stats -->
+          <div class="card-details">
+            <div class="detail-item">
+              <i class="fas fa-building"></i>
+              <span>{{training.provider_name}}</span>
+            </div>
+            <div class="detail-item">
+              <i class="fas fa-users"></i>
+              <span>{{formatNumber(training.current_participants)}} / {{formatNumber(training.max_participants)}} enrolled</span>
+            </div>
+            <div class="detail-item">
+              <i class="fas fa-star"></i>
+              <span>{{training.rating}}</span>
+            </div>
+          </div>
+
+          <!-- Features -->
+          <div class="card-features">
+            <div class="feature" *ngIf="training.has_certificate">
+              <i class="fas fa-certificate"></i>
+              <span>Certificate</span>
+            </div>
+            <div class="feature">
+              <i class="fas fa-globe" *ngIf="training.mode === 'Online'; else offlineIcon"></i>
+              <ng-template #offlineIcon><i class="fas fa-map-marker-alt"></i></ng-template>
+              <span>{{training.mode}}</span>
+            </div>
+            <div class="feature" [class.free]="training.cost_type === 'Free'">
+              <i class="fas fa-tag"></i>
+              <span>{{formatPrice(training)}}</span>
+            </div>
+          </div>
+
+          <!-- Application Deadline -->
+          <div class="deadline-info" *ngIf="training.application_deadline && !isApplicationDeadlinePassed(training)">
+            <i class="fas fa-clock"></i>
+            <span>Apply by: {{ formatDate(training.application_deadline) }}</span>
+            <span class="days-left" *ngIf="getDaysUntilDeadline(training) > 0">
+              ({{ getDaysUntilDeadline(training) }} days left)
+            </span>
+          </div>
+
+          <!-- Application Status Badge -->
+          <div class="application-status-badge" *ngIf="training.applied" [ngClass]="getApplicationStatusClass(training)">
+            <i class="fas" [ngClass]="{
+              'fa-clock': training.application_status === 'pending',
+              'fa-check-circle': training.application_status === 'shortlisted',
+              'fa-times-circle': training.application_status === 'rejected'
+            }"></i>
+            {{ getApplicationStatusBadge(training) }}
+          </div>
+
+          <!-- Training Progress (for enrolled) -->
+          <div class="progress-section" *ngIf="training.enrolled && training.application_status === 'shortlisted'">
+            <div class="training-status-info">
+              <i class="fas fa-chalkboard-teacher"></i>
+              <span>Training Status: {{ training.status === 'in_progress' ? 'In Progress' : 'Completed' }}</span>
+            </div>
+          </div>
+
+          <!-- Certificate Section -->
+          <div class="certificate-section" *ngIf="training.enrolled && training.status === 'completed'">
+            <div *ngIf="canDownloadCertificate(training)">
+              <button
+                class="btn-certificate"
+                (click)="downloadCertificateFromCard(training)"
+                [disabled]="loading">
+                <i class="fas fa-download"></i>
+                {{ loading ? 'Downloading...' : 'Download Certificate' }}
+              </button>
+            </div>
+            <div *ngIf="!training.certificate_issued" class="certificate-pending">
+              <i class="fas fa-clock"></i>
+              <span>Certificate pending - Awaiting employer issuance</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Card Footer with Actions -->
+        <div class="card-footer">
+          <button 
+            class="btn btn-outline" 
+            (click)="viewTrainingDetail(training)">
+            <i class="fas fa-info-circle"></i>
+            View Details
+          </button>
+          
+          <!-- Apply Button -->
+          <button 
+            *ngIf="canApply(training)"
+            class="btn btn-primary" 
+            (click)="openApplicationModal(training)"
+            [disabled]="loading">
+            <i class="fas fa-paper-plane"></i>
+            Apply Now
+          </button>
+          
+          <!-- Already Applied Button -->
+          <button 
+            *ngIf="training.applied && !training.enrolled"
+            class="btn btn-secondary"
+            disabled>
+            <i class="fas fa-check"></i>
+            Applied
+          </button>
+          
+          <!-- Enrolled Button -->
+          <button 
+            *ngIf="training.enrolled"
+            class="btn btn-success"
+            (click)="viewTrainingDetail(training)">
+            <i class="fas fa-graduation-cap"></i>
+            View Training
+          </button>
+          
+          <!-- Application Closed -->
+          <button 
+            *ngIf="!canApply(training) && !training.applied && !training.enrolled"
+            class="btn btn-secondary"
+            disabled>
+            <i class="fas fa-lock"></i>
+            Applications Closed
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- No Results -->
+    <div class="no-results" *ngIf="!loading && !error && filteredTrainings.length === 0">
+      <div class="no-results-content">
+        <i class="fas fa-search"></i>
+        <h3>{{ showEnrolledOnly ? 'No Enrolled Trainings' : 'No Training Programs Found' }}</h3>
+        <p>{{ showEnrolledOnly ? 'You haven\'t enrolled in any trainings yet.' : 'No trainings match your current search criteria.' }}</p>
+        <div class="no-results-actions">
+          <button class="btn btn-primary" (click)="showEnrolledOnly ? toggleEnrolledView() : clearAllFilters()">
+            <i class="fas" [ngClass]="showEnrolledOnly ? 'fa-th-large' : 'fa-refresh'"></i>
+            {{ showEnrolledOnly ? 'Browse All Trainings' : 'Clear Filters' }}
+          </button>
+          <button class="btn btn-outline" (click)="refreshTrainings()">
+            <i class="fas fa-sync"></i>
+            Refresh
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Pagination -->
+    <div class="pagination-container" *ngIf="!loading && !error && totalPages > 1 && !showEnrolledOnly">
+      <div class="pagination-info">
+        <span>Showing {{((currentPage - 1) * pageSize) + 1}} to {{getMin(currentPage * pageSize, totalCount)}} of {{totalCount}} trainings</span>
+      </div>
+      
+      <div class="pagination-controls">
+        <button 
+          class="pagination-btn" 
+          [disabled]="currentPage === 1"
+          (click)="previousPage()">
+          <i class="fas fa-chevron-left"></i>
+          Previous
+        </button>
+        
+        <div class="pagination-numbers">
+          <button 
+            *ngFor="let page of getPaginationPages()"
+            class="pagination-number"
+            [class.active]="page === currentPage"
+            [disabled]="page === '...'"
+            (click)="page !== '...' ? goToPage(+page) : null">
+            {{page}}
+          </button>
+        </div>
+        
+        <button 
+          class="pagination-btn" 
+          [disabled]="currentPage === totalPages"
+          (click)="nextPage()">
+          Next
+          <i class="fas fa-chevron-right"></i>
+        </button>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- Training Detail Modal -->
+<div class="modal-overlay" *ngIf="showTrainingDetail" (click)="closeTrainingDetail()">
+  <div class="modal-content" (click)="$event.stopPropagation()" *ngIf="selectedTraining">
+    <div class="modal-header">
+      <h2>{{selectedTraining.title}}</h2>
+      <button class="close-btn" (click)="closeTrainingDetail()">
+        <i class="fas fa-times"></i>
+      </button>
+    </div>
+    
+    <div class="modal-body">
+      <!-- Training Overview -->
+      <div class="training-overview">
+        <img [src]="selectedTraining.thumbnail_url || 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=300&h=200&fit=crop'" 
+             [alt]="selectedTraining.title" 
+             class="training-image">
+        <div class="training-info">
+          <p class="training-description">{{selectedTraining.description}}</p>
+          
+          <div class="training-stats">
+            <div class="stat">
+              <i class="fas fa-clock"></i>
+              <span>{{formatDuration(selectedTraining.duration_hours)}}</span>
+            </div>
+            <div class="stat">
+              <i class="fas fa-signal"></i>
+              <span>{{selectedTraining.level}}</span>
+            </div>
+            <div class="stat">
+              <i class="fas fa-star"></i>
+              <span>{{selectedTraining.rating}} rating</span>
+            </div>
+            <div class="stat">
+              <i class="fas fa-users"></i>
+              <span>{{formatNumber(selectedTraining.current_participants)}} / {{formatNumber(selectedTraining.max_participants)}} enrolled</span>
+            </div>
+            <div class="stat">
+              <i class="fas fa-building"></i>
+              <span>{{selectedTraining.provider_name}}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="training-sections">
+        <!-- Training Schedule -->
+        <!-- ✅ FIXED: Changed training_start_date to start_date -->
+        <div class="section" *ngIf="selectedTraining.application_deadline || selectedTraining.start_date">
+          <h3><i class="fas fa-calendar"></i> Training Schedule</h3>
+          <div class="schedule-info">
+            <div class="schedule-item" *ngIf="selectedTraining.application_deadline">
+              <strong>Application Deadline:</strong>
+              <span>{{ formatDate(selectedTraining.application_deadline) }}</span>
+            </div>
+            <!-- ✅ FIXED: Changed training_start_date to start_date -->
+            <div class="schedule-item" *ngIf="selectedTraining.start_date">
+              <strong>Training Start:</strong>
+              <span>{{ formatDate(selectedTraining.start_date) }}</span>
+            </div>
+            <!-- ✅ FIXED: Changed training_end_date to end_date -->
+            <div class="schedule-item" *ngIf="selectedTraining.end_date">
+              <strong>Training End:</strong>
+              <span>{{ formatDate(selectedTraining.end_date) }}</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Learning Outcomes -->
+        <div class="section" *ngIf="selectedTraining.outcomes && selectedTraining.outcomes.length > 0">
+          <h3><i class="fas fa-target"></i> Learning Outcomes</h3>
+          <ul class="outcomes-list">
+            <li *ngFor="let outcome of selectedTraining.outcomes">
+              <i class="fas fa-check-circle"></i>
+              {{outcome.outcome_text}}
+            </li>
+          </ul>
+        </div>
+
+        <!-- Training Sessions -->
+<div class="section" *ngIf="selectedTraining.sessions && selectedTraining.sessions.length > 0">
+  <h3><i class="fas fa-chalkboard-teacher"></i> Live Training Sessions ({{selectedTraining.sessions.length}})</h3>
+  
+  <div class="sessions-list">
+    <div class="session-item" *ngFor="let session of selectedTraining.sessions; let i = index">
+      <div class="session-number">{{i + 1}}</div>
+      <div class="session-info">
+        <h4>{{session.title}}</h4>
+        <p class="session-description" *ngIf="session.description">{{session.description}}</p>
+        <div class="session-meta">
+          <span class="session-date">
+            <i class="fas fa-calendar"></i>
+            {{ formatDate(session.scheduled_at) }}
+          </span>
+          <span class="session-duration">
+            <i class="fas fa-clock"></i>
+            {{ session.duration_minutes }} minutes
+          </span>
+        </div>
+        
+        <!-- ✅ MEETING DETAILS FOR ENROLLED/SHORTLISTED USERS -->
+        <!-- ✅ REPLACE THE MEETING DETAILS SECTION -->
+<div class="meeting-details" *ngIf="session.meeting_url && (selectedTraining.enrolled || selectedTraining.application_status === 'shortlisted')">
+  <div class="meeting-access-header">
+    <i class="fas fa-video"></i>
+    <span>BigBlueButton Meeting</span>
+  </div>
+  
+  <!-- ✅ JOIN BUTTON -->
+  <button 
+    class="btn-join-meeting"
+    (click)="session.id ? joinMeeting(session.id) : null"
+    [disabled]="loading || !session.id">
+    <i class="fas fa-video"></i>
+    {{ loading ? 'Connecting...' : 'Join Live Session' }}
+  </button>
+  
+  <div class="meeting-info-notice">
+    <i class="fas fa-info-circle"></i>
+    <span>Click to join the live training session at the scheduled time</span>
+  </div>
+</div>
+        
+        <!-- Locked message for non-enrolled users -->
+        <div class="session-locked" *ngIf="!session.meeting_url || (!selectedTraining.enrolled && selectedTraining.application_status !== 'shortlisted')">
+          <i class="fas fa-lock"></i>
+          <span>Meeting details will be available once you're enrolled</span>
+        </div>
+      </div>
+      <div class="session-status">
+        <i class="fas fa-check-circle" *ngIf="session.is_completed" style="color: #10b981;"></i>
+        <i class="fas fa-lock" *ngIf="!selectedTraining.enrolled && selectedTraining.application_status !== 'shortlisted'" style="color: #9ca3af;"></i>
+        <i class="fas fa-user-check" *ngIf="selectedTraining.enrolled || selectedTraining.application_status === 'shortlisted'" style="color: #3b82f6;" title="You have access"></i>
+      </div>
+    </div>
+  </div>
+</div>
+
+        <!-- Application Status (if applied) -->
+        <div class="section" *ngIf="selectedTraining.applied">
+          <h3><i class="fas fa-info-circle"></i> Application Status</h3>
+          <div class="application-status-detail" [ngClass]="getApplicationStatusClass(selectedTraining)">
+            <i class="fas" [ngClass]="{
+              'fa-clock': selectedTraining.application_status === 'pending',
+              'fa-check-circle': selectedTraining.application_status === 'shortlisted',
+              'fa-times-circle': selectedTraining.application_status === 'rejected'
+            }"></i>
+            <div>
+              <h4>{{ getApplicationStatusBadge(selectedTraining) }}</h4>
+              <p *ngIf="selectedTraining.application_status === 'pending'">
+                Your application is being reviewed by the training provider.
+              </p>
+              <p *ngIf="selectedTraining.application_status === 'shortlisted'">
+                Congratulations! You have been selected for this training. Training sessions will be available soon.
+              </p>
+              <p *ngIf="selectedTraining.application_status === 'rejected'">
+                Unfortunately, your application was not accepted for this training.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Certificate Section (if enrolled and completed) -->
+        <div class="section" *ngIf="selectedTraining.enrolled && selectedTraining.status === 'completed'">
+          <h3><i class="fas fa-certificate"></i> Certificate</h3>
+          <div class="certificate-section-detail">
+            <div *ngIf="canDownloadCertificate(selectedTraining)">
+              <button
+                class="btn-certificate-large"
+                (click)="downloadCertificateFromCard(selectedTraining)"
+                [disabled]="loading">
+                <i class="fas fa-download"></i>
+                {{ loading ? 'Downloading...' : 'Download Certificate' }}
+              </button>
+              <p class="certificate-info">
+                <i class="fas fa-info-circle"></i>
+                Your certificate is ready! Download it to share with employers or on social media.
+              </p>
+            </div>
+            <div *ngIf="!selectedTraining.certificate_issued" class="certificate-pending-detail">
+              <i class="fas fa-hourglass-half"></i>
+              <div>
+                <h4>Certificate Pending</h4>
+                <p>{{ getCertificateStatusMessage(selectedTraining) }}</p>
+                <button class="btn btn-outline btn-small" (click)="refreshTrainingDetails()">
+                  <i class="fas fa-sync"></i>
+                  Check Status
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn btn-outline" (click)="closeTrainingDetail()">
+        Close
+      </button>
+      
+      <!-- Apply Button in Modal -->
+      <button 
+        *ngIf="canApply(selectedTraining)"
+        class="btn btn-primary" 
+        (click)="openApplicationModal(selectedTraining); closeTrainingDetail()"
+        [disabled]="loading">
+        <i class="fas fa-paper-plane"></i>
+        Apply Now
+      </button>
+      
+      <!-- Already Applied -->
+      <button 
+        *ngIf="selectedTraining.applied && !selectedTraining.enrolled"
+        class="btn btn-secondary"
+        disabled>
+        <i class="fas fa-check"></i>
+        Application Submitted
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Application Modal -->
+<div class="modal-overlay" *ngIf="showApplicationModal" (click)="closeApplicationModal()">
+  <div class="modal-content application-modal" (click)="$event.stopPropagation()">
+    <div class="modal-header">
+      <h2>
+        <i class="fas fa-paper-plane"></i>
+        Apply for Training
+      </h2>
+      <button class="close-btn" (click)="closeApplicationModal()">
+        <i class="fas fa-times"></i>
+      </button>
+    </div>
+    
+    <div class="modal-body">
+      <div class="application-training-info" *ngIf="selectedTraining">
+        <h3>{{selectedTraining.title}}</h3>
+        <p>{{selectedTraining.provider_name}}</p>
+        <div class="application-details">
+          <span><i class="fas fa-clock"></i> {{formatDuration(selectedTraining.duration_hours)}}</span>
+          <span><i class="fas fa-calendar-alt"></i> {{getSessionsCount(selectedTraining)}} sessions</span>
+          <span><i class="fas fa-users"></i> {{formatNumber(selectedTraining.current_participants)}} / {{formatNumber(selectedTraining.max_participants)}} enrolled</span>
+        </div>
+      </div>
+
+      <form class="application-form" (ngSubmit)="submitApplication()">
+        <div class="form-group">
+          <label for="motivationLetter">
+            <i class="fas fa-pen"></i>
+            Motivation Letter *
+          </label>
+          <textarea 
+            id="motivationLetter"
+            [(ngModel)]="motivationLetter"
+            name="motivationLetter"
+            rows="8"
+            placeholder="Tell us why you want to join this training program and what you hope to achieve... (minimum 50 characters)"
+            required
+            minlength="50"></textarea>
+          <small class="char-count">{{motivationLetter.length}} characters</small>
+        </div>
+
+        <div class="application-notice">
+          <i class="fas fa-info-circle"></i>
+          <p>Your application will be reviewed by the training provider. You will be notified about the shortlisting decision.</p>
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline" (click)="closeApplicationModal()">
+            Cancel
+          </button>
+          <button 
+            type="submit" 
+            class="btn btn-primary" 
+            [disabled]="loading || motivationLetter.trim().length < 50">
+            <i class="fas fa-paper-plane"></i>
+            {{ loading ? 'Submitting...' : 'Submit Application' }}
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>

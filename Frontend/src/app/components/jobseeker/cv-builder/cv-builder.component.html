@@ -1,0 +1,1107 @@
+<div class="cv-builder-container">
+  <!-- Hamburger Menu Button -->
+<button class="hamburger" (click)="toggleSidebar()">
+  <i class="fas fa-bars"></i>
+</button>
+
+<!-- Sidebar Overlay -->
+<div class="sidebar-overlay" (click)="closeSidebar()"></div>
+  <!-- Sidebar -->
+  <app-sidebar [userType]="'jobseeker'"></app-sidebar>
+
+  <!-- Main Content -->
+  <div class="main-content">
+    <!-- Header -->
+    <div class="header">
+      <button class="hamburger" (click)="toggleSidebar()">
+        <i class="fas fa-bars"></i>
+      </button>
+      <div class="sidebar-overlay" (click)="closeSidebar()"></div>
+      <div class="header-left">
+        <h1 class="page-title">
+          <i class="fas fa-file-alt"></i>
+          CV Builder
+        </h1>
+        <p class="page-subtitle">Create and manage your professional CV</p>
+      </div>
+      <div class="header-right">
+        <!-- CV List Dropdown (if user has saved CVs) -->
+        <div class="cv-selector" *ngIf="savedCVs.length > 0 && !showWelcome">
+          <select
+            #cvSelect
+            (change)="loadCV(cvSelect.value)"
+            [value]="currentCVId || ''"
+          >
+            <option value="" disabled>Select a CV</option>
+            <option *ngFor="let cv of savedCVs" [value]="cv.id">
+              {{ cv.cvData.personalInfo.fullName || "Untitled CV" }} -
+              {{ cv.status }}
+            </option>
+          </select>
+        </div>
+
+        <div class="cv-status">
+          <span class="status-label">Status:</span>
+          <span class="status-badge" [ngClass]="isDraft ? 'draft' : 'final'">
+            {{ isDraft ? "Draft" : "Final" }}
+          </span>
+        </div>
+        <div class="header-actions">
+          <button
+            class="btn btn-outline"
+            (click)="togglePreview()"
+            *ngIf="!showWelcome"
+          >
+            <i class="fas fa-eye"></i>
+            {{ previewMode ? "Edit Mode" : "Preview" }}
+          </button>
+          <button
+            class="btn btn-secondary"
+            (click)="saveAsDraft()"
+            *ngIf="!showWelcome"
+            [disabled]="isProcessingFile"
+          >
+            <i class="fas fa-save"></i>
+            Save Draft
+          </button>
+          <button
+            class="btn btn-primary"
+            (click)="saveAsFinal()"
+            *ngIf="!showWelcome"
+            [disabled]="isProcessingFile"
+          >
+            <i class="fas fa-check"></i>
+            Save Final
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- My CVs Section (Show when welcome screen is active) -->
+    <div class="my-cvs-section" *ngIf="showWelcome && savedCVs.length > 0">
+      <h3><i class="fas fa-folder-open"></i> My Saved CVs</h3>
+      <div class="cvs-grid">
+        <div class="cv-card" *ngFor="let cv of savedCVs">
+          <div class="cv-card-header">
+            <h4>{{ cv.cvData.personalInfo.fullName || "Untitled CV" }}</h4>
+            <span class="cv-card-status" [ngClass]="cv.status">{{
+              cv.status
+            }}</span>
+          </div>
+          <div class="cv-card-meta">
+            <p>
+              <i class="fas fa-calendar"></i> Updated:
+              {{ cv.updatedAt | date: "short" }}
+            </p>
+            <p *ngIf="cv.parsedFromFile">
+              <i class="fas fa-file-import"></i> Imported from file
+            </p>
+          </div>
+          <div class="cv-card-actions">
+            <button class="btn btn-sm btn-primary" (click)="loadCV(cv.id)">
+              <i class="fas fa-edit"></i> Edit
+            </button>
+            <button
+              class="btn btn-sm btn-outline"
+              (click)="downloadPDFForCV(cv.id)"
+            >
+              <i class="fas fa-download"></i> PDF
+            </button>
+            <button class="btn btn-sm btn-danger" (click)="deleteCV(cv.id)">
+              <i class="fas fa-trash"></i>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Welcome Section -->
+    <div class="welcome-section" *ngIf="showWelcome && !previewMode">
+      <div class="welcome-content">
+        <h2>Welcome to CV Builder</h2>
+        <p>
+          Create a professional CV in minutes. Upload your existing CV to get
+          started quickly, or build one from scratch.
+        </p>
+
+        <div class="welcome-options">
+          <!-- Upload Existing CV -->
+          <div class="upload-section">
+            <div
+              class="drag-drop-area"
+              (drop)="onDrop($event)"
+              (dragover)="onDragOver($event)"
+              (dragenter)="onDragEnter($event)"
+              (dragleave)="onDragLeave($event)"
+              (click)="fileInput.click()"
+              [class.dragover]="isDragOver"
+              [class.disabled]="isProcessingFile"
+            >
+              <div class="upload-icon">
+                <i class="fas fa-cloud-upload-alt"></i>
+              </div>
+              <div class="upload-text">Upload Existing CV</div>
+              <div class="upload-subtext">
+                Drag and drop your CV here, or click to browse
+              </div>
+              <input
+                #fileInput
+                type="file"
+                class="file-input"
+                accept=".pdf,.doc,.docx,.txt"
+                (change)="onFileSelected($event)"
+                [disabled]="isProcessingFile"
+              />
+              <button
+                class="upload-button"
+                type="button"
+                [disabled]="isProcessingFile"
+              >
+                <i class="fas fa-upload"></i>
+                Choose File
+              </button>
+            </div>
+
+            <div class="supported-formats">
+              <div class="formats-title">Supported formats:</div>
+              <div class="formats-list">
+                <span class="format-tag">PDF</span>
+                <span class="format-tag">DOC</span>
+                <span class="format-tag">DOCX</span>
+                <span class="format-tag">TXT</span>
+              </div>
+              <p class="format-note">Maximum file size: 10MB</p>
+            </div>
+
+            <div class="processing" *ngIf="isProcessingFile">
+              <div class="spinner"></div>
+              <div class="processing-text">Processing your CV...</div>
+              <p class="processing-subtext">This may take a few moments</p>
+            </div>
+          </div>
+
+          <!-- Create New CV -->
+          <div class="create-section">
+            <div class="create-icon">
+              <i class="fas fa-plus"></i>
+            </div>
+            <div class="create-title">Create New CV</div>
+            <div class="create-description">
+              Start building your CV from scratch using our step-by-step guided
+              process.
+            </div>
+            <button
+              class="btn btn-primary btn-large"
+              (click)="startNewCV()"
+              type="button"
+            >
+              <i class="fas fa-rocket"></i>
+              Start Building
+            </button>
+            <div class="create-features">
+              <p><i class="fas fa-check-circle"></i> Step-by-step guidance</p>
+              <p><i class="fas fa-check-circle"></i> Professional templates</p>
+              <p><i class="fas fa-check-circle"></i> Auto-save functionality</p>
+              <p><i class="fas fa-check-circle"></i> Export to PDF/Word</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Progress Bar -->
+    <div class="progress-container" *ngIf="!previewMode && !showWelcome">
+      <div class="progress-bar">
+        <div
+          class="progress-step"
+          *ngFor="let step of [1, 2, 3, 4, 5, 6]; let i = index"
+          [ngClass]="{
+            active: step <= currentStep,
+            current: step === currentStep,
+          }"
+          (click)="goToStep(step)"
+        >
+          <div class="step-number">{{ step }}</div>
+          <div class="step-label">{{ getStepName(step) }}</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- CV Builder Form -->
+    <div class="cv-builder-content" *ngIf="!previewMode && !showWelcome">
+      <!-- Step 1: Personal Information -->
+      <div class="form-section" *ngIf="currentStep === 1">
+        <div class="section-header">
+          <h2><i class="fas fa-user"></i> Personal Information</h2>
+          <p>Tell us about yourself and provide your contact details</p>
+        </div>
+
+        <!-- Profile Picture Section -->
+        <div class="profile-image-section">
+          <h3 class="section-subtitle">Profile Picture</h3>
+
+          <div class="profile-image-container">
+            <div class="profile-image-preview">
+              <img
+                [src]="getProfileImageUrl()"
+                alt="Profile Picture"
+                class="profile-image"
+              />
+              <div class="image-overlay">
+                <i class="fas fa-camera"></i>
+              </div>
+            </div>
+
+            <div class="profile-image-actions">
+              <input
+                type="file"
+                #profileImageInput
+                (change)="onProfileImageSelected($event)"
+                accept="image/*"
+                style="display: none"
+              />
+
+              <button
+                type="button"
+                class="btn btn-upload"
+                (click)="triggerProfileImageUpload()"
+              >
+                <i class="fas fa-upload"></i>
+                {{
+                  cvData.personalInfo.profileImage
+                    ? "Change Photo"
+                    : "Upload Photo"
+                }}
+              </button>
+
+              <button
+                type="button"
+                class="btn btn-remove"
+                (click)="removeProfileImage()"
+                *ngIf="cvData.personalInfo.profileImage || profileImagePreview"
+              >
+                <i class="fas fa-trash"></i>
+                Remove Photo
+              </button>
+
+              <p class="upload-hint">
+                <i class="fas fa-info-circle"></i>
+                Recommended: Square image, max 5MB (JPEG, PNG, GIF, WebP)
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Other personal info fields -->
+        <div class="form-grid">
+          <div class="form-group full-width">
+            <label for="fullName"
+              >Full Name <span class="required">*</span></label
+            >
+            <input
+              type="text"
+              id="fullName"
+              [(ngModel)]="cvData.personalInfo.fullName"
+              placeholder="Enter your full name"
+              required
+            />
+          </div>
+
+          <div class="form-group">
+            <label for="email"
+              >Email Address <span class="required">*</span></label
+            >
+            <input
+              type="email"
+              id="email"
+              [(ngModel)]="cvData.personalInfo.email"
+              placeholder="your.email@example.com"
+              required
+            />
+          </div>
+
+          <div class="form-group">
+            <label for="phone"
+              >Phone Number <span class="required">*</span></label
+            >
+            <input
+              type="tel"
+              id="phone"
+              [(ngModel)]="cvData.personalInfo.phone"
+              placeholder="+254 700 000 000"
+              required
+            />
+          </div>
+
+          <div class="form-group full-width">
+            <label for="address">Address</label>
+            <input
+              type="text"
+              id="address"
+              [(ngModel)]="cvData.personalInfo.address"
+              placeholder="City, Country"
+            />
+          </div>
+
+          <div class="form-group">
+            <label for="linkedin">LinkedIn Profile</label>
+            <input
+              type="url"
+              id="linkedin"
+              [(ngModel)]="cvData.personalInfo.linkedIn"
+              placeholder="https://linkedin.com/in/yourprofile"
+            />
+          </div>
+
+          <div class="form-group">
+            <label for="website">Personal Website</label>
+            <input
+              type="url"
+              id="website"
+              [(ngModel)]="cvData.personalInfo.website"
+              placeholder="https://yourwebsite.com"
+            />
+          </div>
+
+          <div class="form-group full-width">
+            <label for="summary"
+              >Professional Summary <span class="required">*</span></label
+            >
+            <textarea
+              id="summary"
+              [(ngModel)]="cvData.personalInfo.professionalSummary"
+              rows="4"
+              placeholder="Write a brief summary of your professional background and career objectives..."
+              required
+            ></textarea>
+            <small class="form-hint">
+              Tip: Keep it concise and highlight your key strengths and career
+              goals
+            </small>
+          </div>
+        </div>
+      </div>
+
+      <!-- Step 2: Education -->
+      <div class="form-section" *ngIf="currentStep === 2">
+        <div class="section-header">
+          <h2><i class="fas fa-graduation-cap"></i> Education</h2>
+          <p>Add your educational background</p>
+          <button
+            class="btn btn-outline"
+            (click)="addEducation()"
+            type="button"
+          >
+            <i class="fas fa-plus"></i> Add Education
+          </button>
+        </div>
+
+        <div class="education-entries">
+          <div
+            class="entry-card"
+            *ngFor="let edu of cvData.education; let i = index"
+          >
+            <div class="entry-header">
+              <h3>Education Entry {{ i + 1 }}</h3>
+              <button
+                class="btn-icon delete"
+                (click)="removeEducation(edu.id!)"
+                type="button"
+              >
+                <i class="fas fa-trash"></i>
+              </button>
+            </div>
+
+            <div class="form-grid">
+              <div class="form-group">
+                <label>Institution <span class="required">*</span></label>
+                <input
+                  type="text"
+                  [(ngModel)]="edu.institution"
+                  placeholder="University/School name"
+                  required
+                />
+              </div>
+
+              <div class="form-group">
+                <label>Degree <span class="required">*</span></label>
+                <input
+                  type="text"
+                  [(ngModel)]="edu.degree"
+                  placeholder="Bachelor's, Master's, etc."
+                  required
+                />
+              </div>
+
+              <div class="form-group">
+                <label>Field of Study</label>
+                <input
+                  type="text"
+                  [(ngModel)]="edu.fieldOfStudy"
+                  placeholder="Computer Science, Business, etc."
+                />
+              </div>
+
+              <div class="form-group">
+                <label>GPA (Optional)</label>
+                <input
+                  type="text"
+                  [(ngModel)]="edu.gpa"
+                  placeholder="3.8/4.0"
+                />
+              </div>
+
+              <div class="form-group">
+                <label>Start Year</label>
+                <input
+                  type="number"
+                  [(ngModel)]="edu.startYear"
+                  min="1950"
+                  max="2030"
+                  placeholder="2020"
+                />
+              </div>
+
+              <div class="form-group">
+                <label>End Year</label>
+                <input
+                  type="number"
+                  [(ngModel)]="edu.endYear"
+                  min="1950"
+                  max="2030"
+                  placeholder="2024"
+                />
+              </div>
+
+              <div class="form-group full-width">
+                <label>Achievements & Awards</label>
+                <textarea
+                  [(ngModel)]="edu.achievements"
+                  rows="3"
+                  placeholder="Dean's list, scholarships, honors, relevant coursework..."
+                ></textarea>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="empty-state" *ngIf="cvData.education.length === 0">
+          <i class="fas fa-graduation-cap"></i>
+          <h3>No Education Added Yet</h3>
+          <p>Click "Add Education" to get started</p>
+        </div>
+      </div>
+
+      <!-- Step 3: Work Experience -->
+      <div class="form-section" *ngIf="currentStep === 3">
+        <div class="section-header">
+          <h2><i class="fas fa-briefcase"></i> Work Experience</h2>
+          <p>Add your work experience and achievements</p>
+          <button
+            class="btn btn-outline"
+            (click)="addWorkExperience()"
+            type="button"
+          >
+            <i class="fas fa-plus"></i> Add Work Experience
+          </button>
+        </div>
+
+        <div class="work-entries">
+          <div
+            class="entry-card"
+            *ngFor="let work of cvData.workExperience; let i = index"
+          >
+            <div class="entry-header">
+              <h3>Work Experience {{ i + 1 }}</h3>
+              <button
+                class="btn-icon delete"
+                (click)="removeWorkExperience(work.id!)"
+                type="button"
+              >
+                <i class="fas fa-trash"></i>
+              </button>
+            </div>
+
+            <div class="form-grid">
+              <div class="form-group">
+                <label>Company <span class="required">*</span></label>
+                <input
+                  type="text"
+                  [(ngModel)]="work.company"
+                  placeholder="Company name"
+                  required
+                />
+              </div>
+
+              <div class="form-group">
+                <label>Position <span class="required">*</span></label>
+                <input
+                  type="text"
+                  [(ngModel)]="work.position"
+                  placeholder="Job title"
+                  required
+                />
+              </div>
+
+              <div class="form-group">
+                <label>Start Date</label>
+                <input type="month" [(ngModel)]="work.startDate" />
+              </div>
+
+              <div class="form-group">
+                <label>End Date</label>
+                <input
+                  type="month"
+                  [(ngModel)]="work.endDate"
+                  [disabled]="!!work.current"
+                />
+              </div>
+
+              <div class="form-group full-width">
+                <label class="checkbox-label">
+                  <input
+                    type="checkbox"
+                    [(ngModel)]="work.current"
+                    (change)="onCurrentJobChange(work)"
+                  />
+                  <span class="checkmark"></span>
+                  I currently work here
+                </label>
+              </div>
+
+              <div class="form-group full-width">
+                <label>Key Responsibilities</label>
+                <textarea
+                  [(ngModel)]="work.responsibilities"
+                  rows="4"
+                  placeholder="Describe your main responsibilities and duties..."
+                ></textarea>
+              </div>
+
+              <div class="form-group full-width">
+                <label>Key Achievements</label>
+                <textarea
+                  [(ngModel)]="work.achievements"
+                  rows="3"
+                  placeholder="Highlight your accomplishments and impact..."
+                ></textarea>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="empty-state" *ngIf="cvData.workExperience.length === 0">
+          <i class="fas fa-briefcase"></i>
+          <h3>No Work Experience Added Yet</h3>
+          <p>Click "Add Work Experience" to get started</p>
+        </div>
+      </div>
+
+      <!-- Step 4: Skills -->
+      <div class="form-section" *ngIf="currentStep === 4">
+        <div class="section-header">
+          <h2><i class="fas fa-cogs"></i> Skills</h2>
+          <p>Add your technical and soft skills</p>
+          <button class="btn btn-outline" (click)="addSkill()" type="button">
+            <i class="fas fa-plus"></i> Add Skill
+          </button>
+        </div>
+
+        <div class="skills-grid">
+          <div
+            class="skill-card"
+            *ngFor="let skill of cvData.skills; let i = index"
+          >
+            <div class="skill-header">
+              <input
+                type="text"
+                [(ngModel)]="skill.name"
+                class="skill-input"
+                placeholder="Skill name"
+                list="availableSkills"
+              />
+              <datalist id="availableSkills">
+                <option
+                  *ngFor="let availableSkill of availableSkills"
+                  [value]="availableSkill"
+                ></option>
+              </datalist>
+              <button
+                class="btn-icon delete"
+                (click)="removeSkill(i)"
+                type="button"
+              >
+                <i class="fas fa-times"></i>
+              </button>
+            </div>
+
+            <div class="skill-details">
+              <div class="form-group">
+                <label>Category</label>
+                <select [(ngModel)]="skill.category">
+                  <option
+                    *ngFor="let category of skillCategories"
+                    [value]="category"
+                  >
+                    {{ category }}
+                  </option>
+                </select>
+              </div>
+
+              <div class="form-group">
+                <label>Proficiency Level</label>
+                <select [(ngModel)]="skill.level">
+                  <option *ngFor="let level of skillLevels" [value]="level">
+                    {{ level }}
+                  </option>
+                </select>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="empty-state" *ngIf="cvData.skills.length === 0">
+          <i class="fas fa-cogs"></i>
+          <h3>No Skills Added Yet</h3>
+          <p>Click "Add Skill" to get started</p>
+        </div>
+      </div>
+
+      <!-- Step 5: Certifications -->
+      <div class="form-section" *ngIf="currentStep === 5">
+        <div class="section-header">
+          <h2><i class="fas fa-certificate"></i> Certifications</h2>
+          <p>Add your professional certifications and training</p>
+          <button
+            class="btn btn-outline"
+            (click)="addCertification()"
+            type="button"
+          >
+            <i class="fas fa-plus"></i> Add Certification
+          </button>
+        </div>
+
+        <div class="certification-entries">
+          <div
+            class="entry-card"
+            *ngFor="let cert of cvData.certifications; let i = index"
+          >
+            <div class="entry-header">
+              <h3>Certification {{ i + 1 }}</h3>
+              <button
+                class="btn-icon delete"
+                (click)="removeCertification(cert.id!)"
+                type="button"
+              >
+                <i class="fas fa-trash"></i>
+              </button>
+            </div>
+
+            <div class="form-grid">
+              <div class="form-group">
+                <label
+                  >Certification Name <span class="required">*</span></label
+                >
+                <input
+                  type="text"
+                  [(ngModel)]="cert.name"
+                  placeholder="AWS Certified Solutions Architect"
+                  required
+                />
+              </div>
+
+              <div class="form-group">
+                <label
+                  >Issuing Organization <span class="required">*</span></label
+                >
+                <input
+                  type="text"
+                  [(ngModel)]="cert.issuer"
+                  placeholder="Amazon Web Services"
+                  required
+                />
+              </div>
+
+              <div class="form-group">
+                <label>Issue Date</label>
+                <input type="month" [(ngModel)]="cert.dateIssued" />
+              </div>
+
+              <div class="form-group">
+                <label>Expiry Date</label>
+                <input type="month" [(ngModel)]="cert.expiryDate" />
+              </div>
+
+              <div class="form-group full-width">
+                <label>Credential ID</label>
+                <input
+                  type="text"
+                  [(ngModel)]="cert.credentialId"
+                  placeholder="Credential ID or verification link"
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="empty-state" *ngIf="cvData.certifications.length === 0">
+          <i class="fas fa-certificate"></i>
+          <h3>No Certifications Added Yet</h3>
+          <p>Click "Add Certification" to get started</p>
+        </div>
+      </div>
+
+      <!-- Step 6: Projects -->
+      <div class="form-section" *ngIf="currentStep === 6">
+        <div class="section-header">
+          <h2><i class="fas fa-project-diagram"></i> Projects</h2>
+          <p>Showcase your key projects and achievements</p>
+          <button class="btn btn-outline" (click)="addProject()" type="button">
+            <i class="fas fa-plus"></i> Add Project
+          </button>
+        </div>
+
+        <div class="project-entries">
+          <div
+            class="entry-card"
+            *ngFor="let project of cvData.projects; let i = index"
+          >
+            <div class="entry-header">
+              <h3>Project {{ i + 1 }}</h3>
+              <button
+                class="btn-icon delete"
+                (click)="removeProject(project.id!)"
+                type="button"
+              >
+                <i class="fas fa-trash"></i>
+              </button>
+            </div>
+
+            <div class="form-grid">
+              <div class="form-group">
+                <label>Project Name <span class="required">*</span></label>
+                <input
+                  type="text"
+                  [(ngModel)]="project.name"
+                  placeholder="E-commerce Platform"
+                  required
+                />
+              </div>
+
+              <div class="form-group">
+                <label>Technologies Used</label>
+                <input
+                  type="text"
+                  [(ngModel)]="project.technologies"
+                  placeholder="React, Node.js, MongoDB"
+                />
+              </div>
+
+              <div class="form-group">
+                <label>Start Date</label>
+                <input type="month" [(ngModel)]="project.startDate" />
+              </div>
+
+              <div class="form-group">
+                <label>End Date</label>
+                <input type="month" [(ngModel)]="project.endDate" />
+              </div>
+
+              <div class="form-group full-width">
+                <label>Project Description</label>
+                <textarea
+                  [(ngModel)]="project.description"
+                  rows="3"
+                  placeholder="Describe what this project does and your role..."
+                ></textarea>
+              </div>
+
+              <div class="form-group">
+                <label>GitHub Link</label>
+                <input
+                  type="url"
+                  [(ngModel)]="project.githubLink"
+                  placeholder="https://github.com/yourusername/project"
+                />
+              </div>
+
+              <div class="form-group">
+                <label>Demo Link</label>
+                <input
+                  type="url"
+                  [(ngModel)]="project.demoLink"
+                  placeholder="https://yourproject.com"
+                />
+              </div>
+
+              <div class="form-group full-width">
+                <label>Key Outcomes & Impact</label>
+                <textarea
+                  [(ngModel)]="project.outcomes"
+                  rows="3"
+                  placeholder="What were the results and impact of this project?"
+                ></textarea>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="empty-state" *ngIf="cvData.projects.length === 0">
+          <i class="fas fa-project-diagram"></i>
+          <h3>No Projects Added Yet</h3>
+          <p>Click "Add Project" to get started</p>
+        </div>
+      </div>
+
+      <!-- Navigation Buttons -->
+      <div class="form-navigation">
+        <button
+          class="btn btn-outline"
+          (click)="prevStep()"
+          [disabled]="currentStep === 1"
+          type="button"
+        >
+          <i class="fas fa-arrow-left"></i> Previous
+        </button>
+
+        <div class="step-indicator">
+          Step {{ currentStep }} of {{ totalSteps }}
+        </div>
+
+        <button
+          class="btn btn-primary"
+          (click)="nextStep()"
+          [disabled]="currentStep === totalSteps"
+          type="button"
+        >
+          Next <i class="fas fa-arrow-right"></i>
+        </button>
+      </div>
+    </div>
+
+    <!-- CV Preview -->
+    <div class="cv-preview-container" *ngIf="previewMode">
+      <div class="preview-header">
+        <h2><i class="fas fa-eye"></i> CV Preview</h2>
+        <div class="preview-actions">
+          <button class="btn btn-outline" (click)="downloadPDF()" type="button">
+            <i class="fas fa-file-pdf"></i> Download PDF
+          </button>
+          <button
+            class="btn btn-outline"
+            (click)="downloadWord()"
+            type="button"
+          >
+            <i class="fas fa-file-word"></i> Download Word
+          </button>
+        </div>
+      </div>
+
+      <div class="cv-preview">
+        <div class="cv-document">
+          <!-- CV Header -->
+          <div class="cv-header">
+            <div class="cv-personal-info">
+              <h1 class="cv-name">
+                {{ cvData.personalInfo.fullName || "Your Name" }}
+              </h1>
+              <div class="cv-contact">
+                <div class="contact-item" *ngIf="cvData.personalInfo.email">
+                  <i class="fas fa-envelope"></i>
+                  {{ cvData.personalInfo.email }}
+                </div>
+                <div class="contact-item" *ngIf="cvData.personalInfo.phone">
+                  <i class="fas fa-phone"></i>
+                  {{ cvData.personalInfo.phone }}
+                </div>
+                <div class="contact-item" *ngIf="cvData.personalInfo.address">
+                  <i class="fas fa-map-marker-alt"></i>
+                  {{ cvData.personalInfo.address }}
+                </div>
+                <div class="contact-item" *ngIf="cvData.personalInfo.linkedIn">
+                  <i class="fab fa-linkedin"></i>
+                  <a [href]="cvData.personalInfo.linkedIn" target="_blank"
+                    >LinkedIn Profile</a
+                  >
+                </div>
+                <div class="contact-item" *ngIf="cvData.personalInfo.website">
+                  <i class="fas fa-globe"></i>
+                  <a [href]="cvData.personalInfo.website" target="_blank">{{
+                    cvData.personalInfo.website
+                  }}</a>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Professional Summary -->
+          <div
+            class="cv-section"
+            *ngIf="cvData.personalInfo.professionalSummary"
+          >
+            <h2 class="cv-section-title">Professional Summary</h2>
+            <p class="cv-summary">
+              {{ cvData.personalInfo.professionalSummary }}
+            </p>
+          </div>
+
+          <!-- Education Section -->
+          <div class="cv-section" *ngIf="cvData.education.length > 0">
+            <h2 class="cv-section-title">Education</h2>
+            <div class="cv-education-item" *ngFor="let edu of cvData.education">
+              <div class="cv-item-header">
+                <h3 class="cv-item-title">
+                  {{ edu.degree }}
+                  {{ edu.fieldOfStudy ? "in " + edu.fieldOfStudy : "" }}
+                </h3>
+                <span class="cv-item-date"
+                  >{{ edu.startYear }} - {{ edu.endYear || "Present" }}</span
+                >
+              </div>
+              <p class="cv-item-subtitle">{{ edu.institution }}</p>
+              <p class="cv-item-gpa" *ngIf="edu.gpa">GPA: {{ edu.gpa }}</p>
+              <p class="cv-item-description" *ngIf="edu.achievements">
+                {{ edu.achievements }}
+              </p>
+            </div>
+          </div>
+
+          <!-- Work Experience Section -->
+          <div class="cv-section" *ngIf="cvData.workExperience.length > 0">
+            <h2 class="cv-section-title">Work Experience</h2>
+            <div
+              class="cv-work-item"
+              *ngFor="let work of cvData.workExperience"
+            >
+              <div class="cv-item-header">
+                <h3 class="cv-item-title">{{ work.position }}</h3>
+                <span class="cv-item-date">
+                  {{ work.startDate | date: "MMM yyyy" }} -
+                  {{
+                    work.current ? "Present" : (work.endDate | date: "MMM yyyy")
+                  }}
+                </span>
+              </div>
+              <p class="cv-item-subtitle">{{ work.company }}</p>
+              <p class="cv-item-description" *ngIf="work.responsibilities">
+                {{ work.responsibilities }}
+              </p>
+              <p class="cv-item-achievements" *ngIf="work.achievements">
+                <strong>Key Achievements:</strong> {{ work.achievements }}
+              </p>
+            </div>
+          </div>
+
+          <!-- Skills Section -->
+          <div class="cv-section" *ngIf="cvData.skills.length > 0">
+            <h2 class="cv-section-title">Skills</h2>
+            <div class="cv-skills">
+              <div
+                class="skill-category"
+                *ngFor="let category of getSkillCategories()"
+              >
+                <h4 class="skill-category-title">{{ category }}</h4>
+                <div class="skill-items">
+                  <span
+                    class="skill-tag"
+                    *ngFor="let skill of getSkillsByCategory(category)"
+                  >
+                    {{ skill.name }} ({{ skill.level }})
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Certifications Section -->
+          <div class="cv-section" *ngIf="cvData.certifications.length > 0">
+            <h2 class="cv-section-title">Certifications</h2>
+            <div
+              class="cv-cert-item"
+              *ngFor="let cert of cvData.certifications"
+            >
+              <div class="cv-item-header">
+                <h3 class="cv-item-title">{{ cert.name }}</h3>
+                <span class="cv-item-date">
+                  {{ cert.dateIssued | date: "MMM yyyy" }}
+                  <span *ngIf="cert.expiryDate">
+                    - {{ cert.expiryDate | date: "MMM yyyy" }}</span
+                  >
+                </span>
+              </div>
+              <p class="cv-item-subtitle">{{ cert.issuer }}</p>
+              <p class="cv-item-credential" *ngIf="cert.credentialId">
+                Credential ID: {{ cert.credentialId }}
+              </p>
+            </div>
+          </div>
+
+          <!-- Projects Section -->
+          <div class="cv-section" *ngIf="cvData.projects.length > 0">
+            <h2 class="cv-section-title">Key Projects</h2>
+            <div
+              class="cv-project-item"
+              *ngFor="let project of cvData.projects"
+            >
+              <div class="cv-item-header">
+                <h3 class="cv-item-title">{{ project.name }}</h3>
+                <span class="cv-item-date" *ngIf="project.startDate">
+                  {{ project.startDate | date: "MMM yyyy" }} -
+                  {{
+                    project.endDate
+                      ? (project.endDate | date: "MMM yyyy")
+                      : "Present"
+                  }}
+                </span>
+              </div>
+              <p class="cv-item-subtitle" *ngIf="project.description">
+                {{ project.description }}
+              </p>
+              <p class="cv-item-technologies" *ngIf="project.technologies">
+                <strong>Technologies:</strong> {{ project.technologies }}
+              </p>
+              <div class="cv-project-links">
+                <a
+                  *ngIf="project.githubLink"
+                  [href]="project.githubLink"
+                  target="_blank"
+                  class="project-link"
+                >
+                  <i class="fab fa-github"></i> GitHub
+                </a>
+                <a
+                  *ngIf="project.demoLink"
+                  [href]="project.demoLink"
+                  target="_blank"
+                  class="project-link"
+                >
+                  <i class="fas fa-external-link-alt"></i> Demo
+                </a>
+              </div>
+              <p class="cv-item-outcomes" *ngIf="project.outcomes">
+                <strong>Outcomes:</strong> {{ project.outcomes }}
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Notification -->
+    <div
+      class="notification"
+      *ngIf="showNotification"
+      [ngClass]="notificationType"
+    >
+      <i [ngClass]="getNotificationIcon()"></i>
+      <span>{{ notificationMessage }}</span>
+      <button
+        class="close-btn"
+        (click)="showNotification = false"
+        type="button"
+      >
+        &times;
+      </button>
+    </div>
+  </div>
+</div>
