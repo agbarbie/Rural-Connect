@@ -1,12 +1,30 @@
 {
   "name": "ruralconnect",
-  "version": "0.0.0",
+  "version": "1.0.0",
+  "main": "electron-main.js",
   "scripts": {
     "ng": "ng",
     "start": "ng serve --proxy-config proxy.conf.json",
     "build": "ng build && node copy-200.js",
+    "electron": "electron .",
+    "electron:build": "ng build && node copy-200.js && electron-builder build --win --x64",
     "watch": "ng build --watch --configuration development",
     "test": "ng test"
+  },
+  "build": {
+    "appId": "com.ruralconnect.app",
+    "productName": "RuralConnect",
+    "directories": {
+      "output": "RuralConnect-Desktop"
+    },
+    "win": {
+      "target": "portable"
+    },
+    "files": [
+      "dist/ruralconnect/browser/**/*",
+      "electron-main.js",
+      "node_modules/**/*"
+    ]
   },
   "private": true,
   "dependencies": {
@@ -31,6 +49,8 @@
     "@types/jasminewd2": "^2.0.13",
     "@types/uuid": "^10.0.0",
     "angular-in-memory-web-api": "^0.19.0",
+    "electron": "^35.0.0",
+    "electron-builder": "^26.0.0",
     "jasmine-core": "~5.6.0",
     "karma": "~6.4.0",
     "karma-chrome-launcher": "~3.2.0",
